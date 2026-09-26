@@ -1,0 +1,91 @@
+# WSL setup for Focus Stack.
+# Install go-task once, then run `task setup` from this directory:
+#   curl -sSfL https://taskfile.dev/install.sh | sh -s -- -d -b ~/.local/bin
+#   echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc && source ~/.bashrc
+version: "3"
+
+set: [errexit, pipefail]
+shell: bash
+
+vars:
+  ANDROID_SDK: "{{.HOME}}/Android/Sdk"
+  CMDLINE_URL: https://dl.google.com/android/repository/commandlinetools-linux-15859902_latest.zip
+
+env:
+  ANDROID_HOME: "{{.ANDROID_SDK}}"
+  ANDROID_SDK_ROOT: "{{.ANDROID_SDK}}"
+
+tasks:
+  setup:
+    desc: Install JDK 21 and Android SDK 37.2 in WSL, and point this project at it
+    platforms: [linux]
+    cmds:
+      - sudo apt-get update
+      - sudo apt-get install -y openjdk-21-jdk wget unzip
+      - |
+        sdk="{{.ANDROID_SDK}}"
+        mkdir -p "$sdk/cmdline-tools"
+        if [[ ! -x "$sdk/cmdline-tools/latest/bin/sdkmanager" ]]; then
+          tmp="$(mktemp -d)"
+          wget -q -O "$tmp/cmdline.zip" "{{.CMDLINE_URL}}"
+          unzip -q "$tmp/cmdline.zip" -d "$tmp"
+          rm -rf "$sdk/cmdline-tools/latest"
+          mkdir -p "$sdk/cmdline-tools/latest"
+          mv "$tmp/cmdline-tools/"* "$sdk/cmdline-tools/latest/"
+          rm -rf "$tmp"
+        fi
+      - |
+        marker="# focus-stack android sdk"
+        if ! grep -qF "$marker" "$HOME/.bashrc"; then
+          printf '%s\n' \
+            "$marker" \
+            'export ANDROID_HOME="$HOME/Android/Sdk"' \
+            'export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH"' \
+            >> "$HOME/.bashrc"
+        fi
+      - |
+        export ANDROID_HOME="{{.ANDROID_SDK}}"
+        export ANDROID_SDK_ROOT="$ANDROID_HOME"
+        export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH"
+        yes | sdkmanager --licenses >/dev/null || true
+        sdkmanager "platform-tools" "platforms;android-37.2" "build-tools;37.0.0"
+      - echo "sdk.dir={{.ANDROID_SDK}}" > local.properties
+      - 'echo "SDK ready at {{.ANDROID_SDK}}. Next, run source ~/.bashrc"'
+
+  test:
+    desc: Run the unit tests
+    platforms: [linux]
+    deps: [local-sdk]
+    cmds:
+      - ./gradlew test
+
+  assemble:
+    desc: Build the debug APK
+    platforms: [linux]
+    deps: [local-sdk]
+    cmds:
+      - ./gradlew assembleDebug
+
+  install:
+    desc: Install the debug APK on the Windows emulator from WSL
+    platforms: [linux]
+    deps: [assemble]
+    cmds:
+      - |
+        if ! command -v cmd.exe >/dev/null; then
+          echo "Run this from WSL. It uses the Windows emulator's adb." >&2
+          exit 1
+        fi
+        adb="$(cmd.exe /c 'echo %LOCALAPPDATA%\Android\Sdk\platform-tools\adb.exe' | tr -d '\r')"
+        "$adb" install -r app/build/outputs/apk/debug/app-debug.apk
+
+  local-sdk:
+    internal: true
+    platforms: [linux]
+    cmds:
+      - |
+        if [[ ! -d "{{.ANDROID_SDK}}/platforms/android-37.2" ]]; then
+          echo "Android SDK is missing. Run: task setup" >&2
+          exit 1
+        fi
+        echo "sdk.dir={{.ANDROID_SDK}}" > local.properties
