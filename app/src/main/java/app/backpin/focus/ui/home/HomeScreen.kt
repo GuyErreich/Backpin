@@ -1,8 +1,11 @@
 package app.backpin.focus.ui.home
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,13 +31,17 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -64,12 +71,19 @@ import app.backpin.focus.ui.SlotRole
 import app.backpin.focus.ui.SlotUi
 import app.backpin.focus.ui.TaskUi
 import app.backpin.focus.ui.focus.RecoveryCard
+import app.backpin.focus.ui.motion.MotionSpec
+import app.backpin.focus.ui.motion.WithoutRipple
+import app.backpin.focus.ui.motion.motionSpec
+import app.backpin.focus.ui.motion.pressScale
+import app.backpin.focus.ui.motion.rememberPressSource
 import app.backpin.focus.ui.motion.rememberReducedMotion
 import app.backpin.focus.ui.theme.CardRadius
 import app.backpin.focus.ui.theme.FocusColors
 import app.backpin.focus.ui.theme.Space
+import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @Composable
 fun HomeScreen(
@@ -157,6 +171,7 @@ private fun NowCard(
         now != null -> {
             val accent = if (now.isInterruption) FocusColors.Amber else FocusColors.Mint
             val label = if (now.isInterruption) "INTERRUPTED" else "NOW"
+            val openInteraction = rememberPressSource()
             SwipeRevealCard(
                 towardStart = doneSwipe(viewModel::completeActive),
                 towardEnd = laterSwipe { viewModel.demote(now.taskId) },
@@ -168,7 +183,13 @@ private fun NowCard(
                         Modifier
                             .fillMaxWidth()
                             .semantics { contentDescription = "$label. ${now.title}. Opens focus." }
-                            .clickable(role = Role.Button, onClick = onOpenFocus),
+                            .pressScale(openInteraction)
+                            .clickable(
+                                interactionSource = openInteraction,
+                                indication = null,
+                                role = Role.Button,
+                                onClick = onOpenFocus,
+                            ),
                     shape = RoundedCornerShape(CardRadius),
                     color = FocusColors.Surface,
                     border = BorderStroke(2.dp, accent),
@@ -239,7 +260,13 @@ private fun TodaySection(
     onReorder: (List<String>) -> Unit,
 ) {
     val drag = remember { TodayDragState() }
-    val ids = filled.map { it.second.id }
+    var rows by remember { mutableStateOf(filled) }
+    var snapToken by remember { mutableIntStateOf(0) }
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(filled) {
+        if (!drag.holding) rows = filled
+    }
+    val ids = rows.map { it.second.id }
     drag.ids = ids
     val draggingId = drag.draggingId
     val offsetY = drag.offsetY
@@ -253,64 +280,99 @@ private fun TodaySection(
         } else {
             (fromIndex + (offsetY / step).roundToInt()).coerceIn(0, ids.lastIndex)
         }
+    fun settle(commitNearest: Boolean) {
+        val release = drag.release(commitNearest) ?: return
+        release.order?.let(onReorder)
+        if (reducedMotion || !release.animate) {
+            release.order?.let { order -> rows = rows.reordered(order) }
+            drag.clear()
+            snapToken++
+            return
+        }
+        scope.launch {
+            delay(MotionSpec.ReorderMillis.toLong())
+            release.order?.let { order -> rows = rows.reordered(order) }
+            drag.clear()
+            snapToken++
+        }
+    }
     val slotLabel = if (todayLimit == 1) "1 slot" else "$todayLimit slots"
     Column(verticalArrangement = Arrangement.spacedBy(Space)) {
         SectionLabel("TODAY", slotLabel)
-        filled.forEachIndexed { index, (slot, task) ->
-            val shift =
-                when {
-                    draggingId == null || fromIndex < 0 || targetIndex < 0 -> 0f
-                    task.id == draggingId -> offsetY
-                    fromIndex < targetIndex && index in (fromIndex + 1)..targetIndex -> -step
-                    targetIndex < fromIndex && index in targetIndex until fromIndex -> step
-                    else -> 0f
-                }
-            val reorderActions =
-                listOfNotNull(
-                    if (index > 0) {
-                        CustomAccessibilityAction("Move up") {
-                            onReorder(move(ids, index, index - 1))
-                            true
-                        }
-                    } else {
-                        null
-                    },
-                    if (index < ids.lastIndex) {
-                        CustomAccessibilityAction("Move down") {
-                            onReorder(move(ids, index, index + 1))
-                            true
-                        }
-                    } else {
-                        null
-                    },
-                )
-            Box(
-                Modifier
-                    .zIndex(if (task.id == draggingId) 1f else 0f)
-                    .onGloballyPositioned { coordinates ->
-                        val height = coordinates.size.height.toFloat()
-                        if (height > 1f) drag.rowHeight = height
+        rows.forEachIndexed { index, (slot, task) ->
+            key(task.id) {
+                val targetShift =
+                    when {
+                        draggingId == null || fromIndex < 0 || targetIndex < 0 -> 0f
+                        task.id == draggingId -> offsetY
+                        fromIndex < targetIndex && index in (fromIndex + 1)..targetIndex -> -step
+                        targetIndex < fromIndex && index in targetIndex until fromIndex -> step
+                        else -> 0f
                     }
-                    .offset { IntOffset(0, shift.roundToInt()) },
-            ) {
-                TodayRow(
-                    index = index,
-                    slot = slot,
-                    task = task,
-                    dragging = task.id == draggingId,
-                    reducedMotion = reducedMotion,
-                    reorderActions = reorderActions,
-                    onOpen = onOpenFocus,
-                    onStart = { onStart(task.id) },
-                    onDone = { onDone(task.id) },
-                    onLater = { onLater(task.id) },
-                    onDragStart = { drag.begin(task.id) },
-                    onDragBy = drag::dragBy,
-                    onDragEnd = {
-                        drag.finish()?.let(onReorder)
-                    },
-                    onDragCancel = drag::cancel,
+                val followFinger = task.id == draggingId && !drag.settling
+                val shift =
+                    rememberRowShift(
+                        target = targetShift,
+                        followFinger = followFinger,
+                        reducedMotion = reducedMotion,
+                        snapToken = snapToken,
+                    )
+                val reorderActions =
+                    listOfNotNull(
+                        if (index > 0) {
+                            CustomAccessibilityAction("Move up") {
+                                onReorder(move(ids, index, index - 1))
+                                true
+                            }
+                        } else {
+                            null
+                        },
+                        if (index < ids.lastIndex) {
+                            CustomAccessibilityAction("Move down") {
+                                onReorder(move(ids, index, index + 1))
+                                true
+                            }
+                        } else {
+                            null
+                        },
+                    )
+                val lifted = task.id == draggingId
+                val lift by animateFloatAsState(
+                    targetValue = if (lifted) 1f else 0f,
+                    animationSpec = motionSpec(MotionSpec.LiftMillis, reducedMotion),
+                    label = "todayLift",
                 )
+                Box(
+                    Modifier
+                        .zIndex(if (lifted) 1f else 0f)
+                        .onGloballyPositioned { coordinates ->
+                            val height = coordinates.size.height.toFloat()
+                            if (height > 1f) drag.rowHeight = height
+                        }
+                        .offset { IntOffset(0, shift.roundToInt()) }
+                        .graphicsLayer {
+                            val scale = if (reducedMotion) 1f else 1f + (MotionSpec.LiftScale - 1f) * lift
+                            scaleX = scale
+                            scaleY = scale
+                        },
+                ) {
+                    TodayRow(
+                        index = index,
+                        slot = slot,
+                        task = task,
+                        lift = if (reducedMotion) if (lifted) 1f else 0f else lift,
+                        reducedMotion = reducedMotion,
+                        reorderActions = reorderActions,
+                        onOpen = onOpenFocus,
+                        onStart = { onStart(task.id) },
+                        onDone = { onDone(task.id) },
+                        onLater = { onLater(task.id) },
+                        onDragStart = { drag.begin(task.id) },
+                        onDragBy = drag::dragBy,
+                        onDragEnd = { settle(commitNearest = true) },
+                        onDragCancel = { settle(commitNearest = false) },
+                    )
+                }
             }
         }
         if (hasRoom) {
@@ -319,9 +381,42 @@ private fun TodaySection(
     }
 }
 
+@Composable
+private fun rememberRowShift(
+    target: Float,
+    followFinger: Boolean,
+    reducedMotion: Boolean,
+    snapToken: Int,
+): Float {
+    var shift by remember { mutableFloatStateOf(target) }
+    var seenToken by remember { mutableIntStateOf(snapToken) }
+    val snap = followFinger || reducedMotion || seenToken != snapToken
+    if (seenToken != snapToken) seenToken = snapToken
+    if (snap && shift != target) shift = target
+    LaunchedEffect(target, followFinger, reducedMotion, snapToken) {
+        if (followFinger || reducedMotion || shift == target) {
+            shift = target
+        } else {
+            androidx.compose.animation.core.animate(
+                initialValue = shift,
+                targetValue = target,
+                animationSpec = MotionSpec.easeOut(MotionSpec.ReorderMillis),
+            ) { value, _ ->
+                shift = value
+            }
+        }
+    }
+    return shift
+}
+
+private data class DragRelease(
+    val animate: Boolean,
+    val order: List<String>?,
+)
+
 /**
  * Finger offset for a long-press reorder inside Today.
- * [finish] returns a permutation of the current Today ids, or null when the order did not change.
+ * [release] keeps the card in place until the settle animation finishes.
  */
 private class TodayDragState {
     var ids: List<String> = emptyList()
@@ -329,38 +424,55 @@ private class TodayDragState {
     var offsetY: Float by mutableFloatStateOf(0f)
     var rowHeight: Float by mutableFloatStateOf(0f)
     var step: Float = 0f
+    var settling by mutableStateOf(false)
+
+    val holding: Boolean
+        get() = draggingId != null
 
     fun begin(id: String) {
+        if (settling) return
         draggingId = id
         offsetY = 0f
+        settling = false
     }
 
     fun dragBy(deltaY: Float) {
-        if (draggingId == null) return
+        if (draggingId == null || settling) return
         offsetY += deltaY
     }
 
-    fun finish(): List<String>? {
-        val id = draggingId
-        val from = if (id == null) -1 else ids.indexOf(id)
-        val height = rowHeight
-        val offset = offsetY
-        val stride = if (step > 1f) step else height
-        clear()
-        if (id == null || from < 0 || height <= 1f || stride <= 1f) return null
-        val to = (from + (offset / stride).roundToInt()).coerceIn(0, ids.lastIndex)
-        if (to == from) return null
-        return move(ids, from, to)
+    fun release(commitNearest: Boolean): DragRelease? {
+        val id = draggingId ?: return null
+        val from = ids.indexOf(id)
+        val stride = if (step > 1f) step else rowHeight
+        if (from < 0 || rowHeight <= 1f || stride <= 1f) {
+            clear()
+            return null
+        }
+        val to =
+            if (commitNearest) {
+                (from + (offsetY / stride).roundToInt()).coerceIn(0, ids.lastIndex)
+            } else {
+                from
+            }
+        val target = (to - from) * stride
+        val animate = abs(offsetY - target) > 1f
+        offsetY = target
+        settling = true
+        val order = if (to == from) null else move(ids, from, to)
+        return DragRelease(animate = animate, order = order)
     }
 
-    fun cancel() {
-        clear()
-    }
-
-    private fun clear() {
+    fun clear() {
         draggingId = null
         offsetY = 0f
+        settling = false
     }
+}
+
+private fun List<Pair<SlotUi, TaskUi>>.reordered(order: List<String>): List<Pair<SlotUi, TaskUi>> {
+    val byId = associateBy { it.second.id }
+    return order.mapNotNull { byId[it] }
 }
 
 @Composable
@@ -368,7 +480,7 @@ private fun TodayRow(
     index: Int,
     slot: SlotUi,
     task: TaskUi,
-    dragging: Boolean,
+    lift: Float,
     reducedMotion: Boolean,
     reorderActions: List<CustomAccessibilityAction>,
     onOpen: () -> Unit,
@@ -382,6 +494,7 @@ private fun TodayRow(
 ) {
     val description =
         "Today position ${index + 1}. ${slot.role.name.lowercase()}. ${task.title}. Swipe right for done, swipe left for later. Long press and drag to reorder within Today."
+    val openInteraction = rememberPressSource()
     SwipeRevealCard(
         towardStart = doneSwipe(onDone),
         towardEnd = laterSwipe(onLater),
@@ -400,18 +513,22 @@ private fun TodayRow(
                     .semantics { contentDescription = description }
                     .then(
                         if (slot.role == SlotRole.NOW) {
-                            Modifier.combinedClickable(
-                                role = Role.Button,
-                                onClick = onOpen,
-                                onLongClick = {},
-                            )
+                            Modifier
+                                .pressScale(openInteraction)
+                                .combinedClickable(
+                                    interactionSource = openInteraction,
+                                    indication = null,
+                                    role = Role.Button,
+                                    onClick = onOpen,
+                                    onLongClick = {},
+                                )
                         } else {
                             Modifier
                         },
                     ),
             shape = RoundedCornerShape(CardRadius),
             color = FocusColors.Surface,
-            shadowElevation = if (dragging) 8.dp else 0.dp,
+            shadowElevation = 8.dp * lift,
         ) {
             Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Row(
@@ -521,18 +638,29 @@ private fun PileCountRow(
     count: Int,
     onClick: () -> Unit,
 ) {
+    val interaction = rememberPressSource()
+    val pressed by interaction.collectIsPressedAsState()
+    val reducedMotion = rememberReducedMotion()
+    val color by animateColorAsState(
+        targetValue = if (pressed) FocusColors.SurfaceHigh else FocusColors.Surface,
+        animationSpec = motionSpec(MotionSpec.PressMillis, reducedMotion),
+        label = "countPress",
+    )
     Surface(
         modifier =
             Modifier
                 .fillMaxWidth()
                 .heightIn(min = 56.dp)
+                .pressScale(interaction)
                 .clickable(
+                    interactionSource = interaction,
+                    indication = null,
                     role = Role.Button,
                     onClickLabel = "Open $title",
                     onClick = onClick,
                 ),
         shape = RoundedCornerShape(CardRadius),
-        color = FocusColors.Surface,
+        color = color,
         border = BorderStroke(1.dp, FocusColors.Outline),
     ) {
         Row(
@@ -603,14 +731,18 @@ internal fun MintButton(
     container: Color = FocusColors.Mint,
     content: Color = FocusColors.OnMint,
 ) {
-    Button(
-        onClick = onClick,
-        modifier = modifier.heightIn(min = 48.dp),
-        shape = RoundedCornerShape(24.dp),
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-        colors = ButtonDefaults.buttonColors(containerColor = container, contentColor = content),
-    ) {
-        Text(label)
+    val interaction = rememberPressSource()
+    WithoutRipple {
+        Button(
+            onClick = onClick,
+            interactionSource = interaction,
+            modifier = modifier.pressScale(interaction).heightIn(min = 48.dp),
+            shape = RoundedCornerShape(24.dp),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = container, contentColor = content),
+        ) {
+            Text(label)
+        }
     }
 }
 
@@ -620,12 +752,16 @@ internal fun QuietButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    OutlinedButton(
-        onClick = onClick,
-        modifier = modifier.heightIn(min = 48.dp),
-        shape = RoundedCornerShape(24.dp),
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-    ) {
-        Text(label)
+    val interaction = rememberPressSource()
+    WithoutRipple {
+        OutlinedButton(
+            onClick = onClick,
+            interactionSource = interaction,
+            modifier = modifier.pressScale(interaction).heightIn(min = 48.dp),
+            shape = RoundedCornerShape(24.dp),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+        ) {
+            Text(label)
+        }
     }
 }

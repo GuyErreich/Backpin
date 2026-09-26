@@ -1,5 +1,8 @@
 package app.backpin.focus.ui
 
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -28,6 +31,7 @@ import androidx.compose.runtime.remember
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -41,6 +45,9 @@ import app.backpin.focus.ui.home.HomeScreen
 import app.backpin.focus.ui.home.InboxScreen
 import app.backpin.focus.ui.home.LaterScreen
 import app.backpin.focus.ui.home.MintButton
+import app.backpin.focus.ui.motion.pileEnter
+import app.backpin.focus.ui.motion.pileExit
+import app.backpin.focus.ui.motion.rememberReducedMotion
 import app.backpin.focus.ui.settings.SettingsScreen
 import app.backpin.focus.ui.theme.FocusColors
 import app.backpin.focus.ui.theme.Space
@@ -55,6 +62,7 @@ private object Routes {
 }
 
 private val homeRoutes = setOf(Routes.HOME, Routes.INBOX, Routes.LATER, Routes.DONE)
+private val pileRoutes = setOf(Routes.INBOX, Routes.LATER, Routes.DONE)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -69,6 +77,7 @@ fun FocusApp(
     val backStack by navController.currentBackStackEntryAsState()
     val route = backStack?.destination?.route ?: Routes.HOME
     val showCapture = route == Routes.HOME || route == Routes.FOCUS
+    val reducedMotion = rememberReducedMotion()
 
     LaunchedEffect(launchDestination) {
         when (launchDestination) {
@@ -150,7 +159,23 @@ fun FocusApp(
             startDestination = Routes.HOME,
             modifier = Modifier.padding(padding),
         ) {
-            composable(Routes.HOME) {
+            composable(
+                Routes.HOME,
+                exitTransition = {
+                    if (targetState.destination.route in pileRoutes) {
+                        pileExit(forward = true, reducedMotion = reducedMotion)
+                    } else {
+                        null
+                    }
+                },
+                popEnterTransition = {
+                    if (initialState.destination.route in pileRoutes) {
+                        pileEnter(forward = false, reducedMotion = reducedMotion)
+                    } else {
+                        null
+                    }
+                },
+            ) {
                 HomeScreen(
                     state = state,
                     viewModel = viewModel,
@@ -160,7 +185,11 @@ fun FocusApp(
                     onOpenDone = { navController.openPile(Routes.DONE) },
                 )
             }
-            composable(Routes.INBOX) {
+            composable(
+                Routes.INBOX,
+                enterTransition = { homePileEnter(reducedMotion) },
+                popExitTransition = { homePileExit(reducedMotion) },
+            ) {
                 InboxScreen(
                     tasks = state.inboxTasks,
                     ready = state.ready,
@@ -169,7 +198,11 @@ fun FocusApp(
                     onStart = viewModel::start,
                 )
             }
-            composable(Routes.LATER) {
+            composable(
+                Routes.LATER,
+                enterTransition = { homePileEnter(reducedMotion) },
+                popExitTransition = { homePileExit(reducedMotion) },
+            ) {
                 LaterScreen(
                     tasks = state.laterTasks,
                     ready = state.ready,
@@ -178,7 +211,11 @@ fun FocusApp(
                     onStart = viewModel::start,
                 )
             }
-            composable(Routes.DONE) {
+            composable(
+                Routes.DONE,
+                enterTransition = { homePileEnter(reducedMotion) },
+                popExitTransition = { homePileExit(reducedMotion) },
+            ) {
                 DoneScreen(
                     tasks = state.archiveTasks,
                     ready = state.ready,
@@ -294,6 +331,16 @@ private fun androidx.navigation.NavController.navigateTab(route: String) {
         restoreState = true
     }
 }
+
+private fun AnimatedContentTransitionScope<NavBackStackEntry>.homePileEnter(
+    reducedMotion: Boolean,
+): EnterTransition? =
+    if (initialState.destination.route == Routes.HOME) pileEnter(forward = true, reducedMotion) else null
+
+private fun AnimatedContentTransitionScope<NavBackStackEntry>.homePileExit(
+    reducedMotion: Boolean,
+): ExitTransition? =
+    if (targetState.destination.route == Routes.HOME) pileExit(forward = false, reducedMotion) else null
 
 /** Push a pile above Today. Task actions on that screen do not call this. */
 private fun androidx.navigation.NavController.openPile(route: String) {

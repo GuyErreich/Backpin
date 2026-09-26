@@ -1,12 +1,13 @@
 package app.backpin.focus.ui.home
 
+import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -20,6 +21,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
@@ -28,11 +30,14 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import app.backpin.focus.ui.motion.MotionSpec
 import app.backpin.focus.ui.theme.FocusColors
 import kotlin.math.abs
-import kotlin.math.roundToInt
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 
 private sealed interface Race {
@@ -87,10 +92,11 @@ internal fun startSwipe(onStart: () -> Unit): SwipeSide =
     )
 
 /**
- * Horizontal swipe reveals the two sides. Release past 40% of the width commits.
+ * Horizontal swipe reveals the two sides. The card tracks the finger.
+ * Release past 40% of the width completes with a decelerate; otherwise it settles back.
  * Today rows can also long-press and drag vertically; that callback only reorders
  * within Today and never changes a bucket.
- * Reduced motion keeps the card still and still reveals the labels.
+ * Reduced motion keeps the card still. The hint still fades in with the drag.
  */
 @Composable
 internal fun SwipeRevealCard(
@@ -114,6 +120,7 @@ internal fun SwipeRevealCard(
     val reorderDrag = rememberUpdatedState(onReorderDrag)
     val reorderEnd = rememberUpdatedState(onReorderDragEnd)
     val reorderCancel = rememberUpdatedState(onReorderDragCancel)
+    val reducedState = rememberUpdatedState(reducedMotion)
     val threshold = width * 0.4f
     val reveal = if (threshold <= 0f) 0f else (abs(logicalOffset) / threshold).coerceIn(0f, 1f)
     val visualOffset = if (reducedMotion) 0f else logicalOffset
@@ -137,91 +144,132 @@ internal fun SwipeRevealCard(
             .pointerInput(towardStart != null, towardEnd != null, reorderEnabled) {
                 val slop = viewConfiguration.touchSlop
                 val longPressMs = viewConfiguration.longPressTimeoutMillis
+                coroutineScope {
+                val scope = this
+                var settleJob: Job? = null
+
+                suspend fun glide(
+                    to: Float,
+                    millis: Int,
+                ) {
+                    animate(
+                        initialValue = logicalOffset,
+                        targetValue = to,
+                        animationSpec = tween(durationMillis = millis, easing = MotionSpec.EaseOut),
+                    ) { value, _ ->
+                        logicalOffset = value
+                    }
+                }
+
+                suspend fun settle(total: Float) {
+                    val limit = width * 0.4f
+                    val startSide = startState.value
+                    val endSide = endState.value
+                    val commit =
+                        when {
+                            startSide != null && total >= limit -> startSide.onCommit
+                            endSide != null && total <= -limit -> endSide.onCommit
+                            else -> null
+                        }
+                    val reduced = reducedState.value
+                    if (commit != null && !reduced) {
+                        val edge = if (total >= 0f) width else -width
+                        glide(edge, MotionSpec.SettleMillis)
+                        commit()
+                        delay(64)
+                        if (abs(logicalOffset) > 1f) glide(0f, MotionSpec.SettleMillis)
+                    } else {
+                        commit?.invoke()
+                        val millis = if (reduced) MotionSpec.ReducedFadeMillis else MotionSpec.SettleMillis
+                        if (abs(logicalOffset) > 0.5f) glide(0f, millis) else logicalOffset = 0f
+                    }
+                }
+
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
+                    settleJob?.cancel()
                     val pointerId = down.id
                     val start = down.position
                     var crossed = false
-                    try {
-                        val raced =
-                            withTimeoutOrNull(longPressMs) {
-                                while (true) {
-                                    val event = awaitPointerEvent()
-                                    val change = event.changes.firstOrNull { it.id == pointerId } ?: return@withTimeoutOrNull null
-                                    if (!change.pressed) return@withTimeoutOrNull Race.Up
-                                    if ((change.position - start).getDistance() > slop) {
-                                        return@withTimeoutOrNull Race.Moved(change.position)
-                                    }
-                                }
-                                @Suppress("UNREACHABLE_CODE")
-                                null
-                            }
-                        when (raced) {
-                            Race.Up -> Unit
-                            null -> {
-                                if (!reorderEnabled) return@awaitEachGesture
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                reorderStart.value?.invoke()
-                                var ended = false
-                                try {
-                                    while (true) {
-                                        val event = awaitPointerEvent(pass = PointerEventPass.Initial)
-                                        val change = event.changes.firstOrNull { it.id == pointerId } ?: break
-                                        change.consume()
-                                        if (!change.pressed) {
-                                            ended = true
-                                            reorderEnd.value?.invoke()
-                                            break
-                                        }
-                                        val delta = change.position.y - change.previousPosition.y
-                                        if (delta != 0f) reorderDrag.value?.invoke(delta)
-                                    }
-                                } finally {
-                                    if (!ended) reorderCancel.value?.invoke()
+                    val raced =
+                        withTimeoutOrNull(longPressMs) {
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                val change = event.changes.firstOrNull { it.id == pointerId } ?: return@withTimeoutOrNull null
+                                if (!change.pressed) return@withTimeoutOrNull Race.Up
+                                if ((change.position - start).getDistance() > slop) {
+                                    return@withTimeoutOrNull Race.Moved(change.position)
                                 }
                             }
-                            is Race.Moved -> {
-                                val fromStart = raced.position - start
-                                if (abs(fromStart.y) > abs(fromStart.x)) return@awaitEachGesture
-                                var total = fromStart.x
-                                fun apply(next: Float) {
-                                    val allowed =
-                                        when {
-                                            next > 0f -> startState.value != null
-                                            next < 0f -> endState.value != null
-                                            else -> true
-                                        }
-                                    total = if (allowed) next.coerceIn(-width, width) else 0f
-                                    logicalOffset = total
-                                    val past = abs(total) >= width * 0.4f
-                                    if (past && !crossed) {
-                                        haptic.performHapticFeedback(HapticFeedbackType.GestureThresholdActivate)
-                                        crossed = true
-                                    }
-                                    if (!past) crossed = false
-                                }
-                                apply(total)
-                                while (true) {
-                                    val event = awaitPointerEvent()
-                                    val change = event.changes.firstOrNull { it.id == pointerId } ?: break
-                                    if (!change.pressed) {
-                                        val limit = width * 0.4f
-                                        when {
-                                            startState.value != null && total >= limit -> startState.value?.onCommit?.invoke()
-                                            endState.value != null && total <= -limit -> endState.value?.onCommit?.invoke()
-                                        }
-                                        break
-                                    }
-                                    val delta = change.position - change.previousPosition
-                                    if (abs(delta.y) > abs(delta.x) && abs(total) < slop) break
-                                    change.consume()
-                                    apply(total + delta.x)
-                                }
+                            @Suppress("UNREACHABLE_CODE")
+                            null
+                        }
+                    when (raced) {
+                        Race.Up -> {
+                            if (abs(logicalOffset) > 0.5f) {
+                                val millis = if (reducedState.value) MotionSpec.ReducedFadeMillis else MotionSpec.SettleMillis
+                                settleJob = scope.launch { glide(0f, millis) }
                             }
                         }
-                    } finally {
-                        logicalOffset = 0f
+                        null -> {
+                            if (!reorderEnabled) return@awaitEachGesture
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            reorderStart.value?.invoke()
+                            var ended = false
+                            try {
+                                while (true) {
+                                    val event = awaitPointerEvent(pass = PointerEventPass.Initial)
+                                    val change = event.changes.firstOrNull { it.id == pointerId } ?: break
+                                    change.consume()
+                                    if (!change.pressed) {
+                                        ended = true
+                                        reorderEnd.value?.invoke()
+                                        break
+                                    }
+                                    val delta = change.position.y - change.previousPosition.y
+                                    if (delta != 0f) reorderDrag.value?.invoke(delta)
+                                }
+                            } finally {
+                                if (!ended) reorderCancel.value?.invoke()
+                            }
+                        }
+                        is Race.Moved -> {
+                            val fromStart = raced.position - start
+                            if (abs(fromStart.y) > abs(fromStart.x)) return@awaitEachGesture
+                            var total = logicalOffset + fromStart.x
+
+                            fun track(next: Float) {
+                                val allowed =
+                                    when {
+                                        next > 0f -> startState.value != null
+                                        next < 0f -> endState.value != null
+                                        else -> true
+                                    }
+                                total = if (allowed) next.coerceIn(-width, width) else 0f
+                                logicalOffset = total
+                                val past = abs(total) >= width * 0.4f
+                                if (past && !crossed) {
+                                    haptic.performHapticFeedback(HapticFeedbackType.GestureThresholdActivate)
+                                    crossed = true
+                                }
+                                if (!past) crossed = false
+                            }
+
+                            track(total)
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                val change = event.changes.firstOrNull { it.id == pointerId } ?: break
+                                if (!change.pressed) break
+                                val delta = change.position - change.previousPosition
+                                if (abs(delta.y) > abs(delta.x) && abs(total) < slop) break
+                                change.consume()
+                                track(total + delta.x)
+                            }
+                            val released = total
+                            settleJob = scope.launch { settle(released) }
+                        }
                     }
+                }
                 }
             },
     ) {
@@ -239,7 +287,7 @@ internal fun SwipeRevealCard(
                     Text(
                         text = label,
                         modifier = Modifier.align(if (startSide) Alignment.CenterStart else Alignment.CenterEnd),
-                        color = tint,
+                        color = tint.copy(alpha = reveal),
                         style = MaterialTheme.typography.labelLarge,
                     )
                 }
@@ -248,7 +296,7 @@ internal fun SwipeRevealCard(
         Box(
             Modifier
                 .fillMaxWidth()
-                .offset { IntOffset(visualOffset.roundToInt(), 0) },
+                .graphicsLayer { translationX = visualOffset },
         ) {
             content()
         }

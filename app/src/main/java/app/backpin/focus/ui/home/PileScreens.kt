@@ -24,6 +24,9 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import app.backpin.focus.ui.TaskUi
+import app.backpin.focus.ui.motion.WithoutRipple
+import app.backpin.focus.ui.motion.pressScale
+import app.backpin.focus.ui.motion.rememberPressSource
 import app.backpin.focus.ui.motion.rememberReducedMotion
 import app.backpin.focus.ui.theme.CardRadius
 import app.backpin.focus.ui.theme.FocusColors
@@ -205,12 +208,19 @@ private fun PileHeader(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        IconButton(onClick = onBack) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                contentDescription = "Back to Today",
-                tint = FocusColors.Mint,
-            )
+        val backInteraction = rememberPressSource()
+        WithoutRipple {
+            IconButton(
+                onClick = onBack,
+                interactionSource = backInteraction,
+                modifier = Modifier.pressScale(backInteraction),
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Back to Today",
+                    tint = FocusColors.Mint,
+                )
+            }
         }
         Text(
             title,
