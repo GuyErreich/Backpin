@@ -123,6 +123,15 @@ fun formatElapsed(millis: Long): String {
     return if (hours > 0L) "${hours}h ${minutes}m" else "${minutes}m"
 }
 
+/**
+ * Focus-screen elapsed copy. Names the measurement, including time under a minute.
+ */
+fun timeInFocusLabel(millis: Long): String {
+    val safe = millis.coerceAtLeast(0)
+    if (safe < 60_000L) return "Under a minute in focus"
+    return "${formatElapsed(safe)} in focus"
+}
+
 /** Running total: stored accumulation plus the open segment when the frame is active. */
 fun elapsedMillis(
     accumulatedMillis: Long,

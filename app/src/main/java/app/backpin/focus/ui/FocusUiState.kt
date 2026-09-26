@@ -51,6 +51,9 @@ data class PendingUndo(
     val token: UndoToken,
 )
 
+/** Undo copy for marking a task done. Derivation uses this to leave that task immediately. */
+const val MARKED_DONE_UNDO: String = "Marked done"
+
 data class FocusUiState(
     val ready: Boolean = false,
     val now: NowUi? = null,

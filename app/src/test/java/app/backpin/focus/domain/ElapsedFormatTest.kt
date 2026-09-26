@@ -13,6 +13,14 @@ class ElapsedFormatTest {
     }
 
     @Test
+    fun namesTimeInFocusIncludingUnderAMinute() {
+        assertEquals("Under a minute in focus", timeInFocusLabel(0))
+        assertEquals("Under a minute in focus", timeInFocusLabel(59_000))
+        assertEquals("12m in focus", timeInFocusLabel(12 * 60_000L))
+        assertEquals("1h 12m in focus", timeInFocusLabel(72 * 60_000L))
+    }
+
+    @Test
     fun runningSegmentAddsToAccumulatedTime() {
         val elapsed =
             elapsedMillis(

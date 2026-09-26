@@ -145,7 +145,12 @@ class FocusStackViewModelTest {
             val original = seedToday("Review CI failure")
             useCases.start(original)
             viewModel.completeActive()
-            val done = withTimeout(5_000) { viewModel.uiState.first { it.undo?.message == "Marked done" } }
+            val done =
+                withTimeout(5_000) {
+                    viewModel.uiState.first { it.undo?.message == "Marked done" && it.now == null && it.recovery == null }
+                }
+            assertNull(done.now)
+            assertNull(done.recovery)
             viewModel.undo(done.undo!!.id)
             withTimeout(5_000) { viewModel.uiState.first { it.now?.title == "Review CI failure" && it.undo == null } }
 

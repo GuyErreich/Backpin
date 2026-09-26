@@ -3,12 +3,15 @@ package app.backpin.focus.ui.focus
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -17,24 +20,32 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.backpin.focus.domain.UNTITLED_INTERRUPTION
+import app.backpin.focus.domain.elapsedMillis
+import app.backpin.focus.domain.timeInFocusLabel
 import app.backpin.focus.ui.FocusStackViewModel
 import app.backpin.focus.ui.FocusUiState
 import app.backpin.focus.ui.RecoveryUi
-import app.backpin.focus.ui.home.ElapsedText
 import app.backpin.focus.ui.home.MintButton
 import app.backpin.focus.ui.home.QuietButton
 import app.backpin.focus.ui.theme.CardRadius
 import app.backpin.focus.ui.theme.FocusColors
 import app.backpin.focus.ui.theme.Space
+import kotlinx.coroutines.delay
 
 @Composable
 fun FocusScreen(
@@ -51,16 +62,8 @@ fun FocusScreen(
         verticalArrangement = Arrangement.spacedBy(Space * 2),
     ) {
         when {
-            state.recovery != null && state.now == null -> {
-                Text(
-                    "RECOVER",
-                    color = FocusColors.Lavender,
-                    style = MaterialTheme.typography.labelLarge,
-                    letterSpacing = 1.2.sp,
-                )
-                RecoveryCard(recovery = state.recovery, viewModel = viewModel, showCueEditor = true)
-            }
             state.now != null -> ActiveCard(state, viewModel)
+            state.recovery != null -> RecoveryCard(recovery = state.recovery, viewModel = viewModel, showCueEditor = true)
             else -> EmptyFocus(state, viewModel)
         }
     }
@@ -89,7 +92,7 @@ private fun EmptyFocus(
     ) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(Space)) {
             Text(
-                "Start a task from Home. Tap Start on a Today task, or drag a Later task into the empty slot. Pause, Done, Interrupt, and Switch show up here once something is in focus.",
+                "Start a task from Home. This screen stays with that one task until you pause it or mark it done.",
                 style = MaterialTheme.typography.bodyLarge,
             )
             Text(
@@ -104,47 +107,49 @@ private fun EmptyFocus(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ActiveCard(
     state: FocusUiState,
     viewModel: FocusStackViewModel,
 ) {
     val now = state.now ?: return
-    val accent = if (now.isInterruption) FocusColors.Amber else FocusColors.Mint
     val label = if (now.isInterruption) "INTERRUPTED" else "NOW"
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(CardRadius),
         color = FocusColors.Surface,
-        border = BorderStroke(2.dp, accent),
+        border = BorderStroke(2.dp, FocusColors.Mint),
     ) {
-        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(Space)) {
-            Text(label, color = accent, style = MaterialTheme.typography.labelLarge, letterSpacing = 1.2.sp)
+        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(Space * 2)) {
+            Text(label, color = FocusColors.Mint, style = MaterialTheme.typography.labelLarge, letterSpacing = 1.2.sp)
             Text(
                 now.title,
                 style = MaterialTheme.typography.headlineLarge,
                 modifier = Modifier.semantics { heading() },
             )
-            ElapsedText(now.accumulatedMillis, now.startedAtEpochMillis, running = true, clock = true)
+            TimeInFocus(now.accumulatedMillis, now.startedAtEpochMillis)
             if (now.title == UNTITLED_INTERRUPTION) {
                 UntitledField(now.taskId, viewModel)
             }
-            if (!now.returnCue.isNullOrBlank()) {
-                Text(now.returnCue, style = MaterialTheme.typography.bodyLarge)
-            }
-            CueField(
+            ReturnNoteField(
                 taskId = now.taskId,
                 cue = now.returnCue.orEmpty(),
-                buttonLabel = "Save cue",
                 onSave = { viewModel.updateCue(now.taskId, it) },
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(Space), modifier = Modifier.fillMaxWidth()) {
-                MintButton("Pause", onClick = viewModel::pause, modifier = Modifier.weight(1f))
-                MintButton("Done", onClick = viewModel::completeActive, modifier = Modifier.weight(1f))
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(Space), modifier = Modifier.fillMaxWidth()) {
-                QuietButton("Interrupt", onClick = viewModel::openCapture, modifier = Modifier.weight(1f))
-                QuietButton("Switch", onClick = viewModel::openSwitch, modifier = Modifier.weight(1f))
+            MintButton(
+                "Done",
+                onClick = viewModel::completeActive,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(Space),
+                verticalArrangement = Arrangement.spacedBy(Space),
+            ) {
+                QuietButton("Pause", onClick = viewModel::pause)
+                QuietButton("Interrupt", onClick = viewModel::openCapture)
+                QuietButton("Switch", onClick = viewModel::openSwitch)
             }
         }
     }
@@ -162,7 +167,7 @@ internal fun RecoveryCard(
         color = FocusColors.Surface,
         border = BorderStroke(2.dp, FocusColors.Lavender),
     ) {
-        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(Space)) {
+        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(Space * 2)) {
             Text(
                 "BEFORE THIS",
                 color = FocusColors.Lavender,
@@ -174,15 +179,16 @@ internal fun RecoveryCard(
                 style = MaterialTheme.typography.headlineMedium,
                 modifier = Modifier.semantics { heading() },
             )
-            if (!recovery.returnCue.isNullOrBlank()) {
-                Text(recovery.returnCue, style = MaterialTheme.typography.bodyLarge)
-            }
             if (showCueEditor) {
-                CueField(
+                ReturnNoteField(
                     taskId = recovery.taskId,
                     cue = recovery.returnCue.orEmpty(),
-                    buttonLabel = "Change cue",
                     onSave = { viewModel.updateCue(recovery.taskId, it) },
+                )
+            } else if (!recovery.returnCue.isNullOrBlank()) {
+                Text(
+                    "When you come back, ${recovery.returnCue}",
+                    style = MaterialTheme.typography.bodyLarge,
                 )
             }
             MintButton(
@@ -198,25 +204,76 @@ internal fun RecoveryCard(
 }
 
 @Composable
-private fun CueField(
+private fun TimeInFocus(
+    accumulatedMillis: Long,
+    startedAtEpochMillis: Long,
+) {
+    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(startedAtEpochMillis) {
+        while (true) {
+            now = System.currentTimeMillis()
+            delay(1_000)
+        }
+    }
+    val label =
+        timeInFocusLabel(
+            elapsedMillis(
+                accumulatedMillis = accumulatedMillis,
+                startedAtEpochMillis = startedAtEpochMillis,
+                nowEpochMillis = now,
+                running = true,
+            ),
+        )
+    Text(
+        label,
+        style = MaterialTheme.typography.bodyLarge,
+        color = FocusColors.Muted,
+        modifier = Modifier.semantics { contentDescription = label },
+    )
+}
+
+@Composable
+private fun ReturnNoteField(
     taskId: String,
     cue: String,
-    buttonLabel: String,
     onSave: (String) -> Unit,
 ) {
     var draft by rememberSaveable(taskId) { mutableStateOf(cue) }
+    var lastSent by rememberSaveable(taskId) { mutableStateOf(cue.trim()) }
+    var armed by rememberSaveable(taskId) { mutableStateOf(false) }
+    val focusManager = LocalFocusManager.current
     LaunchedEffect(taskId, cue) {
+        if (armed) return@LaunchedEffect
         draft = cue
+        lastSent = cue.trim()
+    }
+    fun commit() {
+        val next = draft.trim()
+        if (draft != next) draft = next
+        if (next == lastSent) return
+        lastSent = next
+        onSave(next)
     }
     OutlinedTextField(
         value = draft,
         onValueChange = { draft = it },
-        modifier = Modifier.fillMaxWidth(),
-        label = { Text("Return cue") },
-        placeholder = { Text("Next: …") },
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .onFocusChanged { focus ->
+                    if (focus.isFocused) {
+                        armed = true
+                    } else if (armed) {
+                        armed = false
+                        commit()
+                    }
+                },
+        label = { Text("When you come back") },
+        placeholder = { Text("What to do next") },
         singleLine = true,
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+        keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus(force = true) }),
     )
-    QuietButton(buttonLabel, onClick = { onSave(draft) })
 }
 
 @Composable

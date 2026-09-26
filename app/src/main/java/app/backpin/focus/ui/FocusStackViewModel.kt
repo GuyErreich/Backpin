@@ -141,14 +141,14 @@ class FocusStackViewModel(
     fun completeActive() {
         viewModelScope.launch {
             val token = useCases.completeActive() ?: return@launch
-            offerUndo("Marked done", token)
+            offerUndo(MARKED_DONE_UNDO, token)
         }
     }
 
     fun markDone(taskId: String) {
         viewModelScope.launch {
             val token = useCases.completeTask(taskId) ?: return@launch
-            offerUndo("Marked done", token)
+            offerUndo(MARKED_DONE_UNDO, token)
         }
     }
 
