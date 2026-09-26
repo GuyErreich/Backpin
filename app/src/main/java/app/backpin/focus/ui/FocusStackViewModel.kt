@@ -1,0 +1,215 @@
+package app.backpin.focus.ui
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
+import app.backpin.focus.domain.FocusUseCases
+import app.backpin.focus.domain.PromoteOutcome
+import app.backpin.focus.domain.UserPreferences
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+
+/**
+ * One activity-scoped model. Home, capture, and focus all read the database flow,
+ * so a new process rebuilds NOW and recovery from persisted frames.
+ */
+class FocusStackViewModel(
+    private val useCases: FocusUseCases,
+) : ViewModel() {
+    private val captureOpen = MutableStateFlow(false)
+    private val inboxExpanded = MutableStateFlow(false)
+    private val laterExpanded = MutableStateFlow(false)
+    private val swapIncomingId = MutableStateFlow<String?>(null)
+    private val switchOpen = MutableStateFlow(false)
+    private val pendingUndo = MutableStateFlow<PendingUndo?>(null)
+
+    val uiState: StateFlow<FocusUiState> =
+        combine(
+            useCases.observeSnapshot(),
+            useCases.preferences,
+            combine(captureOpen, inboxExpanded, laterExpanded) { capture, inbox, later ->
+                Triple(capture, inbox, later)
+            }.combine(combine(swapIncomingId, switchOpen, pendingUndo) { swap, switch, undo ->
+                Triple(swap, switch, undo)
+            }) { lists, dialogs ->
+                ChromeParts(
+                    captureOpen = lists.first,
+                    inboxExpanded = lists.second,
+                    laterExpanded = lists.third,
+                    swapIncomingId = dialogs.first,
+                    switchOpen = dialogs.second,
+                    undo = dialogs.third,
+                )
+            },
+        ) { snapshot, preferences, chrome ->
+            deriveFocusUi(
+                snapshot,
+                ChromeState(
+                    captureOpen = chrome.captureOpen,
+                    inboxExpanded = chrome.inboxExpanded,
+                    laterExpanded = chrome.laterExpanded,
+                    swapIncomingId = chrome.swapIncomingId,
+                    switchOpen = chrome.switchOpen,
+                    undo = chrome.undo,
+                    preferences = preferences,
+                ),
+            )
+        }.stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5_000),
+            FocusUiState(preferences = UserPreferences()),
+        )
+
+    fun openCapture() {
+        captureOpen.value = true
+    }
+
+    fun dismissCapture() {
+        captureOpen.value = false
+    }
+
+    fun saveToInbox(title: String) {
+        viewModelScope.launch {
+            useCases.capture(title)
+            if (title.isNotBlank()) captureOpen.value = false
+        }
+    }
+
+    fun interruptNow(title: String) {
+        viewModelScope.launch {
+            useCases.interrupt(title)
+            captureOpen.value = false
+        }
+    }
+
+    fun promote(taskId: String) {
+        viewModelScope.launch {
+            when (useCases.promote(taskId)) {
+                is PromoteOutcome.NeedsSwap -> swapIncomingId.value = taskId
+                is PromoteOutcome.Promoted -> swapIncomingId.value = null
+                is PromoteOutcome.Rejected -> swapIncomingId.value = null
+            }
+        }
+    }
+
+    fun confirmSwap(outgoingTaskId: String) {
+        val incoming = swapIncomingId.value ?: return
+        viewModelScope.launch {
+            useCases.swapIntoToday(incoming, outgoingTaskId)
+            swapIncomingId.value = null
+        }
+    }
+
+    fun cancelSwap() {
+        swapIncomingId.value = null
+    }
+
+    fun start(taskId: String) {
+        viewModelScope.launch {
+            useCases.start(taskId)
+        }
+    }
+
+    fun pause() {
+        viewModelScope.launch {
+            useCases.pauseActive()
+        }
+    }
+
+    fun completeActive() {
+        viewModelScope.launch {
+            val token = useCases.completeActive() ?: return@launch
+            pendingUndo.value = PendingUndo(id = System.nanoTime(), message = "Marked done", token = token)
+        }
+    }
+
+    fun demote(taskId: String) {
+        viewModelScope.launch {
+            val token = useCases.demote(taskId)
+            pendingUndo.value = PendingUndo(id = System.nanoTime(), message = "Moved to Later", token = token)
+        }
+    }
+
+    fun resume(frameId: String) {
+        viewModelScope.launch {
+            useCases.resume(frameId)
+        }
+    }
+
+    fun updateCue(
+        taskId: String,
+        cue: String,
+    ) {
+        viewModelScope.launch {
+            useCases.updateReturnCue(taskId, cue)
+        }
+    }
+
+    fun rename(
+        taskId: String,
+        title: String,
+    ) {
+        viewModelScope.launch {
+            useCases.rename(taskId, title)
+        }
+    }
+
+    fun openSwitch() {
+        switchOpen.value = true
+    }
+
+    fun dismissSwitch() {
+        switchOpen.value = false
+    }
+
+    fun switchTo(taskId: String) {
+        switchOpen.value = false
+        start(taskId)
+    }
+
+    fun toggleInbox() {
+        inboxExpanded.value = !inboxExpanded.value
+    }
+
+    fun toggleLater() {
+        laterExpanded.value = !laterExpanded.value
+    }
+
+    fun undo(id: Long) {
+        val pending = pendingUndo.value ?: return
+        if (pending.id != id) return
+        pendingUndo.value = null
+        viewModelScope.launch {
+            useCases.undo(pending.token)
+        }
+    }
+
+    fun dismissUndo(id: Long) {
+        if (pendingUndo.value?.id == id) pendingUndo.value = null
+    }
+
+    private data class ChromeParts(
+        val captureOpen: Boolean,
+        val inboxExpanded: Boolean,
+        val laterExpanded: Boolean,
+        val swapIncomingId: String?,
+        val switchOpen: Boolean,
+        val undo: PendingUndo?,
+    )
+}
+
+class FocusStackViewModelFactory(
+    private val useCases: FocusUseCases,
+) : ViewModelProvider.Factory {
+    @Suppress("UNCHECKED_CAST")
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        if (modelClass.isAssignableFrom(FocusStackViewModel::class.java)) {
+            return FocusStackViewModel(useCases) as T
+        }
+        error("Unknown ViewModel ${modelClass.name}")
+    }
+}
