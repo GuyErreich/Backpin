@@ -73,4 +73,33 @@ interface FocusRepository {
 
     /** Puts the snapshotted rows back. Used by the Undo snackbar for Done and Later. */
     suspend fun undo(token: UndoToken)
+
+    /**
+     * Marks [taskId] done. The active task follows [completeActive].
+     * A task that still has an open child frame is left unchanged.
+     */
+    suspend fun completeTask(taskId: String): UndoToken?
+
+    /**
+     * Rewrites Today sort order. [orderedIds] must be exactly the open Today tasks.
+     * Returns the previous rows so Undo can restore them. Returns null when the order
+     * did not change.
+     */
+    suspend fun reorderToday(orderedIds: List<String>): UndoToken?
+
+    /** Saves the nudge interval. [enabled] false is Off. Minutes are 30, 60, or 120. */
+    suspend fun setNudge(
+        enabled: Boolean,
+        minutes: Int,
+    )
+
+    /** Quiet hours as `HH:mm`, or both null when quiet hours are cleared. */
+    suspend fun setQuietHours(
+        start: String?,
+        end: String?,
+    )
+
+    suspend fun setCurrentNotificationEnabled(enabled: Boolean)
+
+    suspend fun recordNudge(taskId: String)
 }

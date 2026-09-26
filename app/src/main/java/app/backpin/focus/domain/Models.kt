@@ -55,8 +55,9 @@ data class FocusFrame(
 )
 
 /**
- * Preference shape kept on device. Values are stored only; this version does
- * not schedule nudges or post notifications.
+ * Preference shape kept on device. Nudges are inexact WorkManager work.
+ * [lastInteractionAtEpochMillis] and [lastNudgedAtEpochMillis] keep a nudge
+ * from repeating during recent activity.
  */
 data class UserPreferences(
     val nudgesEnabled: Boolean = false,
@@ -64,6 +65,9 @@ data class UserPreferences(
     val quietStart: String? = null,
     val quietEnd: String? = null,
     val currentNotificationEnabled: Boolean = false,
+    val lastInteractionAtEpochMillis: Long = 0L,
+    val lastNudgedAtEpochMillis: Long = 0L,
+    val lastNudgedTaskId: String? = null,
 )
 
 /** Point-in-time tasks and frames used to rebuild the screen after process death. */

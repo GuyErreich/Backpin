@@ -5,7 +5,10 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import app.backpin.focus.domain.FocusUseCases
 import app.backpin.focus.domain.PromoteOutcome
+import app.backpin.focus.domain.TaskBucket
+import app.backpin.focus.domain.UndoToken
 import app.backpin.focus.domain.UserPreferences
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -88,9 +91,15 @@ class FocusStackViewModel(
 
     fun promote(taskId: String) {
         viewModelScope.launch {
+            val before = useCases.observeSnapshot().first().tasks.firstOrNull { it.id == taskId }
             when (useCases.promote(taskId)) {
                 is PromoteOutcome.NeedsSwap -> swapIncomingId.value = taskId
-                is PromoteOutcome.Promoted -> swapIncomingId.value = null
+                is PromoteOutcome.Promoted -> {
+                    swapIncomingId.value = null
+                    if (before != null && before.bucket != TaskBucket.TODAY) {
+                        offerUndo("Added to Today", UndoToken(tasks = listOf(before), frames = emptyList()))
+                    }
+                }
                 is PromoteOutcome.Rejected -> swapIncomingId.value = null
             }
         }
@@ -99,8 +108,17 @@ class FocusStackViewModel(
     fun confirmSwap(outgoingTaskId: String) {
         val incoming = swapIncomingId.value ?: return
         viewModelScope.launch {
+            val before =
+                useCases
+                    .observeSnapshot()
+                    .first()
+                    .tasks
+                    .filter { it.id == incoming || it.id == outgoingTaskId }
             useCases.swapIntoToday(incoming, outgoingTaskId)
             swapIncomingId.value = null
+            if (before.size == 2) {
+                offerUndo("Swapped into Today", UndoToken(tasks = before, frames = emptyList()))
+            }
         }
     }
 
@@ -123,14 +141,52 @@ class FocusStackViewModel(
     fun completeActive() {
         viewModelScope.launch {
             val token = useCases.completeActive() ?: return@launch
-            pendingUndo.value = PendingUndo(id = System.nanoTime(), message = "Marked done", token = token)
+            offerUndo("Marked done", token)
+        }
+    }
+
+    fun markDone(taskId: String) {
+        viewModelScope.launch {
+            val token = useCases.completeTask(taskId) ?: return@launch
+            offerUndo("Marked done", token)
         }
     }
 
     fun demote(taskId: String) {
         viewModelScope.launch {
             val token = useCases.demote(taskId)
-            pendingUndo.value = PendingUndo(id = System.nanoTime(), message = "Moved to Later", token = token)
+            offerUndo("Moved to Later", token)
+        }
+    }
+
+    fun reorderToday(orderedIds: List<String>) {
+        viewModelScope.launch {
+            val token = useCases.reorderToday(orderedIds) ?: return@launch
+            offerUndo("Reordered Today", token)
+        }
+    }
+
+    fun setNudge(
+        enabled: Boolean,
+        minutes: Int,
+    ) {
+        viewModelScope.launch {
+            useCases.setNudge(enabled, minutes)
+        }
+    }
+
+    fun setQuietHours(
+        start: String?,
+        end: String?,
+    ) {
+        viewModelScope.launch {
+            useCases.setQuietHours(start, end)
+        }
+    }
+
+    fun setCurrentNotification(enabled: Boolean) {
+        viewModelScope.launch {
+            useCases.setCurrentNotificationEnabled(enabled)
         }
     }
 
@@ -190,6 +246,13 @@ class FocusStackViewModel(
 
     fun dismissUndo(id: Long) {
         if (pendingUndo.value?.id == id) pendingUndo.value = null
+    }
+
+    private fun offerUndo(
+        message: String,
+        token: UndoToken,
+    ) {
+        pendingUndo.value = PendingUndo(id = System.nanoTime(), message = message, token = token)
     }
 
     private data class ChromeParts(

@@ -1,11 +1,14 @@
 package app.backpin.focus
 
 import android.app.Application
+import androidx.work.Configuration
+import androidx.work.WorkManager
 import app.backpin.focus.data.FocusRepositoryImpl
 import app.backpin.focus.data.FocusStackDatabase
 import app.backpin.focus.data.PreferencesDataStore
 import app.backpin.focus.domain.FocusUseCases
 import app.backpin.focus.domain.SystemAppClock
+import app.backpin.focus.notifications.NotificationCoordinator
 import app.backpin.focus.ui.FocusStackViewModelFactory
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -23,7 +26,11 @@ class FocusStackApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        if (!WorkManager.isInitialized()) {
+            WorkManager.initialize(this, Configuration.Builder().build())
+        }
         container = AppContainer(this)
+        container.notifications.start(appScope)
         appScope.launch {
             container.preferences.ensureDefaultsStored()
         }
@@ -38,4 +45,5 @@ class AppContainer(
     val repository = FocusRepositoryImpl(database, preferences, SystemAppClock)
     val useCases = FocusUseCases(repository)
     val viewModelFactory = FocusStackViewModelFactory(useCases)
+    val notifications = NotificationCoordinator(app, repository)
 }

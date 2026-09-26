@@ -1,4 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Focus Stack</string>
+    <string name="nudge_title">Still on %1$s?</string>
+    <string name="nudge_text">Approximate reminder. Resume opens Focus. Later parks the task.</string>
+    <string name="notification_before_this">Before this: %1$s</string>
+    <string name="notification_in_focus">In focus</string>
+    <string name="action_resume">Resume</string>
+    <string name="action_later">Later</string>
+    <string name="action_interrupt">Interrupt</string>
+    <string name="channel_current_name">Current task</string>
+    <string name="channel_current_description">Shows the task in focus. You can dismiss it. It is not a live timer.</string>
+    <string name="channel_nudge_name">Nudges</string>
+    <string name="channel_nudge_description">Approximate reminders. Android may delay them. Focus Stack does not use exact alarms.</string>
 </resources>

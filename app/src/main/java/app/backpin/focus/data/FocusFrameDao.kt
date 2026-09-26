@@ -26,6 +26,9 @@ interface FocusFrameDao {
     )
     suspend fun openFrameForTask(taskId: String): FocusFrameEntity?
 
+    @Query("SELECT COUNT(*) FROM focus_frames WHERE parentFrameId = :frameId AND state != 'CLOSED'")
+    suspend fun countOpenChildren(frameId: String): Int
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(entity: FocusFrameEntity)
 }

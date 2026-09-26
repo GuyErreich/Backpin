@@ -32,6 +32,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import app.backpin.focus.notifications.NotificationContract
 import app.backpin.focus.ui.capture.CaptureSheet
 import app.backpin.focus.ui.focus.FocusScreen
 import app.backpin.focus.ui.home.HomeScreen
@@ -48,13 +49,28 @@ private object Routes {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun FocusApp(viewModel: FocusStackViewModel) {
+fun FocusApp(
+    viewModel: FocusStackViewModel,
+    launchDestination: String? = null,
+    onLaunchDestinationConsumed: () -> Unit = {},
+) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val navController = rememberNavController()
     val snackbarHostState = remember { SnackbarHostState() }
     val backStack by navController.currentBackStackEntryAsState()
     val route = backStack?.destination?.route ?: Routes.HOME
     val showCapture = route == Routes.HOME || route == Routes.FOCUS
+
+    LaunchedEffect(launchDestination) {
+        when (launchDestination) {
+            NotificationContract.DESTINATION_FOCUS -> navController.navigateTab(Routes.FOCUS)
+            NotificationContract.DESTINATION_CAPTURE -> {
+                navController.navigateTab(Routes.FOCUS)
+                viewModel.openCapture()
+            }
+        }
+        if (launchDestination != null) onLaunchDestinationConsumed()
+    }
 
     LaunchedEffect(state.undo?.id) {
         val undo = state.undo ?: return@LaunchedEffect
@@ -136,7 +152,12 @@ fun FocusApp(viewModel: FocusStackViewModel) {
                 FocusScreen(state = state, viewModel = viewModel)
             }
             composable(Routes.SETTINGS) {
-                SettingsScreen(preferences = state.preferences)
+                SettingsScreen(
+                    preferences = state.preferences,
+                    onNudgeSelected = viewModel::setNudge,
+                    onQuietHours = viewModel::setQuietHours,
+                    onCurrentNotification = viewModel::setCurrentNotification,
+                )
             }
         }
     }

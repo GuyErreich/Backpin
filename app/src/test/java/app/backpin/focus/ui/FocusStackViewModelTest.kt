@@ -19,7 +19,9 @@ import kotlinx.coroutines.test.setMain
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import android.os.Looper
 import org.junit.After
+import org.robolectric.Shadows.shadowOf
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -60,6 +62,7 @@ class FocusStackViewModelTest {
 
     @After
     fun tearDown() {
+        shadowOf(Looper.getMainLooper()).idle()
         database.close()
         Dispatchers.resetMain()
     }
@@ -157,7 +160,9 @@ class FocusStackViewModelTest {
             viewModel.undo(later.undo!!.id)
             val restored =
                 withTimeout(5_000) {
-                    viewModel.uiState.first { state -> state.todaySlots.any { it.task?.id == original } && state.undo == null }
+                    viewModel.uiState.first { state ->
+                        state.undo == null && state.now?.taskId == original && state.todaySlots.any { it.task?.id == original }
+                    }
                 }
             assertEquals(SlotRole.NOW, restored.todaySlots.single { it.task?.id == original }.role)
             collect.cancel()

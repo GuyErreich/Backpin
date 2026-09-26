@@ -43,6 +43,7 @@ class FocusRepositoryImpl(
         database.withTransaction {
             taskDao.upsert(newTask(trimmed, TaskBucket.INBOX))
         }
+        recordInteraction()
     }
 
     override suspend fun promote(taskId: String): PromoteOutcome =
@@ -61,6 +62,8 @@ class FocusRepositoryImpl(
             taskDao.upsert(task.copy(bucket = TaskBucket.TODAY.name, sortOrder = clock.nowEpochMillis()))
             requireInvariants()
             PromoteOutcome.Promoted
+        }.also { outcome ->
+            if (outcome is PromoteOutcome.Promoted) recordInteraction()
         }
 
     override suspend fun swapIntoToday(
@@ -82,6 +85,7 @@ class FocusRepositoryImpl(
             if (!valid) error("Swap rejected")
             requireInvariants()
         }
+        recordInteraction()
     }
 
     override suspend fun start(taskId: String) {
@@ -110,6 +114,7 @@ class FocusRepositoryImpl(
             }
             requireInvariants()
         }
+        recordInteraction()
     }
 
     override suspend fun interrupt(title: String?): Task =
@@ -124,7 +129,7 @@ class FocusRepositoryImpl(
             frameDao.upsert(newFrame(task.id, parentFrameId = active?.id))
             requireInvariants()
             task.toDomain()
-        }
+        }.also { recordInteraction() }
 
     override suspend fun completeActive(): UndoToken? =
         database.withTransaction {
@@ -148,6 +153,8 @@ class FocusRepositoryImpl(
             }
             requireInvariants()
             token
+        }.also { token ->
+            if (token != null) recordInteraction()
         }
 
     override suspend fun resume(frameId: String) {
@@ -166,6 +173,7 @@ class FocusRepositoryImpl(
             )
             requireInvariants()
         }
+        recordInteraction()
     }
 
     override suspend fun demote(taskId: String): UndoToken =
@@ -197,7 +205,7 @@ class FocusRepositoryImpl(
             taskDao.upsert(task.copy(bucket = TaskBucket.LATER.name))
             requireInvariants()
             token
-        }
+        }.also { recordInteraction() }
 
     override suspend fun pauseActive() {
         database.withTransaction {
@@ -205,6 +213,7 @@ class FocusRepositoryImpl(
             frameDao.upsert(pause(active))
             requireInvariants()
         }
+        recordInteraction()
     }
 
     override suspend fun updateReturnCue(
@@ -216,6 +225,7 @@ class FocusRepositoryImpl(
             val trimmed = cue?.trim()?.ifEmpty { null }
             taskDao.upsert(task.copy(returnCue = trimmed))
         }
+        recordInteraction()
     }
 
     override suspend fun rename(
@@ -228,6 +238,7 @@ class FocusRepositoryImpl(
             val task = taskDao.getById(taskId) ?: error("Missing task")
             taskDao.upsert(task.copy(title = trimmed))
         }
+        recordInteraction()
     }
 
     override suspend fun undo(token: UndoToken) {
@@ -236,6 +247,89 @@ class FocusRepositoryImpl(
             token.frames.forEach { frameDao.upsert(it.toEntity()) }
             requireInvariants()
         }
+        recordInteraction()
+    }
+
+    override suspend fun completeTask(taskId: String): UndoToken? {
+        if (frameDao.getActive()?.taskId == taskId) return completeActive()
+        val token =
+            database.withTransaction {
+                val task = taskDao.getById(taskId) ?: return@withTransaction null
+                if (task.status != TaskStatus.OPEN.name) return@withTransaction null
+                val frame = frameDao.openFrameForTask(taskId)
+                if (frame != null && frameDao.countOpenChildren(frame.id) > 0) {
+                    return@withTransaction null
+                }
+                val parent = frame?.parentFrameId?.let { frameDao.getById(it) }
+                val surfaceParent = frame != null && parent != null
+                val snapshot =
+                    UndoToken(
+                        tasks = listOf(task.toDomain()),
+                        frames = listOfNotNull(frame?.toDomain(), if (surfaceParent) parent.toDomain() else null),
+                    )
+                taskDao.upsert(
+                    task.copy(
+                        status = TaskStatus.DONE.name,
+                        completedAtEpochMillis = clock.nowEpochMillis(),
+                    ),
+                )
+                if (frame != null) {
+                    frameDao.upsert(close(frame))
+                    if (surfaceParent) {
+                        frameDao.upsert(parent.copy(state = FrameState.AWAITING_RESUME.name))
+                    }
+                }
+                requireInvariants()
+                snapshot
+            } ?: return null
+        recordInteraction()
+        return token
+    }
+
+    override suspend fun reorderToday(orderedIds: List<String>): UndoToken? {
+        val token =
+            database.withTransaction {
+                val today = taskDao.openInBucket(TaskBucket.TODAY.name)
+                val currentIds = today.map { it.id }
+                if (orderedIds.size != currentIds.size || orderedIds.toSet() != currentIds.toSet()) {
+                    return@withTransaction null
+                }
+                if (orderedIds == currentIds) return@withTransaction null
+                val snapshot = UndoToken(tasks = today.map { it.toDomain() }, frames = emptyList())
+                orderedIds.forEachIndexed { index, id ->
+                    val task = today.first { it.id == id }
+                    taskDao.upsert(task.copy(sortOrder = index.toLong()))
+                }
+                snapshot
+            } ?: return null
+        recordInteraction()
+        return token
+    }
+
+    override suspend fun setNudge(
+        enabled: Boolean,
+        minutes: Int,
+    ) {
+        preferencesStore.setNudge(enabled, minutes)
+    }
+
+    override suspend fun setQuietHours(
+        start: String?,
+        end: String?,
+    ) {
+        preferencesStore.setQuietHours(start, end)
+    }
+
+    override suspend fun setCurrentNotificationEnabled(enabled: Boolean) {
+        preferencesStore.setCurrentNotificationEnabled(enabled)
+    }
+
+    override suspend fun recordNudge(taskId: String) {
+        preferencesStore.setLastNudge(clock.nowEpochMillis(), taskId)
+    }
+
+    private suspend fun recordInteraction() {
+        preferencesStore.setLastInteractionAt(clock.nowEpochMillis())
     }
 
     private suspend fun requireInvariants() {

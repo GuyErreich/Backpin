@@ -311,6 +311,48 @@ class FocusRepositoryTest {
         }
 
     @Test
+    fun reorderTodayRewritesSortAndUndoRestoresIt() =
+        runBlocking {
+            val first = capture("First").also { repository.promote(it) }
+            clock.advance(10)
+            val second = capture("Second").also { repository.promote(it) }
+            clock.advance(10)
+            val third = capture("Third").also { repository.promote(it) }
+            assertEquals(listOf(first, second, third), openToday().map { it.id })
+            val token = repository.reorderToday(listOf(third, first, second))
+            assertEquals(listOf(third, first, second), openToday().map { it.id })
+            repository.undo(token!!)
+            assertEquals(listOf(first, second, third), openToday().map { it.id })
+        }
+
+    @Test
+    fun completeTaskLeavesTheActiveFrameAlone() =
+        runBlocking {
+            val original = capture("Review CI failure").also { repository.promote(it) }
+            repository.start(original)
+            repository.capture("Buy milk")
+            val milk = snapshot().tasks.single { it.title == "Buy milk" }.id
+            val active = snapshot().frames.single { it.state == FrameState.ACTIVE }.id
+            val token = repository.completeTask(milk)
+            assertEquals(TaskStatus.DONE, task(milk).status)
+            assertEquals(active, snapshot().frames.single { it.state == FrameState.ACTIVE }.id)
+            repository.undo(token!!)
+            assertEquals(TaskStatus.OPEN, task(milk).status)
+            assertEquals(TaskBucket.INBOX, task(milk).bucket)
+        }
+
+    @Test
+    fun completeTaskRefusesAnAncestorOfTheActiveFrame() =
+        runBlocking {
+            val original = capture("Review CI failure").also { repository.promote(it) }
+            repository.start(original)
+            repository.interrupt("Message John")
+            assertNull(repository.completeTask(original))
+            assertEquals(TaskStatus.OPEN, task(original).status)
+            assertEquals(1, snapshot().frames.count { it.state == FrameState.ACTIVE })
+        }
+
+    @Test
     fun stackSurvivesReopeningTheDatabase() =
         runBlocking {
             val name = "reopen-${UUID.randomUUID()}"

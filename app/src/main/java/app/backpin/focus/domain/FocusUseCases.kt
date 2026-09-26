@@ -61,4 +61,26 @@ class FocusUseCases(
     suspend fun undo(token: UndoToken) {
         repository.undo(token)
     }
+
+    suspend fun completeTask(taskId: String): UndoToken? = repository.completeTask(taskId)
+
+    suspend fun reorderToday(orderedIds: List<String>): UndoToken? = repository.reorderToday(orderedIds)
+
+    suspend fun setNudge(
+        enabled: Boolean,
+        minutes: Int,
+    ) {
+        repository.setNudge(enabled, minutes)
+    }
+
+    suspend fun setQuietHours(
+        start: String?,
+        end: String?,
+    ) {
+        repository.setQuietHours(start, end)
+    }
+
+    suspend fun setCurrentNotificationEnabled(enabled: Boolean) {
+        repository.setCurrentNotificationEnabled(enabled)
+    }
 }
