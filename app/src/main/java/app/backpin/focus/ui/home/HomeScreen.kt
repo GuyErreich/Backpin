@@ -25,7 +25,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -49,7 +48,6 @@ import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
-import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
@@ -78,6 +76,9 @@ fun HomeScreen(
     state: FocusUiState,
     viewModel: FocusStackViewModel,
     onOpenFocus: () -> Unit,
+    onOpenInbox: () -> Unit,
+    onOpenLater: () -> Unit,
+    onOpenDone: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val reducedMotion = rememberReducedMotion()
@@ -121,36 +122,11 @@ fun HomeScreen(
                 onReorder = viewModel::reorderToday,
             )
             HorizontalDivider(color = FocusColors.Outline)
-            BucketSection(
-                title = "LATER",
-                count = state.laterCount,
-                expanded = state.laterExpanded,
-                tasks = state.laterTasks,
-                emptyLabel = "Nothing parked for later.",
-                reducedMotion = reducedMotion,
-                onToggle = viewModel::toggleLater,
-                onToday = viewModel::promote,
-                onStart = viewModel::start,
-            )
-            BucketSection(
-                title = "INBOX",
-                count = state.inboxCount,
-                expanded = state.inboxExpanded,
-                tasks = state.inboxTasks,
-                emptyLabel = "Inbox is clear.",
-                reducedMotion = reducedMotion,
-                onToggle = viewModel::toggleInbox,
-                onToday = viewModel::promote,
-                onStart = viewModel::start,
-            )
-            HorizontalDivider(color = FocusColors.Outline)
-            ArchiveSection(
-                count = state.archiveCount,
-                expanded = state.archiveExpanded,
-                tasks = state.archiveTasks,
-                onToggle = viewModel::toggleArchive,
-                onRestore = viewModel::restore,
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(Space)) {
+                PileCountRow(title = "Inbox", count = state.inboxCount, onClick = onOpenInbox)
+                PileCountRow(title = "Later", count = state.laterCount, onClick = onOpenLater)
+                PileCountRow(title = "Done", count = state.archiveCount, onClick = onOpenDone)
+            }
         }
     }
 }
@@ -464,38 +440,6 @@ private fun TodayRow(
     }
 }
 
-private fun doneSwipe(onDone: () -> Unit): SwipeSide =
-    SwipeSide(
-        label = "Done ✓",
-        accessibilityLabel = "Done",
-        tint = FocusColors.Mint,
-        onCommit = onDone,
-    )
-
-private fun laterSwipe(onLater: () -> Unit): SwipeSide =
-    SwipeSide(
-        label = "Later ↩",
-        accessibilityLabel = "Move to Later",
-        tint = FocusColors.Amber,
-        onCommit = onLater,
-    )
-
-private fun todaySwipe(onToday: () -> Unit): SwipeSide =
-    SwipeSide(
-        label = "Today",
-        accessibilityLabel = "Add to Today",
-        tint = FocusColors.Mint,
-        onCommit = onToday,
-    )
-
-private fun startSwipe(onStart: () -> Unit): SwipeSide =
-    SwipeSide(
-        label = "Start",
-        accessibilityLabel = "Start",
-        tint = FocusColors.Lavender,
-        onCommit = onStart,
-    )
-
 @Composable
 private fun EmptyTodaySlot() {
     Box(
@@ -568,164 +512,48 @@ private fun SectionLabel(
 }
 
 /**
- * Later and Inbox each own a titled panel. They are not extra Today slots,
- * and nothing in the panel can be dropped into another bucket.
- *
- * Archive is a separate panel for finished tasks. Restore returns one to Inbox.
+ * A count-only row for a pile that lives on its own screen.
+ * The row is not a Today slot and does not expand a list.
  */
 @Composable
-private fun BucketSection(
+private fun PileCountRow(
     title: String,
     count: Int,
-    expanded: Boolean,
-    tasks: List<TaskUi>,
-    emptyLabel: String,
-    reducedMotion: Boolean,
-    onToggle: () -> Unit,
-    onToday: (String) -> Unit,
-    onStart: (String) -> Unit,
+    onClick: () -> Unit,
 ) {
-    val action = if (expanded) "Hide" else "Review"
-    Column(verticalArrangement = Arrangement.spacedBy(Space)) {
-        SectionLabel(title, count.toString())
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(CardRadius),
-            color = FocusColors.Surface,
-            border = BorderStroke(1.dp, FocusColors.Outline),
+    Surface(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .heightIn(min = 56.dp)
+                .clickable(
+                    role = Role.Button,
+                    onClickLabel = "Open $title",
+                    onClick = onClick,
+                ),
+        shape = RoundedCornerShape(CardRadius),
+        color = FocusColors.Surface,
+        border = BorderStroke(1.dp, FocusColors.Outline),
+    ) {
+        Row(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column(
-                Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(Space),
-            ) {
-                TextButton(
-                    onClick = onToggle,
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = 48.dp)
-                            .semantics {
-                                contentDescription = "$title, $count. ${if (expanded) "Collapse" else "Review"}"
-                            },
-                ) {
-                    Text(action)
-                }
-                if (expanded) {
-                    if (tasks.isEmpty()) {
-                        Text(
-                            emptyLabel,
-                            style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        )
-                    }
-                    tasks.forEach { task ->
-                        SwipeRevealCard(
-                            towardStart = todaySwipe { onToday(task.id) },
-                            towardEnd = startSwipe { onStart(task.id) },
-                            reducedMotion = reducedMotion,
-                            modifier =
-                                Modifier
-                                    .fillMaxWidth()
-                                    .semantics {
-                                        contentDescription =
-                                            "$title. ${task.title}. Swipe right for today, swipe left for start."
-                                    },
-                        ) {
-                            Surface(
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(16.dp),
-                                color = FocusColors.SurfaceHigh,
-                            ) {
-                                Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-                                    Text(task.title, style = MaterialTheme.typography.bodyLarge)
-                                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                        TextButton(
-                                            onClick = { onToday(task.id) },
-                                            modifier = Modifier.heightIn(min = 48.dp),
-                                        ) {
-                                            Text("Today")
-                                        }
-                                        TextButton(
-                                            onClick = { onStart(task.id) },
-                                            modifier = Modifier.heightIn(min = 48.dp),
-                                        ) {
-                                            Text("Start")
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-/**
- * Finished tasks live here, apart from Today, Later, and Inbox.
- * Review opens the list. Restore puts one task back into Inbox.
- */
-@Composable
-private fun ArchiveSection(
-    count: Int,
-    expanded: Boolean,
-    tasks: List<TaskUi>,
-    onToggle: () -> Unit,
-    onRestore: (String) -> Unit,
-) {
-    val action = if (expanded) "Hide" else "Review"
-    Column(verticalArrangement = Arrangement.spacedBy(Space)) {
-        SectionLabel("ARCHIVE", count.toString())
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(CardRadius),
-            color = FocusColors.Surface,
-            border = BorderStroke(1.dp, FocusColors.Outline),
-        ) {
-            Column(
-                Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(Space),
-            ) {
-                TextButton(
-                    onClick = onToggle,
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = 48.dp)
-                            .semantics {
-                                contentDescription = "ARCHIVE, $count. ${if (expanded) "Collapse" else "Review"}"
-                            },
-                ) {
-                    Text(action)
-                }
-                if (expanded) {
-                    if (tasks.isEmpty()) {
-                        Text(
-                            "Nothing in the archive.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        )
-                    }
-                    tasks.forEach { task ->
-                        Surface(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(16.dp),
-                            color = FocusColors.SurfaceHigh,
-                        ) {
-                            Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-                                Text(task.title, style = MaterialTheme.typography.bodyLarge)
-                                TextButton(
-                                    onClick = { onRestore(task.id) },
-                                    modifier = Modifier.heightIn(min = 48.dp),
-                                ) {
-                                    Text("Restore")
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+            Text(
+                title.uppercase(),
+                style = MaterialTheme.typography.labelLarge,
+                color = FocusColors.Muted,
+                letterSpacing = 1.2.sp,
+            )
+            Text(
+                count.toString(),
+                style = MaterialTheme.typography.titleMedium,
+                color = FocusColors.Mint,
+            )
         }
     }
 }

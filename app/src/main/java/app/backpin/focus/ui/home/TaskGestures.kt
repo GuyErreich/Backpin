@@ -30,6 +30,7 @@ import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import app.backpin.focus.ui.theme.FocusColors
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlinx.coroutines.withTimeoutOrNull
@@ -52,6 +53,38 @@ internal data class SwipeSide(
     val tint: Color,
     val onCommit: () -> Unit,
 )
+
+internal fun doneSwipe(onDone: () -> Unit): SwipeSide =
+    SwipeSide(
+        label = "Done ✓",
+        accessibilityLabel = "Done",
+        tint = FocusColors.Mint,
+        onCommit = onDone,
+    )
+
+internal fun laterSwipe(onLater: () -> Unit): SwipeSide =
+    SwipeSide(
+        label = "Later ↩",
+        accessibilityLabel = "Move to Later",
+        tint = FocusColors.Amber,
+        onCommit = onLater,
+    )
+
+internal fun todaySwipe(onToday: () -> Unit): SwipeSide =
+    SwipeSide(
+        label = "Today",
+        accessibilityLabel = "Add to Today",
+        tint = FocusColors.Mint,
+        onCommit = onToday,
+    )
+
+internal fun startSwipe(onStart: () -> Unit): SwipeSide =
+    SwipeSide(
+        label = "Start",
+        accessibilityLabel = "Start",
+        tint = FocusColors.Lavender,
+        onCommit = onStart,
+    )
 
 /**
  * Horizontal swipe reveals the two sides. Release past 40% of the width commits.

@@ -11,9 +11,6 @@ import app.backpin.focus.domain.UserPreferences
 
 internal data class ChromeState(
     val captureOpen: Boolean,
-    val inboxExpanded: Boolean,
-    val laterExpanded: Boolean,
-    val archiveExpanded: Boolean,
     val swapIncomingId: String?,
     val switchOpen: Boolean,
     val undo: PendingUndo?,
@@ -115,13 +112,10 @@ internal fun deriveFocusUi(
         paused = paused,
         todaySlots = slots,
         laterCount = later.size,
-        laterExpanded = chrome.laterExpanded,
         laterTasks = later,
         inboxCount = inbox.size,
-        inboxExpanded = chrome.inboxExpanded,
         inboxTasks = inbox,
         archiveCount = archive.size,
-        archiveExpanded = chrome.archiveExpanded,
         archiveTasks = archive,
         captureOpen = chrome.captureOpen,
         swapIncoming = incoming,

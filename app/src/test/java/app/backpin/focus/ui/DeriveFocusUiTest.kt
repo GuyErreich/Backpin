@@ -128,9 +128,6 @@ class DeriveFocusUiTest {
             snapshot,
             ChromeState(
                 captureOpen = false,
-                inboxExpanded = false,
-                laterExpanded = false,
-                archiveExpanded = false,
                 swapIncomingId = null,
                 switchOpen = false,
                 undo = undo,

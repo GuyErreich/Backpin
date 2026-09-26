@@ -36,7 +36,10 @@ import androidx.navigation.compose.rememberNavController
 import app.backpin.focus.notifications.NotificationContract
 import app.backpin.focus.ui.capture.CaptureSheet
 import app.backpin.focus.ui.focus.FocusScreen
+import app.backpin.focus.ui.home.DoneScreen
 import app.backpin.focus.ui.home.HomeScreen
+import app.backpin.focus.ui.home.InboxScreen
+import app.backpin.focus.ui.home.LaterScreen
 import app.backpin.focus.ui.home.MintButton
 import app.backpin.focus.ui.settings.SettingsScreen
 import app.backpin.focus.ui.theme.FocusColors
@@ -44,9 +47,14 @@ import app.backpin.focus.ui.theme.Space
 
 private object Routes {
     const val HOME = "home"
+    const val INBOX = "inbox"
+    const val LATER = "later"
+    const val DONE = "done"
     const val FOCUS = "focus"
     const val SETTINGS = "settings"
 }
+
+private val homeRoutes = setOf(Routes.HOME, Routes.INBOX, Routes.LATER, Routes.DONE)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -116,8 +124,8 @@ fun FocusApp(
                 }
                 NavigationBar(containerColor = FocusColors.Surface) {
                     NavigationBarItem(
-                        selected = route == Routes.HOME,
-                        onClick = { navController.navigateTab(Routes.HOME) },
+                        selected = route in homeRoutes,
+                        onClick = { navController.showToday() },
                         icon = { Icon(Icons.Filled.Home, contentDescription = null) },
                         label = { Text("Home") },
                     )
@@ -147,6 +155,35 @@ fun FocusApp(
                     state = state,
                     viewModel = viewModel,
                     onOpenFocus = { navController.navigateTab(Routes.FOCUS) },
+                    onOpenInbox = { navController.openPile(Routes.INBOX) },
+                    onOpenLater = { navController.openPile(Routes.LATER) },
+                    onOpenDone = { navController.openPile(Routes.DONE) },
+                )
+            }
+            composable(Routes.INBOX) {
+                InboxScreen(
+                    tasks = state.inboxTasks,
+                    ready = state.ready,
+                    onBack = { navController.popBackStack() },
+                    onToday = viewModel::promote,
+                    onStart = viewModel::start,
+                )
+            }
+            composable(Routes.LATER) {
+                LaterScreen(
+                    tasks = state.laterTasks,
+                    ready = state.ready,
+                    onBack = { navController.popBackStack() },
+                    onToday = viewModel::promote,
+                    onStart = viewModel::start,
+                )
+            }
+            composable(Routes.DONE) {
+                DoneScreen(
+                    tasks = state.archiveTasks,
+                    ready = state.ready,
+                    onBack = { navController.popBackStack() },
+                    onRestore = viewModel::restore,
                 )
             }
             composable(Routes.FOCUS) {
@@ -255,5 +292,19 @@ private fun androidx.navigation.NavController.navigateTab(route: String) {
         popUpTo(graph.findStartDestination().id) { saveState = true }
         launchSingleTop = true
         restoreState = true
+    }
+}
+
+/** Push a pile above Today. Task actions on that screen do not call this. */
+private fun androidx.navigation.NavController.openPile(route: String) {
+    navigate(route) { launchSingleTop = true }
+}
+
+/** Home is Today. Pile screens stay off this tab until the user opens one again. */
+private fun androidx.navigation.NavController.showToday() {
+    navigate(Routes.HOME) {
+        popUpTo(graph.findStartDestination().id) { saveState = false }
+        launchSingleTop = true
+        restoreState = false
     }
 }
