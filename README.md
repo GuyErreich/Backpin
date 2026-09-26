@@ -24,8 +24,8 @@ Install that APK on a device or emulator running Android 8.0 (API 26) or newer.
 
 ## What the MVP does
 
-Home shows one Now card and up to three Today positions, including Now. A free Today position is a single dashed empty slot. Later and Inbox stay collapsed counts. Capture is a title-only sheet: Save to Inbox, or Interrupt now.
+Home shows one Now card and up to three Today positions, including Now. A free Today position is a single dashed empty slot. Today ends at those slots. Later and Inbox are separate sections, each with its own title and container. Capture is a title-only sheet: Save to Inbox, or Interrupt now.
 
-Swipe a task right to mark it done, or left to move it to Later. Both show Undo. Long-press a Today task to reorder it, or drag a Later task into the empty Today slot. If Today is already full, the swap chooser asks which task to park. Buttons stay available for the same actions.
+The Now card offers Done and Interrupt as actions, with Later quieter. Interrupt opens capture; entering a title and choosing Interrupt now pushes a frame. Swipe a task right to mark it done, or left to move it to Later. Both show Undo. Reorder inside Today from the Move menu. + Today, Later, and Done change a task's bucket. A drop does not. If Today is already full, the swap chooser asks which task to park.
 
 Settings can turn nudges Off or to about 30 minutes, 1 hour, or 2 hours, set quiet hours, and show a dismissible current-task notification. Nudges use inexact WorkManager and can be delayed. The app does not use exact alarms or a foreground service. Notification permission is requested only when you turn a notification feature on. If you deny it, capture, Home, and recovery keep working.
