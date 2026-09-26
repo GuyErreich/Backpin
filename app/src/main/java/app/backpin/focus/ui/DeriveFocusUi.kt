@@ -2,6 +2,8 @@ package app.backpin.focus.ui
 
 import app.backpin.focus.domain.FocusSnapshot
 import app.backpin.focus.domain.FrameState
+import app.backpin.focus.domain.MAX_TODAY_LIMIT
+import app.backpin.focus.domain.MIN_TODAY_LIMIT
 import app.backpin.focus.domain.Task
 import app.backpin.focus.domain.TaskBucket
 import app.backpin.focus.domain.TaskStatus
@@ -75,9 +77,10 @@ internal fun deriveFocusUi(
             null
         }
 
-    val today = openTasks.filter { it.bucket == TaskBucket.TODAY }.sortedBy { it.sortOrder }.take(3)
+    val limit = chrome.preferences.todayLimit.coerceIn(MIN_TODAY_LIMIT, MAX_TODAY_LIMIT)
+    val today = openTasks.filter { it.bucket == TaskBucket.TODAY }.sortedBy { it.sortOrder }
     val slots =
-        List(3) { index ->
+        List(maxOf(limit, today.size)) { index ->
             val task = today.getOrNull(index)
             if (task == null) {
                 SlotUi(SlotRole.EMPTY, null)

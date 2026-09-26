@@ -102,9 +102,27 @@ class DeriveFocusUiTest {
         assertEquals(2, state.todaySlots.count { it.role == SlotRole.EMPTY })
     }
 
+    @Test
+    fun todaySlotCountFollowsTheStoredLimit() {
+        val one = derive(FocusSnapshot(), preferences = UserPreferences(todayLimit = 1))
+        assertEquals(1, one.todaySlots.size)
+        assertTrue(one.todaySlots.all { it.role == SlotRole.EMPTY })
+        val five = derive(FocusSnapshot(), preferences = UserPreferences(todayLimit = 5))
+        assertEquals(5, five.todaySlots.size)
+        val notes = task("notes", "Write the notes", TaskBucket.TODAY)
+        val capped =
+            derive(
+                FocusSnapshot(tasks = listOf(notes)),
+                preferences = UserPreferences(todayLimit = 1),
+            )
+        assertEquals(listOf("Write the notes"), capped.todaySlots.mapNotNull { it.task?.title })
+        assertTrue(capped.todaySlots.none { it.role == SlotRole.EMPTY })
+    }
+
     private fun derive(
         snapshot: FocusSnapshot,
         undo: PendingUndo? = null,
+        preferences: UserPreferences = UserPreferences(),
     ): FocusUiState =
         deriveFocusUi(
             snapshot,
@@ -116,7 +134,7 @@ class DeriveFocusUiTest {
                 swapIncomingId = null,
                 switchOpen = false,
                 undo = undo,
-                preferences = UserPreferences(),
+                preferences = preferences,
             ),
         )
 

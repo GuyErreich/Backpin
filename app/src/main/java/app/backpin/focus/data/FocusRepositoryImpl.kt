@@ -5,7 +5,8 @@ import app.backpin.focus.domain.AppClock
 import app.backpin.focus.domain.FocusRepository
 import app.backpin.focus.domain.FocusSnapshot
 import app.backpin.focus.domain.FrameState
-import app.backpin.focus.domain.MAX_OPEN_TODAY
+import app.backpin.focus.domain.MAX_TODAY_LIMIT
+import app.backpin.focus.domain.MIN_TODAY_LIMIT
 import app.backpin.focus.domain.PromoteOutcome
 import app.backpin.focus.domain.SystemAppClock
 import app.backpin.focus.domain.Task
@@ -16,6 +17,7 @@ import app.backpin.focus.domain.UndoToken
 import app.backpin.focus.domain.UserPreferences
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import java.util.UUID
 
 class FocusRepositoryImpl(
@@ -46,8 +48,9 @@ class FocusRepositoryImpl(
         recordInteraction()
     }
 
-    override suspend fun promote(taskId: String): PromoteOutcome =
-        database.withTransaction {
+    override suspend fun promote(taskId: String): PromoteOutcome {
+        val limit = todayLimit()
+        return database.withTransaction {
             val task = taskDao.getById(taskId) ?: return@withTransaction PromoteOutcome.Rejected("Missing task")
             if (task.status != TaskStatus.OPEN.name) {
                 return@withTransaction PromoteOutcome.Rejected("Done tasks stay out of Today")
@@ -55,64 +58,125 @@ class FocusRepositoryImpl(
             if (task.bucket == TaskBucket.TODAY.name) {
                 return@withTransaction PromoteOutcome.Promoted
             }
-            if (taskDao.countOpenToday() >= MAX_OPEN_TODAY) {
+            if (taskDao.countOpenToday() >= limit) {
                 val today = taskDao.openInBucket(TaskBucket.TODAY.name).map { it.toDomain() }
-                return@withTransaction PromoteOutcome.NeedsSwap(today)
+                return@withTransaction PromoteOutcome.NeedsSwap(today, canInterruptIncoming(taskId))
             }
             taskDao.upsert(task.copy(bucket = TaskBucket.TODAY.name, sortOrder = clock.nowEpochMillis()))
-            requireInvariants()
+            requireInvariants(limit)
             PromoteOutcome.Promoted
         }.also { outcome ->
             if (outcome is PromoteOutcome.Promoted) recordInteraction()
         }
+    }
 
     override suspend fun swapIntoToday(
         incomingTaskId: String,
         outgoingTaskId: String,
-    ) {
-        database.withTransaction {
-            val incoming = taskDao.getById(incomingTaskId) ?: error("Missing incoming task")
-            val outgoing = taskDao.getById(outgoingTaskId) ?: error("Missing outgoing task")
-            taskDao.upsert(incoming.copy(bucket = TaskBucket.TODAY.name, sortOrder = clock.nowEpochMillis()))
-            taskDao.upsert(outgoing.copy(bucket = TaskBucket.LATER.name))
-            val valid =
-                incoming.status == TaskStatus.OPEN.name &&
-                    incoming.bucket != TaskBucket.TODAY.name &&
-                    outgoing.bucket == TaskBucket.TODAY.name &&
-                    outgoing.status == TaskStatus.OPEN.name &&
-                    incoming.id != outgoing.id &&
-                    taskDao.countOpenToday() <= MAX_OPEN_TODAY
-            if (!valid) error("Swap rejected")
-            requireInvariants()
-        }
+    ): UndoToken {
+        val limit = todayLimit()
+        val token =
+            database.withTransaction {
+                val incoming = taskDao.getById(incomingTaskId) ?: error("Missing incoming task")
+                val outgoing = taskDao.getById(outgoingTaskId) ?: error("Missing outgoing task")
+                val valid =
+                    incoming.status == TaskStatus.OPEN.name &&
+                        incoming.bucket != TaskBucket.TODAY.name &&
+                        outgoing.bucket == TaskBucket.TODAY.name &&
+                        outgoing.status == TaskStatus.OPEN.name &&
+                        incoming.id != outgoing.id
+                if (!valid) error("Swap rejected")
+                val slot = outgoing.sortOrder
+                val parked = parkInLater(outgoing.id)
+                val placed = taskDao.getById(incomingTaskId) ?: error("Missing incoming task")
+                taskDao.upsert(placed.copy(bucket = TaskBucket.TODAY.name, sortOrder = slot))
+                if (taskDao.countOpenToday() > limit) error("Swap rejected")
+                requireInvariants(limit)
+                UndoToken(
+                    tasks = listOf(incoming.toDomain()) + parked.tasks,
+                    frames = parked.frames,
+                )
+            }
         recordInteraction()
+        return token
     }
 
-    override suspend fun start(taskId: String) {
-        database.withTransaction {
-            val task = taskDao.getById(taskId) ?: error("Missing task")
-            check(task.status == TaskStatus.OPEN.name) { "Cannot start a done task" }
-            val active = frameDao.getActive()
-            if (active?.taskId == taskId) return@withTransaction
-            if (active != null) {
-                frameDao.upsert(pause(active))
+    override suspend fun start(taskId: String): PromoteOutcome {
+        val limit = todayLimit()
+        val outcome =
+            database.withTransaction {
+                val task = taskDao.getById(taskId) ?: error("Missing task")
+                check(task.status == TaskStatus.OPEN.name) { "Cannot start a done task" }
+                val active = frameDao.getActive()
+                if (active?.taskId == taskId) return@withTransaction PromoteOutcome.Promoted
+                val existing = frameDao.openFrameForTask(taskId)
+                if (existing?.state == FrameState.AWAITING_RESUME.name) {
+                    return@withTransaction PromoteOutcome.Rejected("Resume the waiting frame explicitly")
+                }
+                val needsSlot = task.bucket != TaskBucket.TODAY.name
+                if (needsSlot && taskDao.countOpenToday() >= limit) {
+                    val today = taskDao.openInBucket(TaskBucket.TODAY.name).map { it.toDomain() }
+                    return@withTransaction PromoteOutcome.NeedsSwap(today, canInterruptIncoming(taskId))
+                }
+                if (needsSlot) {
+                    taskDao.upsert(task.copy(bucket = TaskBucket.TODAY.name, sortOrder = clock.nowEpochMillis()))
+                }
+                if (active != null) {
+                    frameDao.upsert(pause(active))
+                }
+                if (existing?.state == FrameState.PAUSED.name) {
+                    frameDao.upsert(
+                        existing.copy(
+                            state = FrameState.ACTIVE.name,
+                            startedAtEpochMillis = clock.nowEpochMillis(),
+                            pausedAtEpochMillis = null,
+                        ),
+                    )
+                } else {
+                    frameDao.upsert(newFrame(taskId, parentFrameId = null))
+                }
+                requireInvariants(limit)
+                PromoteOutcome.Promoted
             }
+        if (outcome is PromoteOutcome.Promoted) recordInteraction()
+        return outcome
+    }
+
+    override suspend fun interruptWith(taskId: String) {
+        val limit = todayLimit()
+        database.withTransaction {
+            val incoming = taskDao.getById(taskId) ?: error("Missing task")
+            check(incoming.status == TaskStatus.OPEN.name) { "Cannot interrupt with a done task" }
+            check(incoming.bucket != TaskBucket.TODAY.name) { "Task is already in Today" }
+            val active = frameDao.getActive() ?: error("Nothing is active")
+            check(active.taskId != taskId) { "Task is already active" }
+            val activeTask = taskDao.getById(active.taskId) ?: error("Missing task")
+            check(activeTask.status == TaskStatus.OPEN.name) { "Active task is done" }
+            check(activeTask.bucket == TaskBucket.TODAY.name) { "Current task is not in Today" }
             val existing = frameDao.openFrameForTask(taskId)
             if (existing?.state == FrameState.AWAITING_RESUME.name) {
                 error("Resume the waiting frame explicitly")
             }
+            if (existing != null && frameDao.countOpenChildren(existing.id) > 0) {
+                error("Task still has an open interruption")
+            }
+            val slot = activeTask.sortOrder
+            frameDao.upsert(pause(active))
+            taskDao.upsert(activeTask.copy(bucket = TaskBucket.LATER.name))
+            taskDao.upsert(incoming.copy(bucket = TaskBucket.TODAY.name, sortOrder = slot))
             if (existing?.state == FrameState.PAUSED.name) {
                 frameDao.upsert(
                     existing.copy(
                         state = FrameState.ACTIVE.name,
+                        parentFrameId = active.id,
                         startedAtEpochMillis = clock.nowEpochMillis(),
                         pausedAtEpochMillis = null,
                     ),
                 )
             } else {
-                frameDao.upsert(newFrame(taskId, parentFrameId = null))
+                frameDao.upsert(newFrame(taskId, parentFrameId = active.id))
             }
-            requireInvariants()
+            requireInvariants(limit)
         }
         recordInteraction()
     }
@@ -127,7 +191,7 @@ class FocusRepositoryImpl(
             val task = newTask(resolved, TaskBucket.INBOX)
             taskDao.upsert(task)
             frameDao.upsert(newFrame(task.id, parentFrameId = active?.id))
-            requireInvariants()
+            requireInvariants(todayLimit())
             task.toDomain()
         }.also { recordInteraction() }
 
@@ -151,7 +215,7 @@ class FocusRepositoryImpl(
             if (parent != null) {
                 frameDao.upsert(parent.copy(state = FrameState.AWAITING_RESUME.name))
             }
-            requireInvariants()
+            requireInvariants(todayLimit())
             token
         }.also { token ->
             if (token != null) recordInteraction()
@@ -171,47 +235,25 @@ class FocusRepositoryImpl(
                     pausedAtEpochMillis = null,
                 ),
             )
-            requireInvariants()
+            requireInvariants(todayLimit())
         }
         recordInteraction()
     }
 
-    override suspend fun demote(taskId: String): UndoToken =
-        database.withTransaction {
-            val task = taskDao.getById(taskId) ?: error("Missing task")
-            val openFrame = frameDao.openFrameForTask(taskId)
-            val parent = openFrame?.parentFrameId?.let { frameDao.getById(it) }
-            val frames =
-                buildList {
-                    if (openFrame != null) add(openFrame.toDomain())
-                    if (openFrame?.state == FrameState.ACTIVE.name && parent != null) {
-                        add(parent.toDomain())
-                    }
-                }
-            val token = UndoToken(tasks = listOf(task.toDomain()), frames = frames)
-            if (openFrame?.state == FrameState.ACTIVE.name) {
-                frameDao.upsert(pause(openFrame))
-                if (parent != null) {
-                    frameDao.upsert(parent.copy(state = FrameState.AWAITING_RESUME.name))
-                }
-            } else if (openFrame?.state == FrameState.AWAITING_RESUME.name) {
-                frameDao.upsert(
-                    openFrame.copy(
-                        state = FrameState.PAUSED.name,
-                        pausedAtEpochMillis = clock.nowEpochMillis(),
-                    ),
-                )
-            }
-            taskDao.upsert(task.copy(bucket = TaskBucket.LATER.name))
-            requireInvariants()
+    override suspend fun demote(taskId: String): UndoToken {
+        val limit = todayLimit()
+        return database.withTransaction {
+            val token = parkInLater(taskId)
+            requireInvariants(limit)
             token
         }.also { recordInteraction() }
+    }
 
     override suspend fun pauseActive() {
         database.withTransaction {
             val active = frameDao.getActive() ?: return@withTransaction
             frameDao.upsert(pause(active))
-            requireInvariants()
+            requireInvariants(todayLimit())
         }
         recordInteraction()
     }
@@ -245,7 +287,7 @@ class FocusRepositoryImpl(
         database.withTransaction {
             token.tasks.forEach { taskDao.upsert(it.toEntity()) }
             token.frames.forEach { frameDao.upsert(it.toEntity()) }
-            requireInvariants()
+            requireInvariants(todayLimit())
         }
         recordInteraction()
     }
@@ -263,7 +305,7 @@ class FocusRepositoryImpl(
                         sortOrder = clock.nowEpochMillis(),
                     ),
                 )
-                requireInvariants()
+                requireInvariants(todayLimit())
                 true
             }
         if (restored) recordInteraction()
@@ -298,7 +340,7 @@ class FocusRepositoryImpl(
                         frameDao.upsert(parent.copy(state = FrameState.AWAITING_RESUME.name))
                     }
                 }
-                requireInvariants()
+                requireInvariants(todayLimit())
                 snapshot
             } ?: return null
         recordInteraction()
@@ -343,6 +385,29 @@ class FocusRepositoryImpl(
         preferencesStore.setCurrentNotificationEnabled(enabled)
     }
 
+    override suspend fun setTodayLimit(limit: Int) {
+        val clamped = limit.coerceIn(MIN_TODAY_LIMIT, MAX_TODAY_LIMIT)
+        database.withTransaction {
+            var guard = 0
+            while (taskDao.countOpenToday() > clamped && guard < MAX_TODAY_LIMIT + 1) {
+                guard += 1
+                val open = taskDao.openInBucket(TaskBucket.TODAY.name)
+                if (open.isEmpty()) break
+                val activeId = frameDao.getActive()?.taskId
+                val victim = open.lastOrNull { it.id != activeId } ?: open.last()
+                parkInLater(victim.id)
+            }
+            check(taskDao.countOpenToday() <= clamped) {
+                "Today cannot hold more than $clamped open tasks"
+            }
+            check(frameDao.countActive() <= 1) {
+                "At most one frame can be active"
+            }
+        }
+        preferencesStore.setTodayLimit(clamped)
+        recordInteraction()
+    }
+
     override suspend fun recordNudge(taskId: String) {
         preferencesStore.setLastNudge(clock.nowEpochMillis(), taskId)
     }
@@ -351,9 +416,55 @@ class FocusRepositoryImpl(
         preferencesStore.setLastInteractionAt(clock.nowEpochMillis())
     }
 
-    private suspend fun requireInvariants() {
-        check(taskDao.countOpenToday() <= MAX_OPEN_TODAY) {
-            "Today cannot hold more than 3 open tasks"
+    private suspend fun todayLimit(): Int =
+        preferencesStore.preferences.first().todayLimit.coerceIn(MIN_TODAY_LIMIT, MAX_TODAY_LIMIT)
+
+    private suspend fun canInterruptIncoming(incomingId: String): Boolean {
+        val active = frameDao.getActive() ?: return false
+        if (active.taskId == incomingId) return false
+        val task = taskDao.getById(active.taskId) ?: return false
+        return task.status == TaskStatus.OPEN.name && task.bucket == TaskBucket.TODAY.name
+    }
+
+    /**
+     * Moves [taskId] to Later and parks its open frame the same way [demote] does.
+     * Does not check the Today cap; callers do that after the surrounding writes.
+     */
+    private suspend fun parkInLater(taskId: String): UndoToken {
+        val task = taskDao.getById(taskId) ?: error("Missing task")
+        val openFrame = frameDao.openFrameForTask(taskId)
+        val parent = openFrame?.parentFrameId?.let { frameDao.getById(it) }
+        val frames =
+            buildList {
+                if (openFrame != null) add(openFrame.toDomain())
+                if (openFrame?.state == FrameState.ACTIVE.name && parent != null) {
+                    add(parent.toDomain())
+                }
+            }
+        val token = UndoToken(tasks = listOf(task.toDomain()), frames = frames)
+        if (openFrame?.state == FrameState.ACTIVE.name) {
+            frameDao.upsert(pause(openFrame))
+            if (parent != null) {
+                frameDao.upsert(parent.copy(state = FrameState.AWAITING_RESUME.name))
+            }
+        } else if (openFrame?.state == FrameState.AWAITING_RESUME.name) {
+            frameDao.upsert(
+                openFrame.copy(
+                    state = FrameState.PAUSED.name,
+                    pausedAtEpochMillis = clock.nowEpochMillis(),
+                ),
+            )
+        }
+        taskDao.upsert(task.copy(bucket = TaskBucket.LATER.name))
+        check(frameDao.countActive() <= 1) {
+            "At most one frame can be active"
+        }
+        return token
+    }
+
+    private suspend fun requireInvariants(limit: Int) {
+        check(taskDao.countOpenToday() <= limit) {
+            "Today cannot hold more than $limit open tasks"
         }
         check(frameDao.countActive() <= 1) {
             "At most one frame can be active"

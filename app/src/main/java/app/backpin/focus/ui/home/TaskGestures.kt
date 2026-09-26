@@ -19,7 +19,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -28,7 +30,6 @@ import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import app.backpin.focus.ui.theme.FocusColors
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlinx.coroutines.withTimeoutOrNull
@@ -42,28 +43,48 @@ private sealed interface Race {
 }
 
 /**
- * Horizontal swipe reveals Done and Later. Release past 40% of the width commits.
- * Bucket changes stay on explicit buttons; a drop never moves a task.
+ * One horizontal swipe action. [label] is what the finger reveals.
+ * A null side means that direction does nothing.
+ */
+internal data class SwipeSide(
+    val label: String,
+    val accessibilityLabel: String,
+    val tint: Color,
+    val onCommit: () -> Unit,
+)
+
+/**
+ * Horizontal swipe reveals the two sides. Release past 40% of the width commits.
+ * Today rows can also long-press and drag vertically; that callback only reorders
+ * within Today and never changes a bucket.
  * Reduced motion keeps the card still and still reveals the labels.
  */
 @Composable
 internal fun SwipeRevealCard(
-    enableDone: Boolean,
-    enableLater: Boolean,
+    towardStart: SwipeSide?,
+    towardEnd: SwipeSide?,
     reducedMotion: Boolean,
-    onDone: () -> Unit,
-    onLater: () -> Unit,
+    onReorderDragStart: (() -> Unit)? = null,
+    onReorderDrag: ((Float) -> Unit)? = null,
+    onReorderDragEnd: (() -> Unit)? = null,
+    onReorderDragCancel: (() -> Unit)? = null,
+    extraActions: List<CustomAccessibilityAction> = emptyList(),
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
     var logicalOffset by remember { mutableFloatStateOf(0f) }
     var width by remember { mutableFloatStateOf(1f) }
     val haptic = LocalHapticFeedback.current
-    val doneState = rememberUpdatedState(onDone)
-    val laterState = rememberUpdatedState(onLater)
+    val startState = rememberUpdatedState(towardStart)
+    val endState = rememberUpdatedState(towardEnd)
+    val reorderStart = rememberUpdatedState(onReorderDragStart)
+    val reorderDrag = rememberUpdatedState(onReorderDrag)
+    val reorderEnd = rememberUpdatedState(onReorderDragEnd)
+    val reorderCancel = rememberUpdatedState(onReorderDragCancel)
     val threshold = width * 0.4f
     val reveal = if (threshold <= 0f) 0f else (abs(logicalOffset) / threshold).coerceIn(0f, 1f)
     val visualOffset = if (reducedMotion) 0f else logicalOffset
+    val reorderEnabled = onReorderDrag != null
 
     Box(
         modifier
@@ -71,15 +92,16 @@ internal fun SwipeRevealCard(
             .semantics {
                 customActions =
                     buildList {
-                        if (enableDone) {
-                            add(CustomAccessibilityAction("Done") { doneState.value(); true })
+                        startState.value?.let { side ->
+                            add(CustomAccessibilityAction(side.accessibilityLabel) { side.onCommit(); true })
                         }
-                        if (enableLater) {
-                            add(CustomAccessibilityAction("Move to Later") { laterState.value(); true })
+                        endState.value?.let { side ->
+                            add(CustomAccessibilityAction(side.accessibilityLabel) { side.onCommit(); true })
                         }
+                        addAll(extraActions)
                     }
             }
-            .pointerInput(enableDone, enableLater) {
+            .pointerInput(towardStart != null, towardEnd != null, reorderEnabled) {
                 val slop = viewConfiguration.touchSlop
                 val longPressMs = viewConfiguration.longPressTimeoutMillis
                 awaitEachGesture {
@@ -102,7 +124,29 @@ internal fun SwipeRevealCard(
                                 null
                             }
                         when (raced) {
-                            Race.Up, null -> Unit
+                            Race.Up -> Unit
+                            null -> {
+                                if (!reorderEnabled) return@awaitEachGesture
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                reorderStart.value?.invoke()
+                                var ended = false
+                                try {
+                                    while (true) {
+                                        val event = awaitPointerEvent(pass = PointerEventPass.Initial)
+                                        val change = event.changes.firstOrNull { it.id == pointerId } ?: break
+                                        change.consume()
+                                        if (!change.pressed) {
+                                            ended = true
+                                            reorderEnd.value?.invoke()
+                                            break
+                                        }
+                                        val delta = change.position.y - change.previousPosition.y
+                                        if (delta != 0f) reorderDrag.value?.invoke(delta)
+                                    }
+                                } finally {
+                                    if (!ended) reorderCancel.value?.invoke()
+                                }
+                            }
                             is Race.Moved -> {
                                 val fromStart = raced.position - start
                                 if (abs(fromStart.y) > abs(fromStart.x)) return@awaitEachGesture
@@ -110,8 +154,8 @@ internal fun SwipeRevealCard(
                                 fun apply(next: Float) {
                                     val allowed =
                                         when {
-                                            next > 0f -> enableDone
-                                            next < 0f -> enableLater
+                                            next > 0f -> startState.value != null
+                                            next < 0f -> endState.value != null
                                             else -> true
                                         }
                                     total = if (allowed) next.coerceIn(-width, width) else 0f
@@ -130,8 +174,8 @@ internal fun SwipeRevealCard(
                                     if (!change.pressed) {
                                         val limit = width * 0.4f
                                         when {
-                                            enableDone && total >= limit -> doneState.value()
-                                            enableLater && total <= -limit -> laterState.value()
+                                            startState.value != null && total >= limit -> startState.value?.onCommit?.invoke()
+                                            endState.value != null && total <= -limit -> endState.value?.onCommit?.invoke()
                                         }
                                         break
                                     }
@@ -149,25 +193,23 @@ internal fun SwipeRevealCard(
             },
     ) {
         if (reveal > 0f) {
-            val doneSide = logicalOffset > 0f
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .background(
-                        if (doneSide) {
-                            FocusColors.Mint.copy(alpha = 0.22f * reveal)
-                        } else {
-                            FocusColors.Amber.copy(alpha = 0.22f * reveal)
-                        },
+            val startSide = logicalOffset > 0f
+            val tint = if (startSide) startState.value?.tint else endState.value?.tint
+            val label = if (startSide) startState.value?.label else endState.value?.label
+            if (tint != null && label != null) {
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .background(tint.copy(alpha = 0.22f * reveal))
+                        .padding(horizontal = 20.dp),
+                ) {
+                    Text(
+                        text = label,
+                        modifier = Modifier.align(if (startSide) Alignment.CenterStart else Alignment.CenterEnd),
+                        color = tint,
+                        style = MaterialTheme.typography.labelLarge,
                     )
-                    .padding(horizontal = 20.dp),
-            ) {
-                Text(
-                    text = if (doneSide) "Done ✓" else "Later ↩",
-                    modifier = Modifier.align(if (doneSide) Alignment.CenterStart else Alignment.CenterEnd),
-                    color = if (doneSide) FocusColors.Mint else FocusColors.Amber,
-                    style = MaterialTheme.typography.labelLarge,
-                )
+                }
             }
         }
         Box(

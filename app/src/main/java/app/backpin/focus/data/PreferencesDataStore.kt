@@ -8,6 +8,9 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStoreFile
+import app.backpin.focus.domain.DEFAULT_TODAY_LIMIT
+import app.backpin.focus.domain.MAX_TODAY_LIMIT
+import app.backpin.focus.domain.MIN_TODAY_LIMIT
 import app.backpin.focus.domain.UserPreferences
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -36,6 +39,7 @@ class PreferencesDataStore(
                 lastInteractionAtEpochMillis = prefs[Keys.LAST_INTERACTION] ?: 0L,
                 lastNudgedAtEpochMillis = prefs[Keys.LAST_NUDGED] ?: 0L,
                 lastNudgedTaskId = prefs[Keys.LAST_NUDGED_TASK],
+                todayLimit = (prefs[Keys.TODAY_LIMIT] ?: DEFAULT_TODAY_LIMIT).coerceIn(MIN_TODAY_LIMIT, MAX_TODAY_LIMIT),
             )
         }
 
@@ -45,6 +49,7 @@ class PreferencesDataStore(
             if (Keys.NUDGES_ENABLED !in prefs) prefs[Keys.NUDGES_ENABLED] = false
             if (Keys.NUDGE_MINUTES !in prefs) prefs[Keys.NUDGE_MINUTES] = DEFAULT_NUDGE_MINUTES
             if (Keys.CURRENT_NOTIFICATION !in prefs) prefs[Keys.CURRENT_NOTIFICATION] = false
+            if (Keys.TODAY_LIMIT !in prefs) prefs[Keys.TODAY_LIMIT] = DEFAULT_TODAY_LIMIT
         }
     }
 
@@ -71,6 +76,13 @@ class PreferencesDataStore(
                 prefs[Keys.QUIET_START] = start
                 prefs[Keys.QUIET_END] = end
             }
+        }
+    }
+
+    suspend fun setTodayLimit(limit: Int) {
+        val stored = limit.coerceIn(MIN_TODAY_LIMIT, MAX_TODAY_LIMIT)
+        dataStore.edit { prefs ->
+            prefs[Keys.TODAY_LIMIT] = stored
         }
     }
 
@@ -105,6 +117,7 @@ class PreferencesDataStore(
         val LAST_INTERACTION = longPreferencesKey("last_interaction_at")
         val LAST_NUDGED = longPreferencesKey("last_nudged_at")
         val LAST_NUDGED_TASK = stringPreferencesKey("last_nudged_task")
+        val TODAY_LIMIT = intPreferencesKey("today_limit")
     }
 
     companion object {

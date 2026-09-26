@@ -421,6 +421,111 @@ class FocusRepositoryTest {
             assertEquals(FrameState.PAUSED, snapshot.frames.single { it.taskId == original }.state)
         }
 
+    @Test
+    fun todayLimitOfOneBlocksTheSecondOpenTask() =
+        runBlocking {
+            repository.setTodayLimit(1)
+            val first = capture("First")
+            val second = capture("Second")
+            assertTrue(repository.promote(first) is PromoteOutcome.Promoted)
+            val blocked = repository.promote(second)
+            assertTrue(blocked is PromoteOutcome.NeedsSwap)
+            assertEquals(false, (blocked as PromoteOutcome.NeedsSwap).canInterrupt)
+            assertEquals(1, openToday().size)
+            assertEquals(TaskBucket.INBOX, task(second).bucket)
+        }
+
+    @Test
+    fun promoteCanInterruptWhenTheActiveTaskIsInToday() =
+        runBlocking {
+            val today = (1..3).map { capture("Today $it").also { id -> repository.promote(id) } }
+            repository.start(today[0])
+            val incoming = capture("Incoming")
+            val blocked = repository.promote(incoming) as PromoteOutcome.NeedsSwap
+            assertTrue(blocked.canInterrupt)
+            assertEquals(TaskBucket.INBOX, task(incoming).bucket)
+        }
+
+    @Test
+    fun startFromInboxTakesAFreeSlotAndDoesNotWriteWhenFull() =
+        runBlocking {
+            val open = capture("Open one")
+            assertTrue(repository.start(open) is PromoteOutcome.Promoted)
+            val started = snapshot()
+            assertEquals(TaskBucket.TODAY, task(open).bucket)
+            assertEquals(open, started.frames.single { it.state == FrameState.ACTIVE }.taskId)
+            assertNull(started.frames.single { it.state == FrameState.ACTIVE }.parentFrameId)
+            val fillers =
+                (1..2).map { capture("Fill $it").also { id -> repository.promote(id) } }
+            val extra = capture("Extra")
+            val before = snapshot().tasks.map { it.id to it.bucket }
+            val blocked = repository.start(extra)
+            assertTrue(blocked is PromoteOutcome.NeedsSwap)
+            assertEquals(before, snapshot().tasks.map { it.id to it.bucket })
+            assertTrue(snapshot().frames.none { it.taskId == extra })
+            assertEquals(fillers.size + 1, openToday().size)
+        }
+
+    @Test
+    fun interruptWithReusesTheTaskAndKeepsTheTodayCap() =
+        runBlocking {
+            val original = capture("Review CI failure").also { repository.promote(it) }
+            val second = capture("Second").also { repository.promote(it) }
+            val third = capture("Third").also { repository.promote(it) }
+            repository.start(original)
+            val parentFrame = snapshot().frames.single { it.state == FrameState.ACTIVE }.id
+            val incoming = capture("Incoming")
+            repository.interruptWith(incoming)
+            val after = snapshot()
+            assertEquals(1, after.tasks.count { it.id == incoming })
+            assertEquals(1, after.frames.count { it.state == FrameState.ACTIVE })
+            val active = after.frames.single { it.state == FrameState.ACTIVE }
+            assertEquals(incoming, active.taskId)
+            assertEquals(parentFrame, active.parentFrameId)
+            assertEquals(TaskBucket.TODAY, task(incoming).bucket)
+            assertEquals(TaskBucket.LATER, task(original).bucket)
+            assertEquals(FrameState.PAUSED, after.frames.single { it.id == parentFrame }.state)
+            assertEquals(setOf(second, third, incoming), openToday().map { it.id }.toSet())
+            repository.completeActive()
+            val recovered = snapshot()
+            val waiting = recovered.frames.single { it.state == FrameState.AWAITING_RESUME }
+            assertEquals(original, waiting.taskId)
+            assertEquals(TaskBucket.LATER, task(original).bucket)
+        }
+
+    @Test
+    fun replaceTakesTheSlotAndDoesNotStart() =
+        runBlocking {
+            val today = (1..3).map { capture("Today $it").also { id -> repository.promote(id) } }
+            repository.start(today[0])
+            val slot = task(today[1]).sortOrder
+            val incoming = capture("Incoming")
+            repository.swapIntoToday(incoming, today[1])
+            assertEquals(slot, task(incoming).sortOrder)
+            assertEquals(TaskBucket.TODAY, task(incoming).bucket)
+            assertEquals(TaskBucket.LATER, task(today[1]).bucket)
+            assertTrue(snapshot().frames.none { it.taskId == incoming })
+            assertEquals(today[0], snapshot().frames.single { it.state == FrameState.ACTIVE }.taskId)
+            assertEquals(3, openToday().size)
+        }
+
+    @Test
+    fun smallerTodayLimitParksExtrasAndDoesNotFillWhenRaised() =
+        runBlocking {
+            val kept = capture("Keep").also { repository.promote(it) }
+            repository.start(kept)
+            val parked = (1..2).map { capture("Park $it").also { id -> repository.promote(id) } }
+            val inbox = capture("Stays in inbox")
+            repository.setTodayLimit(1)
+            assertEquals(listOf(kept), openToday().map { it.id })
+            assertEquals(parked.toSet(), snapshot().tasks.filter { it.bucket == TaskBucket.LATER }.map { it.id }.toSet())
+            assertEquals(FrameState.ACTIVE, snapshot().frames.single { it.taskId == kept }.state)
+            repository.setTodayLimit(5)
+            assertEquals(listOf(kept), openToday().map { it.id })
+            assertEquals(TaskBucket.INBOX, task(inbox).bucket)
+            assertEquals(5, repository.preferences.first().todayLimit)
+        }
+
     private suspend fun capture(title: String): String {
         repository.capture(title)
         return snapshot().tasks.single { it.title == title }.id

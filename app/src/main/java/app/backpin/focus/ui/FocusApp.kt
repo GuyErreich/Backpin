@@ -1,5 +1,6 @@
 package app.backpin.focus.ui
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -157,6 +158,7 @@ fun FocusApp(
                     onNudgeSelected = viewModel::setNudge,
                     onQuietHours = viewModel::setQuietHours,
                     onCurrentNotification = viewModel::setCurrentNotification,
+                    onTodayLimit = viewModel::setTodayLimit,
                 )
             }
         }
@@ -171,6 +173,8 @@ fun FocusApp(
     }
 
     state.swapIncoming?.let { incoming ->
+        val canInterrupt =
+            state.now != null && state.todaySlots.any { it.task?.id == state.now?.taskId }
         AlertDialog(
             onDismissRequest = viewModel::cancelSwap,
             containerColor = FocusColors.Surface,
@@ -178,23 +182,33 @@ fun FocusApp(
             textContentColor = FocusColors.Muted,
             title = { Text("Today is full") },
             text = {
-                Column {
-                    Text("Move one Today task to Later so “${incoming.title}” can take its place. Cancel leaves Today as it is.")
-                }
-            },
-            confirmButton = {
-                Column {
-                    state.swapChoices.forEach { choice ->
+                Column(verticalArrangement = Arrangement.spacedBy(Space)) {
+                    Text(
+                        if (canInterrupt) {
+                            "“${incoming.title}” needs a Today slot. Interrupt the current task, or replace one. Replacing parks that task in Later and does not start the new one."
+                        } else {
+                            "“${incoming.title}” needs a Today slot. Replace one Today task. That task moves to Later, and the new one takes its place without starting."
+                        },
+                    )
+                    if (canInterrupt) {
                         TextButton(
-                            onClick = { viewModel.confirmSwap(choice.id) },
+                            onClick = viewModel::confirmInterrupt,
                             modifier = Modifier.heightIn(min = 48.dp),
                         ) {
-                            Text("Move “${choice.title}” to Later")
+                            Text("Interrupt current task")
+                        }
+                    }
+                    state.swapChoices.forEach { choice ->
+                        TextButton(
+                            onClick = { viewModel.confirmReplace(choice.id) },
+                            modifier = Modifier.heightIn(min = 48.dp),
+                        ) {
+                            Text("Replace “${choice.title}”")
                         }
                     }
                 }
             },
-            dismissButton = {
+            confirmButton = {
                 TextButton(onClick = viewModel::cancelSwap, modifier = Modifier.heightIn(min = 48.dp)) {
                     Text("Cancel")
                 }

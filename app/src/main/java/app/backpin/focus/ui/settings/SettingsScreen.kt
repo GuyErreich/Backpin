@@ -46,6 +46,8 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import app.backpin.focus.domain.MAX_TODAY_LIMIT
+import app.backpin.focus.domain.MIN_TODAY_LIMIT
 import app.backpin.focus.domain.UserPreferences
 import app.backpin.focus.notifications.notificationsAllowed
 import app.backpin.focus.ui.theme.CardRadius
@@ -60,6 +62,7 @@ fun SettingsScreen(
     onNudgeSelected: (enabled: Boolean, minutes: Int) -> Unit,
     onQuietHours: (start: String?, end: String?) -> Unit,
     onCurrentNotification: (Boolean) -> Unit,
+    onTodayLimit: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -119,6 +122,29 @@ fun SettingsScreen(
             "Tasks and the interruption stack stay on this device. There is no account. Nudges are approximate: Android may delay them, and this app does not use exact alarms.",
             style = MaterialTheme.typography.bodyLarge,
         )
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(CardRadius),
+            color = FocusColors.Surface,
+        ) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(Space)) {
+                Text("Today", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "How many open tasks Today can hold. Empty places stay empty until you add a task. A smaller number parks the extra Today tasks in Later. The task in focus stays when it still fits.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    for (limit in MIN_TODAY_LIMIT..MAX_TODAY_LIMIT) {
+                        NudgeChip(
+                            label = limit.toString(),
+                            selected = preferences.todayLimit == limit,
+                        ) {
+                            onTodayLimit(limit)
+                        }
+                    }
+                }
+            }
+        }
         Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(CardRadius),

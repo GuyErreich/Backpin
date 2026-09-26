@@ -15,26 +15,35 @@ interface FocusRepository {
     suspend fun capture(title: String)
 
     /**
-     * Fills an empty Today slot. When three open Today tasks already exist, returns
-     * [PromoteOutcome.NeedsSwap] and writes nothing.
+     * Fills an empty Today slot. When open Today tasks already fill the stored cap,
+     * returns [PromoteOutcome.NeedsSwap] and writes nothing. Does not start the task.
      */
     suspend fun promote(taskId: String): PromoteOutcome
 
     /**
-     * Demotes [outgoingTaskId] to Later and promotes [incomingTaskId] into Today
-     * in one transaction. A rejected swap rolls both writes back.
+     * Demotes [outgoingTaskId] to Later and places [incomingTaskId] in that Today slot
+     * in one transaction. Does not start the incoming task. A rejected swap rolls both writes back.
      */
     suspend fun swapIntoToday(
         incomingTaskId: String,
         outgoingTaskId: String,
-    )
+    ): UndoToken
 
     /**
      * Pauses the active frame, if any, and activates [taskId].
      * This is a switch, not an interruption: the new frame has no parent.
-     * Does not complete the paused task. Refuses a frame that is waiting for an explicit resume.
+     * A task that is not already in Today takes a free slot in the same transaction.
+     * When that slot is missing because Today is full, returns [PromoteOutcome.NeedsSwap]
+     * and writes nothing. Refuses a frame that is waiting for an explicit resume.
      */
-    suspend fun start(taskId: String)
+    suspend fun start(taskId: String): PromoteOutcome
+
+    /**
+     * Pauses the active Today frame and makes [taskId] the active child.
+     * Reuses [taskId]; does not create another task. The previous Now moves to Later
+     * and stays the parent frame, so Today stays within the cap and [taskId] is in Today.
+     */
+    suspend fun interruptWith(taskId: String)
 
     /**
      * Pauses the active frame and pushes a child frame for a new Inbox task.
@@ -110,6 +119,13 @@ interface FocusRepository {
     )
 
     suspend fun setCurrentNotificationEnabled(enabled: Boolean)
+
+    /**
+     * Stores the Today cap, from [MIN_TODAY_LIMIT] through [MAX_TODAY_LIMIT].
+     * A smaller cap parks extra open Today tasks in Later. It does not pull tasks in to fill gaps.
+     * The active Today task stays when it still fits.
+     */
+    suspend fun setTodayLimit(limit: Int)
 
     suspend fun recordNudge(taskId: String)
 }

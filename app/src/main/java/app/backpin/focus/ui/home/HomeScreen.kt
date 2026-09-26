@@ -2,6 +2,7 @@ package app.backpin.focus.ui.home
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,11 +13,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -28,6 +29,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -41,14 +43,21 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
+import app.backpin.focus.domain.MAX_TODAY_LIMIT
+import app.backpin.focus.domain.MIN_TODAY_LIMIT
 import app.backpin.focus.domain.elapsedMillis
 import app.backpin.focus.domain.formatElapsed
 import app.backpin.focus.ui.FocusStackViewModel
@@ -61,6 +70,7 @@ import app.backpin.focus.ui.motion.rememberReducedMotion
 import app.backpin.focus.ui.theme.CardRadius
 import app.backpin.focus.ui.theme.FocusColors
 import app.backpin.focus.ui.theme.Space
+import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 
 @Composable
@@ -71,10 +81,9 @@ fun HomeScreen(
     modifier: Modifier = Modifier,
 ) {
     val reducedMotion = rememberReducedMotion()
-    var moveTaskId by remember { mutableStateOf<String?>(null) }
+    val todayLimit = state.preferences.todayLimit.coerceIn(MIN_TODAY_LIMIT, MAX_TODAY_LIMIT)
     val filled = state.todaySlots.mapNotNull { slot -> slot.task?.let { slot to it } }
-    val filledIds = filled.map { it.second.id }
-    val hasEmptySlot = state.todaySlots.any { it.task == null }
+    val hasRoom = filled.size < todayLimit
 
     Column(
         modifier
@@ -102,13 +111,14 @@ fun HomeScreen(
             NowCard(state, viewModel, onOpenFocus, reducedMotion)
             TodaySection(
                 filled = filled,
-                hasEmptySlot = hasEmptySlot,
+                hasRoom = hasRoom,
+                todayLimit = todayLimit,
                 reducedMotion = reducedMotion,
                 onOpenFocus = onOpenFocus,
                 onStart = viewModel::start,
                 onDone = viewModel::markDone,
                 onLater = viewModel::demote,
-                onMove = { moveTaskId = it },
+                onReorder = viewModel::reorderToday,
             )
             HorizontalDivider(color = FocusColors.Outline)
             BucketSection(
@@ -119,9 +129,8 @@ fun HomeScreen(
                 emptyLabel = "Nothing parked for later.",
                 reducedMotion = reducedMotion,
                 onToggle = viewModel::toggleLater,
-                onPromote = viewModel::promote,
-                onDone = viewModel::markDone,
-                onLater = null,
+                onToday = viewModel::promote,
+                onStart = viewModel::start,
             )
             BucketSection(
                 title = "INBOX",
@@ -131,9 +140,8 @@ fun HomeScreen(
                 emptyLabel = "Inbox is clear.",
                 reducedMotion = reducedMotion,
                 onToggle = viewModel::toggleInbox,
-                onPromote = viewModel::promote,
-                onDone = viewModel::markDone,
-                onLater = viewModel::demote,
+                onToday = viewModel::promote,
+                onStart = viewModel::start,
             )
             HorizontalDivider(color = FocusColors.Outline)
             ArchiveSection(
@@ -144,53 +152,6 @@ fun HomeScreen(
                 onRestore = viewModel::restore,
             )
         }
-    }
-
-    moveTaskId?.let { taskId ->
-        val index = filledIds.indexOf(taskId)
-        val title = filled.getOrNull(index)?.second?.title ?: "This task"
-        AlertDialog(
-            onDismissRequest = { moveTaskId = null },
-            containerColor = FocusColors.Surface,
-            titleContentColor = FocusColors.Text,
-            textContentColor = FocusColors.Muted,
-            title = { Text("Move") },
-            text = { Text("Reorder “$title” in Today, or park it in Later.") },
-            confirmButton = {
-                Column {
-                    if (index > 0) {
-                        TextButton(
-                            onClick = {
-                                viewModel.reorderToday(move(filledIds, index, index - 1))
-                                moveTaskId = null
-                            },
-                            modifier = Modifier.heightIn(min = 48.dp),
-                        ) { Text("Move up") }
-                    }
-                    if (index in 0 until filledIds.lastIndex) {
-                        TextButton(
-                            onClick = {
-                                viewModel.reorderToday(move(filledIds, index, index + 1))
-                                moveTaskId = null
-                            },
-                            modifier = Modifier.heightIn(min = 48.dp),
-                        ) { Text("Move down") }
-                    }
-                    TextButton(
-                        onClick = {
-                            viewModel.demote(taskId)
-                            moveTaskId = null
-                        },
-                        modifier = Modifier.heightIn(min = 48.dp),
-                    ) { Text("To Later") }
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { moveTaskId = null }, modifier = Modifier.heightIn(min = 48.dp)) {
-                    Text("Cancel")
-                }
-            },
-        )
     }
 }
 
@@ -221,11 +182,9 @@ private fun NowCard(
             val accent = if (now.isInterruption) FocusColors.Amber else FocusColors.Mint
             val label = if (now.isInterruption) "INTERRUPTED" else "NOW"
             SwipeRevealCard(
-                enableDone = true,
-                enableLater = true,
+                towardStart = doneSwipe(viewModel::completeActive),
+                towardEnd = laterSwipe { viewModel.demote(now.taskId) },
                 reducedMotion = reducedMotion,
-                onDone = viewModel::completeActive,
-                onLater = { viewModel.demote(now.taskId) },
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Surface(
@@ -294,32 +253,137 @@ private fun NowCard(
 @Composable
 private fun TodaySection(
     filled: List<Pair<SlotUi, TaskUi>>,
-    hasEmptySlot: Boolean,
+    hasRoom: Boolean,
+    todayLimit: Int,
     reducedMotion: Boolean,
     onOpenFocus: () -> Unit,
     onStart: (String) -> Unit,
     onDone: (String) -> Unit,
     onLater: (String) -> Unit,
-    onMove: (String) -> Unit,
+    onReorder: (List<String>) -> Unit,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(Space)) {
-        SectionLabel("TODAY", "3 slots")
-        filled.forEachIndexed { index, (slot, task) ->
-            TodayRow(
-                index = index,
-                slot = slot,
-                task = task,
-                reducedMotion = reducedMotion,
-                onOpen = onOpenFocus,
-                onStart = { onStart(task.id) },
-                onDone = { onDone(task.id) },
-                onLater = { onLater(task.id) },
-                onMove = { onMove(task.id) },
-            )
+    val drag = remember { TodayDragState() }
+    val ids = filled.map { it.second.id }
+    drag.ids = ids
+    val draggingId = drag.draggingId
+    val offsetY = drag.offsetY
+    val gapPx = with(LocalDensity.current) { Space.toPx() }
+    val step = drag.rowHeight + gapPx
+    drag.step = step
+    val fromIndex = ids.indexOf(draggingId)
+    val targetIndex =
+        if (draggingId == null || fromIndex < 0 || step <= 1f) {
+            fromIndex
+        } else {
+            (fromIndex + (offsetY / step).roundToInt()).coerceIn(0, ids.lastIndex)
         }
-        if (hasEmptySlot) {
+    val slotLabel = if (todayLimit == 1) "1 slot" else "$todayLimit slots"
+    Column(verticalArrangement = Arrangement.spacedBy(Space)) {
+        SectionLabel("TODAY", slotLabel)
+        filled.forEachIndexed { index, (slot, task) ->
+            val shift =
+                when {
+                    draggingId == null || fromIndex < 0 || targetIndex < 0 -> 0f
+                    task.id == draggingId -> offsetY
+                    fromIndex < targetIndex && index in (fromIndex + 1)..targetIndex -> -step
+                    targetIndex < fromIndex && index in targetIndex until fromIndex -> step
+                    else -> 0f
+                }
+            val reorderActions =
+                listOfNotNull(
+                    if (index > 0) {
+                        CustomAccessibilityAction("Move up") {
+                            onReorder(move(ids, index, index - 1))
+                            true
+                        }
+                    } else {
+                        null
+                    },
+                    if (index < ids.lastIndex) {
+                        CustomAccessibilityAction("Move down") {
+                            onReorder(move(ids, index, index + 1))
+                            true
+                        }
+                    } else {
+                        null
+                    },
+                )
+            Box(
+                Modifier
+                    .zIndex(if (task.id == draggingId) 1f else 0f)
+                    .onGloballyPositioned { coordinates ->
+                        val height = coordinates.size.height.toFloat()
+                        if (height > 1f) drag.rowHeight = height
+                    }
+                    .offset { IntOffset(0, shift.roundToInt()) },
+            ) {
+                TodayRow(
+                    index = index,
+                    slot = slot,
+                    task = task,
+                    dragging = task.id == draggingId,
+                    reducedMotion = reducedMotion,
+                    reorderActions = reorderActions,
+                    onOpen = onOpenFocus,
+                    onStart = { onStart(task.id) },
+                    onDone = { onDone(task.id) },
+                    onLater = { onLater(task.id) },
+                    onDragStart = { drag.begin(task.id) },
+                    onDragBy = drag::dragBy,
+                    onDragEnd = {
+                        drag.finish()?.let(onReorder)
+                    },
+                    onDragCancel = drag::cancel,
+                )
+            }
+        }
+        if (hasRoom) {
             EmptyTodaySlot()
         }
+    }
+}
+
+/**
+ * Finger offset for a long-press reorder inside Today.
+ * [finish] returns a permutation of the current Today ids, or null when the order did not change.
+ */
+private class TodayDragState {
+    var ids: List<String> = emptyList()
+    var draggingId: String? by mutableStateOf(null)
+    var offsetY: Float by mutableFloatStateOf(0f)
+    var rowHeight: Float by mutableFloatStateOf(0f)
+    var step: Float = 0f
+
+    fun begin(id: String) {
+        draggingId = id
+        offsetY = 0f
+    }
+
+    fun dragBy(deltaY: Float) {
+        if (draggingId == null) return
+        offsetY += deltaY
+    }
+
+    fun finish(): List<String>? {
+        val id = draggingId
+        val from = if (id == null) -1 else ids.indexOf(id)
+        val height = rowHeight
+        val offset = offsetY
+        val stride = if (step > 1f) step else height
+        clear()
+        if (id == null || from < 0 || height <= 1f || stride <= 1f) return null
+        val to = (from + (offset / stride).roundToInt()).coerceIn(0, ids.lastIndex)
+        if (to == from) return null
+        return move(ids, from, to)
+    }
+
+    fun cancel() {
+        clear()
+    }
+
+    private fun clear() {
+        draggingId = null
+        offsetY = 0f
     }
 }
 
@@ -328,21 +392,29 @@ private fun TodayRow(
     index: Int,
     slot: SlotUi,
     task: TaskUi,
+    dragging: Boolean,
     reducedMotion: Boolean,
+    reorderActions: List<CustomAccessibilityAction>,
     onOpen: () -> Unit,
     onStart: () -> Unit,
     onDone: () -> Unit,
     onLater: () -> Unit,
-    onMove: () -> Unit,
+    onDragStart: () -> Unit,
+    onDragBy: (Float) -> Unit,
+    onDragEnd: () -> Unit,
+    onDragCancel: () -> Unit,
 ) {
     val description =
-        "Today position ${index + 1}. ${slot.role.name.lowercase()}. ${task.title}. Swipe right for done, swipe left for later."
+        "Today position ${index + 1}. ${slot.role.name.lowercase()}. ${task.title}. Swipe right for done, swipe left for later. Long press and drag to reorder within Today."
     SwipeRevealCard(
-        enableDone = true,
-        enableLater = true,
+        towardStart = doneSwipe(onDone),
+        towardEnd = laterSwipe(onLater),
         reducedMotion = reducedMotion,
-        onDone = onDone,
-        onLater = onLater,
+        onReorderDragStart = onDragStart,
+        onReorderDrag = onDragBy,
+        onReorderDragEnd = onDragEnd,
+        onReorderDragCancel = onDragCancel,
+        extraActions = reorderActions,
         modifier = Modifier.fillMaxWidth(),
     ) {
         Surface(
@@ -352,13 +424,18 @@ private fun TodayRow(
                     .semantics { contentDescription = description }
                     .then(
                         if (slot.role == SlotRole.NOW) {
-                            Modifier.clickable(role = Role.Button, onClick = onOpen)
+                            Modifier.combinedClickable(
+                                role = Role.Button,
+                                onClick = onOpen,
+                                onLongClick = {},
+                            )
                         } else {
                             Modifier
                         },
                     ),
             shape = RoundedCornerShape(CardRadius),
             color = FocusColors.Surface,
+            shadowElevation = if (dragging) 8.dp else 0.dp,
         ) {
             Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Row(
@@ -381,12 +458,43 @@ private fun TodayRow(
                     }
                     QuietButton("Done", onClick = onDone)
                     QuietButton("Later", onClick = onLater)
-                    QuietButton("Move", onClick = onMove)
                 }
             }
         }
     }
 }
+
+private fun doneSwipe(onDone: () -> Unit): SwipeSide =
+    SwipeSide(
+        label = "Done ✓",
+        accessibilityLabel = "Done",
+        tint = FocusColors.Mint,
+        onCommit = onDone,
+    )
+
+private fun laterSwipe(onLater: () -> Unit): SwipeSide =
+    SwipeSide(
+        label = "Later ↩",
+        accessibilityLabel = "Move to Later",
+        tint = FocusColors.Amber,
+        onCommit = onLater,
+    )
+
+private fun todaySwipe(onToday: () -> Unit): SwipeSide =
+    SwipeSide(
+        label = "Today",
+        accessibilityLabel = "Add to Today",
+        tint = FocusColors.Mint,
+        onCommit = onToday,
+    )
+
+private fun startSwipe(onStart: () -> Unit): SwipeSide =
+    SwipeSide(
+        label = "Start",
+        accessibilityLabel = "Start",
+        tint = FocusColors.Lavender,
+        onCommit = onStart,
+    )
 
 @Composable
 private fun EmptyTodaySlot() {
@@ -474,9 +582,8 @@ private fun BucketSection(
     emptyLabel: String,
     reducedMotion: Boolean,
     onToggle: () -> Unit,
-    onPromote: (String) -> Unit,
-    onDone: (String) -> Unit,
-    onLater: ((String) -> Unit)?,
+    onToday: (String) -> Unit,
+    onStart: (String) -> Unit,
 ) {
     val action = if (expanded) "Hide" else "Review"
     Column(verticalArrangement = Arrangement.spacedBy(Space)) {
@@ -513,12 +620,16 @@ private fun BucketSection(
                     }
                     tasks.forEach { task ->
                         SwipeRevealCard(
-                            enableDone = true,
-                            enableLater = onLater != null,
+                            towardStart = todaySwipe { onToday(task.id) },
+                            towardEnd = startSwipe { onStart(task.id) },
                             reducedMotion = reducedMotion,
-                            onDone = { onDone(task.id) },
-                            onLater = { onLater?.invoke(task.id) },
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier =
+                                Modifier
+                                    .fillMaxWidth()
+                                    .semantics {
+                                        contentDescription =
+                                            "$title. ${task.title}. Swipe right for today, swipe left for start."
+                                    },
                         ) {
                             Surface(
                                 modifier = Modifier.fillMaxWidth(),
@@ -529,24 +640,16 @@ private fun BucketSection(
                                     Text(task.title, style = MaterialTheme.typography.bodyLarge)
                                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                         TextButton(
-                                            onClick = { onPromote(task.id) },
+                                            onClick = { onToday(task.id) },
                                             modifier = Modifier.heightIn(min = 48.dp),
                                         ) {
-                                            Text("+ Today")
+                                            Text("Today")
                                         }
                                         TextButton(
-                                            onClick = { onDone(task.id) },
+                                            onClick = { onStart(task.id) },
                                             modifier = Modifier.heightIn(min = 48.dp),
                                         ) {
-                                            Text("Done")
-                                        }
-                                        if (onLater != null) {
-                                            TextButton(
-                                                onClick = { onLater(task.id) },
-                                                modifier = Modifier.heightIn(min = 48.dp),
-                                            ) {
-                                                Text("Later")
-                                            }
+                                            Text("Start")
                                         }
                                     }
                                 }

@@ -52,5 +52,12 @@ class SchemaAndPreferencesTest {
             assertNull(prefs.quietStart)
             assertNull(prefs.quietEnd)
             assertFalse(prefs.currentNotificationEnabled)
+            assertEquals(3, prefs.todayLimit)
+            store.setTodayLimit(5)
+            assertEquals(5, store.preferences.first().todayLimit)
+            store.setTodayLimit(9)
+            assertEquals(5, store.preferences.first().todayLimit)
+            store.setTodayLimit(0)
+            assertEquals(1, store.preferences.first().todayLimit)
         }
 }

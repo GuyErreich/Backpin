@@ -108,20 +108,20 @@ class FocusStackViewModel(
         }
     }
 
-    fun confirmSwap(outgoingTaskId: String) {
+    fun confirmReplace(outgoingTaskId: String) {
         val incoming = swapIncomingId.value ?: return
         viewModelScope.launch {
-            val before =
-                useCases
-                    .observeSnapshot()
-                    .first()
-                    .tasks
-                    .filter { it.id == incoming || it.id == outgoingTaskId }
-            useCases.swapIntoToday(incoming, outgoingTaskId)
+            val token = useCases.swapIntoToday(incoming, outgoingTaskId)
             swapIncomingId.value = null
-            if (before.size == 2) {
-                offerUndo("Swapped into Today", UndoToken(tasks = before, frames = emptyList()))
-            }
+            offerUndo("Swapped into Today", token)
+        }
+    }
+
+    fun confirmInterrupt() {
+        val incoming = swapIncomingId.value ?: return
+        viewModelScope.launch {
+            useCases.interruptWith(incoming)
+            swapIncomingId.value = null
         }
     }
 
@@ -131,7 +131,11 @@ class FocusStackViewModel(
 
     fun start(taskId: String) {
         viewModelScope.launch {
-            useCases.start(taskId)
+            when (val outcome = useCases.start(taskId)) {
+                is PromoteOutcome.NeedsSwap -> swapIncomingId.value = taskId
+                is PromoteOutcome.Promoted -> swapIncomingId.value = null
+                is PromoteOutcome.Rejected -> swapIncomingId.value = null
+            }
         }
     }
 
@@ -193,6 +197,12 @@ class FocusStackViewModel(
     fun setCurrentNotification(enabled: Boolean) {
         viewModelScope.launch {
             useCases.setCurrentNotificationEnabled(enabled)
+        }
+    }
+
+    fun setTodayLimit(limit: Int) {
+        viewModelScope.launch {
+            useCases.setTodayLimit(limit)
         }
     }
 

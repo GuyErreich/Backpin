@@ -58,6 +58,7 @@ data class FocusFrame(
  * Preference shape kept on device. Nudges are inexact WorkManager work.
  * [lastInteractionAtEpochMillis] and [lastNudgedAtEpochMillis] keep a nudge
  * from repeating during recent activity.
+ * [todayLimit] is how many open tasks Today can hold. Empty places are not filled on their own.
  */
 data class UserPreferences(
     val nudgesEnabled: Boolean = false,
@@ -68,6 +69,7 @@ data class UserPreferences(
     val lastInteractionAtEpochMillis: Long = 0L,
     val lastNudgedAtEpochMillis: Long = 0L,
     val lastNudgedTaskId: String? = null,
+    val todayLimit: Int = DEFAULT_TODAY_LIMIT,
 )
 
 /** Point-in-time tasks and frames used to rebuild the screen after process death. */
@@ -85,12 +87,17 @@ data class UndoToken(
     val frames: List<FocusFrame>,
 )
 
-/** Result of trying to move a task into Today. */
+/**
+ * Result of trying to move a task into Today, or of starting one that needs a Today slot.
+ * [NeedsSwap.canInterrupt] is true when an open Today task is the active frame, so the
+ * full list can offer Interrupt as well as Replace.
+ */
 sealed interface PromoteOutcome {
     data object Promoted : PromoteOutcome
 
     data class NeedsSwap(
         val todayTasks: List<Task>,
+        val canInterrupt: Boolean = false,
     ) : PromoteOutcome
 
     data class Rejected(
@@ -109,7 +116,12 @@ object SystemAppClock : AppClock {
 
 const val UNTITLED_INTERRUPTION: String = "Untitled interruption"
 
-const val MAX_OPEN_TODAY: Int = 3
+const val MIN_TODAY_LIMIT: Int = 1
+const val MAX_TODAY_LIMIT: Int = 5
+const val DEFAULT_TODAY_LIMIT: Int = 3
+
+/** Default Today cap. The stored limit in preferences can be [MIN_TODAY_LIMIT] through [MAX_TODAY_LIMIT]. */
+const val MAX_OPEN_TODAY: Int = DEFAULT_TODAY_LIMIT
 
 /**
  * Elapsed focus time from stored timestamps, shown while the UI is open.

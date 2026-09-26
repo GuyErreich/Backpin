@@ -22,12 +22,12 @@ class FocusUseCases(
     suspend fun swapIntoToday(
         incomingTaskId: String,
         outgoingTaskId: String,
-    ) {
-        repository.swapIntoToday(incomingTaskId, outgoingTaskId)
-    }
+    ): UndoToken = repository.swapIntoToday(incomingTaskId, outgoingTaskId)
 
-    suspend fun start(taskId: String) {
-        repository.start(taskId)
+    suspend fun start(taskId: String): PromoteOutcome = repository.start(taskId)
+
+    suspend fun interruptWith(taskId: String) {
+        repository.interruptWith(taskId)
     }
 
     suspend fun interrupt(title: String?): Task = repository.interrupt(title)
@@ -86,5 +86,9 @@ class FocusUseCases(
 
     suspend fun setCurrentNotificationEnabled(enabled: Boolean) {
         repository.setCurrentNotificationEnabled(enabled)
+    }
+
+    suspend fun setTodayLimit(limit: Int) {
+        repository.setTodayLimit(limit)
     }
 }
