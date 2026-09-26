@@ -127,5 +127,8 @@ interface FocusRepository {
      */
     suspend fun setTodayLimit(limit: Int)
 
+    /** Replaces saved capture phrases. Order is the order they are shown. */
+    suspend fun setSavedPhrases(phrases: List<String>)
+
     suspend fun recordNudge(taskId: String)
 }

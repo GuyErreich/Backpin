@@ -148,7 +148,7 @@ private fun ActiveCard(
                 verticalArrangement = Arrangement.spacedBy(Space),
             ) {
                 QuietButton("Pause", onClick = viewModel::pause)
-                QuietButton("Interrupt", onClick = viewModel::openCapture)
+                QuietButton("Interrupt", onClick = { viewModel.openCapture(interrupts = true) })
                 QuietButton("Switch", onClick = viewModel::openSwitch)
             }
         }

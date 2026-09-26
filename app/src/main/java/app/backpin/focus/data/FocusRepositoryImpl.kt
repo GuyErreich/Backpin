@@ -408,6 +408,10 @@ class FocusRepositoryImpl(
         recordInteraction()
     }
 
+    override suspend fun setSavedPhrases(phrases: List<String>) {
+        preferencesStore.setSavedPhrases(phrases)
+    }
+
     override suspend fun recordNudge(taskId: String) {
         preferencesStore.setLastNudge(clock.nowEpochMillis(), taskId)
     }

@@ -69,6 +69,26 @@ class FocusStackViewModelTest {
     }
 
     @Test
+    fun openCaptureRemembersInterruptVersusInbox() =
+        runBlocking {
+            val viewModel = FocusStackViewModel(useCases)
+            val collect = launch { viewModel.uiState.collect {} }
+            viewModel.openCapture(interrupts = false)
+            withTimeout(5_000) {
+                viewModel.uiState.first { it.captureOpen && !it.captureInterrupts }
+            }
+            viewModel.openCapture(interrupts = true)
+            withTimeout(5_000) {
+                viewModel.uiState.first { it.captureOpen && it.captureInterrupts }
+            }
+            viewModel.dismissCapture()
+            withTimeout(5_000) {
+                viewModel.uiState.first { !it.captureOpen && !it.captureInterrupts }
+            }
+            collect.cancel()
+        }
+
+    @Test
     fun captureFromTheViewModelLeavesTheActiveFrame() =
         runBlocking {
             val viewModel = FocusStackViewModel(useCases)

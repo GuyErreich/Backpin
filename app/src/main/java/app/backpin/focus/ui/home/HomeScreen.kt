@@ -213,7 +213,7 @@ private fun NowCard(
                             MintButton("Done", onClick = viewModel::completeActive)
                             MintButton(
                                 "Interrupt",
-                                onClick = viewModel::openCapture,
+                                onClick = { viewModel.openCapture(interrupts = true) },
                                 container = FocusColors.Amber,
                                 content = FocusColors.OnAmber,
                             )

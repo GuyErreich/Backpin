@@ -24,6 +24,7 @@ class FocusStackViewModel(
     private val useCases: FocusUseCases,
 ) : ViewModel() {
     private val captureOpen = MutableStateFlow(false)
+    private val captureInterrupts = MutableStateFlow(false)
     private val swapIncomingId = MutableStateFlow<String?>(null)
     private val switchOpen = MutableStateFlow(false)
     private val pendingUndo = MutableStateFlow<PendingUndo?>(null)
@@ -32,9 +33,16 @@ class FocusStackViewModel(
         combine(
             useCases.observeSnapshot(),
             useCases.preferences,
-            combine(captureOpen, swapIncomingId, switchOpen, pendingUndo) { capture, swap, switching, undo ->
+            combine(
+                captureOpen,
+                captureInterrupts,
+                swapIncomingId,
+                switchOpen,
+                pendingUndo,
+            ) { capture, interrupts, swap, switching, undo ->
                 ChromeParts(
                     captureOpen = capture,
+                    captureInterrupts = interrupts,
                     swapIncomingId = swap,
                     switchOpen = switching,
                     undo = undo,
@@ -45,6 +53,7 @@ class FocusStackViewModel(
                 snapshot,
                 ChromeState(
                     captureOpen = chrome.captureOpen,
+                    captureInterrupts = chrome.captureInterrupts,
                     swapIncomingId = chrome.swapIncomingId,
                     switchOpen = chrome.switchOpen,
                     undo = chrome.undo,
@@ -57,25 +66,31 @@ class FocusStackViewModel(
             FocusUiState(preferences = UserPreferences()),
         )
 
-    fun openCapture() {
+    /**
+     * Opens capture. [interrupts] is true from Interrupt, including the notification
+     * Interrupt action, so a phrase chip starts now. + Capture leaves it false, and a
+     * chip saves to Inbox without touching the active task.
+     */
+    fun openCapture(interrupts: Boolean = false) {
+        captureInterrupts.value = interrupts
         captureOpen.value = true
     }
 
     fun dismissCapture() {
-        captureOpen.value = false
+        closeCapture()
     }
 
     fun saveToInbox(title: String) {
         viewModelScope.launch {
             useCases.capture(title)
-            if (title.isNotBlank()) captureOpen.value = false
+            if (title.isNotBlank()) closeCapture()
         }
     }
 
     fun interruptNow(title: String) {
         viewModelScope.launch {
             useCases.interrupt(title)
-            captureOpen.value = false
+            closeCapture()
         }
     }
 
@@ -193,6 +208,29 @@ class FocusStackViewModel(
         }
     }
 
+    fun addSavedPhrase(text: String) {
+        val phrase = text.trim()
+        if (phrase.isEmpty()) return
+        editSavedPhrases { it + phrase }
+    }
+
+    fun renameSavedPhrase(
+        index: Int,
+        text: String,
+    ) {
+        val phrase = text.trim()
+        if (phrase.isEmpty()) return
+        editSavedPhrases { current ->
+            if (index !in current.indices) current else current.toMutableList().apply { this[index] = phrase }
+        }
+    }
+
+    fun removeSavedPhrase(index: Int) {
+        editSavedPhrases { current ->
+            if (index !in current.indices) current else current.filterIndexed { i, _ -> i != index }
+        }
+    }
+
     fun resume(frameId: String) {
         viewModelScope.launch {
             useCases.resume(frameId)
@@ -243,6 +281,19 @@ class FocusStackViewModel(
         if (pendingUndo.value?.id == id) pendingUndo.value = null
     }
 
+    private fun closeCapture() {
+        captureOpen.value = false
+        captureInterrupts.value = false
+    }
+
+    private fun editSavedPhrases(transform: (List<String>) -> List<String>) {
+        viewModelScope.launch {
+            val current = useCases.preferences.first().savedPhrases
+            val next = transform(current)
+            if (next != current) useCases.setSavedPhrases(next)
+        }
+    }
+
     private fun offerUndo(
         message: String,
         token: UndoToken,
@@ -252,6 +303,7 @@ class FocusStackViewModel(
 
     private data class ChromeParts(
         val captureOpen: Boolean,
+        val captureInterrupts: Boolean,
         val swapIncomingId: String?,
         val switchOpen: Boolean,
         val undo: PendingUndo?,

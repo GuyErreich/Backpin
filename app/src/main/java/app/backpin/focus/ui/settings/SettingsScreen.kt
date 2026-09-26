@@ -6,6 +6,8 @@ import android.os.Build
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -22,6 +24,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -30,6 +33,7 @@ import androidx.compose.material3.TimePicker
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -39,6 +43,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -63,6 +68,9 @@ fun SettingsScreen(
     onQuietHours: (start: String?, end: String?) -> Unit,
     onCurrentNotification: (Boolean) -> Unit,
     onTodayLimit: (Int) -> Unit,
+    onAddPhrase: (String) -> Unit,
+    onRenamePhrase: (index: Int, text: String) -> Unit,
+    onRemovePhrase: (index: Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -86,6 +94,8 @@ fun SettingsScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
     var picking by remember { mutableStateOf<QuietPick?>(null) }
+    var renaming by remember { mutableStateOf<Int?>(null) }
+    var newPhrase by remember { mutableStateOf("") }
 
     fun enableThen(action: () -> Unit) {
         val needsRuntime =
@@ -143,6 +153,62 @@ fun SettingsScreen(
                         }
                     }
                 }
+            }
+        }
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(CardRadius),
+            color = FocusColors.Surface,
+        ) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(Space)) {
+                Text("Phrases", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "A finished phrase is one tap. Angle brackets ask only for that word.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                preferences.savedPhrases.forEachIndexed { index, phrase ->
+                    Column(Modifier.fillMaxWidth()) {
+                        Text(
+                            phrase,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = FocusColors.Text,
+                        )
+                        Row {
+                            TextButton(
+                                onClick = { renaming = index },
+                                modifier = Modifier.heightIn(min = 48.dp),
+                            ) { Text("Rename") }
+                            TextButton(
+                                onClick = { onRemovePhrase(index) },
+                                modifier = Modifier.heightIn(min = 48.dp),
+                            ) { Text("Remove") }
+                        }
+                    }
+                }
+                OutlinedTextField(
+                    value = newPhrase,
+                    onValueChange = { newPhrase = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("New phrase") },
+                    placeholder = { Text("Talk to <name>") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions =
+                        KeyboardActions(
+                            onDone = {
+                                onAddPhrase(newPhrase)
+                                if (newPhrase.isNotBlank()) newPhrase = ""
+                            },
+                        ),
+                )
+                TextButton(
+                    onClick = {
+                        onAddPhrase(newPhrase)
+                        if (newPhrase.isNotBlank()) newPhrase = ""
+                    },
+                    enabled = newPhrase.isNotBlank(),
+                    modifier = Modifier.heightIn(min = 48.dp),
+                ) { Text("Add") }
             }
         }
         Surface(
@@ -244,6 +310,22 @@ fun SettingsScreen(
         }
     }
 
+    val renameIndex = renaming
+    val renameText = renameIndex?.let { preferences.savedPhrases.getOrNull(it) }
+    LaunchedEffect(renameIndex, renameText) {
+        if (renameIndex != null && renameText == null) renaming = null
+    }
+    if (renameIndex != null && renameText != null) {
+        RenamePhraseDialog(
+            initial = renameText,
+            onDismiss = { renaming = null },
+            onConfirm = { value ->
+                onRenamePhrase(renameIndex, value)
+                renaming = null
+            },
+        )
+    }
+
     picking?.let { which ->
         val initial = if (which == QuietPick.START) preferences.quietStart else preferences.quietEnd
         QuietTimeDialog(
@@ -304,6 +386,40 @@ private fun QuietTimeDialog(
         confirmButton = {
             TextButton(
                 onClick = { onConfirm("%02d:%02d".format(state.hour, state.minute)) },
+                modifier = Modifier.heightIn(min = 48.dp),
+            ) { Text("Save") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, modifier = Modifier.heightIn(min = 48.dp)) { Text("Cancel") }
+        },
+    )
+}
+
+@Composable
+private fun RenamePhraseDialog(
+    initial: String,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit,
+) {
+    var draft by remember(initial) { mutableStateOf(initial) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = FocusColors.Surface,
+        titleContentColor = FocusColors.Text,
+        title = { Text("Rename phrase") },
+        text = {
+            OutlinedTextField(
+                value = draft,
+                onValueChange = { draft = it },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Phrase") },
+                singleLine = true,
+            )
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onConfirm(draft) },
+                enabled = draft.isNotBlank(),
                 modifier = Modifier.heightIn(min = 48.dp),
             ) { Text("Save") }
         },

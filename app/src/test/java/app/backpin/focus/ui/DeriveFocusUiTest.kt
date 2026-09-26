@@ -119,6 +119,28 @@ class DeriveFocusUiTest {
         assertTrue(capped.todaySlots.none { it.role == SlotRole.EMPTY })
     }
 
+    @Test
+    fun captureReasonAndPhrasesStayOnTheSheetState() {
+        val state =
+            deriveFocusUi(
+                FocusSnapshot(),
+                ChromeState(
+                    captureOpen = true,
+                    captureInterrupts = true,
+                    swapIncomingId = null,
+                    switchOpen = false,
+                    undo = null,
+                    preferences =
+                        UserPreferences(
+                            savedPhrases = listOf("Talk to my wife", "Talk to <name>"),
+                        ),
+                ),
+            )
+        assertTrue(state.captureOpen)
+        assertTrue(state.captureInterrupts)
+        assertEquals(listOf("Talk to my wife", "Talk to <name>"), state.preferences.savedPhrases)
+    }
+
     private fun derive(
         snapshot: FocusSnapshot,
         undo: PendingUndo? = null,

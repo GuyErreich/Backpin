@@ -60,4 +60,19 @@ class SchemaAndPreferencesTest {
             store.setTodayLimit(0)
             assertEquals(1, store.preferences.first().todayLimit)
         }
+
+    @Test
+    fun savedPhrasesSeedOnceAndKeepEdits() =
+        runBlocking {
+            val store = PreferencesDataStore(context, "phrases-${UUID.randomUUID()}")
+            assertEquals(emptyList<String>(), store.preferences.first().savedPhrases)
+            store.ensureDefaultsStored()
+            assertEquals(listOf("Talk to my wife", "Talk to <name>"), store.preferences.first().savedPhrases)
+            store.setSavedPhrases(listOf("Talk to <name>", "Call the school"))
+            store.ensureDefaultsStored()
+            assertEquals(listOf("Talk to <name>", "Call the school"), store.preferences.first().savedPhrases)
+            store.setSavedPhrases(emptyList())
+            store.ensureDefaultsStored()
+            assertEquals(emptyList<String>(), store.preferences.first().savedPhrases)
+        }
 }

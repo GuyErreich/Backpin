@@ -11,6 +11,7 @@ import app.backpin.focus.domain.UserPreferences
 
 internal data class ChromeState(
     val captureOpen: Boolean,
+    val captureInterrupts: Boolean = false,
     val swapIncomingId: String?,
     val switchOpen: Boolean,
     val undo: PendingUndo?,
@@ -118,6 +119,7 @@ internal fun deriveFocusUi(
         archiveCount = archive.size,
         archiveTasks = archive,
         captureOpen = chrome.captureOpen,
+        captureInterrupts = chrome.captureInterrupts,
         swapIncoming = incoming,
         swapChoices = if (incoming == null) emptyList() else today.map { it.toUi() },
         switchOpen = chrome.switchOpen,

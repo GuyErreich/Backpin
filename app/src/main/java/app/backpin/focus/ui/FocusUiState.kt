@@ -64,6 +64,7 @@ data class FocusUiState(
     val archiveCount: Int = 0,
     val archiveTasks: List<TaskUi> = emptyList(),
     val captureOpen: Boolean = false,
+    val captureInterrupts: Boolean = false,
     val swapIncoming: TaskUi? = null,
     val swapChoices: List<TaskUi> = emptyList(),
     val switchOpen: Boolean = false,

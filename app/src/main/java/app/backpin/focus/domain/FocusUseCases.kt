@@ -91,4 +91,8 @@ class FocusUseCases(
     suspend fun setTodayLimit(limit: Int) {
         repository.setTodayLimit(limit)
     }
+
+    suspend fun setSavedPhrases(phrases: List<String>) {
+        repository.setSavedPhrases(phrases)
+    }
 }

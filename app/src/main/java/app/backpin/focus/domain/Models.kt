@@ -59,6 +59,7 @@ data class FocusFrame(
  * [lastInteractionAtEpochMillis] and [lastNudgedAtEpochMillis] keep a nudge
  * from repeating during recent activity.
  * [todayLimit] is how many open tasks Today can hold. Empty places are not filled on their own.
+ * [savedPhrases] is the capture list, in the order it is shown. Angle brackets mark one blank.
  */
 data class UserPreferences(
     val nudgesEnabled: Boolean = false,
@@ -70,6 +71,7 @@ data class UserPreferences(
     val lastNudgedAtEpochMillis: Long = 0L,
     val lastNudgedTaskId: String? = null,
     val todayLimit: Int = DEFAULT_TODAY_LIMIT,
+    val savedPhrases: List<String> = emptyList(),
 )
 
 /** Point-in-time tasks and frames used to rebuild the screen after process death. */

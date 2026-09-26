@@ -84,7 +84,7 @@ fun FocusApp(
             NotificationContract.DESTINATION_FOCUS -> navController.navigateTab(Routes.FOCUS)
             NotificationContract.DESTINATION_CAPTURE -> {
                 navController.navigateTab(Routes.FOCUS)
-                viewModel.openCapture()
+                viewModel.openCapture(interrupts = true)
             }
         }
         if (launchDestination != null) onLaunchDestinationConsumed()
@@ -123,7 +123,7 @@ fun FocusApp(
                 if (showCapture) {
                     MintButton(
                         label = "+ Capture",
-                        onClick = viewModel::openCapture,
+                        onClick = { viewModel.openCapture(interrupts = false) },
                         modifier =
                             Modifier
                                 .fillMaxWidth()
@@ -233,6 +233,9 @@ fun FocusApp(
                     onQuietHours = viewModel::setQuietHours,
                     onCurrentNotification = viewModel::setCurrentNotification,
                     onTodayLimit = viewModel::setTodayLimit,
+                    onAddPhrase = viewModel::addSavedPhrase,
+                    onRenamePhrase = viewModel::renameSavedPhrase,
+                    onRemovePhrase = viewModel::removeSavedPhrase,
                 )
             }
         }
@@ -240,6 +243,8 @@ fun FocusApp(
 
     if (state.captureOpen) {
         CaptureSheet(
+            phrases = state.preferences.savedPhrases,
+            interrupts = state.captureInterrupts,
             onDismiss = viewModel::dismissCapture,
             onSaveToInbox = viewModel::saveToInbox,
             onInterruptNow = viewModel::interruptNow,
