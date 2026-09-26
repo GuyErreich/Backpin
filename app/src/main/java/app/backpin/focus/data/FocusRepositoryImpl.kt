@@ -250,6 +250,25 @@ class FocusRepositoryImpl(
         recordInteraction()
     }
 
+    override suspend fun restore(taskId: String) {
+        val restored =
+            database.withTransaction {
+                val task = taskDao.getById(taskId) ?: return@withTransaction false
+                if (task.status != TaskStatus.DONE.name) return@withTransaction false
+                taskDao.upsert(
+                    task.copy(
+                        bucket = TaskBucket.INBOX.name,
+                        status = TaskStatus.OPEN.name,
+                        completedAtEpochMillis = null,
+                        sortOrder = clock.nowEpochMillis(),
+                    ),
+                )
+                requireInvariants()
+                true
+            }
+        if (restored) recordInteraction()
+    }
+
     override suspend fun completeTask(taskId: String): UndoToken? {
         if (frameDao.getActive()?.taskId == taskId) return completeActive()
         val token =

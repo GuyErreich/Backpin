@@ -44,7 +44,8 @@ interface FocusRepository {
 
     /**
      * Marks the active task done, closes its frame, and sets the parent to
-     * [FrameState.AWAITING_RESUME] when one exists. Returns null when nothing is active.
+     * [FrameState.AWAITING_RESUME] when one exists. The task stays in history.
+     * Returns null when nothing is active.
      */
     suspend fun completeActive(): UndoToken?
 
@@ -71,8 +72,17 @@ interface FocusRepository {
         title: String,
     )
 
-    /** Puts the snapshotted rows back. Used by the Undo snackbar for Done and Later. */
+    /**
+     * Puts the snapshotted rows back. Used by the Undo snackbar for Today placement.
+     * Done and Later do not offer that snackbar.
+     */
     suspend fun undo(token: UndoToken)
+
+    /**
+     * Puts a done task back into action as an open Inbox task.
+     * Does not start it, move it to Today, or create a focus frame.
+     */
+    suspend fun restore(taskId: String)
 
     /**
      * Marks [taskId] done. The active task follows [completeActive].

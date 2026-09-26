@@ -5,13 +5,13 @@ import app.backpin.focus.domain.FrameState
 import app.backpin.focus.domain.Task
 import app.backpin.focus.domain.TaskBucket
 import app.backpin.focus.domain.TaskStatus
-import app.backpin.focus.domain.UndoToken
 import app.backpin.focus.domain.UserPreferences
 
 internal data class ChromeState(
     val captureOpen: Boolean,
     val inboxExpanded: Boolean,
     val laterExpanded: Boolean,
+    val archiveExpanded: Boolean,
     val swapIncomingId: String?,
     val switchOpen: Boolean,
     val undo: PendingUndo?,
@@ -22,12 +22,11 @@ internal fun deriveFocusUi(
     snapshot: FocusSnapshot,
     chrome: ChromeState,
 ): FocusUiState {
-    val shown = projectPendingDone(snapshot, chrome.undo)
-    val tasksById = shown.tasks.associateBy { it.id }
-    val openTasks = shown.tasks.filter { it.status == TaskStatus.OPEN }
-    val active = shown.frames.firstOrNull { it.state == FrameState.ACTIVE }
+    val tasksById = snapshot.tasks.associateBy { it.id }
+    val openTasks = snapshot.tasks.filter { it.status == TaskStatus.OPEN }
+    val active = snapshot.frames.firstOrNull { it.state == FrameState.ACTIVE }
     val awaiting =
-        shown.frames
+        snapshot.frames
             .filter { it.state == FrameState.AWAITING_RESUME }
             .maxByOrNull { it.startedAtEpochMillis }
 
@@ -64,7 +63,7 @@ internal fun deriveFocusUi(
 
     val paused =
         if (now == null && recovery == null) {
-            shown.frames
+            snapshot.frames
                 .filter { it.state == FrameState.PAUSED }
                 .maxByOrNull { it.pausedAtEpochMillis ?: 0L }
                 ?.let { frame ->
@@ -95,6 +94,11 @@ internal fun deriveFocusUi(
 
     val later = openTasks.filter { it.bucket == TaskBucket.LATER }.sortedBy { it.sortOrder }.map { it.toUi() }
     val inbox = openTasks.filter { it.bucket == TaskBucket.INBOX }.sortedBy { it.sortOrder }.map { it.toUi() }
+    val archive =
+        snapshot.tasks
+            .filter { it.status == TaskStatus.DONE }
+            .sortedWith(compareByDescending<Task> { it.completedAtEpochMillis ?: 0L }.thenByDescending { it.sortOrder })
+            .map { it.toUi() }
     val incoming = chrome.swapIncomingId?.let { id -> tasksById[id]?.toUi() }
     val switchTargets =
         today
@@ -113,6 +117,9 @@ internal fun deriveFocusUi(
         inboxCount = inbox.size,
         inboxExpanded = chrome.inboxExpanded,
         inboxTasks = inbox,
+        archiveCount = archive.size,
+        archiveExpanded = chrome.archiveExpanded,
+        archiveTasks = archive,
         captureOpen = chrome.captureOpen,
         swapIncoming = incoming,
         swapChoices = if (incoming == null) emptyList() else today.map { it.toUi() },
@@ -124,46 +131,3 @@ internal fun deriveFocusUi(
 }
 
 private fun Task.toUi(): TaskUi = TaskUi(id = id, title = title, returnCue = returnCue)
-
-/**
- * Done commits in the database, then offers Undo. The snapshot flow can lag that
- * offer by one emission, which left the finished task on screen under the Undo bar.
- * While the rows still match the pre-image, show the post-done screen: no active
- * task, and the parent — if this token has one — waiting to be resumed.
- */
-private fun projectPendingDone(
-    snapshot: FocusSnapshot,
-    undo: PendingUndo?,
-): FocusSnapshot {
-    val pending = undo ?: return snapshot
-    if (pending.message != MARKED_DONE_UNDO) return snapshot
-    val token = pending.token
-    if (token.tasks.isEmpty() || !stillThePreImage(snapshot, token)) return snapshot
-    val doneIds = token.tasks.map { it.id }.toSet()
-    val closedIds = token.frames.filter { it.taskId in doneIds }.map { it.id }.toSet()
-    val awaitingIds = token.frames.filter { it.taskId !in doneIds }.map { it.id }.toSet()
-    return snapshot.copy(
-        tasks =
-            snapshot.tasks.map { task ->
-                if (task.id in doneIds) task.copy(status = TaskStatus.DONE) else task
-            },
-        frames =
-            snapshot.frames.map { frame ->
-                when (frame.id) {
-                    in closedIds -> frame.copy(state = FrameState.CLOSED)
-                    in awaitingIds -> frame.copy(state = FrameState.AWAITING_RESUME)
-                    else -> frame
-                }
-            },
-    )
-}
-
-private fun stillThePreImage(
-    snapshot: FocusSnapshot,
-    token: UndoToken,
-): Boolean {
-    val tasksById = snapshot.tasks.associateBy { it.id }
-    val framesById = snapshot.frames.associateBy { it.id }
-    return token.tasks.all { saved -> tasksById[saved.id]?.status == saved.status } &&
-        token.frames.all { saved -> framesById[saved.id]?.state == saved.state }
-}

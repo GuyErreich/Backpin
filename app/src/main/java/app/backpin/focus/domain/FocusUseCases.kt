@@ -62,6 +62,10 @@ class FocusUseCases(
         repository.undo(token)
     }
 
+    suspend fun restore(taskId: String) {
+        repository.restore(taskId)
+    }
+
     suspend fun completeTask(taskId: String): UndoToken? = repository.completeTask(taskId)
 
     suspend fun reorderToday(orderedIds: List<String>): UndoToken? = repository.reorderToday(orderedIds)

@@ -77,8 +77,8 @@ data class FocusSnapshot(
 )
 
 /**
- * Prior task and frame rows for an Undo of Done or Later.
- * Restoring these rows puts bucket and frame state back; nothing is hard-deleted.
+ * Prior task and frame rows for an Undo of a Today placement change.
+ * Done and Later commit without this snackbar. Nothing is hard-deleted.
  */
 data class UndoToken(
     val tasks: List<Task>,

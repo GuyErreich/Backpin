@@ -135,6 +135,14 @@ fun HomeScreen(
                 onDone = viewModel::markDone,
                 onLater = viewModel::demote,
             )
+            HorizontalDivider(color = FocusColors.Outline)
+            ArchiveSection(
+                count = state.archiveCount,
+                expanded = state.archiveExpanded,
+                tasks = state.archiveTasks,
+                onToggle = viewModel::toggleArchive,
+                onRestore = viewModel::restore,
+            )
         }
     }
 
@@ -454,6 +462,8 @@ private fun SectionLabel(
 /**
  * Later and Inbox each own a titled panel. They are not extra Today slots,
  * and nothing in the panel can be dropped into another bucket.
+ *
+ * Archive is a separate panel for finished tasks. Restore returns one to Inbox.
  */
 @Composable
 private fun BucketSection(
@@ -539,6 +549,74 @@ private fun BucketSection(
                                             }
                                         }
                                     }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Finished tasks live here, apart from Today, Later, and Inbox.
+ * Review opens the list. Restore puts one task back into Inbox.
+ */
+@Composable
+private fun ArchiveSection(
+    count: Int,
+    expanded: Boolean,
+    tasks: List<TaskUi>,
+    onToggle: () -> Unit,
+    onRestore: (String) -> Unit,
+) {
+    val action = if (expanded) "Hide" else "Review"
+    Column(verticalArrangement = Arrangement.spacedBy(Space)) {
+        SectionLabel("ARCHIVE", count.toString())
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(CardRadius),
+            color = FocusColors.Surface,
+            border = BorderStroke(1.dp, FocusColors.Outline),
+        ) {
+            Column(
+                Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(Space),
+            ) {
+                TextButton(
+                    onClick = onToggle,
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 48.dp)
+                            .semantics {
+                                contentDescription = "ARCHIVE, $count. ${if (expanded) "Collapse" else "Review"}"
+                            },
+                ) {
+                    Text(action)
+                }
+                if (expanded) {
+                    if (tasks.isEmpty()) {
+                        Text(
+                            "Nothing in the archive.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        )
+                    }
+                    tasks.forEach { task ->
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(16.dp),
+                            color = FocusColors.SurfaceHigh,
+                        ) {
+                            Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+                                Text(task.title, style = MaterialTheme.typography.bodyLarge)
+                                TextButton(
+                                    onClick = { onRestore(task.id) },
+                                    modifier = Modifier.heightIn(min = 48.dp),
+                                ) {
+                                    Text("Restore")
                                 }
                             }
                         }

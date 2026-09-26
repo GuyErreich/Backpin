@@ -250,6 +250,31 @@ class FocusRepositoryTest {
         }
 
     @Test
+    fun restoreReturnsAnOpenInboxTaskWithoutChangingTheActiveFrame() =
+        runBlocking {
+            val original = capture("Review CI failure").also { repository.promote(it) }
+            repository.start(original)
+            repository.capture("Buy milk")
+            val milk = snapshot().tasks.single { it.title == "Buy milk" }.id
+            val active = snapshot().frames.single { it.state == FrameState.ACTIVE }
+            val frameCount = snapshot().frames.size
+            repository.completeTask(milk)
+            assertEquals(TaskStatus.DONE, task(milk).status)
+            repository.restore(milk)
+            val restored = task(milk)
+            val after = snapshot()
+            assertEquals(TaskStatus.OPEN, restored.status)
+            assertEquals(TaskBucket.INBOX, restored.bucket)
+            assertNull(restored.completedAtEpochMillis)
+            assertEquals(active.id, after.frames.single { it.state == FrameState.ACTIVE }.id)
+            assertEquals(original, after.frames.single { it.state == FrameState.ACTIVE }.taskId)
+            assertEquals(frameCount, after.frames.size)
+            assertTrue(after.frames.none { it.taskId == milk })
+            assertTrue(openToday().none { it.id == milk })
+            assertEquals(1, after.frames.count { it.state == FrameState.ACTIVE })
+        }
+
+    @Test
     fun undoDoneRestoresBucketAndActiveFrame() =
         runBlocking {
             val original = capture("Review CI failure").also { repository.promote(it) }

@@ -6,7 +6,6 @@ import app.backpin.focus.domain.FrameState
 import app.backpin.focus.domain.Task
 import app.backpin.focus.domain.TaskBucket
 import app.backpin.focus.domain.TaskStatus
-import app.backpin.focus.domain.UndoToken
 import app.backpin.focus.domain.UserPreferences
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -44,6 +43,8 @@ class DeriveFocusUiTest {
         assertEquals("f-john", state.recovery?.frameId)
         assertEquals(3, state.todaySlots.size)
         assertEquals(SlotRole.OPEN, state.todaySlots[0].role)
+        assertEquals(listOf("Talk to Sarah"), state.archiveTasks.map { it.title })
+        assertEquals(1, state.archiveCount)
     }
 
     @Test
@@ -58,65 +59,26 @@ class DeriveFocusUiTest {
         assertNull(state.now)
         assertNull(state.recovery)
         assertNull(state.paused)
+        assertEquals(listOf("Ship the release notes"), state.archiveTasks.map { it.title })
+        assertTrue(state.todaySlots.all { it.task == null })
     }
 
     @Test
-    fun markedDoneUndoLeavesTheTaskBeforeTheSnapshotCatchesUp() {
-        val original = task("original", "Review CI failure", TaskBucket.TODAY, cue = "Next: reproduce CI failure")
-        val john = task("john", "Message John", TaskBucket.INBOX)
-        val parent = frame("f-original", "original", parent = null, FrameState.PAUSED)
-        val active = frame("f-john", "john", parent = "f-original", FrameState.ACTIVE)
-        val snapshot = FocusSnapshot(tasks = listOf(original, john), frames = listOf(parent, active))
-        val undo =
-            PendingUndo(
-                id = 1L,
-                message = MARKED_DONE_UNDO,
-                token = UndoToken(tasks = listOf(john), frames = listOf(active, parent)),
+    fun doneTasksStayInArchiveApartFromOpenBuckets() {
+        val today = task("today", "Write the notes", TaskBucket.TODAY)
+        val later = task("later", "Call the vendor", TaskBucket.LATER)
+        val inbox = task("inbox", "Buy milk", TaskBucket.INBOX)
+        val older = task("older", "Ship the release notes", TaskBucket.TODAY, status = TaskStatus.DONE, completedAt = 10)
+        val newer = task("newer", "File the receipt", TaskBucket.INBOX, status = TaskStatus.DONE, completedAt = 40)
+        val state =
+            derive(
+                FocusSnapshot(tasks = listOf(today, later, inbox, older, newer)),
             )
-        val state = derive(snapshot, undo)
-        assertNull(state.now)
-        assertEquals("Review CI failure", state.recovery?.title)
-        assertEquals("f-original", state.recovery?.frameId)
-        assertEquals("Next: reproduce CI failure", state.recovery?.returnCue)
-    }
-
-    @Test
-    fun markedDoneUndoWithNoParentIsTheEmptyFocusState() {
-        val ship = task("ship", "Ship the release notes", TaskBucket.TODAY)
-        val active = frame("f-ship", "ship", parent = null, FrameState.ACTIVE)
-        val snapshot = FocusSnapshot(tasks = listOf(ship), frames = listOf(active))
-        val undo =
-            PendingUndo(
-                id = 2L,
-                message = MARKED_DONE_UNDO,
-                token = UndoToken(tasks = listOf(ship), frames = listOf(active)),
-            )
-        val state = derive(snapshot, undo)
-        assertNull(state.now)
-        assertNull(state.recovery)
-        assertNull(state.paused)
-    }
-
-    @Test
-    fun markedDoneUndoDoesNotHideATaskThatWasResumed() {
-        val original = task("original", "Review CI failure", TaskBucket.TODAY)
-        val john = task("john", "Message John", TaskBucket.INBOX, status = TaskStatus.DONE)
-        val resumed = frame("f-original", "original", parent = null, FrameState.ACTIVE)
-        val closed = frame("f-john", "john", parent = "f-original", FrameState.CLOSED)
-        val snapshot = FocusSnapshot(tasks = listOf(original, john), frames = listOf(resumed, closed))
-        val undo =
-            PendingUndo(
-                id = 3L,
-                message = MARKED_DONE_UNDO,
-                token =
-                    UndoToken(
-                        tasks = listOf(john.copy(status = TaskStatus.OPEN)),
-                        frames = listOf(closed.copy(state = FrameState.ACTIVE), resumed.copy(state = FrameState.PAUSED)),
-                    ),
-            )
-        val state = derive(snapshot, undo)
-        assertEquals("Review CI failure", state.now?.title)
-        assertNull(state.recovery)
+        assertEquals(listOf("File the receipt", "Ship the release notes"), state.archiveTasks.map { it.title })
+        assertEquals(2, state.archiveCount)
+        assertEquals(listOf("Write the notes"), state.todaySlots.mapNotNull { it.task?.title })
+        assertEquals(listOf("Call the vendor"), state.laterTasks.map { it.title })
+        assertEquals(listOf("Buy milk"), state.inboxTasks.map { it.title })
     }
 
     @Test
@@ -150,6 +112,7 @@ class DeriveFocusUiTest {
                 captureOpen = false,
                 inboxExpanded = false,
                 laterExpanded = false,
+                archiveExpanded = false,
                 swapIncomingId = null,
                 switchOpen = false,
                 undo = undo,
@@ -163,6 +126,7 @@ class DeriveFocusUiTest {
         bucket: TaskBucket,
         cue: String? = null,
         status: TaskStatus = TaskStatus.OPEN,
+        completedAt: Long? = null,
     ) = Task(
         id = id,
         title = title,
@@ -171,7 +135,7 @@ class DeriveFocusUiTest {
         returnCue = cue,
         sortOrder = 1,
         createdAtEpochMillis = 1,
-        completedAtEpochMillis = null,
+        completedAtEpochMillis = completedAt,
     )
 
     private fun frame(

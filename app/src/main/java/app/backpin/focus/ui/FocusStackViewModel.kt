@@ -26,6 +26,7 @@ class FocusStackViewModel(
     private val captureOpen = MutableStateFlow(false)
     private val inboxExpanded = MutableStateFlow(false)
     private val laterExpanded = MutableStateFlow(false)
+    private val archiveExpanded = MutableStateFlow(false)
     private val swapIncomingId = MutableStateFlow<String?>(null)
     private val switchOpen = MutableStateFlow(false)
     private val pendingUndo = MutableStateFlow<PendingUndo?>(null)
@@ -34,15 +35,16 @@ class FocusStackViewModel(
         combine(
             useCases.observeSnapshot(),
             useCases.preferences,
-            combine(captureOpen, inboxExpanded, laterExpanded) { capture, inbox, later ->
-                Triple(capture, inbox, later)
+            combine(captureOpen, inboxExpanded, laterExpanded, archiveExpanded) { capture, inbox, later, archive ->
+                ListChrome(capture, inbox, later, archive)
             }.combine(combine(swapIncomingId, switchOpen, pendingUndo) { swap, switch, undo ->
                 Triple(swap, switch, undo)
             }) { lists, dialogs ->
                 ChromeParts(
-                    captureOpen = lists.first,
-                    inboxExpanded = lists.second,
-                    laterExpanded = lists.third,
+                    captureOpen = lists.captureOpen,
+                    inboxExpanded = lists.inboxExpanded,
+                    laterExpanded = lists.laterExpanded,
+                    archiveExpanded = lists.archiveExpanded,
                     swapIncomingId = dialogs.first,
                     switchOpen = dialogs.second,
                     undo = dialogs.third,
@@ -55,6 +57,7 @@ class FocusStackViewModel(
                     captureOpen = chrome.captureOpen,
                     inboxExpanded = chrome.inboxExpanded,
                     laterExpanded = chrome.laterExpanded,
+                    archiveExpanded = chrome.archiveExpanded,
                     swapIncomingId = chrome.swapIncomingId,
                     switchOpen = chrome.switchOpen,
                     undo = chrome.undo,
@@ -140,22 +143,25 @@ class FocusStackViewModel(
 
     fun completeActive() {
         viewModelScope.launch {
-            val token = useCases.completeActive() ?: return@launch
-            offerUndo(MARKED_DONE_UNDO, token)
+            useCases.completeActive()
         }
     }
 
     fun markDone(taskId: String) {
         viewModelScope.launch {
-            val token = useCases.completeTask(taskId) ?: return@launch
-            offerUndo(MARKED_DONE_UNDO, token)
+            useCases.completeTask(taskId)
         }
     }
 
     fun demote(taskId: String) {
         viewModelScope.launch {
-            val token = useCases.demote(taskId)
-            offerUndo("Moved to Later", token)
+            useCases.demote(taskId)
+        }
+    }
+
+    fun restore(taskId: String) {
+        viewModelScope.launch {
+            useCases.restore(taskId)
         }
     }
 
@@ -235,6 +241,10 @@ class FocusStackViewModel(
         laterExpanded.value = !laterExpanded.value
     }
 
+    fun toggleArchive() {
+        archiveExpanded.value = !archiveExpanded.value
+    }
+
     fun undo(id: Long) {
         val pending = pendingUndo.value ?: return
         if (pending.id != id) return
@@ -255,10 +265,18 @@ class FocusStackViewModel(
         pendingUndo.value = PendingUndo(id = System.nanoTime(), message = message, token = token)
     }
 
+    private data class ListChrome(
+        val captureOpen: Boolean,
+        val inboxExpanded: Boolean,
+        val laterExpanded: Boolean,
+        val archiveExpanded: Boolean,
+    )
+
     private data class ChromeParts(
         val captureOpen: Boolean,
         val inboxExpanded: Boolean,
         val laterExpanded: Boolean,
+        val archiveExpanded: Boolean,
         val swapIncomingId: String?,
         val switchOpen: Boolean,
         val undo: PendingUndo?,

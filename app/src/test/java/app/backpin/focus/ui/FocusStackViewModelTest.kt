@@ -10,6 +10,7 @@ import app.backpin.focus.domain.AppClock
 import app.backpin.focus.domain.FocusUseCases
 import app.backpin.focus.domain.FrameState
 import app.backpin.focus.domain.TaskBucket
+import app.backpin.focus.domain.TaskStatus
 import app.backpin.focus.domain.UNTITLED_INTERRUPTION
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -105,10 +106,14 @@ class FocusStackViewModelTest {
             first.completeActive()
             val recovered =
                 withTimeout(5_000) {
-                    first.uiState.first { it.recovery?.title == "Message John" && it.undo?.message == "Marked done" }
+                    first.uiState.first {
+                        it.recovery?.title == "Message John" &&
+                            it.undo == null &&
+                            it.archiveTasks.any { task -> task.title == "Talk to Sarah" }
+                    }
                 }
             assertNull(recovered.now)
-            assertEquals("Marked done", recovered.undo?.message)
+            assertNull(recovered.undo)
             collect.cancel()
 
             val recreated = FocusStackViewModel(useCases)
@@ -138,38 +143,76 @@ class FocusStackViewModelTest {
         }
 
     @Test
-    fun undoSnackbarRestoresDoneAndLater() =
+    fun doneLandsInArchiveAndRestoreReturnsOpenInboxWithoutChangingTheActiveFrame() =
         runBlocking {
             val viewModel = FocusStackViewModel(useCases)
             val collect = launch { viewModel.uiState.collect {} }
             val original = seedToday("Review CI failure")
             useCases.start(original)
-            viewModel.completeActive()
-            val done =
+            val activeBefore = useCases.observeSnapshot().first().frames.single { it.state == FrameState.ACTIVE }.id
+            viewModel.saveToInbox("Buy milk")
+            val captured =
                 withTimeout(5_000) {
-                    viewModel.uiState.first { it.undo?.message == "Marked done" && it.now == null && it.recovery == null }
+                    viewModel.uiState.first { state -> state.inboxTasks.any { it.title == "Buy milk" } && state.now?.taskId == original }
                 }
-            assertNull(done.now)
-            assertNull(done.recovery)
-            viewModel.undo(done.undo!!.id)
-            withTimeout(5_000) { viewModel.uiState.first { it.now?.title == "Review CI failure" && it.undo == null } }
+            val milkId = captured.inboxTasks.single { it.title == "Buy milk" }.id
 
-            viewModel.demote(original)
-            val later =
+            viewModel.markDone(milkId)
+            val archived =
                 withTimeout(5_000) {
                     viewModel.uiState.first { state ->
-                        state.undo?.message == "Moved to Later" && state.todaySlots.none { it.task != null }
+                        state.undo == null &&
+                            state.archiveTasks.any { it.id == milkId } &&
+                            state.inboxTasks.none { it.id == milkId } &&
+                            state.now?.taskId == original
                     }
                 }
-            assertEquals(0, later.todaySlots.count { it.task != null })
-            viewModel.undo(later.undo!!.id)
+            assertEquals(listOf(milkId), archived.archiveTasks.map { it.id })
+            assertNull(archived.undo)
+            assertEquals(activeBefore, useCases.observeSnapshot().first().frames.single { it.state == FrameState.ACTIVE }.id)
+
+            viewModel.restore(milkId)
             val restored =
                 withTimeout(5_000) {
                     viewModel.uiState.first { state ->
-                        state.undo == null && state.now?.taskId == original && state.todaySlots.any { it.task?.id == original }
+                        state.undo == null &&
+                            state.archiveTasks.none { it.id == milkId } &&
+                            state.inboxTasks.any { it.id == milkId } &&
+                            state.now?.taskId == original &&
+                            state.todaySlots.none { it.task?.id == milkId }
                     }
                 }
+            val snapshot = useCases.observeSnapshot().first()
+            val milk = snapshot.tasks.single { it.id == milkId }
+            assertEquals(TaskStatus.OPEN, milk.status)
+            assertEquals(TaskBucket.INBOX, milk.bucket)
+            assertNull(milk.completedAtEpochMillis)
+            assertEquals(activeBefore, snapshot.frames.single { it.state == FrameState.ACTIVE }.id)
+            assertEquals(original, snapshot.frames.single { it.state == FrameState.ACTIVE }.taskId)
+            assertTrue(snapshot.frames.none { it.taskId == milkId })
             assertEquals(SlotRole.NOW, restored.todaySlots.single { it.task?.id == original }.role)
+
+            viewModel.demote(milkId)
+            val later =
+                withTimeout(5_000) {
+                    viewModel.uiState.first { state ->
+                        state.undo == null &&
+                            state.laterTasks.any { it.id == milkId } &&
+                            state.now?.taskId == original
+                    }
+                }
+            assertNull(later.undo)
+            assertEquals(activeBefore, useCases.observeSnapshot().first().frames.single { it.state == FrameState.ACTIVE }.id)
+
+            viewModel.completeActive()
+            val finished =
+                withTimeout(5_000) {
+                    viewModel.uiState.first { state ->
+                        state.undo == null && state.now == null && state.archiveTasks.any { it.id == original }
+                    }
+                }
+            assertNull(finished.undo)
+            assertNull(finished.now)
             collect.cancel()
         }
 
