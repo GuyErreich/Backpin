@@ -2,6 +2,9 @@
 # Install go-task once, then run `task setup` from this directory:
 #   curl -sSfL https://taskfile.dev/install.sh | sh -s -- -d -b ~/.local/bin
 #   echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc && source ~/.bashrc
+#
+# env pins JAVA_HOME to JDK 21. .taskrc.yml makes that win over the shell.
+# Unit tests are Java 21 class files; a Java 17 Gradle daemon cannot run them.
 version: "3"
 
 set: [errexit, pipefail]
@@ -10,10 +13,14 @@ shell: bash
 vars:
   ANDROID_SDK: "{{.HOME}}/Android/Sdk"
   CMDLINE_URL: https://dl.google.com/android/repository/commandlinetools-linux-15859902_latest.zip
+  JDK_HOME:
+    sh: printf '%s\n' "/usr/lib/jvm/java-21-openjdk-$(dpkg --print-architecture)"
 
 env:
   ANDROID_HOME: "{{.ANDROID_SDK}}"
   ANDROID_SDK_ROOT: "{{.ANDROID_SDK}}"
+  JAVA_HOME: "{{.JDK_HOME}}"
+  PATH: "{{.JDK_HOME}}/bin:{{.PATH}}"
 
 tasks:
   setup:
@@ -36,11 +43,18 @@ tasks:
         fi
       - |
         marker="# focus-stack android sdk"
+        jdk_line='export JAVA_HOME="/usr/lib/jvm/java-21-openjdk-$(dpkg --print-architecture)"'
         if ! grep -qF "$marker" "$HOME/.bashrc"; then
           printf '%s\n' \
             "$marker" \
             'export ANDROID_HOME="$HOME/Android/Sdk"' \
-            'export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH"' \
+            "$jdk_line" \
+            'export PATH="$JAVA_HOME/bin:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH"' \
+            >> "$HOME/.bashrc"
+        elif ! grep -q 'java-21-openjdk' "$HOME/.bashrc"; then
+          printf '%s\n' \
+            "$jdk_line" \
+            'export PATH="$JAVA_HOME/bin:$PATH"' \
             >> "$HOME/.bashrc"
         fi
       - |
@@ -49,19 +63,19 @@ tasks:
         export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH"
         android --sdk="$ANDROID_HOME" sdk install platform-tools platforms/android-37.2 build-tools/37.0.0
       - echo "sdk.dir={{.ANDROID_SDK}}" > local.properties
-      - 'echo "SDK ready at {{.ANDROID_SDK}}. Next, run source ~/.bashrc"'
+      - 'echo "SDK ready at {{.ANDROID_SDK}}. task uses JDK 21. Next, run source ~/.bashrc"'
 
   test:
-    desc: Run the unit tests
+    desc: Run the unit tests on JDK 21
     platforms: [linux]
-    deps: [local-sdk]
+    deps: [jdk, local-sdk]
     cmds:
       - ./gradlew test
 
   assemble:
     desc: Build the debug APK
     platforms: [linux]
-    deps: [local-sdk]
+    deps: [jdk, local-sdk]
     cmds:
       - ./gradlew assembleDebug
 
@@ -77,6 +91,36 @@ tasks:
         fi
         adb="$(cmd.exe /c 'echo %LOCALAPPDATA%\Android\Sdk\platform-tools\adb.exe' | tr -d '\r')"
         "$adb" install -r app/build/outputs/apk/debug/app-debug.apk
+
+  jdk:
+    internal: true
+    platforms: [linux]
+    cmds:
+      - |
+        jdk="{{.JDK_HOME}}"
+        if [[ ! -x "$jdk/bin/java" ]]; then
+          echo "JDK 21 is missing at $jdk. Run: task setup" >&2
+          exit 1
+        fi
+        expected="$(readlink -f "$jdk/bin/java")"
+        mismatch=0
+        if command -v pgrep >/dev/null 2>&1; then
+          while read -r pid; do
+            [[ -z "$pid" ]] && continue
+            exe="$(readlink -f "/proc/$pid/exe" 2>/dev/null || true)"
+            [[ "$exe" == */bin/java ]] || continue
+            if [[ "$exe" != "$expected" ]]; then
+              mismatch=1
+              break
+            fi
+          done < <(pgrep -f 'org.gradle.launcher.daemon.bootstrap.GradleDaemon' || true)
+        else
+          mismatch=1
+        fi
+        if [[ "$mismatch" == 1 ]]; then
+          echo "Stopping Gradle daemons that are not JDK 21."
+          ./gradlew --stop
+        fi
 
   local-sdk:
     internal: true

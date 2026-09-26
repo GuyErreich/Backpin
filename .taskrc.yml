@@ -1,0 +1,4 @@
+# Taskfile env overrides the shell. JAVA_HOME must stay on JDK 21 even
+# when the shell still points at Java 17.
+experiments:
+  ENV_PRECEDENCE: 1
