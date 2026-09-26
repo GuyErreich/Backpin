@@ -13,7 +13,16 @@ object NotificationContract {
     const val DESTINATION_CAPTURE: String = "capture"
     const val EXTRA_TASK_ID: String = "app.backpin.focus.task"
     const val ACTION_LATER: String = "app.backpin.focus.action.LATER"
-    const val CHANNEL_CURRENT: String = "focus_current"
+
+    /**
+     * Low-importance channel from earlier builds. Left unused.
+     * Android ignores a later importance change on a channel that already exists.
+     */
+    const val CHANNEL_CURRENT_LEGACY: String = "focus_current"
+
+    /** Ongoing current-task notice. Default importance so it can stay in the ongoing group. */
+    const val CHANNEL_CURRENT: String = "focus_current_ongoing"
+
     const val CHANNEL_NUDGE: String = "focus_nudge"
     const val ID_CURRENT: Int = 41
     const val ID_NUDGE: Int = 42

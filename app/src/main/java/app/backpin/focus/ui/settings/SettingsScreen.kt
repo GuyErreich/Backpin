@@ -201,7 +201,7 @@ fun SettingsScreen(
                 Column(Modifier.weight(1f).padding(end = 12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text("Show current task", style = MaterialTheme.typography.titleMedium)
                     Text(
-                        "A dismissible notification. Elapsed time stays in the app, from stored timestamps. No foreground service.",
+                        "An ongoing notice of the current task that stays until you leave it. Elapsed time stays in the app, from stored timestamps. No foreground service.",
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 }

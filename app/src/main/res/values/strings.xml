@@ -9,7 +9,7 @@
     <string name="action_later">Later</string>
     <string name="action_interrupt">Interrupt</string>
     <string name="channel_current_name">Current task</string>
-    <string name="channel_current_description">Shows the task in focus. You can dismiss it. It is not a live timer.</string>
+    <string name="channel_current_description">Ongoing notice of the task to return to. It stays until you leave it. Elapsed time stays in the app.</string>
     <string name="channel_nudge_name">Nudges</string>
     <string name="channel_nudge_description">Approximate reminders. Android may delay them. Focus Stack does not use exact alarms.</string>
 </resources>
