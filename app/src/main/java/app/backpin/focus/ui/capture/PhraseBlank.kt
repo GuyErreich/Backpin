@@ -31,3 +31,20 @@ internal fun fillPhraseBlank(
     if (filled.isEmpty()) return null
     return template.replaceRange(match.range, filled)
 }
+
+/**
+ * What a phrase chip does before any task exists.
+ * A finished phrase asks where it goes. A blank asks for that word first.
+ */
+internal sealed interface PhraseChipAction {
+    data class AskPlace(
+        val title: String,
+    ) : PhraseChipAction
+
+    data object AskFill : PhraseChipAction
+}
+
+internal fun phraseChipAction(template: String): PhraseChipAction {
+    if (phrasePrompt(template) == null) return PhraseChipAction.AskPlace(template)
+    return PhraseChipAction.AskFill
+}

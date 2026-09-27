@@ -15,8 +15,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -48,9 +50,15 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import app.backpin.focus.R
+import app.backpin.focus.domain.CapturePlace
+import app.backpin.focus.domain.ScheduleOffset
+import app.backpin.focus.domain.capturePlaces
+import app.backpin.focus.domain.nextDayOfMonth
+import app.backpin.focus.domain.scheduleDate
 import app.backpin.focus.ui.home.MintButton
 import app.backpin.focus.ui.home.QuietButton
 import app.backpin.focus.ui.motion.MotionSpec
@@ -59,9 +67,13 @@ import app.backpin.focus.ui.motion.motionSpec
 import app.backpin.focus.ui.motion.rememberReducedMotion
 import app.backpin.focus.ui.theme.FocusColors
 import app.backpin.focus.ui.theme.Space
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 
 private const val PERMISSION_NOTE = "Microphone permission is off. You can still type."
 private const val UNAVAILABLE_NOTE = "Speech isn't available on this phone. You can still type."
+
+private val scheduleDayFormat: DateTimeFormatter = DateTimeFormatter.ofPattern("EEE, MMM d")
 
 private enum class ListenField {
     Title,
@@ -72,10 +84,14 @@ private enum class ListenField {
 @Composable
 fun CaptureSheet(
     phrases: List<String>,
-    interrupts: Boolean,
+    frameActive: Boolean,
     onDismiss: () -> Unit,
     onSaveToInbox: (String) -> Unit,
     onInterruptNow: (String) -> Unit,
+    onPlaceToday: (String) -> Unit,
+    onPlaceStart: (String) -> Unit,
+    onPlaceLater: (String) -> Unit,
+    onSchedule: (String, Long) -> Unit,
 ) {
     val context = LocalContext.current
     val reducedMotion = rememberReducedMotion()
@@ -83,6 +99,10 @@ fun CaptureSheet(
     var title by remember { mutableStateOf("") }
     var activeBlank by remember { mutableStateOf<String?>(null) }
     var fillWord by remember { mutableStateOf("") }
+    var pendingTitle by remember { mutableStateOf<String?>(null) }
+    var schedulingTitle by remember { mutableStateOf<String?>(null) }
+    var scheduleFromPhrase by remember { mutableStateOf(false) }
+    var dayText by remember { mutableStateOf("") }
     var speechNote by remember { mutableStateOf<String?>(null) }
     var listening by remember { mutableStateOf(false) }
     var listenField by remember { mutableStateOf<ListenField?>(null) }
@@ -92,6 +112,7 @@ fun CaptureSheet(
     val focusRequester = remember { FocusRequester() }
     val fillFocusRequester = remember { FocusRequester() }
     val recognizer = remember(context) { TitleSpeechRecognizer(context) }
+    val today = LocalDate.now()
 
     fun applySpoken(
         field: ListenField,
@@ -146,16 +167,59 @@ fun CaptureSheet(
         onDismiss()
     }
 
-    fun commit(raw: String) {
-        if (raw.isBlank()) return
-        stopListening()
-        if (interrupts) onInterruptNow(raw) else onSaveToInbox(raw)
-    }
-
     fun commitFill() {
         val template = activeBlank ?: return
         val filled = fillPhraseBlank(template, fillWord) ?: return
-        commit(filled)
+        stopListening()
+        activeBlank = null
+        fillWord = ""
+        pendingTitle = filled
+    }
+
+    fun beginSchedule(
+        resolved: String,
+        fromPhrase: Boolean,
+    ) {
+        if (resolved.isBlank()) return
+        stopListening()
+        scheduleFromPhrase = fromPhrase
+        schedulingTitle = resolved.trim()
+        pendingTitle = null
+        activeBlank = null
+        dayText = ""
+    }
+
+    fun placePhrase(place: CapturePlace) {
+        val resolved = pendingTitle ?: return
+        when (place) {
+            CapturePlace.INBOX -> {
+                stopListening()
+                onSaveToInbox(resolved)
+            }
+            CapturePlace.TODAY -> {
+                stopListening()
+                onPlaceToday(resolved)
+            }
+            CapturePlace.START -> {
+                stopListening()
+                onPlaceStart(resolved)
+            }
+            CapturePlace.INTERRUPT -> {
+                stopListening()
+                onInterruptNow(resolved)
+            }
+            CapturePlace.LATER -> {
+                stopListening()
+                onPlaceLater(resolved)
+            }
+            CapturePlace.SCHEDULE -> beginSchedule(resolved, fromPhrase = true)
+        }
+    }
+
+    fun chooseDate(date: LocalDate) {
+        val resolved = schedulingTitle ?: return
+        stopListening()
+        onSchedule(resolved, date.toEpochDay())
     }
 
     fun onMic(field: ListenField) {
@@ -192,6 +256,7 @@ fun CaptureSheet(
             modifier =
                 Modifier
                     .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
                     .padding(horizontal = 16.dp)
                     .padding(bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(Space),
@@ -213,127 +278,182 @@ fun CaptureSheet(
                     Icon(Icons.Filled.Close, contentDescription = "Close capture")
                 }
             }
-            if (phrases.isNotEmpty()) {
-                WithoutRipple {
+            val scheduling = schedulingTitle
+            val placing = pendingTitle
+            when {
+                scheduling != null -> {
+                    ScheduleStep(
+                        title = scheduling,
+                        today = today,
+                        dayText = dayText,
+                        onDayText = { dayText = it.filter { char -> char.isDigit() }.take(2) },
+                        onDate = ::chooseDate,
+                        onBack = {
+                            if (scheduleFromPhrase) {
+                                pendingTitle = scheduling
+                            }
+                            schedulingTitle = null
+                            dayText = ""
+                        },
+                    )
+                }
+                placing != null -> {
+                    PlaceStep(
+                        title = placing,
+                        places = capturePlaces(frameActive),
+                        onPlace = ::placePhrase,
+                        onBack = { pendingTitle = null },
+                    )
+                }
+                else -> {
+                    if (phrases.isNotEmpty()) {
+                        WithoutRipple {
+                            FlowRow(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                phrases.forEach { phrase ->
+                                    SuggestionChip(
+                                        onClick = {
+                                            stopListening()
+                                            when (val action = phraseChipAction(phrase)) {
+                                                is PhraseChipAction.AskFill -> {
+                                                    activeBlank = phrase
+                                                    fillWord = ""
+                                                    pendingTitle = null
+                                                }
+                                                is PhraseChipAction.AskPlace -> {
+                                                    activeBlank = null
+                                                    fillWord = ""
+                                                    pendingTitle = action.title
+                                                }
+                                            }
+                                        },
+                                        label = { Text(phraseChipLabel(phrase)) },
+                                        modifier = Modifier.heightIn(min = 48.dp),
+                                        colors =
+                                            SuggestionChipDefaults.suggestionChipColors(
+                                                containerColor = FocusColors.Surface,
+                                                labelColor = FocusColors.Text,
+                                            ),
+                                        border = BorderStroke(1.dp, FocusColors.Outline),
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    activeBlank?.let { template ->
+                        val prompt = phrasePrompt(template) ?: "word"
+                        OutlinedTextField(
+                            value = fillWord,
+                            onValueChange = { fillWord = it },
+                            modifier = Modifier.fillMaxWidth().focusRequester(fillFocusRequester),
+                            label = { Text(prompt) },
+                            placeholder = { Text(prompt) },
+                            singleLine = true,
+                            trailingIcon = {
+                                SpeakMic(
+                                    listening = listening && listenField == ListenField.Fill,
+                                    reducedMotion = reducedMotion,
+                                    contentDescription =
+                                        if (listening && listenField == ListenField.Fill) {
+                                            "Stop listening"
+                                        } else {
+                                            "Speak the missing word"
+                                        },
+                                    onClick = { onMic(ListenField.Fill) },
+                                )
+                            },
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                            keyboardActions = KeyboardActions(onDone = { commitFill() }),
+                        )
+                        fillPhraseBlank(template, fillWord)?.let { preview ->
+                            Text(preview, style = MaterialTheme.typography.bodyLarge, color = FocusColors.Text)
+                        }
+                        TextButton(
+                            onClick = { commitFill() },
+                            enabled = fillPhraseBlank(template, fillWord) != null,
+                            modifier = Modifier.heightIn(min = 48.dp),
+                        ) {
+                            Text("Next")
+                        }
+                    }
+                    Text(
+                        "One line. Choose where it goes. Speaking only fills the title.",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    OutlinedTextField(
+                        value = title,
+                        onValueChange = { title = it },
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .focusRequester(focusRequester),
+                        label = { Text("Title") },
+                        placeholder = { Text("A stray thought") },
+                        singleLine = true,
+                        trailingIcon = {
+                            SpeakMic(
+                                listening = listening && listenField == ListenField.Title,
+                                reducedMotion = reducedMotion,
+                                contentDescription =
+                                    if (listening && listenField == ListenField.Title) {
+                                        "Stop listening"
+                                    } else {
+                                        "Speak the title"
+                                    },
+                                onClick = { onMic(ListenField.Title) },
+                            )
+                        },
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                        keyboardActions =
+                            KeyboardActions(
+                                onDone = {
+                                    stopListening()
+                                    onSaveToInbox(title)
+                                },
+                            ),
+                    )
+                    speechNote?.let { note ->
+                        Text(note, style = MaterialTheme.typography.bodyMedium, color = FocusColors.Muted)
+                    }
                     FlowRow(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        phrases.forEach { phrase ->
-                            SuggestionChip(
-                                onClick = {
-                                    stopListening()
-                                    if (phrasePrompt(phrase) == null) {
-                                        activeBlank = null
-                                        fillWord = ""
-                                        commit(phrase)
-                                    } else {
-                                        activeBlank = phrase
-                                        fillWord = ""
-                                    }
-                                },
-                                label = { Text(phraseChipLabel(phrase)) },
-                                modifier = Modifier.heightIn(min = 48.dp),
-                                colors =
-                                    SuggestionChipDefaults.suggestionChipColors(
-                                        containerColor = FocusColors.Surface,
-                                        labelColor = FocusColors.Text,
-                                    ),
-                                border = BorderStroke(1.dp, FocusColors.Outline),
-                            )
-                        }
+                        MintButton(
+                            "Save to Inbox",
+                            onClick = {
+                                stopListening()
+                                onSaveToInbox(title)
+                            },
+                        )
+                        QuietButton("Today", onClick = {
+                            stopListening()
+                            onPlaceToday(title)
+                        })
+                        QuietButton("Start", onClick = {
+                            stopListening()
+                            onPlaceStart(title)
+                        })
+                        QuietButton(
+                            "Interrupt now",
+                            onClick = {
+                                stopListening()
+                                onInterruptNow(title)
+                            },
+                        )
+                        QuietButton("Later", onClick = {
+                            stopListening()
+                            onPlaceLater(title)
+                        })
+                        QuietButton(
+                            "Schedule",
+                            onClick = { beginSchedule(title, fromPhrase = false) },
+                        )
                     }
                 }
             }
-            activeBlank?.let { template ->
-                val prompt = phrasePrompt(template) ?: "word"
-                OutlinedTextField(
-                    value = fillWord,
-                    onValueChange = { fillWord = it },
-                    modifier = Modifier.fillMaxWidth().focusRequester(fillFocusRequester),
-                    label = { Text(prompt) },
-                    placeholder = { Text(prompt) },
-                    singleLine = true,
-                    trailingIcon = {
-                        SpeakMic(
-                            listening = listening && listenField == ListenField.Fill,
-                            reducedMotion = reducedMotion,
-                            contentDescription =
-                                if (listening && listenField == ListenField.Fill) {
-                                    "Stop listening"
-                                } else {
-                                    "Speak the missing word"
-                                },
-                            onClick = { onMic(ListenField.Fill) },
-                        )
-                    },
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                    keyboardActions = KeyboardActions(onDone = { commitFill() }),
-                )
-                fillPhraseBlank(template, fillWord)?.let { preview ->
-                    Text(preview, style = MaterialTheme.typography.bodyLarge, color = FocusColors.Text)
-                }
-                TextButton(
-                    onClick = { commitFill() },
-                    enabled = fillPhraseBlank(template, fillWord) != null,
-                    modifier = Modifier.heightIn(min = 48.dp),
-                ) {
-                    Text(if (interrupts) "Interrupt now" else "Save to Inbox")
-                }
-            }
-            Text(
-                "One line. It goes to Inbox and your place stays put.",
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            OutlinedTextField(
-                value = title,
-                onValueChange = { title = it },
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .focusRequester(focusRequester),
-                label = { Text("Title") },
-                placeholder = { Text("A stray thought") },
-                singleLine = true,
-                trailingIcon = {
-                    SpeakMic(
-                        listening = listening && listenField == ListenField.Title,
-                        reducedMotion = reducedMotion,
-                        contentDescription =
-                            if (listening && listenField == ListenField.Title) {
-                                "Stop listening"
-                            } else {
-                                "Speak the title"
-                            },
-                        onClick = { onMic(ListenField.Title) },
-                    )
-                },
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                keyboardActions =
-                    KeyboardActions(
-                        onDone = {
-                            stopListening()
-                            onSaveToInbox(title)
-                        },
-                    ),
-            )
-            speechNote?.let { note ->
-                Text(note, style = MaterialTheme.typography.bodyMedium, color = FocusColors.Muted)
-            }
-            MintButton(
-                "Save to Inbox",
-                onClick = {
-                    stopListening()
-                    onSaveToInbox(title)
-                },
-            )
-            QuietButton(
-                "Interrupt now",
-                onClick = {
-                    stopListening()
-                    onInterruptNow(title)
-                },
-            )
         }
     }
     LaunchedEffect(Unit) {
@@ -343,6 +463,106 @@ fun CaptureSheet(
         if (activeBlank != null) fillFocusRequester.requestFocus()
     }
 }
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun PlaceStep(
+    title: String,
+    places: List<CapturePlace>,
+    onPlace: (CapturePlace) -> Unit,
+    onBack: () -> Unit,
+) {
+    Text(title, style = MaterialTheme.typography.headlineMedium)
+    Text(
+        "Where does this go?",
+        style = MaterialTheme.typography.bodyLarge,
+        modifier = Modifier.semantics { heading() },
+    )
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        places.forEach { place ->
+            QuietButton(place.label(), onClick = { onPlace(place) })
+        }
+    }
+    TextButton(onClick = onBack, modifier = Modifier.heightIn(min = 48.dp)) {
+        Text("Back")
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ScheduleStep(
+    title: String,
+    today: LocalDate,
+    dayText: String,
+    onDayText: (String) -> Unit,
+    onDate: (LocalDate) -> Unit,
+    onBack: () -> Unit,
+) {
+    val day = dayText.toIntOrNull()
+    val picked = if (day != null && day in 1..31) nextDayOfMonth(today, day) else null
+    Text(title, style = MaterialTheme.typography.headlineMedium)
+    Text(
+        "When should it come back?",
+        style = MaterialTheme.typography.bodyLarge,
+        modifier = Modifier.semantics { heading() },
+    )
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        QuietButton("Tomorrow", onClick = { onDate(scheduleDate(today, ScheduleOffset.TOMORROW)) })
+        QuietButton(
+            "In a couple of days",
+            onClick = { onDate(scheduleDate(today, ScheduleOffset.IN_A_COUPLE_OF_DAYS)) },
+        )
+        QuietButton("Next week", onClick = { onDate(scheduleDate(today, ScheduleOffset.NEXT_WEEK)) })
+    }
+    OutlinedTextField(
+        value = dayText,
+        onValueChange = onDayText,
+        modifier = Modifier.fillMaxWidth(),
+        label = { Text("Day of the month") },
+        placeholder = { Text("1–31") },
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
+        keyboardActions =
+            KeyboardActions(
+                onDone = {
+                    if (picked != null) onDate(picked)
+                },
+            ),
+    )
+    picked?.let { date ->
+        Text(
+            "Comes back ${date.format(scheduleDayFormat)}.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = FocusColors.Muted,
+        )
+    }
+    QuietButton(
+        "That day",
+        onClick = {
+            if (picked != null) onDate(picked)
+        },
+        enabled = picked != null,
+    )
+    TextButton(onClick = onBack, modifier = Modifier.heightIn(min = 48.dp)) {
+        Text("Back")
+    }
+}
+
+private fun CapturePlace.label(): String =
+    when (this) {
+        CapturePlace.INBOX -> "Inbox"
+        CapturePlace.TODAY -> "Today"
+        CapturePlace.START -> "Start"
+        CapturePlace.INTERRUPT -> "Interrupt"
+        CapturePlace.LATER -> "Later"
+        CapturePlace.SCHEDULE -> "Schedule"
+    }
 
 @Composable
 private fun SpeakMic(

@@ -16,6 +16,14 @@ data class TaskUi(
     val returnCue: String?,
 )
 
+/** A task waiting on a local date. [due] means that date is today or earlier and it is still scheduled. */
+data class ScheduledTaskUi(
+    val id: String,
+    val title: String,
+    val whenLabel: String,
+    val due: Boolean,
+)
+
 data class NowUi(
     val taskId: String,
     val frameId: String,
@@ -63,9 +71,12 @@ data class FocusUiState(
     val inboxTasks: List<TaskUi> = emptyList(),
     val archiveCount: Int = 0,
     val archiveTasks: List<TaskUi> = emptyList(),
+    val scheduledCount: Int = 0,
+    val scheduledTasks: List<ScheduledTaskUi> = emptyList(),
     val captureOpen: Boolean = false,
     val captureInterrupts: Boolean = false,
     val swapIncoming: TaskUi? = null,
+    val freshSwapTitle: String? = null,
     val swapChoices: List<TaskUi> = emptyList(),
     val switchOpen: Boolean = false,
     val switchTargets: List<TaskUi> = emptyList(),

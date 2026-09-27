@@ -2,6 +2,8 @@ package app.backpin.focus.ui.home
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -23,6 +25,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import app.backpin.focus.ui.ScheduledTaskUi
 import app.backpin.focus.ui.TaskUi
 import app.backpin.focus.ui.motion.WithoutRipple
 import app.backpin.focus.ui.motion.pressScale
@@ -78,6 +81,74 @@ fun LaterScreen(
         onStart = onStart,
         modifier = modifier,
     )
+}
+
+/**
+ * Scheduled on its own screen. A task stays here until its local date, then moves onto Today
+ * without starting. From here it can move early, or be removed.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun ScheduledScreen(
+    tasks: List<ScheduledTaskUi>,
+    ready: Boolean,
+    onBack: () -> Unit,
+    onToday: (String) -> Unit,
+    onStart: (String) -> Unit,
+    onInbox: (String) -> Unit,
+    onLater: (String) -> Unit,
+    onRemove: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val reducedMotion = rememberReducedMotion()
+    PileScaffold(
+        title = "Scheduled",
+        count = tasks.size,
+        ready = ready,
+        onBack = onBack,
+        modifier = modifier,
+    ) {
+        if (tasks.isEmpty()) {
+            Text("Nothing is waiting on a date.", style = MaterialTheme.typography.bodyLarge, color = FocusColors.Muted)
+        }
+        tasks.forEach { task ->
+            SwipeRevealCard(
+                towardStart = todaySwipe { onToday(task.id) },
+                towardEnd = startSwipe { onStart(task.id) },
+                reducedMotion = reducedMotion,
+                cornerRadius = 16.dp,
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .semantics {
+                            contentDescription =
+                                "Scheduled. ${task.title}. ${task.whenLabel}. Swipe right for today, swipe left for start."
+                        },
+            ) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    color = FocusColors.SurfaceHigh,
+                ) {
+                    Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+                        Text(task.title, style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            task.whenLabel,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = if (task.due) FocusColors.Amber else FocusColors.Muted,
+                        )
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            QuietButton(label = "Today", onClick = { onToday(task.id) })
+                            QuietButton(label = "Start", onClick = { onStart(task.id) })
+                            QuietButton(label = "Inbox", onClick = { onInbox(task.id) })
+                            QuietButton(label = "Later", onClick = { onLater(task.id) })
+                            QuietButton(label = "Remove", onClick = { onRemove(task.id) })
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 /**

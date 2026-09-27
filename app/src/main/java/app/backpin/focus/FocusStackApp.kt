@@ -9,6 +9,7 @@ import app.backpin.focus.data.PreferencesDataStore
 import app.backpin.focus.domain.FocusUseCases
 import app.backpin.focus.domain.SystemAppClock
 import app.backpin.focus.notifications.NotificationCoordinator
+import app.backpin.focus.notifications.ScheduleReleaseScheduler
 import app.backpin.focus.ui.FocusStackViewModelFactory
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -31,9 +32,21 @@ class FocusStackApp : Application() {
         }
         container = AppContainer(this)
         container.notifications.start(appScope)
+        ScheduleReleaseScheduler(WorkManager.getInstance(this)).ensure()
         appScope.launch {
             container.preferences.ensureDefaultsStored()
+            container.repository.releaseDueScheduled()
         }
+    }
+
+    /** Each time the activity is visible, due scheduled tasks take a free Today slot. Nothing starts. */
+    fun onForeground() {
+        container.notifications.setAppVisible(true)
+        appScope.launch { container.repository.releaseDueScheduled() }
+    }
+
+    fun onBackground() {
+        container.notifications.setAppVisible(false)
     }
 }
 

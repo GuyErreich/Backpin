@@ -5,14 +5,15 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 
 /**
- * Version 1 is the migration baseline. Register future [Migration] objects in
+ * Version 2 adds the scheduled day on a task. Register future [Migration] objects in
  * [migrations]. Destructive fallback is intentionally not enabled.
  */
 @Database(
     entities = [TaskEntity::class, FocusFrameEntity::class],
-    version = 1,
+    version = 2,
     exportSchema = true,
 )
 abstract class FocusStackDatabase : RoomDatabase() {
@@ -23,7 +24,14 @@ abstract class FocusStackDatabase : RoomDatabase() {
     companion object {
         const val NAME: String = "focus_stack.db"
 
-        val migrations: Array<Migration> = emptyArray()
+        val MIGRATION_1_2: Migration =
+            object : Migration(1, 2) {
+                override fun migrate(db: SupportSQLiteDatabase) {
+                    db.execSQL("ALTER TABLE `tasks` ADD COLUMN `scheduledOnEpochDay` INTEGER")
+                }
+            }
+
+        val migrations: Array<Migration> = arrayOf(MIGRATION_1_2)
 
         fun create(context: Context): FocusStackDatabase =
             Room

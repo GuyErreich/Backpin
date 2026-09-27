@@ -15,6 +15,59 @@ interface FocusRepository {
     suspend fun capture(title: String)
 
     /**
+     * Places a new task on Today without starting it.
+     * A blank title changes nothing.
+     * When Today is full, returns [PromoteOutcome.NeedsSwap] and writes nothing.
+     */
+    suspend fun captureIntoToday(title: String): PromoteOutcome
+
+    /**
+     * Starts a new task now. Nothing active means it just starts.
+     * An active frame is paused and this one starts with no parent: a switch, not a nested interruption.
+     * When Today has no free slot, returns [PromoteOutcome.NeedsSwap] and writes nothing.
+     */
+    suspend fun captureAndStart(title: String): PromoteOutcome
+
+    /** Parks a new task in Later. Does not start it. A blank title changes nothing. */
+    suspend fun captureLater(title: String)
+
+    /**
+     * Stores a new task outside Inbox, Today, and Later until [scheduledOnEpochDay].
+     * Does not start it. A blank title changes nothing.
+     */
+    suspend fun captureScheduled(
+        title: String,
+        scheduledOnEpochDay: Long,
+    )
+
+    /**
+     * Creates a task in the slot freed by parking [outgoingTaskId] in Later.
+     * Does not start the new task. Used when a new capture finds Today full and Replace is chosen.
+     */
+    suspend fun captureReplacing(
+        title: String,
+        outgoingTaskId: String,
+    ): UndoToken
+
+    /**
+     * Pauses the active Today task, parks it in Later, and starts a new nested task in that slot.
+     * Used when a new capture finds Today full and Interrupt is chosen.
+     */
+    suspend fun interruptWithNew(title: String)
+
+    /** Moves a scheduled task to Inbox without starting it. Other buckets are left alone. */
+    suspend fun moveToInbox(taskId: String)
+
+    /** Drops a scheduled task. Other buckets are left alone. */
+    suspend fun removeScheduled(taskId: String)
+
+    /**
+     * Moves due scheduled tasks onto Today without starting them, while a slot is free.
+     * When Today is full, leaves them scheduled. Does not park another Today task to make room.
+     */
+    suspend fun releaseDueScheduled()
+
+    /**
      * Fills an empty Today slot. When open Today tasks already fill the stored cap,
      * returns [PromoteOutcome.NeedsSwap] and writes nothing. Does not start the task.
      */

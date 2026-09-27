@@ -31,4 +31,7 @@ interface FocusFrameDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(entity: FocusFrameEntity)
+
+    @Query("DELETE FROM focus_frames WHERE taskId = :taskId")
+    suspend fun deleteForTask(taskId: String)
 }

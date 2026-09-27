@@ -92,6 +92,7 @@ fun HomeScreen(
     onOpenFocus: () -> Unit,
     onOpenInbox: () -> Unit,
     onOpenLater: () -> Unit,
+    onOpenScheduled: () -> Unit,
     onOpenDone: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -141,6 +142,7 @@ fun HomeScreen(
             Column(verticalArrangement = Arrangement.spacedBy(Space)) {
                 PileCountRow(title = "Inbox", count = state.inboxCount, onClick = onOpenInbox)
                 PileCountRow(title = "Later", count = state.laterCount, onClick = onOpenLater)
+                PileCountRow(title = "Scheduled", count = state.scheduledCount, onClick = onOpenScheduled)
                 PileCountRow(title = "Done", count = state.archiveCount, onClick = onOpenDone)
             }
         }
@@ -771,11 +773,13 @@ internal fun QuietButton(
     label: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
 ) {
     val interaction = rememberPressSource()
     WithoutRipple {
         OutlinedButton(
             onClick = onClick,
+            enabled = enabled,
             interactionSource = interaction,
             modifier = modifier.pressScale(interaction).heightIn(min = 48.dp),
             shape = RoundedCornerShape(24.dp),

@@ -17,6 +17,42 @@ class FocusUseCases(
         repository.capture(title)
     }
 
+    suspend fun captureIntoToday(title: String): PromoteOutcome = repository.captureIntoToday(title)
+
+    suspend fun captureAndStart(title: String): PromoteOutcome = repository.captureAndStart(title)
+
+    suspend fun captureLater(title: String) {
+        repository.captureLater(title)
+    }
+
+    suspend fun captureScheduled(
+        title: String,
+        scheduledOnEpochDay: Long,
+    ) {
+        repository.captureScheduled(title, scheduledOnEpochDay)
+    }
+
+    suspend fun captureReplacing(
+        title: String,
+        outgoingTaskId: String,
+    ): UndoToken = repository.captureReplacing(title, outgoingTaskId)
+
+    suspend fun interruptWithNew(title: String) {
+        repository.interruptWithNew(title)
+    }
+
+    suspend fun moveToInbox(taskId: String) {
+        repository.moveToInbox(taskId)
+    }
+
+    suspend fun removeScheduled(taskId: String) {
+        repository.removeScheduled(taskId)
+    }
+
+    suspend fun releaseDueScheduled() {
+        repository.releaseDueScheduled()
+    }
+
     suspend fun promote(taskId: String): PromoteOutcome = repository.promote(taskId)
 
     suspend fun swapIntoToday(

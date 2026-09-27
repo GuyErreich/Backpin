@@ -236,6 +236,28 @@ class FocusStackViewModelTest {
             collect.cancel()
         }
 
+    @Test
+    fun placingOnAFullTodayWaitsAndWritesNothing() =
+        runBlocking {
+            val viewModel = FocusStackViewModel(useCases)
+            val collect = launch { viewModel.uiState.collect {} }
+            repeat(3) { index -> seedToday("Today $index") }
+            viewModel.placeOnToday("Call the school")
+            val waiting =
+                withTimeout(5_000) {
+                    viewModel.uiState.first { it.freshSwapTitle == "Call the school" }
+                }
+            assertEquals(3, useCases.observeSnapshot().first().tasks.size)
+            assertEquals(3, waiting.swapChoices.size)
+            assertNull(waiting.swapIncoming)
+            viewModel.cancelSwap()
+            withTimeout(5_000) {
+                viewModel.uiState.first { it.freshSwapTitle == null }
+            }
+            assertTrue(useCases.observeSnapshot().first().tasks.none { it.title == "Call the school" })
+            collect.cancel()
+        }
+
     private suspend fun seedToday(title: String): String {
         useCases.capture(title)
         val id = useCases.observeSnapshot().first().tasks.single { it.title == title }.id

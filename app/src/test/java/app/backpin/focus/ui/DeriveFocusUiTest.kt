@@ -8,9 +8,11 @@ import app.backpin.focus.domain.TaskBucket
 import app.backpin.focus.domain.TaskStatus
 import app.backpin.focus.domain.UserPreferences
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.time.LocalDate
 
 class DeriveFocusUiTest {
     @Test
@@ -120,6 +122,46 @@ class DeriveFocusUiTest {
     }
 
     @Test
+    fun scheduledTasksStayOffInboxAndShowWhenTheyAreDue() {
+        val dueDay = LocalDate.of(2026, 9, 27)
+        val laterDay = dueDay.plusDays(2)
+        val due = task("due", "Call Dana", TaskBucket.SCHEDULED, scheduledOnEpochDay = dueDay.toEpochDay())
+        val later = task("later", "File the form", TaskBucket.SCHEDULED, scheduledOnEpochDay = laterDay.toEpochDay())
+        val inbox = task("inbox", "Buy milk", TaskBucket.INBOX)
+        val state =
+            derive(
+                FocusSnapshot(tasks = listOf(due, later, inbox)),
+                localDate = dueDay,
+            )
+        assertEquals(2, state.scheduledCount)
+        assertEquals(listOf("Call Dana", "File the form"), state.scheduledTasks.map { it.title })
+        assertTrue(state.scheduledTasks[0].due)
+        assertFalse(state.scheduledTasks[1].due)
+        assertEquals(listOf("Buy milk"), state.inboxTasks.map { it.title })
+        assertTrue(state.todaySlots.all { it.task == null })
+    }
+
+    @Test
+    fun aFreshCaptureOnAFullTodayStillListsReplaceChoices() {
+        val notes = task("notes", "Write the notes", TaskBucket.TODAY)
+        val state =
+            deriveFocusUi(
+                FocusSnapshot(tasks = listOf(notes)),
+                ChromeState(
+                    captureOpen = false,
+                    swapIncomingId = null,
+                    freshSwapTitle = "Call the school",
+                    switchOpen = false,
+                    undo = null,
+                    preferences = UserPreferences(todayLimit = 1),
+                ),
+            )
+        assertEquals("Call the school", state.freshSwapTitle)
+        assertNull(state.swapIncoming)
+        assertEquals(listOf("Write the notes"), state.swapChoices.map { it.title })
+    }
+
+    @Test
     fun captureReasonAndPhrasesStayOnTheSheetState() {
         val state =
             deriveFocusUi(
@@ -145,6 +187,7 @@ class DeriveFocusUiTest {
         snapshot: FocusSnapshot,
         undo: PendingUndo? = null,
         preferences: UserPreferences = UserPreferences(),
+        localDate: LocalDate = LocalDate.of(2026, 9, 27),
     ): FocusUiState =
         deriveFocusUi(
             snapshot,
@@ -155,6 +198,7 @@ class DeriveFocusUiTest {
                 undo = undo,
                 preferences = preferences,
             ),
+            localDate = localDate,
         )
 
     private fun task(
@@ -164,6 +208,7 @@ class DeriveFocusUiTest {
         cue: String? = null,
         status: TaskStatus = TaskStatus.OPEN,
         completedAt: Long? = null,
+        scheduledOnEpochDay: Long? = null,
     ) = Task(
         id = id,
         title = title,
@@ -173,6 +218,7 @@ class DeriveFocusUiTest {
         sortOrder = 1,
         createdAtEpochMillis = 1,
         completedAtEpochMillis = completedAt,
+        scheduledOnEpochDay = scheduledOnEpochDay,
     )
 
     private fun frame(

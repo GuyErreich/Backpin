@@ -22,7 +22,7 @@ class SchemaAndPreferencesTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
 
     @Test
-    fun versionOneBaselineCreatesTaskAndFrameTables() {
+    fun freshDatabaseIsVersionTwoWithAScheduledDay() {
         val database =
             Room
                 .inMemoryDatabaseBuilder(context, FocusStackDatabase::class.java)
@@ -30,15 +30,84 @@ class SchemaAndPreferencesTest {
                 .addMigrations(*FocusStackDatabase.migrations)
                 .build()
         val sqlite = database.openHelper.readableDatabase
-        assertEquals(1, sqlite.version)
-        assertTrue(FocusStackDatabase.migrations.isEmpty())
-        val names = mutableListOf<String>()
-        sqlite.query("SELECT name FROM sqlite_master WHERE type = 'table'").use { cursor ->
-            while (cursor.moveToNext()) names += cursor.getString(0)
+        assertEquals(2, sqlite.version)
+        assertEquals(1, FocusStackDatabase.migrations.size)
+        val columns = mutableListOf<String>()
+        sqlite.query("PRAGMA table_info(tasks)").use { cursor ->
+            while (cursor.moveToNext()) columns += cursor.getString(cursor.getColumnIndexOrThrow("name"))
         }
-        assertTrue(names.contains("tasks"))
-        assertTrue(names.contains("focus_frames"))
+        assertTrue(columns.contains("scheduledOnEpochDay"))
         database.close()
+    }
+
+    @Test
+    fun migrationFromVersionOneKeepsTasksAndAddsScheduledDay() {
+        val name = "migrate-${UUID.randomUUID()}"
+        val helper =
+            androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory().create(
+                androidx.sqlite.db.SupportSQLiteOpenHelper.Configuration
+                    .builder(context)
+                    .name(name)
+                    .callback(
+                        object : androidx.sqlite.db.SupportSQLiteOpenHelper.Callback(1) {
+                            override fun onCreate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                                db.execSQL(
+                                    "CREATE TABLE IF NOT EXISTS `tasks` (`id` TEXT NOT NULL, `title` TEXT NOT NULL, " +
+                                        "`bucket` TEXT NOT NULL, `status` TEXT NOT NULL, `returnCue` TEXT, " +
+                                        "`sortOrder` INTEGER NOT NULL, `createdAtEpochMillis` INTEGER NOT NULL, " +
+                                        "`completedAtEpochMillis` INTEGER, PRIMARY KEY(`id`))",
+                                )
+                                db.execSQL(
+                                    "CREATE TABLE IF NOT EXISTS `focus_frames` (`id` TEXT NOT NULL, `taskId` TEXT NOT NULL, " +
+                                        "`parentFrameId` TEXT, `state` TEXT NOT NULL, `startedAtEpochMillis` INTEGER NOT NULL, " +
+                                        "`pausedAtEpochMillis` INTEGER, `accumulatedMillis` INTEGER NOT NULL, " +
+                                        "PRIMARY KEY(`id`), FOREIGN KEY(`taskId`) REFERENCES `tasks`(`id`) " +
+                                        "ON UPDATE NO ACTION ON DELETE NO ACTION )",
+                                )
+                                db.execSQL(
+                                    "CREATE INDEX IF NOT EXISTS `index_focus_frames_taskId` ON `focus_frames` (`taskId`)",
+                                )
+                                db.execSQL(
+                                    "CREATE INDEX IF NOT EXISTS `index_focus_frames_state` ON `focus_frames` (`state`)",
+                                )
+                                db.execSQL(
+                                    "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+                                )
+                                db.execSQL(
+                                    "INSERT OR REPLACE INTO room_master_table (id,identity_hash) " +
+                                        "VALUES(42, 'b2812a992a89874cef600aa086ad10d1')",
+                                )
+                                db.execSQL(
+                                    "INSERT INTO tasks (id, title, bucket, status, returnCue, sortOrder, " +
+                                        "createdAtEpochMillis, completedAtEpochMillis) " +
+                                        "VALUES ('t1', 'Buy milk', 'INBOX', 'OPEN', NULL, 1, 1, NULL)",
+                                )
+                            }
+
+                            override fun onUpgrade(
+                                db: androidx.sqlite.db.SupportSQLiteDatabase,
+                                oldVersion: Int,
+                                newVersion: Int,
+                            ) = Unit
+                        },
+                    ).build(),
+            )
+        helper.writableDatabase.close()
+        val migrated =
+            Room
+                .databaseBuilder(context, FocusStackDatabase::class.java, name)
+                .addMigrations(*FocusStackDatabase.migrations)
+                .allowMainThreadQueries()
+                .build()
+        val sqlite = migrated.openHelper.readableDatabase
+        assertEquals(2, sqlite.version)
+        sqlite.query("SELECT title, scheduledOnEpochDay FROM tasks WHERE id = 't1'").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals("Buy milk", cursor.getString(0))
+            assertTrue(cursor.isNull(1))
+        }
+        migrated.close()
+        context.deleteDatabase(name)
     }
 
     @Test

@@ -18,6 +18,9 @@ import app.backpin.focus.domain.UserPreferences
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
 import java.util.UUID
 
 class FocusRepositoryImpl(
@@ -48,6 +51,158 @@ class FocusRepositoryImpl(
         recordInteraction()
     }
 
+    override suspend fun captureIntoToday(title: String): PromoteOutcome {
+        val trimmed = title.trim()
+        if (trimmed.isEmpty()) return PromoteOutcome.Rejected("Blank title")
+        val limit = todayLimit()
+        val outcome =
+            database.withTransaction {
+                if (taskDao.countOpenToday() >= limit) {
+                    val today = taskDao.openInBucket(TaskBucket.TODAY.name).map { it.toDomain() }
+                    return@withTransaction PromoteOutcome.NeedsSwap(today, canInterruptIncoming(""))
+                }
+                taskDao.upsert(newTask(trimmed, TaskBucket.TODAY))
+                requireInvariants(limit)
+                PromoteOutcome.Promoted
+            }
+        if (outcome is PromoteOutcome.Promoted) recordInteraction()
+        return outcome
+    }
+
+    override suspend fun captureAndStart(title: String): PromoteOutcome {
+        val trimmed = title.trim()
+        if (trimmed.isEmpty()) return PromoteOutcome.Rejected("Blank title")
+        val limit = todayLimit()
+        val outcome =
+            database.withTransaction {
+                if (taskDao.countOpenToday() >= limit) {
+                    val today = taskDao.openInBucket(TaskBucket.TODAY.name).map { it.toDomain() }
+                    return@withTransaction PromoteOutcome.NeedsSwap(today, canInterruptIncoming(""))
+                }
+                val active = frameDao.getActive()
+                val task = newTask(trimmed, TaskBucket.TODAY)
+                taskDao.upsert(task)
+                if (active != null) {
+                    frameDao.upsert(pause(active))
+                }
+                frameDao.upsert(newFrame(task.id, parentFrameId = null))
+                requireInvariants(limit)
+                PromoteOutcome.Promoted
+            }
+        if (outcome is PromoteOutcome.Promoted) recordInteraction()
+        return outcome
+    }
+
+    override suspend fun captureLater(title: String) {
+        val trimmed = title.trim()
+        if (trimmed.isEmpty()) return
+        database.withTransaction {
+            taskDao.upsert(newTask(trimmed, TaskBucket.LATER))
+        }
+        recordInteraction()
+    }
+
+    override suspend fun captureScheduled(
+        title: String,
+        scheduledOnEpochDay: Long,
+    ) {
+        val trimmed = title.trim()
+        if (trimmed.isEmpty()) return
+        database.withTransaction {
+            taskDao.upsert(newTask(trimmed, TaskBucket.SCHEDULED, scheduledOnEpochDay))
+        }
+        recordInteraction()
+    }
+
+    override suspend fun captureReplacing(
+        title: String,
+        outgoingTaskId: String,
+    ): UndoToken {
+        val trimmed = title.trim()
+        check(trimmed.isNotEmpty()) { "Blank title" }
+        val limit = todayLimit()
+        val token =
+            database.withTransaction {
+                val outgoing = taskDao.getById(outgoingTaskId) ?: error("Missing outgoing task")
+                val valid =
+                    outgoing.bucket == TaskBucket.TODAY.name &&
+                        outgoing.status == TaskStatus.OPEN.name
+                if (!valid) error("Swap rejected")
+                val slot = outgoing.sortOrder
+                val parked = parkInLater(outgoing.id)
+                val created = newTask(trimmed, TaskBucket.TODAY).copy(sortOrder = slot)
+                taskDao.upsert(created)
+                if (taskDao.countOpenToday() > limit) error("Swap rejected")
+                requireInvariants(limit)
+                UndoToken(
+                    tasks = parked.tasks,
+                    frames = parked.frames,
+                    createdTaskIds = listOf(created.id),
+                )
+            }
+        recordInteraction()
+        return token
+    }
+
+    override suspend fun interruptWithNew(title: String) {
+        val resolved = title.trim().ifEmpty { UNTITLED_INTERRUPTION }
+        val limit = todayLimit()
+        database.withTransaction {
+            val active = frameDao.getActive() ?: error("Nothing is active")
+            val activeTask = taskDao.getById(active.taskId) ?: error("Missing task")
+            check(activeTask.status == TaskStatus.OPEN.name) { "Active task is done" }
+            check(activeTask.bucket == TaskBucket.TODAY.name) { "Current task is not in Today" }
+            val slot = activeTask.sortOrder
+            frameDao.upsert(pause(active))
+            taskDao.upsert(activeTask.movedTo(TaskBucket.LATER))
+            val created = newTask(resolved, TaskBucket.TODAY).copy(sortOrder = slot)
+            taskDao.upsert(created)
+            frameDao.upsert(newFrame(created.id, parentFrameId = active.id))
+            requireInvariants(limit)
+        }
+        recordInteraction()
+    }
+
+    override suspend fun moveToInbox(taskId: String) {
+        val moved =
+            database.withTransaction {
+                val task = taskDao.getById(taskId) ?: return@withTransaction false
+                if (task.bucket != TaskBucket.SCHEDULED.name || task.status != TaskStatus.OPEN.name) {
+                    return@withTransaction false
+                }
+                taskDao.upsert(task.movedTo(TaskBucket.INBOX, clock.nowEpochMillis()))
+                requireInvariants(todayLimit())
+                true
+            }
+        if (moved) recordInteraction()
+    }
+
+    override suspend fun removeScheduled(taskId: String) {
+        val removed =
+            database.withTransaction {
+                val task = taskDao.getById(taskId) ?: return@withTransaction false
+                if (task.bucket != TaskBucket.SCHEDULED.name) return@withTransaction false
+                if (frameDao.getActive()?.taskId == taskId) return@withTransaction false
+                frameDao.deleteForTask(taskId)
+                taskDao.deleteById(taskId)
+                true
+            }
+        if (removed) recordInteraction()
+    }
+
+    override suspend fun releaseDueScheduled() {
+        val limit = todayLimit()
+        val moved =
+            database.withTransaction {
+                val before = taskDao.countOpenToday()
+                releaseDue(limit)
+                val after = taskDao.countOpenToday()
+                requireInvariants(limit)
+                after - before
+            }
+        if (moved > 0) recordInteraction()
+    }
+
     override suspend fun promote(taskId: String): PromoteOutcome {
         val limit = todayLimit()
         return database.withTransaction {
@@ -62,7 +217,7 @@ class FocusRepositoryImpl(
                 val today = taskDao.openInBucket(TaskBucket.TODAY.name).map { it.toDomain() }
                 return@withTransaction PromoteOutcome.NeedsSwap(today, canInterruptIncoming(taskId))
             }
-            taskDao.upsert(task.copy(bucket = TaskBucket.TODAY.name, sortOrder = clock.nowEpochMillis()))
+            taskDao.upsert(task.movedTo(TaskBucket.TODAY, clock.nowEpochMillis()))
             requireInvariants(limit)
             PromoteOutcome.Promoted
         }.also { outcome ->
@@ -89,7 +244,7 @@ class FocusRepositoryImpl(
                 val slot = outgoing.sortOrder
                 val parked = parkInLater(outgoing.id)
                 val placed = taskDao.getById(incomingTaskId) ?: error("Missing incoming task")
-                taskDao.upsert(placed.copy(bucket = TaskBucket.TODAY.name, sortOrder = slot))
+                taskDao.upsert(placed.movedTo(TaskBucket.TODAY, slot))
                 if (taskDao.countOpenToday() > limit) error("Swap rejected")
                 requireInvariants(limit)
                 UndoToken(
@@ -119,7 +274,7 @@ class FocusRepositoryImpl(
                     return@withTransaction PromoteOutcome.NeedsSwap(today, canInterruptIncoming(taskId))
                 }
                 if (needsSlot) {
-                    taskDao.upsert(task.copy(bucket = TaskBucket.TODAY.name, sortOrder = clock.nowEpochMillis()))
+                    taskDao.upsert(task.movedTo(TaskBucket.TODAY, clock.nowEpochMillis()))
                 }
                 if (active != null) {
                     frameDao.upsert(pause(active))
@@ -163,8 +318,8 @@ class FocusRepositoryImpl(
             frameDao.upsert(pause(active))
             if (!staysInToday) {
                 val slot = activeTask.sortOrder
-                taskDao.upsert(activeTask.copy(bucket = TaskBucket.LATER.name))
-                taskDao.upsert(incoming.copy(bucket = TaskBucket.TODAY.name, sortOrder = slot))
+                taskDao.upsert(activeTask.movedTo(TaskBucket.LATER))
+                taskDao.upsert(incoming.movedTo(TaskBucket.TODAY, slot))
             }
             activateAsChild(existing, taskId, parentFrameId = active.id)
             requireInvariants(limit)
@@ -206,6 +361,7 @@ class FocusRepositoryImpl(
             if (parent != null) {
                 frameDao.upsert(parent.copy(state = FrameState.AWAITING_RESUME.name))
             }
+            releaseDue(todayLimit())
             requireInvariants(todayLimit())
             token
         }.also { token ->
@@ -235,6 +391,7 @@ class FocusRepositoryImpl(
         val limit = todayLimit()
         return database.withTransaction {
             val token = parkInLater(taskId)
+            releaseDue(limit)
             requireInvariants(limit)
             token
         }.also { recordInteraction() }
@@ -276,8 +433,18 @@ class FocusRepositoryImpl(
 
     override suspend fun undo(token: UndoToken) {
         database.withTransaction {
+            token.createdTaskIds.forEach { id ->
+                frameDao.deleteForTask(id)
+                taskDao.deleteById(id)
+            }
             token.tasks.forEach { taskDao.upsert(it.toEntity()) }
             token.frames.forEach { frameDao.upsert(it.toEntity()) }
+            val heldScheduled =
+                token.tasks
+                    .filter { it.bucket == TaskBucket.SCHEDULED }
+                    .map { it.id }
+                    .toSet()
+            releaseDue(todayLimit(), heldScheduled)
             requireInvariants(todayLimit())
         }
         recordInteraction()
@@ -294,6 +461,7 @@ class FocusRepositoryImpl(
                         status = TaskStatus.OPEN.name,
                         completedAtEpochMillis = null,
                         sortOrder = clock.nowEpochMillis(),
+                        scheduledOnEpochDay = null,
                     ),
                 )
                 requireInvariants(todayLimit())
@@ -331,6 +499,7 @@ class FocusRepositoryImpl(
                         frameDao.upsert(parent.copy(state = FrameState.AWAITING_RESUME.name))
                     }
                 }
+                releaseDue(todayLimit())
                 requireInvariants(todayLimit())
                 snapshot
             } ?: return null
@@ -388,6 +557,7 @@ class FocusRepositoryImpl(
                 val victim = open.lastOrNull { it.id != activeId } ?: open.last()
                 parkInLater(victim.id)
             }
+            releaseDue(clamped)
             check(taskDao.countOpenToday() <= clamped) {
                 "Today cannot hold more than $clamped open tasks"
             }
@@ -450,7 +620,7 @@ class FocusRepositoryImpl(
                 ),
             )
         }
-        taskDao.upsert(task.copy(bucket = TaskBucket.LATER.name))
+        taskDao.upsert(task.movedTo(TaskBucket.LATER))
         check(frameDao.countActive() <= 1) {
             "At most one frame can be active"
         }
@@ -469,6 +639,7 @@ class FocusRepositoryImpl(
     private fun newTask(
         title: String,
         bucket: TaskBucket,
+        scheduledOnEpochDay: Long? = null,
     ): TaskEntity {
         val now = clock.nowEpochMillis()
         return TaskEntity(
@@ -480,7 +651,50 @@ class FocusRepositoryImpl(
             sortOrder = now,
             createdAtEpochMillis = now,
             completedAtEpochMillis = null,
+            scheduledOnEpochDay = scheduledOnEpochDay,
         )
+    }
+
+    private fun TaskEntity.movedTo(
+        bucket: TaskBucket,
+        sortOrder: Long = this.sortOrder,
+    ): TaskEntity =
+        copy(
+            bucket = bucket.name,
+            sortOrder = sortOrder,
+            scheduledOnEpochDay = if (bucket == TaskBucket.SCHEDULED) scheduledOnEpochDay else null,
+        )
+
+    private fun localToday(): LocalDate =
+        Instant.ofEpochMilli(clock.nowEpochMillis()).atZone(ZoneId.systemDefault()).toLocalDate()
+
+    /**
+     * Fills free Today slots with due scheduled tasks, oldest date first.
+     * Does not start them and does not move a Today task aside to make room.
+     */
+    private suspend fun releaseDue(
+        limit: Int,
+        exceptIds: Set<String> = emptySet(),
+    ) {
+        val today = localToday()
+        val due =
+            taskDao
+                .openInBucket(TaskBucket.SCHEDULED.name)
+                .filter { entity ->
+                    if (entity.id in exceptIds) return@filter false
+                    val day = entity.scheduledOnEpochDay ?: return@filter false
+                    !LocalDate.ofEpochDay(day).isAfter(today)
+                }.sortedWith(compareBy({ it.scheduledOnEpochDay }, { it.sortOrder }, { it.id }))
+        for (entity in due) {
+            if (taskDao.countOpenToday() >= limit) return
+            taskDao.upsert(
+                entity.copy(
+                    bucket = TaskBucket.TODAY.name,
+                    sortOrder = clock.nowEpochMillis(),
+                    scheduledOnEpochDay = null,
+                ),
+            )
+        }
     }
 
     /**

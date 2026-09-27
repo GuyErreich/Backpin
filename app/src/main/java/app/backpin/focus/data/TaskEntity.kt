@@ -13,4 +13,5 @@ data class TaskEntity(
     val sortOrder: Long,
     val createdAtEpochMillis: Long,
     val completedAtEpochMillis: Long?,
+    val scheduledOnEpochDay: Long? = null,
 )

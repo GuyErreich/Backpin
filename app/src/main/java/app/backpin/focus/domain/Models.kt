@@ -2,11 +2,13 @@ package app.backpin.focus.domain
 
 /**
  * Where a task sits. Placement is independent of which frame is in focus.
+ * [SCHEDULED] waits outside Inbox, Today, and Later until its local date.
  */
 enum class TaskBucket {
     INBOX,
     TODAY,
     LATER,
+    SCHEDULED,
 }
 
 /** Open tasks can be placed and focused. Done tasks stay in history. */
@@ -39,6 +41,7 @@ data class Task(
     val sortOrder: Long,
     val createdAtEpochMillis: Long,
     val completedAtEpochMillis: Long?,
+    val scheduledOnEpochDay: Long? = null,
 )
 
 /**
@@ -87,6 +90,7 @@ data class FocusSnapshot(
 data class UndoToken(
     val tasks: List<Task>,
     val frames: List<FocusFrame>,
+    val createdTaskIds: List<String> = emptyList(),
 )
 
 /**

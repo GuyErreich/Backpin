@@ -8,11 +8,14 @@ import app.backpin.focus.domain.Task
 import app.backpin.focus.domain.TaskBucket
 import app.backpin.focus.domain.TaskStatus
 import app.backpin.focus.domain.UserPreferences
+import app.backpin.focus.domain.scheduledWhenLabel
+import java.time.LocalDate
 
 internal data class ChromeState(
     val captureOpen: Boolean,
     val captureInterrupts: Boolean = false,
     val swapIncomingId: String?,
+    val freshSwapTitle: String? = null,
     val switchOpen: Boolean,
     val undo: PendingUndo?,
     val preferences: UserPreferences,
@@ -21,6 +24,7 @@ internal data class ChromeState(
 internal fun deriveFocusUi(
     snapshot: FocusSnapshot,
     chrome: ChromeState,
+    localDate: LocalDate = LocalDate.now(),
 ): FocusUiState {
     val tasksById = snapshot.tasks.associateBy { it.id }
     val openTasks = snapshot.tasks.filter { it.status == TaskStatus.OPEN }
@@ -95,12 +99,26 @@ internal fun deriveFocusUi(
 
     val later = openTasks.filter { it.bucket == TaskBucket.LATER }.sortedBy { it.sortOrder }.map { it.toUi() }
     val inbox = openTasks.filter { it.bucket == TaskBucket.INBOX }.sortedBy { it.sortOrder }.map { it.toUi() }
+    val scheduled =
+        openTasks
+            .filter { it.bucket == TaskBucket.SCHEDULED }
+            .sortedWith(compareBy({ it.scheduledOnEpochDay ?: Long.MAX_VALUE }, { it.sortOrder }))
+            .map { task ->
+                val day = task.scheduledOnEpochDay
+                ScheduledTaskUi(
+                    id = task.id,
+                    title = task.title,
+                    whenLabel = if (day == null) "Unscheduled" else scheduledWhenLabel(day, localDate),
+                    due = day != null && !LocalDate.ofEpochDay(day).isAfter(localDate),
+                )
+            }
     val archive =
         snapshot.tasks
             .filter { it.status == TaskStatus.DONE }
             .sortedWith(compareByDescending<Task> { it.completedAtEpochMillis ?: 0L }.thenByDescending { it.sortOrder })
             .map { it.toUi() }
     val incoming = chrome.swapIncomingId?.let { id -> tasksById[id]?.toUi() }
+    val swapping = incoming != null || chrome.freshSwapTitle != null
     val switchTargets =
         today
             .filter { it.id != now?.taskId }
@@ -118,10 +136,13 @@ internal fun deriveFocusUi(
         inboxTasks = inbox,
         archiveCount = archive.size,
         archiveTasks = archive,
+        scheduledCount = scheduled.size,
+        scheduledTasks = scheduled,
         captureOpen = chrome.captureOpen,
         captureInterrupts = chrome.captureInterrupts,
         swapIncoming = incoming,
-        swapChoices = if (incoming == null) emptyList() else today.map { it.toUi() },
+        freshSwapTitle = chrome.freshSwapTitle,
+        swapChoices = if (!swapping) emptyList() else today.map { it.toUi() },
         switchOpen = chrome.switchOpen,
         switchTargets = switchTargets,
         undo = chrome.undo,

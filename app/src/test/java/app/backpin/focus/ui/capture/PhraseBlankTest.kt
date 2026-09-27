@@ -23,4 +23,14 @@ class PhraseBlankTest {
         assertEquals("name", phrasePrompt("Talk to <name>"))
         assertNull(phrasePrompt("Talk to my wife"))
     }
+
+    @Test
+    fun chipAsksWhereAFinishedPhraseGoes() {
+        assertEquals(PhraseChipAction.AskPlace("Talk to my wife"), phraseChipAction("Talk to my wife"))
+    }
+
+    @Test
+    fun chipAsksForTheBlankBeforeAnyPlace() {
+        assertEquals(PhraseChipAction.AskFill, phraseChipAction("Talk to <name>"))
+    }
 }

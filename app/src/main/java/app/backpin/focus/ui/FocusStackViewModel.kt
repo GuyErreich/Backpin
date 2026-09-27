@@ -26,6 +26,7 @@ class FocusStackViewModel(
     private val captureOpen = MutableStateFlow(false)
     private val captureInterrupts = MutableStateFlow(false)
     private val swapIncomingId = MutableStateFlow<String?>(null)
+    private val freshSwapTitle = MutableStateFlow<String?>(null)
     private val switchOpen = MutableStateFlow(false)
     private val pendingUndo = MutableStateFlow<PendingUndo?>(null)
 
@@ -37,26 +38,29 @@ class FocusStackViewModel(
                 captureOpen,
                 captureInterrupts,
                 swapIncomingId,
-                switchOpen,
-                pendingUndo,
-            ) { capture, interrupts, swap, switching, undo ->
-                ChromeParts(
+                freshSwapTitle,
+            ) { capture, interrupts, swap, fresh ->
+                CaptureChrome(
                     captureOpen = capture,
                     captureInterrupts = interrupts,
                     swapIncomingId = swap,
-                    switchOpen = switching,
-                    undo = undo,
+                    freshSwapTitle = fresh,
                 )
             },
-        ) { snapshot, preferences, chrome ->
+            combine(switchOpen, pendingUndo) { switching, undo ->
+                switching to undo
+            },
+        ) { snapshot, preferences, capture, switchAndUndo ->
+            val (switching, undo) = switchAndUndo
             deriveFocusUi(
                 snapshot,
                 ChromeState(
-                    captureOpen = chrome.captureOpen,
-                    captureInterrupts = chrome.captureInterrupts,
-                    swapIncomingId = chrome.swapIncomingId,
-                    switchOpen = chrome.switchOpen,
-                    undo = chrome.undo,
+                    captureOpen = capture.captureOpen,
+                    captureInterrupts = capture.captureInterrupts,
+                    swapIncomingId = capture.swapIncomingId,
+                    freshSwapTitle = capture.freshSwapTitle,
+                    switchOpen = switching,
+                    undo = undo,
                     preferences = preferences,
                 ),
             )
@@ -94,6 +98,70 @@ class FocusStackViewModel(
         }
     }
 
+    /** Places a typed or phrase title on Today without starting it. A full Today waits for Replace or Interrupt. */
+    fun placeOnToday(title: String) {
+        viewModelScope.launch {
+            val trimmed = title.trim()
+            if (trimmed.isEmpty()) return@launch
+            when (useCases.captureIntoToday(trimmed)) {
+                is PromoteOutcome.NeedsSwap -> {
+                    freshSwapTitle.value = trimmed
+                    closeCapture()
+                }
+                is PromoteOutcome.Promoted -> closeCapture()
+                is PromoteOutcome.Rejected -> Unit
+            }
+        }
+    }
+
+    /**
+     * Starts a new task now. An active frame is paused without nesting.
+     * A full Today uses the same Replace or Interrupt choice as any other arrival.
+     */
+    fun placeAndStart(title: String) {
+        viewModelScope.launch {
+            val trimmed = title.trim()
+            if (trimmed.isEmpty()) return@launch
+            when (useCases.captureAndStart(trimmed)) {
+                is PromoteOutcome.NeedsSwap -> {
+                    freshSwapTitle.value = trimmed
+                    closeCapture()
+                }
+                is PromoteOutcome.Promoted -> closeCapture()
+                is PromoteOutcome.Rejected -> Unit
+            }
+        }
+    }
+
+    fun placeLater(title: String) {
+        viewModelScope.launch {
+            useCases.captureLater(title)
+            if (title.isNotBlank()) closeCapture()
+        }
+    }
+
+    fun placeScheduled(
+        title: String,
+        scheduledOnEpochDay: Long,
+    ) {
+        viewModelScope.launch {
+            useCases.captureScheduled(title, scheduledOnEpochDay)
+            if (title.isNotBlank()) closeCapture()
+        }
+    }
+
+    fun moveToInbox(taskId: String) {
+        viewModelScope.launch {
+            useCases.moveToInbox(taskId)
+        }
+    }
+
+    fun removeScheduled(taskId: String) {
+        viewModelScope.launch {
+            useCases.removeScheduled(taskId)
+        }
+    }
+
     fun promote(taskId: String) {
         viewModelScope.launch {
             val before = useCases.observeSnapshot().first().tasks.firstOrNull { it.id == taskId }
@@ -101,7 +169,7 @@ class FocusStackViewModel(
                 is PromoteOutcome.NeedsSwap -> swapIncomingId.value = taskId
                 is PromoteOutcome.Promoted -> {
                     swapIncomingId.value = null
-                    if (before != null && before.bucket != TaskBucket.TODAY) {
+                    if (before != null && before.bucket != TaskBucket.TODAY && before.bucket != TaskBucket.SCHEDULED) {
                         offerUndo("Added to Today", UndoToken(tasks = listOf(before), frames = emptyList()))
                     }
                 }
@@ -111,18 +179,33 @@ class FocusStackViewModel(
     }
 
     fun confirmReplace(outgoingTaskId: String) {
-        val incoming = swapIncomingId.value ?: return
+        val fresh = freshSwapTitle.value
+        val incoming = swapIncomingId.value
+        if (fresh == null && incoming == null) return
         viewModelScope.launch {
-            val token = useCases.swapIntoToday(incoming, outgoingTaskId)
+            val token =
+                if (fresh != null) {
+                    useCases.captureReplacing(fresh, outgoingTaskId)
+                } else {
+                    useCases.swapIntoToday(incoming ?: return@launch, outgoingTaskId)
+                }
+            freshSwapTitle.value = null
             swapIncomingId.value = null
             offerUndo("Swapped into Today", token)
         }
     }
 
     fun confirmInterrupt() {
-        val incoming = swapIncomingId.value ?: return
+        val fresh = freshSwapTitle.value
+        val incoming = swapIncomingId.value
+        if (fresh == null && incoming == null) return
         viewModelScope.launch {
-            useCases.interruptWith(incoming)
+            if (fresh != null) {
+                useCases.interruptWithNew(fresh)
+            } else if (incoming != null) {
+                useCases.interruptWith(incoming)
+            }
+            freshSwapTitle.value = null
             swapIncomingId.value = null
         }
     }
@@ -144,6 +227,7 @@ class FocusStackViewModel(
 
     fun cancelSwap() {
         swapIncomingId.value = null
+        freshSwapTitle.value = null
     }
 
     fun start(taskId: String) {
@@ -316,12 +400,11 @@ class FocusStackViewModel(
         pendingUndo.value = PendingUndo(id = System.nanoTime(), message = message, token = token)
     }
 
-    private data class ChromeParts(
+    private data class CaptureChrome(
         val captureOpen: Boolean,
         val captureInterrupts: Boolean,
         val swapIncomingId: String?,
-        val switchOpen: Boolean,
-        val undo: PendingUndo?,
+        val freshSwapTitle: String?,
     )
 }
 

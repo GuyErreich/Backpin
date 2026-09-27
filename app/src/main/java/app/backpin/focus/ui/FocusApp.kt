@@ -44,6 +44,7 @@ import app.backpin.focus.ui.home.DoneScreen
 import app.backpin.focus.ui.home.HomeScreen
 import app.backpin.focus.ui.home.InboxScreen
 import app.backpin.focus.ui.home.LaterScreen
+import app.backpin.focus.ui.home.ScheduledScreen
 import app.backpin.focus.ui.home.MintButton
 import app.backpin.focus.ui.motion.pileEnter
 import app.backpin.focus.ui.motion.pileExit
@@ -56,13 +57,14 @@ private object Routes {
     const val HOME = "home"
     const val INBOX = "inbox"
     const val LATER = "later"
+    const val SCHEDULED = "scheduled"
     const val DONE = "done"
     const val FOCUS = "focus"
     const val SETTINGS = "settings"
 }
 
-private val homeRoutes = setOf(Routes.HOME, Routes.INBOX, Routes.LATER, Routes.DONE)
-private val pileRoutes = setOf(Routes.INBOX, Routes.LATER, Routes.DONE)
+private val homeRoutes = setOf(Routes.HOME, Routes.INBOX, Routes.LATER, Routes.SCHEDULED, Routes.DONE)
+private val pileRoutes = setOf(Routes.INBOX, Routes.LATER, Routes.SCHEDULED, Routes.DONE)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -182,6 +184,7 @@ fun FocusApp(
                     onOpenFocus = { navController.navigateTab(Routes.FOCUS) },
                     onOpenInbox = { navController.openPile(Routes.INBOX) },
                     onOpenLater = { navController.openPile(Routes.LATER) },
+                    onOpenScheduled = { navController.openPile(Routes.SCHEDULED) },
                     onOpenDone = { navController.openPile(Routes.DONE) },
                 )
             }
@@ -209,6 +212,22 @@ fun FocusApp(
                     onBack = { navController.popBackStack() },
                     onToday = viewModel::promote,
                     onStart = viewModel::start,
+                )
+            }
+            composable(
+                Routes.SCHEDULED,
+                enterTransition = { homePileEnter(reducedMotion) },
+                popExitTransition = { homePileExit(reducedMotion) },
+            ) {
+                ScheduledScreen(
+                    tasks = state.scheduledTasks,
+                    ready = state.ready,
+                    onBack = { navController.popBackStack() },
+                    onToday = viewModel::promote,
+                    onStart = viewModel::start,
+                    onInbox = viewModel::moveToInbox,
+                    onLater = viewModel::demote,
+                    onRemove = viewModel::removeScheduled,
                 )
             }
             composable(
@@ -244,14 +263,19 @@ fun FocusApp(
     if (state.captureOpen) {
         CaptureSheet(
             phrases = state.preferences.savedPhrases,
-            interrupts = state.captureInterrupts,
+            frameActive = state.now != null,
             onDismiss = viewModel::dismissCapture,
             onSaveToInbox = viewModel::saveToInbox,
             onInterruptNow = viewModel::interruptNow,
+            onPlaceToday = viewModel::placeOnToday,
+            onPlaceStart = viewModel::placeAndStart,
+            onPlaceLater = viewModel::placeLater,
+            onSchedule = viewModel::placeScheduled,
         )
     }
 
-    state.swapIncoming?.let { incoming ->
+    val swapTitle = state.swapIncoming?.title ?: state.freshSwapTitle
+    if (swapTitle != null) {
         val canInterrupt =
             state.now != null && state.todaySlots.any { it.task?.id == state.now?.taskId }
         AlertDialog(
@@ -264,9 +288,9 @@ fun FocusApp(
                 Column(verticalArrangement = Arrangement.spacedBy(Space)) {
                     Text(
                         if (canInterrupt) {
-                            "“${incoming.title}” needs a Today slot. Interrupt the current task, or replace one. Replacing parks that task in Later and does not start the new one."
+                            "“$swapTitle” needs a Today slot. Interrupt the current task, or replace one. Replacing parks that task in Later and does not start the new one."
                         } else {
-                            "“${incoming.title}” needs a Today slot. Replace one Today task. That task moves to Later, and the new one takes its place without starting."
+                            "“$swapTitle” needs a Today slot. Replace one Today task. That task moves to Later, and the new one takes its place without starting."
                         },
                     )
                     if (canInterrupt) {

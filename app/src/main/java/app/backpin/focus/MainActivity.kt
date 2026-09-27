@@ -42,11 +42,11 @@ class MainActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
-        (application as FocusStackApp).container.notifications.setAppVisible(true)
+        (application as FocusStackApp).onForeground()
     }
 
     override fun onStop() {
-        (application as FocusStackApp).container.notifications.setAppVisible(false)
+        (application as FocusStackApp).onBackground()
         super.onStop()
     }
 }
