@@ -95,9 +95,11 @@ class NotificationCoordinator(
     }
 
     /**
-     * Switch from the expanded notice. Pauses the current task and starts [taskId].
-     * This is [FocusRepository.start], not a nested interruption. The current row
-     * and anything outside Today are ignored.
+     * Start or switch from an expanded Today row. This is [FocusRepository.start],
+     * not a nested interruption. When a frame is active, that task pauses and
+     * [taskId] starts with no parent. When nothing is active, [taskId] starts
+     * the same way. The active row, a row waiting to resume, and anything
+     * outside Today are ignored.
      */
     suspend fun handleSwitch(taskId: String?) {
         if (taskId.isNullOrBlank()) return
@@ -147,7 +149,15 @@ class NotificationCoordinator(
         if (postedChannel != null && postedChannel != channel) {
             cancel(NotificationContract.ID_CURRENT)
         }
-        val notification = buildCurrentTaskNotification(context, copy.title, copy.body, rows, idle = copy.idle)
+        val notification =
+            buildCurrentTaskNotification(
+                context,
+                copy.title,
+                copy.body,
+                rows,
+                idle = copy.idle,
+                offersInterrupt = copy.offersInterrupt,
+            )
         if (notify(NotificationContract.ID_CURRENT, notification)) {
             postedKey = key
             postedChannel = channel
@@ -218,11 +228,17 @@ class NotificationCoordinator(
     }
 }
 
-/** Title and body of the ongoing notice. [idle] is Today with nothing active or waiting. */
+/**
+ * Title and body of the ongoing notice.
+ * [idle] is Today with nothing active or waiting.
+ * [offersInterrupt] is true only while a frame is active.
+ * Waiting to resume is not in focus, so Interrupt stays off.
+ */
 internal data class CurrentNoticeCopy(
     val title: String,
     val body: String,
     val idle: Boolean,
+    val offersInterrupt: Boolean,
 )
 
 /**
@@ -273,7 +289,7 @@ internal fun currentNoticeKey(
     rows: List<TodayNoticeRow>,
 ): String {
     val today = rows.joinToString(separator = "|") { "${it.taskId}:${it.title}:${it.current}" }
-    return "${copy.idle}:${copy.title}:${copy.body}:$today"
+    return "${copy.idle}:${copy.offersInterrupt}:${copy.title}:${copy.body}:$today"
 }
 
 /**
@@ -293,6 +309,7 @@ internal fun currentNoticeCopy(
             title = todayLabel,
             body = twoLines(rows.map { it.title }),
             idle = true,
+            offersInterrupt = false,
         )
     }
     val others = rows.filter { it.taskId != target.taskId }.map { it.title }
@@ -304,7 +321,12 @@ internal fun currentNoticeCopy(
             cue != null -> cue
             else -> inFocusLabel
         }
-    return CurrentNoticeCopy(title = target.title, body = body, idle = false)
+    return CurrentNoticeCopy(
+        title = target.title,
+        body = body,
+        idle = false,
+        offersInterrupt = !target.recovery,
+    )
 }
 
 /** Splits titles across the two lines a collapsed notice can show. */
@@ -328,6 +350,11 @@ internal fun todayNoticeChannel(idle: Boolean): String =
  * small status icon can show, including when nothing is started. Neither is
  * a heads-up or a foreground service. There is no elapsed-time ticker and no
  * full-screen intent.
+ *
+ * [offersInterrupt] adds the Interrupt action only while a frame is active.
+ * That action pauses the focused task and opens capture for a nested detour.
+ * It stays off when nothing is started and when the only relevant frame is
+ * waiting to resume.
  */
 internal fun buildCurrentTaskNotification(
     context: Context,
@@ -335,6 +362,7 @@ internal fun buildCurrentTaskNotification(
     text: String,
     todayRows: List<TodayNoticeRow> = emptyList(),
     idle: Boolean = false,
+    offersInterrupt: Boolean = false,
 ): android.app.Notification {
     val builder =
         NotificationCompat.Builder(context, todayNoticeChannel(idle))
@@ -348,14 +376,18 @@ internal fun buildCurrentTaskNotification(
             .setContentIntent(
                 focusPendingIntent(context, NotificationContract.DESTINATION_FOCUS, requestCode = 1),
             )
-            .addAction(
-                0,
-                context.getString(R.string.action_interrupt),
-                focusPendingIntent(context, NotificationContract.DESTINATION_CAPTURE, requestCode = 2),
-            )
             .setCustomContentView(todayCollapsedContent(context, text))
+    if (offersInterrupt) {
+        builder.addAction(
+            0,
+            context.getString(R.string.action_interrupt),
+            focusPendingIntent(context, NotificationContract.DESTINATION_CAPTURE, requestCode = 2),
+        )
+    }
     if (todayRows.isNotEmpty()) {
-        builder.setCustomBigContentView(todayBigContent(context, todayRows))
+        builder.setCustomBigContentView(
+            todayBigContent(context, todayRows, somethingActive = offersInterrupt),
+        )
     }
     builder.setStyle(NotificationCompat.DecoratedCustomViewStyle())
     return builder.build()
@@ -382,11 +414,17 @@ private val todayRowIds =
 
 /**
  * Expanded shade lists Today in five fixed slots. Empty slots are [View.GONE].
- * The current or waiting row is mint and opens Focus. Every other row switches.
+ * The active row is mint and opens Focus. A row waiting to resume is mint and
+ * opens Focus too, so resume stays explicit.
+ * While [somethingActive] is true, every other row switches: the current task
+ * pauses and the chosen one starts, with no nested frame.
+ * When nothing is active, every other row starts that task through the same
+ * repository start. It does not interrupt and does not nest a frame.
  */
 internal fun todayBigContent(
     context: Context,
     rows: List<TodayNoticeRow>,
+    somethingActive: Boolean = false,
 ): RemoteViews {
     val root = RemoteViews(context.packageName, R.layout.notification_today)
     val shown = rows.take(MAX_TODAY_LIMIT)
@@ -410,7 +448,9 @@ internal fun todayBigContent(
             )
         } else {
             root.setInt(viewId, "setBackgroundColor", Color.TRANSPARENT)
-            root.setContentDescription(viewId, context.getString(R.string.notification_switch_row, row.title))
+            val rowLabel =
+                if (somethingActive) R.string.notification_switch_row else R.string.notification_start_row
+            root.setContentDescription(viewId, context.getString(rowLabel, row.title))
             root.setOnClickPendingIntent(viewId, switchPendingIntent(context, row.taskId))
         }
     }

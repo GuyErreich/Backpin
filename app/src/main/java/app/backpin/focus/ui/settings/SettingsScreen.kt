@@ -267,7 +267,7 @@ fun SettingsScreen(
                 Column(Modifier.weight(1f).padding(end = 12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text("Show current task", style = MaterialTheme.typography.titleMedium)
                     Text(
-                        "An ongoing notice while Today has an open task, including when nothing is started. With nothing in focus the title is Today. While a task is current or waiting, it names that task. A small status icon can show. Silent: no sound or vibration. Elapsed time stays in the app. No foreground service.",
+                        "An ongoing notice while Today has an open task, including when nothing is started. With nothing in focus the title is Today. While a task is current or waiting, it names that task. Interrupt is on that notice only while a task is in focus. A small status icon can show. Silent: no sound or vibration. Elapsed time stays in the app. No foreground service.",
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 }

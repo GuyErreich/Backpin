@@ -63,6 +63,7 @@ class CurrentNoticeTest {
         assertEquals("Today", copy.title)
         assertEquals("Review CI failure\nMessage John", copy.body)
         assertTrue(copy.idle)
+        assertFalse(copy.offersInterrupt)
         val fuller =
             listOf("Review CI failure", "Message John", "Write notes", "Call Sam").mapIndexed { index, title ->
                 TodayNoticeRow("t$index", title, current = false)
@@ -90,6 +91,7 @@ class CurrentNoticeTest {
         assertEquals("Review CI failure", copy.title)
         assertEquals("Message John\nNext: reproduce CI failure", copy.body)
         assertFalse(copy.idle)
+        assertTrue(copy.offersInterrupt)
     }
 
     @Test
@@ -104,6 +106,7 @@ class CurrentNoticeTest {
             )
         assertEquals("Review CI failure", copy.title)
         assertEquals("In focus", copy.body)
+        assertTrue(copy.offersInterrupt)
     }
 
     @Test
@@ -123,6 +126,7 @@ class CurrentNoticeTest {
         assertEquals("Message John", copy.title)
         assertEquals("Quick fix\nNext: send the recap", copy.body)
         assertFalse(copy.idle)
+        assertFalse(copy.offersInterrupt)
         assertFalse(copy.title.contains("warning", ignoreCase = true))
         assertFalse(copy.body.contains("alert", ignoreCase = true))
     }
@@ -148,7 +152,13 @@ class CurrentNoticeTest {
         assertFalse(idleChannel.name.toString().contains("alert", ignoreCase = true))
         assertFalse(idleChannel.description.contains("warning", ignoreCase = true))
 
-        val notification = buildCurrentTaskNotification(context, "Review CI failure", "Next: reproduce CI failure")
+        val notification =
+            buildCurrentTaskNotification(
+                context,
+                "Review CI failure",
+                "Next: reproduce CI failure",
+                offersInterrupt = true,
+            )
         assertEquals(NotificationContract.CHANNEL_CURRENT, notification.channelId)
         assertEquals("Review CI failure", notification.extras.getCharSequence(Notification.EXTRA_TITLE).toString())
         assertEquals(
@@ -192,13 +202,41 @@ class CurrentNoticeTest {
 
     @Test
     fun noticeKeyChangesWhenTodayChangesWithoutANewCurrentTask() {
-        val copy = CurrentNoticeCopy(title = "Task 1", body = "In focus", idle = false)
+        val copy = CurrentNoticeCopy(title = "Task 1", body = "In focus", idle = false, offersInterrupt = true)
         val first = listOf(TodayNoticeRow("t1", "Task 1", current = true))
         val withAnother = first + TodayNoticeRow("t2", "Task 2", current = false)
         val next = copy.copy(body = "Task 2")
         assertNotEquals(currentNoticeKey(copy, first), currentNoticeKey(next, withAnother))
-        val idle = CurrentNoticeCopy(title = "Today", body = "Task 1", idle = true)
+        val idle = CurrentNoticeCopy(title = "Today", body = "Task 1", idle = true, offersInterrupt = false)
         assertNotEquals(currentNoticeKey(copy, first), currentNoticeKey(idle, first))
+        val waiting = copy.copy(offersInterrupt = false)
+        assertNotEquals(currentNoticeKey(copy, first), currentNoticeKey(waiting, first))
+    }
+
+    @Test
+    fun noticeKeyChangesWhenAWaitingTaskBecomesActive() {
+        val rows = listOf(TodayNoticeRow("task", "Review CI failure", current = true))
+        val active =
+            currentNoticeCopy(
+                rows = rows,
+                target = FocusTarget("task", "Review CI failure", null, recovery = false),
+                todayLabel = "Today",
+                inFocusLabel = "In focus",
+            )
+        val waiting =
+            currentNoticeCopy(
+                rows = rows,
+                target = FocusTarget("task", "Review CI failure", null, recovery = true),
+                todayLabel = "Today",
+                inFocusLabel = "In focus",
+            )
+        assertTrue(active.offersInterrupt)
+        assertFalse(waiting.offersInterrupt)
+        assertEquals(active.title, waiting.title)
+        assertEquals(active.body, waiting.body)
+        assertFalse(active.idle)
+        assertFalse(waiting.idle)
+        assertNotEquals(currentNoticeKey(active, rows), currentNoticeKey(waiting, rows))
     }
 
     @Test
@@ -236,10 +274,19 @@ class CurrentNoticeTest {
                 inFocusLabel = "In focus",
             )
         assertTrue(copy.idle)
+        assertFalse(copy.offersInterrupt)
         assertEquals("Today", copy.title)
         assertEquals(todayNoticeChannel(idle = true), NotificationContract.CHANNEL_TODAY)
 
-        val notification = buildCurrentTaskNotification(context, copy.title, copy.body, rows, idle = true)
+        val notification =
+            buildCurrentTaskNotification(
+                context,
+                copy.title,
+                copy.body,
+                rows,
+                idle = copy.idle,
+                offersInterrupt = copy.offersInterrupt,
+            )
         assertEquals(NotificationContract.CHANNEL_TODAY, notification.channelId)
         assertNotEquals(NotificationContract.CHANNEL_TODAY_IDLE, notification.channelId)
         assertEquals(Notification.PRIORITY_DEFAULT, notification.priority)
@@ -255,9 +302,17 @@ class CurrentNoticeTest {
         assertEquals(0, notification.color)
         assertNull(notification.sound)
         assertNull(notification.vibrate)
+        assertTrue(notification.actions.isNullOrEmpty())
         assertNotNull(notification.bigContentView)
         val open = shadowOf(notification.contentIntent).savedIntent
         assertEquals(NotificationContract.DESTINATION_FOCUS, open.getStringExtra(NotificationContract.EXTRA_DESTINATION))
+        val firstTap = clickIntent(notification.bigContentView, R.id.today_row_0)
+        assertEquals(NotificationContract.ACTION_SWITCH, firstTap.action)
+        assertEquals("a", firstTap.getStringExtra(NotificationContract.EXTRA_TASK_ID))
+        assertNull(firstTap.getStringExtra(NotificationContract.EXTRA_DESTINATION))
+        val secondTap = clickIntent(notification.bigContentView, R.id.today_row_1)
+        assertEquals(NotificationContract.ACTION_SWITCH, secondTap.action)
+        assertEquals("b", secondTap.getStringExtra(NotificationContract.EXTRA_TASK_ID))
 
         manager.notify(NotificationContract.ID_CURRENT, notification)
         val posted = manager.activeNotifications.single()
@@ -265,12 +320,20 @@ class CurrentNoticeTest {
         assertEquals(NotificationContract.CHANNEL_TODAY, posted.notification.channelId)
         assertEquals("Today", posted.notification.extras.getCharSequence(Notification.EXTRA_TITLE).toString())
 
-        val applied = todayBigContent(context, rows).apply(context, FrameLayout(context)) as ViewGroup
+        val applied = notification.bigContentView.apply(context, FrameLayout(context)) as ViewGroup
         assertEquals(5, applied.childCount)
         assertEquals(View.VISIBLE, applied.getChildAt(0).visibility)
         assertEquals("Review CI failure", (applied.getChildAt(0) as TextView).text.toString())
+        assertEquals(
+            context.getString(R.string.notification_start_row, "Review CI failure"),
+            applied.getChildAt(0).contentDescription,
+        )
         assertEquals(View.VISIBLE, applied.getChildAt(1).visibility)
         assertEquals("Message John", (applied.getChildAt(1) as TextView).text.toString())
+        assertEquals(
+            context.getString(R.string.notification_start_row, "Message John"),
+            applied.getChildAt(1).contentDescription,
+        )
         for (index in 2..4) {
             assertEquals(View.GONE, applied.getChildAt(index).visibility)
         }
@@ -289,6 +352,7 @@ class CurrentNoticeTest {
                 "Review CI failure",
                 "Next: reproduce CI failure",
                 rows,
+                offersInterrupt = true,
             )
         assertTrue(notification.flags and Notification.FLAG_ONGOING_EVENT != 0)
         assertTrue(notification.flags and Notification.FLAG_FOREGROUND_SERVICE == 0)
@@ -302,7 +366,7 @@ class CurrentNoticeTest {
             notification.extras.getCharSequence(Notification.EXTRA_TITLE).toString(),
         )
 
-        val content = todayBigContent(context, rows)
+        val content = notification.bigContentView
         val applied = content.apply(context, FrameLayout(context)) as ViewGroup
         assertEquals(5, applied.childCount)
         val current = applied.getChildAt(0) as TextView
@@ -318,12 +382,64 @@ class CurrentNoticeTest {
             assertEquals(View.GONE, applied.getChildAt(index).visibility)
         }
 
+        assertEquals(
+            context.getString(R.string.notification_now_row, "Review CI failure"),
+            current.contentDescription,
+        )
+        assertEquals(
+            context.getString(R.string.notification_switch_row, "Message John"),
+            other.contentDescription,
+        )
         val currentTap = clickIntent(content, R.id.today_row_0)
         assertEquals(NotificationContract.DESTINATION_FOCUS, currentTap.getStringExtra(NotificationContract.EXTRA_DESTINATION))
         val switchTap = clickIntent(content, R.id.today_row_1)
         assertEquals(NotificationContract.ACTION_SWITCH, switchTap.action)
         assertEquals("next", switchTap.getStringExtra(NotificationContract.EXTRA_TASK_ID))
         assertEquals(NotificationActionReceiver::class.java.name, switchTap.component?.className)
+    }
+
+    @Test
+    fun waitingNoticeHidesInterruptAndStartsAnUnstartedRow() {
+        val rows =
+            listOf(
+                TodayNoticeRow("wait", "Message John", current = true),
+                TodayNoticeRow("open", "Task 2", current = false),
+            )
+        val notification =
+            buildCurrentTaskNotification(
+                context,
+                "Message John",
+                "Next: send the recap",
+                rows,
+                idle = false,
+                offersInterrupt = false,
+            )
+        assertEquals(NotificationContract.CHANNEL_CURRENT, notification.channelId)
+        assertEquals(Notification.PRIORITY_DEFAULT, notification.priority)
+        assertTrue(notification.flags and Notification.FLAG_ONGOING_EVENT != 0)
+        assertTrue(notification.flags and Notification.FLAG_ONLY_ALERT_ONCE != 0)
+        assertTrue(notification.flags and Notification.FLAG_FOREGROUND_SERVICE == 0)
+        assertNull(notification.fullScreenIntent)
+        assertNull(notification.sound)
+        assertNull(notification.vibrate)
+        assertTrue(notification.actions.isNullOrEmpty())
+
+        val content = notification.bigContentView
+        val applied = content.apply(context, FrameLayout(context)) as ViewGroup
+        val waiting = applied.getChildAt(0) as TextView
+        val other = applied.getChildAt(1) as TextView
+        assertEquals(context.getColor(R.color.mint), (waiting.background as ColorDrawable).color)
+        assertEquals(
+            context.getString(R.string.notification_start_row, "Task 2"),
+            other.contentDescription,
+        )
+        val waitingTap = clickIntent(content, R.id.today_row_0)
+        assertEquals(NotificationContract.DESTINATION_FOCUS, waitingTap.getStringExtra(NotificationContract.EXTRA_DESTINATION))
+        val startTap = clickIntent(content, R.id.today_row_1)
+        assertEquals(NotificationContract.ACTION_SWITCH, startTap.action)
+        assertEquals("open", startTap.getStringExtra(NotificationContract.EXTRA_TASK_ID))
+        assertNull(startTap.getStringExtra(NotificationContract.EXTRA_DESTINATION))
+        assertEquals(NotificationActionReceiver::class.java.name, startTap.component?.className)
     }
 
     private fun clickIntent(

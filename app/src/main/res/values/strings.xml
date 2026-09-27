@@ -7,6 +7,7 @@
     <string name="notification_in_focus">In focus</string>
     <string name="notification_now_row">Current. %1$s</string>
     <string name="notification_switch_row">Switch to %1$s</string>
+    <string name="notification_start_row">Start %1$s</string>
     <string name="action_resume">Resume</string>
     <string name="action_later">Later</string>
     <string name="action_interrupt">Interrupt</string>
