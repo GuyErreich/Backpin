@@ -53,7 +53,7 @@ class CurrentNoticeTest {
     }
 
     @Test
-    fun idleNoticeNamesTodayAndListsTitlesInOrder() {
+    fun idleNoticeNamesTodayAndCountsOpenTasks() {
         val rows =
             listOf(
                 TodayNoticeRow("a", "Review CI failure", current = false),
@@ -61,21 +61,24 @@ class CurrentNoticeTest {
             )
         val copy = currentNoticeCopy(rows, target = null, todayLabel = "Today", inFocusLabel = "In focus")
         assertEquals("Today", copy.title)
-        assertEquals("Review CI failure\nMessage John", copy.body)
+        assertEquals("2 tasks", copy.body)
+        assertFalse(copy.body.contains("·"))
+        assertFalse(copy.body.contains("Review CI failure"))
         assertTrue(copy.idle)
         assertFalse(copy.offersInterrupt)
+        assertEquals("1 task", todayTaskCount(1))
         val fuller =
-            listOf("Review CI failure", "Message John", "Write notes", "Call Sam").mapIndexed { index, title ->
+            listOf("TASK 2", "dfasdsadasdsada", "dasdasdasd").mapIndexed { index, title ->
                 TodayNoticeRow("t$index", title, current = false)
             }
-        assertEquals(
-            "Review CI failure · Message John\nWrite notes · Call Sam",
-            currentNoticeCopy(fuller, target = null, todayLabel = "Today", inFocusLabel = "In focus").body,
-        )
+        val counted = currentNoticeCopy(fuller, target = null, todayLabel = "Today", inFocusLabel = "In focus")
+        assertEquals("3 tasks", counted.body)
+        assertFalse(counted.body.contains("·"))
+        assertFalse(fuller.any { counted.body.contains(it.title) })
     }
 
     @Test
-    fun activeNoticeKeepsTheTaskTitleAndAddsTheRest() {
+    fun activeNoticeKeepsTheTaskTitleAndTheReturnNote() {
         val rows =
             listOf(
                 TodayNoticeRow("a", "Review CI failure", current = true),
@@ -89,7 +92,9 @@ class CurrentNoticeTest {
                 inFocusLabel = "In focus",
             )
         assertEquals("Review CI failure", copy.title)
-        assertEquals("Message John\nNext: reproduce CI failure", copy.body)
+        assertEquals("Next: reproduce CI failure", copy.body)
+        assertFalse(copy.body.contains("·"))
+        assertFalse(copy.body.contains("Message John"))
         assertFalse(copy.idle)
         assertTrue(copy.offersInterrupt)
     }
@@ -124,7 +129,9 @@ class CurrentNoticeTest {
                 inFocusLabel = "In focus",
             )
         assertEquals("Message John", copy.title)
-        assertEquals("Quick fix\nNext: send the recap", copy.body)
+        assertEquals("Next: send the recap", copy.body)
+        assertFalse(copy.body.contains("·"))
+        assertFalse(copy.body.contains("Quick fix"))
         assertFalse(copy.idle)
         assertFalse(copy.offersInterrupt)
         assertFalse(copy.title.contains("warning", ignoreCase = true))
@@ -291,10 +298,12 @@ class CurrentNoticeTest {
         assertNotEquals(NotificationContract.CHANNEL_TODAY_IDLE, notification.channelId)
         assertEquals(Notification.PRIORITY_DEFAULT, notification.priority)
         assertEquals("Today", notification.extras.getCharSequence(Notification.EXTRA_TITLE).toString())
+        assertEquals("2 tasks", copy.body)
         assertEquals(
-            "Review CI failure\nMessage John",
+            "2 tasks",
             notification.extras.getCharSequence(Notification.EXTRA_TEXT).toString(),
         )
+        assertFalse(notification.extras.getCharSequence(Notification.EXTRA_TEXT).toString().contains("·"))
         assertTrue(notification.flags and Notification.FLAG_ONGOING_EVENT != 0)
         assertTrue(notification.flags and Notification.FLAG_ONLY_ALERT_ONCE != 0)
         assertTrue(notification.flags and Notification.FLAG_FOREGROUND_SERVICE == 0)
@@ -321,22 +330,28 @@ class CurrentNoticeTest {
         assertEquals("Today", posted.notification.extras.getCharSequence(Notification.EXTRA_TITLE).toString())
 
         val applied = notification.bigContentView.apply(context, FrameLayout(context)) as ViewGroup
-        assertEquals(5, applied.childCount)
-        assertEquals(View.VISIBLE, applied.getChildAt(0).visibility)
-        assertEquals("Review CI failure", (applied.getChildAt(0) as TextView).text.toString())
+        val first = applied.findViewById<TextView>(R.id.today_row_0)
+        val second = applied.findViewById<TextView>(R.id.today_row_1)
+        assertEquals(View.VISIBLE, first.visibility)
+        assertEquals("Review CI failure", first.text.toString())
+        assertTrue(first.paddingTop > 0)
+        assertTrue(first.paddingBottom > 0)
         assertEquals(
             context.getString(R.string.notification_start_row, "Review CI failure"),
-            applied.getChildAt(0).contentDescription,
+            first.contentDescription,
         )
-        assertEquals(View.VISIBLE, applied.getChildAt(1).visibility)
-        assertEquals("Message John", (applied.getChildAt(1) as TextView).text.toString())
+        assertEquals(View.VISIBLE, second.visibility)
+        assertEquals("Message John", second.text.toString())
         assertEquals(
             context.getString(R.string.notification_start_row, "Message John"),
-            applied.getChildAt(1).contentDescription,
+            second.contentDescription,
         )
-        for (index in 2..4) {
-            assertEquals(View.GONE, applied.getChildAt(index).visibility)
-        }
+        assertEquals(View.VISIBLE, applied.findViewById<View>(R.id.today_divider_0).visibility)
+        assertTrue(applied.findViewById<View>(R.id.today_divider_0).layoutParams.height > 0)
+        assertEquals(View.GONE, applied.findViewById<View>(R.id.today_divider_1).visibility)
+        assertEquals(View.GONE, applied.findViewById<View>(R.id.today_row_2).visibility)
+        assertEquals(View.GONE, applied.findViewById<View>(R.id.today_row_3).visibility)
+        assertEquals(View.GONE, applied.findViewById<View>(R.id.today_row_4).visibility)
     }
 
     @Test
@@ -368,9 +383,8 @@ class CurrentNoticeTest {
 
         val content = notification.bigContentView
         val applied = content.apply(context, FrameLayout(context)) as ViewGroup
-        assertEquals(5, applied.childCount)
-        val current = applied.getChildAt(0) as TextView
-        val other = applied.getChildAt(1) as TextView
+        val current = applied.findViewById<TextView>(R.id.today_row_0)
+        val other = applied.findViewById<TextView>(R.id.today_row_1)
         assertEquals(View.VISIBLE, current.visibility)
         assertEquals("Review CI failure", current.text.toString())
         assertEquals(context.getColor(R.color.mint), (current.background as ColorDrawable).color)
@@ -378,9 +392,10 @@ class CurrentNoticeTest {
         assertEquals(View.VISIBLE, other.visibility)
         assertEquals("Message John", other.text.toString())
         assertEquals(android.graphics.Color.TRANSPARENT, (other.background as ColorDrawable).color)
-        for (index in 2..4) {
-            assertEquals(View.GONE, applied.getChildAt(index).visibility)
-        }
+        assertEquals(View.VISIBLE, applied.findViewById<View>(R.id.today_divider_0).visibility)
+        assertEquals(View.GONE, applied.findViewById<View>(R.id.today_row_2).visibility)
+        assertEquals(View.GONE, applied.findViewById<View>(R.id.today_row_3).visibility)
+        assertEquals(View.GONE, applied.findViewById<View>(R.id.today_row_4).visibility)
 
         assertEquals(
             context.getString(R.string.notification_now_row, "Review CI failure"),
@@ -426,8 +441,8 @@ class CurrentNoticeTest {
 
         val content = notification.bigContentView
         val applied = content.apply(context, FrameLayout(context)) as ViewGroup
-        val waiting = applied.getChildAt(0) as TextView
-        val other = applied.getChildAt(1) as TextView
+        val waiting = applied.findViewById<TextView>(R.id.today_row_0)
+        val other = applied.findViewById<TextView>(R.id.today_row_1)
         assertEquals(context.getColor(R.color.mint), (waiting.background as ColorDrawable).color)
         assertEquals(
             context.getString(R.string.notification_start_row, "Task 2"),
@@ -440,6 +455,53 @@ class CurrentNoticeTest {
         assertEquals("open", startTap.getStringExtra(NotificationContract.EXTRA_TASK_ID))
         assertNull(startTap.getStringExtra(NotificationContract.EXTRA_DESTINATION))
         assertEquals(NotificationActionReceiver::class.java.name, startTap.component?.className)
+    }
+
+    @Test
+    fun expandedShadeSeparatesEachUnstartedTask() {
+        val titles = listOf("TASK 2", "dfasdsadasdsada", "dasdasdasd")
+        val rows = titles.mapIndexed { index, title -> TodayNoticeRow("t$index", title, current = false) }
+        val copy = currentNoticeCopy(rows, target = null, todayLabel = "Today", inFocusLabel = "In focus")
+        assertEquals("Today", copy.title)
+        assertEquals("3 tasks", copy.body)
+        assertFalse(copy.offersInterrupt)
+
+        val notification =
+            buildCurrentTaskNotification(
+                context,
+                copy.title,
+                copy.body,
+                rows,
+                idle = true,
+                offersInterrupt = copy.offersInterrupt,
+            )
+        assertEquals("3 tasks", notification.extras.getCharSequence(Notification.EXTRA_TEXT).toString())
+        assertTrue(notification.actions.isNullOrEmpty())
+        assertNull(notification.fullScreenIntent)
+        assertNull(notification.sound)
+        assertNull(notification.vibrate)
+        assertTrue(notification.flags and Notification.FLAG_FOREGROUND_SERVICE == 0)
+
+        val applied = notification.bigContentView.apply(context, FrameLayout(context)) as ViewGroup
+        val rowIds = intArrayOf(R.id.today_row_0, R.id.today_row_1, R.id.today_row_2, R.id.today_row_3, R.id.today_row_4)
+        titles.forEachIndexed { index, title ->
+            val view = applied.findViewById<TextView>(rowIds[index])
+            assertEquals(View.VISIBLE, view.visibility)
+            assertEquals(title, view.text.toString())
+            assertFalse(view.text.toString().contains("·"))
+            assertTrue(view.paddingTop > 0)
+            assertTrue(view.paddingBottom > 0)
+            val tap = clickIntent(notification.bigContentView, rowIds[index])
+            assertEquals(NotificationContract.ACTION_SWITCH, tap.action)
+            assertEquals("t$index", tap.getStringExtra(NotificationContract.EXTRA_TASK_ID))
+        }
+        assertEquals(View.GONE, applied.findViewById<View>(R.id.today_row_3).visibility)
+        assertEquals(View.GONE, applied.findViewById<View>(R.id.today_row_4).visibility)
+        assertEquals(View.VISIBLE, applied.findViewById<View>(R.id.today_divider_0).visibility)
+        assertEquals(View.VISIBLE, applied.findViewById<View>(R.id.today_divider_1).visibility)
+        assertTrue(applied.findViewById<View>(R.id.today_divider_0).layoutParams.height > 0)
+        assertEquals(View.GONE, applied.findViewById<View>(R.id.today_divider_2).visibility)
+        assertEquals(View.GONE, applied.findViewById<View>(R.id.today_divider_3).visibility)
     }
 
     private fun clickIntent(

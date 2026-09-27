@@ -4,4 +4,5 @@
     <color name="ic_background">#10141F</color>
     <color name="mint">#71E2BE</color>
     <color name="on_mint">#10241C</color>
+    <color name="notice_divider">#66888888</color>
 </resources>

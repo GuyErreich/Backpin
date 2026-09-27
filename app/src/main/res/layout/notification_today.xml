@@ -10,16 +10,32 @@
         style="@style/TodayNoticeRow" />
 
     <TextView
+        android:id="@+id/today_divider_0"
+        style="@style/TodayNoticeDivider" />
+
+    <TextView
         android:id="@+id/today_row_1"
         style="@style/TodayNoticeRow" />
+
+    <TextView
+        android:id="@+id/today_divider_1"
+        style="@style/TodayNoticeDivider" />
 
     <TextView
         android:id="@+id/today_row_2"
         style="@style/TodayNoticeRow" />
 
     <TextView
+        android:id="@+id/today_divider_2"
+        style="@style/TodayNoticeDivider" />
+
+    <TextView
         android:id="@+id/today_row_3"
         style="@style/TodayNoticeRow" />
+
+    <TextView
+        android:id="@+id/today_divider_3"
+        style="@style/TodayNoticeDivider" />
 
     <TextView
         android:id="@+id/today_row_4"

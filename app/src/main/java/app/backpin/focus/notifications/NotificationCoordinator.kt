@@ -293,10 +293,11 @@ internal fun currentNoticeKey(
 }
 
 /**
- * Collapsed copy. Idle Today is titled Today. The body uses two lines so the
- * open titles stay readable in the collapsed shade.
- * An active or waiting task is titled with that task. The other titles share
- * the first line, and the return note takes the second when there is one.
+ * Collapsed copy. Idle Today is titled Today. The body is a count, because the
+ * collapsed shade has about two lines and must not join titles into one phrase.
+ * Each title is its own row once the notice is expanded.
+ * An active or waiting task is titled with that task. The body is the return
+ * note, or [inFocusLabel] when there is none. Other titles stay in the rows.
  */
 internal fun currentNoticeCopy(
     rows: List<TodayNoticeRow>,
@@ -307,35 +308,22 @@ internal fun currentNoticeCopy(
     if (target == null) {
         return CurrentNoticeCopy(
             title = todayLabel,
-            body = twoLines(rows.map { it.title }),
+            body = todayTaskCount(rows.size),
             idle = true,
             offersInterrupt = false,
         )
     }
-    val others = rows.filter { it.taskId != target.taskId }.map { it.title }
     val cue = target.returnCue?.trim()?.takeIf { it.isNotEmpty() }
-    val body =
-        when {
-            others.isNotEmpty() && cue != null -> others.joinToString(separator = " · ") + "\n" + cue
-            others.isNotEmpty() -> twoLines(others)
-            cue != null -> cue
-            else -> inFocusLabel
-        }
     return CurrentNoticeCopy(
         title = target.title,
-        body = body,
+        body = cue ?: inFocusLabel,
         idle = false,
         offersInterrupt = !target.recovery,
     )
 }
 
-/** Splits titles across the two lines a collapsed notice can show. */
-internal fun twoLines(titles: List<String>): String {
-    val parts = titles.filter { it.isNotBlank() }
-    if (parts.size <= 1) return parts.firstOrNull().orEmpty()
-    val midpoint = (parts.size + 1) / 2
-    return parts.take(midpoint).joinToString(separator = " · ") + "\n" + parts.drop(midpoint).joinToString(separator = " · ")
-}
+/** Collapsed idle body. One line, so the expanded rows can carry the titles. */
+internal fun todayTaskCount(count: Int): String = if (count == 1) "1 task" else "$count tasks"
 
 /**
  * Channel for the ongoing notice. Idle uses [NotificationContract.CHANNEL_TODAY],
@@ -393,7 +381,7 @@ internal fun buildCurrentTaskNotification(
     return builder.build()
 }
 
-/** Collapsed body, capped at two lines so the titles are not one clipped run. */
+/** Collapsed body. A count or a return note, capped at two lines. Titles stay in the expanded rows. */
 internal fun todayCollapsedContent(
     context: Context,
     text: String,
@@ -412,8 +400,18 @@ private val todayRowIds =
         R.id.today_row_4,
     )
 
+private val todayDividerIds =
+    intArrayOf(
+        R.id.today_divider_0,
+        R.id.today_divider_1,
+        R.id.today_divider_2,
+        R.id.today_divider_3,
+    )
+
 /**
- * Expanded shade lists Today in five fixed slots. Empty slots are [View.GONE].
+ * Expanded shade lists Today in five fixed slots. Each open task is its own
+ * row, with vertical padding and a divider between rows. Empty slots and the
+ * dividers around them are [View.GONE]. A full title stays in its row.
  * The active row is mint and opens Focus. A row waiting to resume is mint and
  * opens Focus too, so resume stays explicit.
  * While [somethingActive] is true, every other row switches: the current task
@@ -453,6 +451,10 @@ internal fun todayBigContent(
             root.setContentDescription(viewId, context.getString(rowLabel, row.title))
             root.setOnClickPendingIntent(viewId, switchPendingIntent(context, row.taskId))
         }
+    }
+    todayDividerIds.forEachIndexed { index, dividerId ->
+        val betweenRows = index < shown.lastIndex
+        root.setViewVisibility(dividerId, if (betweenRows) View.VISIBLE else View.GONE)
     }
     return root
 }
