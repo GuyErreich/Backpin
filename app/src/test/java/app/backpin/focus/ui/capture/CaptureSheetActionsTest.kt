@@ -186,6 +186,45 @@ class CaptureSheetActionsTest {
     }
 
     @Test
+    fun filledBlankAndDestinationsOnScreenEachTapRuns() {
+        val placed = mutableListOf<String>()
+        show(
+            frameActive = true,
+            placed = placed,
+            phrases = listOf("Talk to my wife", "Talk to <name>"),
+        )
+        compose.onNodeWithText("Talk to …").performTouchInput { click() }
+        compose.onNodeWithText("name").performTextInput("GUY")
+        compose.waitForIdle()
+        compose.onNodeWithText("Talk to GUY").assertExists()
+        compose.onNodeWithText("Next").assertExists()
+        compose.onNodeWithText("Save to Inbox").assertExists()
+        compose.onNodeWithContentDescription("Speak the missing word").performTouchInput { click() }
+        compose.onNodeWithText("Speech isn't available on this phone. You can still type.").assertExists()
+        tap("Save to Inbox")
+        tap("Today")
+        tap("Start")
+        tap("Interrupt now")
+        tap("Later")
+        tap("Next")
+        compose.onNodeWithText("Where does this go?").assertExists()
+        tap("Schedule")
+        tap("Tomorrow")
+        val tomorrow = LocalDate.now().plusDays(1).toEpochDay()
+        assertEquals(
+            listOf(
+                "inbox:Talk to GUY",
+                "today:Talk to GUY",
+                "start:Talk to GUY",
+                "interrupt:Talk to GUY",
+                "later:Talk to GUY",
+                "schedule:Talk to GUY:$tomorrow",
+            ),
+            placed,
+        )
+    }
+
+    @Test
     @Config(sdk = [36], qualifiers = "w411dp-h800dp")
     fun visibleCentersPlaceEachDestinationWhenTheKeyboardIsOpen() {
         val placed = mutableListOf<String>()

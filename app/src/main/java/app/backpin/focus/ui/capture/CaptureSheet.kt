@@ -237,7 +237,13 @@ internal fun CaptureSheet(
     }
 
     fun placeTyped(place: CapturePlace) {
-        placeResolved(place, titleDraft.text, fromPhrase = false)
+        // The blank and the destination buttons are on screen together. The words
+        // live in the blank; the title field is still empty. Read the blank before
+        // giving up, or every destination returns without writing.
+        val typed = titleDraft.text.trim()
+        val fromBlank = activeBlank?.let { fillPhraseBlank(it, fillDraft.text) }?.trim().orEmpty()
+        val resolved = typed.ifEmpty { fromBlank }
+        placeResolved(place, resolved, fromPhrase = typed.isEmpty() && fromBlank.isNotEmpty())
     }
 
     fun chooseDate(date: LocalDate) {
@@ -374,7 +380,10 @@ internal fun CaptureSheet(
                                             }
                                         },
                                         label = { Text(phraseChipLabel(phrase)) },
-                                        modifier = Modifier.heightIn(min = 48.dp),
+                                        modifier =
+                                            Modifier
+                                                .heightIn(min = 48.dp)
+                                                .focusProperties { canFocus = false },
                                         colors =
                                             SuggestionChipDefaults.suggestionChipColors(
                                                 containerColor = FocusColors.Surface,
@@ -423,7 +432,10 @@ internal fun CaptureSheet(
                         TextButton(
                             onClick = { commitFill() },
                             enabled = fillPhraseBlank(template, fillWord) != null,
-                            modifier = Modifier.heightIn(min = 48.dp),
+                            modifier =
+                                Modifier
+                                    .heightIn(min = 48.dp)
+                                    .focusProperties { canFocus = false },
                         ) {
                             Text("Next")
                         }
@@ -720,6 +732,7 @@ private fun SpeakMic(
         modifier =
             Modifier
                 .size(48.dp)
+                .focusProperties { canFocus = false }
                 .graphicsLayer {
                     scaleX = scale
                     scaleY = scale
