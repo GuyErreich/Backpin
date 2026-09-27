@@ -286,9 +286,8 @@ internal fun CaptureSheet(
         sheetState = sheetState,
         sheetGesturesEnabled = false,
         containerColor = FocusColors.Surface,
-        // The sheet already lifts above the keyboard. A second ime inset pads the
-        // actions into a region the finger never hits, and hiding the keyboard
-        // mid-press cancels the click.
+        // Navigation bars only. The sheet's own ime padding already lifts it. A
+        // second ime inset here would shrink the actions twice.
         contentWindowInsets = { WindowInsets.navigationBars },
     ) {
         val scheduling = schedulingTitle
@@ -302,11 +301,16 @@ internal fun CaptureSheet(
                     .padding(bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(Space),
         ) {
+            // One scrolling column, not a fixed stack under the title. A finite-height
+            // column measures buttons in order and gives every button after Save to
+            // Inbox a zero-height hit target once the keyboard has taken the room.
+            // Those taps never reach onClick. Inside the scroll each button keeps
+            // its height, so the visible center is a real click.
             Column(
                 modifier =
                     Modifier
                         .fillMaxWidth()
-                        .weight(1f, fill = false)
+                        .weight(1f)
                         .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(Space),
             ) {
@@ -430,7 +434,6 @@ internal fun CaptureSheet(
                     )
                 }
             }
-            }
             if (scheduling == null && placing == null) {
                 OutlinedTextField(
                     value = title,
@@ -505,6 +508,7 @@ internal fun CaptureSheet(
                         onBack = null,
                     )
                 }
+            }
             }
         }
     }

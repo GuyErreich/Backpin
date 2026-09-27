@@ -2,7 +2,10 @@ package app.backpin.focus.ui.capture
 
 import android.Manifest
 import android.content.Context
+import android.graphics.Insets
+import android.os.Build
 import android.os.Looper
+import android.view.WindowInsets
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -15,6 +18,10 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.test.hasScrollAction
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performTouchInput
@@ -40,6 +47,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowDialog
 import java.time.LocalDate
 import java.util.UUID
 
@@ -178,6 +186,50 @@ class CaptureSheetActionsTest {
     }
 
     @Test
+    @Config(sdk = [36], qualifiers = "w411dp-h800dp")
+    fun visibleCentersPlaceEachDestinationWhenTheKeyboardIsOpen() {
+        val placed = mutableListOf<String>()
+        show(
+            frameActive = true,
+            placed = placed,
+            phrases = listOf("Talk to my wife", "Talk to <name>"),
+        )
+        typeTitle("Call Dana")
+        val dialog = ShadowDialog.getLatestDialog()
+        check(dialog != null && Build.VERSION.SDK_INT >= 30)
+        // A tall keyboard leaves a short sheet. Inbox used to keep a sliver and
+        // accept the tap; every button under it was measured at height 0.
+        dialog.window!!.decorView.dispatchApplyWindowInsets(
+            WindowInsets.Builder()
+                .setInsets(WindowInsets.Type.statusBars(), Insets.of(0, 48, 0, 0))
+                .setInsets(WindowInsets.Type.navigationBars(), Insets.of(0, 0, 0, 48))
+                .setInsets(WindowInsets.Type.ime(), Insets.of(0, 0, 0, 620))
+                .build(),
+        )
+        compose.waitForIdle()
+        tapVisibleCenter("Save to Inbox")
+        tapVisibleCenter("Today")
+        tapVisibleCenter("Start")
+        tapVisibleCenter("Interrupt now")
+        tapVisibleCenter("Later")
+        tapVisibleCenter("Schedule")
+        if (compose.onAllNodes(hasText("Tomorrow")).fetchSemanticsNodes().isNotEmpty()) {
+            tapVisibleCenter("Tomorrow")
+        }
+        assertEquals(
+            listOf(
+                "inbox:Call Dana",
+                "today:Call Dana",
+                "start:Call Dana",
+                "interrupt:Call Dana",
+                "later:Call Dana",
+            ),
+            placed.filterNot { it.startsWith("schedule:") },
+        )
+        assertTrue(placed.lastOrNull()?.startsWith("schedule:Call Dana:") == true)
+    }
+
+    @Test
     fun inboxStillSaves() {
         val placed = mutableListOf<String>()
         show(frameActive = false, placed = placed)
@@ -237,12 +289,13 @@ class CaptureSheetActionsTest {
         frameActive: Boolean,
         placed: MutableList<String>,
         recognizer: UtteranceRecognizer? = AllowAllRecognizer,
+        phrases: List<String> = emptyList(),
         onDismiss: () -> Unit = {},
     ) {
         compose.setContent {
             FocusStackTheme {
                 CaptureSheet(
-                    phrases = emptyList(),
+                    phrases = phrases,
                     frameActive = frameActive,
                     onDismiss = onDismiss,
                     onSaveToInbox = { placed += "inbox:$it" },
@@ -268,8 +321,36 @@ class CaptureSheetActionsTest {
     private fun tap(label: String): SemanticsNodeInteraction {
         val node = compose.onNodeWithText(label)
         node.assertIsEnabled().assertHasClickAction()
-        // Pointer input, not the semantics click action. performClick can pass
-        // when a finger never reaches the button.
+        node.performTouchInput { click() }
+        return node
+    }
+
+    /**
+     * Touch the button's visible center. Scroll a clipped button into the sheet
+     * a short step at a time. A zero-height target has nothing to hit.
+     */
+    private fun tapVisibleCenter(label: String): SemanticsNodeInteraction {
+        val node = compose.onNodeWithText(label)
+        repeat(8) {
+            val raw = node.fetchSemanticsNode()
+            val bounds = raw.boundsInRoot
+            if (bounds.height >= 48f && bounds.top >= 0f) return@repeat
+            val viewport = compose.onNode(hasScrollAction()).fetchSemanticsNode().boundsInRoot
+            val buttonTop = raw.positionInRoot.y
+            val buttonBottom = buttonTop + raw.size.height
+            val delta =
+                when {
+                    buttonTop < viewport.top -> buttonTop - viewport.top
+                    buttonBottom > viewport.bottom -> buttonBottom - viewport.bottom
+                    else -> 0f
+                }
+            if (delta == 0f) return@repeat
+            compose.onNode(hasScrollAction()).performSemanticsAction(SemanticsActions.ScrollBy) { action ->
+                action(0f, delta)
+            }
+            compose.waitForIdle()
+        }
+        node.assertIsEnabled().assertHasClickAction()
         node.performTouchInput { click() }
         return node
     }
