@@ -14,8 +14,8 @@ enum class CapturePlace {
 }
 
 /**
- * Phrase destinations. Interrupt is present only while a frame is active.
- * Typed capture keeps Interrupt even when nothing is active; that path does not use this list.
+ * Destinations for a typed line or a phrase, chosen in one step.
+ * [INTERRUPT] is included only while a frame is active.
  */
 fun capturePlaces(frameActive: Boolean): List<CapturePlace> =
     buildList {

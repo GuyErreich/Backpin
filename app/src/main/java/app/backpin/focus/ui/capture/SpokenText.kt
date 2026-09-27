@@ -1,5 +1,31 @@
 package app.backpin.focus.ui.capture
 
+import androidx.compose.runtime.mutableStateOf
+
+/**
+ * Title or fill-in text. Speech only changes [text]. It does not save.
+ * [beginUtterance] snapshots the field so later partials replace one another.
+ */
+internal class TitleDraft {
+    private val state = mutableStateOf("")
+    private var utteranceBase = ""
+
+    val text: String
+        get() = state.value
+
+    fun edit(value: String) {
+        state.value = value
+    }
+
+    fun beginUtterance() {
+        utteranceBase = state.value
+    }
+
+    fun hear(spoken: String) {
+        state.value = appendSpokenText(utteranceBase, spoken)
+    }
+}
+
 /**
  * Joins one spoken phrase onto text already in the field.
  *

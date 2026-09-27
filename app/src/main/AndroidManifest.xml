@@ -6,6 +6,7 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
     <queries>
+        <!-- Android 11+ hides RecognitionService unless the app declares this. -->
         <intent>
             <action android:name="android.speech.RecognitionService" />
         </intent>

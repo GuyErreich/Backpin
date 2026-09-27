@@ -11,10 +11,14 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -46,6 +50,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -60,7 +65,6 @@ import app.backpin.focus.domain.capturePlaces
 import app.backpin.focus.domain.nextDayOfMonth
 import app.backpin.focus.domain.scheduleDate
 import app.backpin.focus.ui.home.MintButton
-import app.backpin.focus.ui.home.QuietButton
 import app.backpin.focus.ui.motion.MotionSpec
 import app.backpin.focus.ui.motion.WithoutRipple
 import app.backpin.focus.ui.motion.motionSpec
@@ -69,9 +73,6 @@ import app.backpin.focus.ui.theme.FocusColors
 import app.backpin.focus.ui.theme.Space
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
-
-private const val PERMISSION_NOTE = "Microphone permission is off. You can still type."
-private const val UNAVAILABLE_NOTE = "Speech isn't available on this phone. You can still type."
 
 private val scheduleDayFormat: DateTimeFormatter = DateTimeFormatter.ofPattern("EEE, MMM d")
 
@@ -82,7 +83,7 @@ private enum class ListenField {
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-fun CaptureSheet(
+internal fun CaptureSheet(
     phrases: List<String>,
     frameActive: Boolean,
     onDismiss: () -> Unit,
@@ -92,13 +93,17 @@ fun CaptureSheet(
     onPlaceStart: (String) -> Unit,
     onPlaceLater: (String) -> Unit,
     onSchedule: (String, Long) -> Unit,
+    recognizer: UtteranceRecognizer? = null,
 ) {
     val context = LocalContext.current
+    val focusManager = LocalFocusManager.current
     val reducedMotion = rememberReducedMotion()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    var title by remember { mutableStateOf("") }
+    val titleDraft = remember { TitleDraft() }
+    val fillDraft = remember { TitleDraft() }
+    val title = titleDraft.text
+    val fillWord = fillDraft.text
     var activeBlank by remember { mutableStateOf<String?>(null) }
-    var fillWord by remember { mutableStateOf("") }
     var pendingTitle by remember { mutableStateOf<String?>(null) }
     var schedulingTitle by remember { mutableStateOf<String?>(null) }
     var scheduleFromPhrase by remember { mutableStateOf(false) }
@@ -106,59 +111,65 @@ fun CaptureSheet(
     var speechNote by remember { mutableStateOf<String?>(null) }
     var listening by remember { mutableStateOf(false) }
     var listenField by remember { mutableStateOf<ListenField?>(null) }
-    var utteranceBase by remember { mutableStateOf("") }
     var pendingListen by remember { mutableStateOf<(() -> Unit)?>(null) }
     val pendingListenState = rememberUpdatedState(pendingListen)
+    val alive = remember { mutableStateOf(true) }
     val focusRequester = remember { FocusRequester() }
     val fillFocusRequester = remember { FocusRequester() }
-    val recognizer = remember(context) { TitleSpeechRecognizer(context) }
+    val speech = remember(context, recognizer) { recognizer ?: TitleSpeechRecognizer(context) }
     val today = LocalDate.now()
 
-    fun applySpoken(
+    fun hear(
         field: ListenField,
         spoken: String,
     ) {
-        if (spoken.isBlank()) return
-        val next = appendSpokenText(utteranceBase, spoken)
         when (field) {
-            ListenField.Title -> title = next
-            ListenField.Fill -> fillWord = next
+            ListenField.Title -> titleDraft.hear(spoken)
+            ListenField.Fill -> fillDraft.hear(spoken)
         }
     }
 
     fun startUtterance(field: ListenField) {
-        utteranceBase = if (field == ListenField.Title) title else fillWord
+        when (field) {
+            ListenField.Title -> titleDraft.beginUtterance()
+            ListenField.Fill -> fillDraft.beginUtterance()
+        }
+        focusManager.clearFocus(force = true)
         listenField = field
         speechNote = null
         listening = true
         val started =
-            recognizer.listen(
-                onPartial = { spoken -> applySpoken(field, spoken) },
-                onFinished = { spoken -> applySpoken(field, spoken) },
-                onStop = { stop ->
+            speech.listen(
+                onPartial = { spoken -> hear(field, spoken) },
+                onFinished = { spoken ->
+                    hear(field, spoken)
                     listening = false
-                    if (stop == SpeechStop.Permission) speechNote = PERMISSION_NOTE
+                },
+                onProblem = { problem ->
+                    listening = false
+                    speechNote = speechProblemNote(problem)
                 },
             )
         if (!started) {
             listening = false
-            speechNote = UNAVAILABLE_NOTE
+            speechNote = speechProblemNote(SpeechProblem.Unavailable)
         }
     }
 
     val permissionLauncher =
         rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            if (!alive.value) return@rememberLauncherForActivityResult
             val start = pendingListenState.value
             pendingListen = null
             if (granted) {
                 start?.invoke()
             } else {
-                speechNote = PERMISSION_NOTE
+                speechNote = speechProblemNote(SpeechProblem.Denied)
             }
         }
 
     fun stopListening() {
-        recognizer.cancel()
+        speech.cancel()
         listening = false
     }
 
@@ -169,10 +180,10 @@ fun CaptureSheet(
 
     fun commitFill() {
         val template = activeBlank ?: return
-        val filled = fillPhraseBlank(template, fillWord) ?: return
+        val filled = fillPhraseBlank(template, fillDraft.text) ?: return
         stopListening()
         activeBlank = null
-        fillWord = ""
+        fillDraft.edit("")
         pendingTitle = filled
     }
 
@@ -189,31 +200,45 @@ fun CaptureSheet(
         dayText = ""
     }
 
-    fun placePhrase(place: CapturePlace) {
-        val resolved = pendingTitle ?: return
+    fun placeResolved(
+        place: CapturePlace,
+        resolved: String,
+        fromPhrase: Boolean,
+    ) {
+        val titleText = resolved.trim()
+        if (titleText.isEmpty()) return
         when (place) {
             CapturePlace.INBOX -> {
                 stopListening()
-                onSaveToInbox(resolved)
+                onSaveToInbox(titleText)
             }
             CapturePlace.TODAY -> {
                 stopListening()
-                onPlaceToday(resolved)
+                onPlaceToday(titleText)
             }
             CapturePlace.START -> {
                 stopListening()
-                onPlaceStart(resolved)
+                onPlaceStart(titleText)
             }
             CapturePlace.INTERRUPT -> {
+                if (!frameActive) return
                 stopListening()
-                onInterruptNow(resolved)
+                onInterruptNow(titleText)
             }
             CapturePlace.LATER -> {
                 stopListening()
-                onPlaceLater(resolved)
+                onPlaceLater(titleText)
             }
-            CapturePlace.SCHEDULE -> beginSchedule(resolved, fromPhrase = true)
+            CapturePlace.SCHEDULE -> beginSchedule(titleText, fromPhrase)
         }
+    }
+
+    fun placePhrase(place: CapturePlace) {
+        placeResolved(place, pendingTitle ?: return, fromPhrase = true)
+    }
+
+    fun placeTyped(place: CapturePlace) {
+        placeResolved(place, titleDraft.text, fromPhrase = false)
     }
 
     fun chooseDate(date: LocalDate) {
@@ -227,30 +252,42 @@ fun CaptureSheet(
             stopListening()
             return
         }
-        if (!recognizer.isAvailable()) {
-            speechNote = UNAVAILABLE_NOTE
+        if (!speech.available()) {
+            speechNote = speechProblemNote(SpeechProblem.Unavailable)
             return
         }
         val start = { startUtterance(field) }
         val granted =
-            ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
-                PackageManager.PERMISSION_GRANTED
+            ContextCompat.checkSelfPermission(
+                context.hostContext(),
+                Manifest.permission.RECORD_AUDIO,
+            ) == PackageManager.PERMISSION_GRANTED
         if (granted) {
             start()
         } else {
             pendingListen = start
-            permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+            try {
+                permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+            } catch (_: IllegalStateException) {
+                pendingListen = null
+                speechNote = speechProblemNote(SpeechProblem.Denied)
+            }
         }
     }
 
-    DisposableEffect(recognizer) {
-        onDispose { recognizer.cancel() }
+    DisposableEffect(speech) {
+        onDispose {
+            alive.value = false
+            speech.cancel()
+        }
     }
 
     ModalBottomSheet(
         onDismissRequest = { dismiss() },
         sheetState = sheetState,
+        sheetGesturesEnabled = false,
         containerColor = FocusColors.Surface,
+        contentWindowInsets = { WindowInsets.safeDrawing.union(WindowInsets.ime) },
     ) {
         Column(
             modifier =
@@ -319,12 +356,12 @@ fun CaptureSheet(
                                             when (val action = phraseChipAction(phrase)) {
                                                 is PhraseChipAction.AskFill -> {
                                                     activeBlank = phrase
-                                                    fillWord = ""
+                                                    fillDraft.edit("")
                                                     pendingTitle = null
                                                 }
                                                 is PhraseChipAction.AskPlace -> {
                                                     activeBlank = null
-                                                    fillWord = ""
+                                                    fillDraft.edit("")
                                                     pendingTitle = action.title
                                                 }
                                             }
@@ -346,7 +383,10 @@ fun CaptureSheet(
                         val prompt = phrasePrompt(template) ?: "word"
                         OutlinedTextField(
                             value = fillWord,
-                            onValueChange = { fillWord = it },
+                            onValueChange = { incoming ->
+                                if (listening && listenField == ListenField.Fill) return@OutlinedTextField
+                                fillDraft.edit(incoming)
+                            },
                             modifier = Modifier.fillMaxWidth().focusRequester(fillFocusRequester),
                             label = { Text(prompt) },
                             placeholder = { Text(prompt) },
@@ -367,6 +407,9 @@ fun CaptureSheet(
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                             keyboardActions = KeyboardActions(onDone = { commitFill() }),
                         )
+                        LaunchedEffect(fillFocusRequester) {
+                            fillFocusRequester.requestFocus()
+                        }
                         fillPhraseBlank(template, fillWord)?.let { preview ->
                             Text(preview, style = MaterialTheme.typography.bodyLarge, color = FocusColors.Text)
                         }
@@ -384,7 +427,10 @@ fun CaptureSheet(
                     )
                     OutlinedTextField(
                         value = title,
-                        onValueChange = { title = it },
+                        onValueChange = { incoming ->
+                            if (listening && listenField == ListenField.Title) return@OutlinedTextField
+                            titleDraft.edit(incoming)
+                        },
                         modifier =
                             Modifier
                                 .fillMaxWidth()
@@ -410,61 +456,32 @@ fun CaptureSheet(
                             KeyboardActions(
                                 onDone = {
                                     stopListening()
-                                    onSaveToInbox(title)
+                                    val resolved = titleDraft.text.trim()
+                                    if (resolved.isNotEmpty()) onSaveToInbox(resolved)
                                 },
                             ),
                     )
+                    LaunchedEffect(focusRequester, activeBlank) {
+                        if (activeBlank == null) focusRequester.requestFocus()
+                    }
                     speechNote?.let { note ->
                         Text(note, style = MaterialTheme.typography.bodyMedium, color = FocusColors.Muted)
                     }
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        MintButton(
-                            "Save to Inbox",
-                            onClick = {
-                                stopListening()
-                                onSaveToInbox(title)
-                            },
-                        )
-                        QuietButton("Today", onClick = {
-                            stopListening()
-                            onPlaceToday(title)
-                        })
-                        QuietButton("Start", onClick = {
-                            stopListening()
-                            onPlaceStart(title)
-                        })
-                        QuietButton(
-                            "Interrupt now",
-                            onClick = {
-                                stopListening()
-                                onInterruptNow(title)
-                            },
-                        )
-                        QuietButton("Later", onClick = {
-                            stopListening()
-                            onPlaceLater(title)
-                        })
-                        QuietButton(
-                            "Schedule",
-                            onClick = { beginSchedule(title, fromPhrase = false) },
-                        )
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        capturePlaces(frameActive).forEach { place ->
+                            CaptureChoice(
+                                label = place.typedLabel(),
+                                primary = place == CapturePlace.INBOX,
+                                onClick = { placeTyped(place) },
+                            )
+                        }
                     }
                 }
             }
         }
     }
-    LaunchedEffect(Unit) {
-        focusRequester.requestFocus()
-    }
-    LaunchedEffect(activeBlank) {
-        if (activeBlank != null) fillFocusRequester.requestFocus()
-    }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun PlaceStep(
     title: String,
@@ -478,12 +495,13 @@ private fun PlaceStep(
         style = MaterialTheme.typography.bodyLarge,
         modifier = Modifier.semantics { heading() },
     )
-    FlowRow(
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         places.forEach { place ->
-            QuietButton(place.label(), onClick = { onPlace(place) })
+            CaptureChoice(
+                label = place.label(),
+                primary = place == CapturePlace.INBOX,
+                onClick = { onPlace(place) },
+            )
         }
     }
     TextButton(onClick = onBack, modifier = Modifier.heightIn(min = 48.dp)) {
@@ -491,7 +509,6 @@ private fun PlaceStep(
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ScheduleStep(
     title: String,
@@ -509,16 +526,13 @@ private fun ScheduleStep(
         style = MaterialTheme.typography.bodyLarge,
         modifier = Modifier.semantics { heading() },
     )
-    FlowRow(
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        QuietButton("Tomorrow", onClick = { onDate(scheduleDate(today, ScheduleOffset.TOMORROW)) })
-        QuietButton(
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        CaptureChoice("Tomorrow", onClick = { onDate(scheduleDate(today, ScheduleOffset.TOMORROW)) })
+        CaptureChoice(
             "In a couple of days",
             onClick = { onDate(scheduleDate(today, ScheduleOffset.IN_A_COUPLE_OF_DAYS)) },
         )
-        QuietButton("Next week", onClick = { onDate(scheduleDate(today, ScheduleOffset.NEXT_WEEK)) })
+        CaptureChoice("Next week", onClick = { onDate(scheduleDate(today, ScheduleOffset.NEXT_WEEK)) })
     }
     OutlinedTextField(
         value = dayText,
@@ -542,7 +556,7 @@ private fun ScheduleStep(
             color = FocusColors.Muted,
         )
     }
-    QuietButton(
+    CaptureChoice(
         "That day",
         onClick = {
             if (picked != null) onDate(picked)
@@ -554,6 +568,23 @@ private fun ScheduleStep(
     }
 }
 
+@Composable
+private fun CaptureChoice(
+    label: String,
+    onClick: () -> Unit,
+    primary: Boolean = false,
+    enabled: Boolean = true,
+) {
+    MintButton(
+        label = label,
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        container = if (primary) FocusColors.Mint else FocusColors.SurfaceHigh,
+        content = if (primary) FocusColors.OnMint else FocusColors.Text,
+        enabled = enabled,
+    )
+}
+
 private fun CapturePlace.label(): String =
     when (this) {
         CapturePlace.INBOX -> "Inbox"
@@ -562,6 +593,13 @@ private fun CapturePlace.label(): String =
         CapturePlace.INTERRUPT -> "Interrupt"
         CapturePlace.LATER -> "Later"
         CapturePlace.SCHEDULE -> "Schedule"
+    }
+
+private fun CapturePlace.typedLabel(): String =
+    when (this) {
+        CapturePlace.INBOX -> "Save to Inbox"
+        CapturePlace.INTERRUPT -> "Interrupt now"
+        else -> label()
     }
 
 @Composable

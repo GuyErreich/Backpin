@@ -93,7 +93,10 @@ class FocusStackViewModel(
 
     fun interruptNow(title: String) {
         viewModelScope.launch {
-            useCases.interrupt(title)
+            val trimmed = title.trim()
+            if (trimmed.isEmpty()) return@launch
+            if (uiState.value.now == null) return@launch
+            useCases.interrupt(trimmed)
             closeCapture()
         }
     }

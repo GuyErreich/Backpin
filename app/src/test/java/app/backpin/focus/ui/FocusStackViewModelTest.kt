@@ -11,7 +11,6 @@ import app.backpin.focus.domain.FocusUseCases
 import app.backpin.focus.domain.FrameState
 import app.backpin.focus.domain.TaskBucket
 import app.backpin.focus.domain.TaskStatus
-import app.backpin.focus.domain.UNTITLED_INTERRUPTION
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
@@ -31,6 +30,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import java.time.LocalDate
 import java.util.UUID
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -117,10 +117,11 @@ class FocusStackViewModelTest {
             val original = seedToday("Review CI failure")
             useCases.updateReturnCue(original, "Next: reproduce CI failure")
             useCases.start(original)
+            withTimeout(5_000) { first.uiState.first { it.now?.taskId == original } }
             first.interruptNow("Message John")
             withTimeout(5_000) { first.uiState.first { it.now?.title == "Message John" } }
-            first.interruptNow("")
-            withTimeout(5_000) { first.uiState.first { it.now?.title == UNTITLED_INTERRUPTION } }
+            first.interruptNow("Ping")
+            withTimeout(5_000) { first.uiState.first { it.now?.title == "Ping" } }
             first.rename(first.uiState.value.now!!.taskId, "Talk to Sarah")
             withTimeout(5_000) { first.uiState.first { it.now?.title == "Talk to Sarah" } }
             first.completeActive()
@@ -255,6 +256,138 @@ class FocusStackViewModelTest {
                 viewModel.uiState.first { it.freshSwapTitle == null }
             }
             assertTrue(useCases.observeSnapshot().first().tasks.none { it.title == "Call the school" })
+            collect.cancel()
+        }
+
+    @Test
+    fun captureActionsPlaceTheTask() =
+        runBlocking {
+            val viewModel = FocusStackViewModel(useCases)
+            val collect = launch { viewModel.uiState.collect {} }
+            viewModel.placeOnToday("Write the notes")
+            val today =
+                withTimeout(5_000) {
+                    viewModel.uiState.first { state ->
+                        state.todaySlots.any { it.task?.title == "Write the notes" }
+                    }
+                }
+            val placed = useCases.observeSnapshot().first()
+            assertEquals(TaskBucket.TODAY, placed.tasks.single { it.title == "Write the notes" }.bucket)
+            assertTrue(placed.frames.isEmpty())
+            assertNull(today.now)
+
+            val current = placed.tasks.single { it.title == "Write the notes" }.id
+            useCases.start(current)
+            withTimeout(5_000) {
+                viewModel.uiState.first { it.now?.taskId == current }
+            }
+            viewModel.placeAndStart("Call Dana")
+            withTimeout(5_000) {
+                viewModel.uiState.first { it.now?.title == "Call Dana" }
+            }
+            val afterStart = useCases.observeSnapshot().first()
+            val started = afterStart.frames.single { it.state == FrameState.ACTIVE }
+            assertEquals(TaskBucket.TODAY, afterStart.tasks.single { it.title == "Call Dana" }.bucket)
+            assertNull(started.parentFrameId)
+            assertEquals(FrameState.PAUSED, afterStart.frames.single { it.taskId == current }.state)
+
+            viewModel.interruptNow("Ping the vendor")
+            val nested =
+                withTimeout(5_000) {
+                    viewModel.uiState.first { state ->
+                        val now = state.now
+                        now != null && now.title == "Ping the vendor" && now.isInterruption
+                    }
+                }
+            val afterInterrupt = useCases.observeSnapshot().first()
+            val child = afterInterrupt.frames.single { it.state == FrameState.ACTIVE }
+            val parentTaskId = afterInterrupt.tasks.single { it.title == "Call Dana" }.id
+            val parent = afterInterrupt.frames.single { it.taskId == parentTaskId }
+            assertEquals(parent.id, child.parentFrameId)
+            assertEquals(FrameState.PAUSED, parent.state)
+            assertEquals(TaskBucket.INBOX, afterInterrupt.tasks.single { it.title == "Ping the vendor" }.bucket)
+            assertEquals(true, nested.now?.isInterruption)
+
+            viewModel.completeActive()
+            val returned =
+                withTimeout(5_000) {
+                    viewModel.uiState.first { it.now == null && it.recovery?.title == "Call Dana" }
+                }
+            assertEquals("Call Dana", returned.recovery?.title)
+            val afterReturn = useCases.observeSnapshot().first()
+            assertEquals(FrameState.AWAITING_RESUME, afterReturn.frames.single { it.taskId == parent.taskId }.state)
+            assertEquals(TaskStatus.DONE, afterReturn.tasks.single { it.title == "Ping the vendor" }.status)
+
+            viewModel.placeLater("Call the vendor")
+            val later =
+                withTimeout(5_000) {
+                    viewModel.uiState.first { state -> state.laterTasks.any { it.title == "Call the vendor" } }
+                }
+            assertTrue(later.laterTasks.any { it.title == "Call the vendor" })
+            val laterSnapshot = useCases.observeSnapshot().first()
+            val vendorId = laterSnapshot.tasks.single { it.title == "Call the vendor" }.id
+            assertEquals(TaskBucket.LATER, laterSnapshot.tasks.single { it.id == vendorId }.bucket)
+            assertTrue(laterSnapshot.frames.none { it.taskId == vendorId })
+
+            val day = LocalDate.of(2026, 10, 8).toEpochDay()
+            viewModel.placeScheduled("Talk to Dana", day)
+            val scheduled =
+                withTimeout(5_000) {
+                    viewModel.uiState.first { state -> state.scheduledTasks.any { it.title == "Talk to Dana" } }
+                }
+            val scheduledTask = useCases.observeSnapshot().first().tasks.single { it.title == "Talk to Dana" }
+            assertEquals(TaskBucket.SCHEDULED, scheduledTask.bucket)
+            assertEquals(day, scheduledTask.scheduledOnEpochDay)
+            assertTrue(scheduled.inboxTasks.none { it.title == "Talk to Dana" })
+            assertTrue(scheduled.todaySlots.none { it.task?.title == "Talk to Dana" })
+            assertTrue(scheduled.laterTasks.none { it.title == "Talk to Dana" })
+            collect.cancel()
+        }
+
+    @Test
+    fun emptyCaptureCreatesNothingAndInterruptNeedsAnActiveFrame() =
+        runBlocking {
+            val viewModel = FocusStackViewModel(useCases)
+            val collect = launch { viewModel.uiState.collect {} }
+            viewModel.openCapture()
+            withTimeout(5_000) { viewModel.uiState.first { it.captureOpen } }
+            viewModel.saveToInbox(" ")
+            viewModel.placeOnToday("")
+            viewModel.placeAndStart("  ")
+            viewModel.placeLater("")
+            viewModel.placeScheduled(" ", LocalDate.of(2026, 10, 8).toEpochDay())
+            viewModel.interruptNow(" ")
+            viewModel.interruptNow("Call Dana")
+            shadowOf(Looper.getMainLooper()).idle()
+            val idle = useCases.observeSnapshot().first()
+            assertTrue(idle.tasks.isEmpty())
+            assertTrue(idle.frames.isEmpty())
+            assertTrue(viewModel.uiState.value.captureOpen)
+
+            val original = seedToday("Review CI failure")
+            useCases.start(original)
+            viewModel.placeAndStart("  ")
+            shadowOf(Looper.getMainLooper()).idle()
+            assertEquals(original, useCases.observeSnapshot().first().frames.single { it.state == FrameState.ACTIVE }.taskId)
+            collect.cancel()
+        }
+
+    @Test
+    fun startOnAFullTodayWaitsAndDoesNotSwitch() =
+        runBlocking {
+            val viewModel = FocusStackViewModel(useCases)
+            val collect = launch { viewModel.uiState.collect {} }
+            val today = List(3) { index -> seedToday("Today $index") }
+            useCases.start(today[0])
+            viewModel.placeAndStart("Call Dana")
+            val waiting =
+                withTimeout(5_000) {
+                    viewModel.uiState.first { it.freshSwapTitle == "Call Dana" }
+                }
+            val snapshot = useCases.observeSnapshot().first()
+            assertTrue(snapshot.tasks.none { it.title == "Call Dana" })
+            assertEquals(today[0], snapshot.frames.single { it.state == FrameState.ACTIVE }.taskId)
+            assertEquals(3, waiting.swapChoices.size)
             collect.cancel()
         }
 

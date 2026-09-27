@@ -752,16 +752,24 @@ internal fun MintButton(
     modifier: Modifier = Modifier,
     container: Color = FocusColors.Mint,
     content: Color = FocusColors.OnMint,
+    enabled: Boolean = true,
 ) {
     val interaction = rememberPressSource()
     WithoutRipple {
         Button(
             onClick = onClick,
+            enabled = enabled,
             interactionSource = interaction,
             modifier = modifier.pressScale(interaction).heightIn(min = 48.dp),
             shape = RoundedCornerShape(24.dp),
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = container, contentColor = content),
+            colors =
+                ButtonDefaults.buttonColors(
+                    containerColor = container,
+                    contentColor = content,
+                    disabledContainerColor = container.copy(alpha = 0.38f),
+                    disabledContentColor = content.copy(alpha = 0.38f),
+                ),
         ) {
             Text(label)
         }
