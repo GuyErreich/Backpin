@@ -12,19 +12,22 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -40,6 +43,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -47,7 +51,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
@@ -64,7 +70,6 @@ import app.backpin.focus.domain.ScheduleOffset
 import app.backpin.focus.domain.capturePlaces
 import app.backpin.focus.domain.nextDayOfMonth
 import app.backpin.focus.domain.scheduleDate
-import app.backpin.focus.ui.home.MintButton
 import app.backpin.focus.ui.motion.MotionSpec
 import app.backpin.focus.ui.motion.WithoutRipple
 import app.backpin.focus.ui.motion.motionSpec
@@ -191,15 +196,18 @@ internal fun CaptureSheet(
         resolved: String,
         fromPhrase: Boolean,
     ) {
-        if (resolved.isBlank()) return
-        stopListening()
+        val trimmed = resolved.trim()
+        if (trimmed.isEmpty()) return
         scheduleFromPhrase = fromPhrase
-        schedulingTitle = resolved.trim()
+        schedulingTitle = trimmed
         pendingTitle = null
         activeBlank = null
         dayText = ""
+        stopListening()
     }
 
+    // Read the title at click time, then call the repository path before stopping
+    // the mic. Stopping first can dispose the sheet and drop the tap.
     fun placeResolved(
         place: CapturePlace,
         resolved: String,
@@ -208,29 +216,20 @@ internal fun CaptureSheet(
         val titleText = resolved.trim()
         if (titleText.isEmpty()) return
         when (place) {
-            CapturePlace.INBOX -> {
-                stopListening()
-                onSaveToInbox(titleText)
-            }
-            CapturePlace.TODAY -> {
-                stopListening()
-                onPlaceToday(titleText)
-            }
-            CapturePlace.START -> {
-                stopListening()
-                onPlaceStart(titleText)
-            }
+            CapturePlace.INBOX -> onSaveToInbox(titleText)
+            CapturePlace.TODAY -> onPlaceToday(titleText)
+            CapturePlace.START -> onPlaceStart(titleText)
             CapturePlace.INTERRUPT -> {
                 if (!frameActive) return
-                stopListening()
                 onInterruptNow(titleText)
             }
-            CapturePlace.LATER -> {
-                stopListening()
-                onPlaceLater(titleText)
+            CapturePlace.LATER -> onPlaceLater(titleText)
+            CapturePlace.SCHEDULE -> {
+                beginSchedule(titleText, fromPhrase)
+                return
             }
-            CapturePlace.SCHEDULE -> beginSchedule(titleText, fromPhrase)
         }
+        stopListening()
     }
 
     fun placePhrase(place: CapturePlace) {
@@ -243,8 +242,8 @@ internal fun CaptureSheet(
 
     fun chooseDate(date: LocalDate) {
         val resolved = schedulingTitle ?: return
-        stopListening()
         onSchedule(resolved, date.toEpochDay())
+        stopListening()
     }
 
     fun onMic(field: ListenField) {
@@ -287,17 +286,30 @@ internal fun CaptureSheet(
         sheetState = sheetState,
         sheetGesturesEnabled = false,
         containerColor = FocusColors.Surface,
-        contentWindowInsets = { WindowInsets.safeDrawing.union(WindowInsets.ime) },
+        // The sheet already lifts above the keyboard. A second ime inset pads the
+        // actions into a region the finger never hits, and hiding the keyboard
+        // mid-press cancels the click.
+        contentWindowInsets = { WindowInsets.navigationBars },
     ) {
+        val scheduling = schedulingTitle
+        val placing = pendingTitle
         Column(
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    .verticalScroll(rememberScrollState())
+                    .fillMaxHeight()
                     .padding(horizontal = 16.dp)
                     .padding(bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(Space),
         ) {
+            Column(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .weight(1f, fill = false)
+                        .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(Space),
+            ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -315,31 +327,22 @@ internal fun CaptureSheet(
                     Icon(Icons.Filled.Close, contentDescription = "Close capture")
                 }
             }
-            val scheduling = schedulingTitle
-            val placing = pendingTitle
             when {
                 scheduling != null -> {
-                    ScheduleStep(
+                    ScheduleFields(
                         title = scheduling,
                         today = today,
                         dayText = dayText,
                         onDayText = { dayText = it.filter { char -> char.isDigit() }.take(2) },
                         onDate = ::chooseDate,
-                        onBack = {
-                            if (scheduleFromPhrase) {
-                                pendingTitle = scheduling
-                            }
-                            schedulingTitle = null
-                            dayText = ""
-                        },
                     )
                 }
                 placing != null -> {
-                    PlaceStep(
-                        title = placing,
-                        places = capturePlaces(frameActive),
-                        onPlace = ::placePhrase,
-                        onBack = { pendingTitle = null },
+                    Text(placing, style = MaterialTheme.typography.headlineMedium)
+                    Text(
+                        "Where does this go?",
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.semantics { heading() },
                     )
                 }
                 else -> {
@@ -425,57 +428,82 @@ internal fun CaptureSheet(
                         "One line. Choose where it goes. Speaking only fills the title.",
                         style = MaterialTheme.typography.bodyMedium,
                     )
-                    OutlinedTextField(
-                        value = title,
-                        onValueChange = { incoming ->
-                            if (listening && listenField == ListenField.Title) return@OutlinedTextField
-                            titleDraft.edit(incoming)
-                        },
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .focusRequester(focusRequester),
-                        label = { Text("Title") },
-                        placeholder = { Text("A stray thought") },
-                        singleLine = true,
-                        trailingIcon = {
-                            SpeakMic(
-                                listening = listening && listenField == ListenField.Title,
-                                reducedMotion = reducedMotion,
-                                contentDescription =
-                                    if (listening && listenField == ListenField.Title) {
-                                        "Stop listening"
-                                    } else {
-                                        "Speak the title"
-                                    },
-                                onClick = { onMic(ListenField.Title) },
-                            )
-                        },
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                        keyboardActions =
-                            KeyboardActions(
-                                onDone = {
-                                    stopListening()
-                                    val resolved = titleDraft.text.trim()
-                                    if (resolved.isNotEmpty()) onSaveToInbox(resolved)
+                }
+            }
+            }
+            if (scheduling == null && placing == null) {
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { incoming ->
+                        if (listening && listenField == ListenField.Title) return@OutlinedTextField
+                        titleDraft.edit(incoming)
+                    },
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .focusRequester(focusRequester),
+                    label = { Text("Title") },
+                    placeholder = { Text("A stray thought") },
+                    singleLine = true,
+                    trailingIcon = {
+                        SpeakMic(
+                            listening = listening && listenField == ListenField.Title,
+                            reducedMotion = reducedMotion,
+                            contentDescription =
+                                if (listening && listenField == ListenField.Title) {
+                                    "Stop listening"
+                                } else {
+                                    "Speak the title"
                                 },
-                            ),
+                            onClick = { onMic(ListenField.Title) },
+                        )
+                    },
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions =
+                        KeyboardActions(
+                            onDone = {
+                                val resolved = titleDraft.text.trim()
+                                if (resolved.isNotEmpty()) onSaveToInbox(resolved)
+                                stopListening()
+                            },
+                        ),
+                )
+                LaunchedEffect(focusRequester, activeBlank) {
+                    if (activeBlank == null) focusRequester.requestFocus()
+                }
+                speechNote?.let { note ->
+                    Text(note, style = MaterialTheme.typography.bodyMedium, color = FocusColors.Muted)
+                }
+            }
+            when {
+                scheduling != null -> {
+                    ScheduleChoices(
+                        today = today,
+                        dayText = dayText,
+                        onDate = ::chooseDate,
+                        onBack = {
+                            if (scheduleFromPhrase) {
+                                pendingTitle = scheduling
+                            }
+                            schedulingTitle = null
+                            dayText = ""
+                        },
                     )
-                    LaunchedEffect(focusRequester, activeBlank) {
-                        if (activeBlank == null) focusRequester.requestFocus()
-                    }
-                    speechNote?.let { note ->
-                        Text(note, style = MaterialTheme.typography.bodyMedium, color = FocusColors.Muted)
-                    }
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        capturePlaces(frameActive).forEach { place ->
-                            CaptureChoice(
-                                label = place.typedLabel(),
-                                primary = place == CapturePlace.INBOX,
-                                onClick = { placeTyped(place) },
-                            )
-                        }
-                    }
+                }
+                placing != null -> {
+                    PlaceChoices(
+                        places = capturePlaces(frameActive),
+                        onPlace = ::placePhrase,
+                        onBack = { pendingTitle = null },
+                    )
+                }
+                else -> {
+                    PlaceChoices(
+                        places = capturePlaces(frameActive),
+                        labelFor = { it.typedLabel() },
+                        onPlace = ::placeTyped,
+                        onBack = null,
+                    )
                 }
             }
         }
@@ -483,57 +511,45 @@ internal fun CaptureSheet(
 }
 
 @Composable
-private fun PlaceStep(
-    title: String,
+private fun PlaceChoices(
     places: List<CapturePlace>,
     onPlace: (CapturePlace) -> Unit,
-    onBack: () -> Unit,
+    onBack: (() -> Unit)?,
+    labelFor: (CapturePlace) -> String = { it.label() },
 ) {
-    Text(title, style = MaterialTheme.typography.headlineMedium)
-    Text(
-        "Where does this go?",
-        style = MaterialTheme.typography.bodyLarge,
-        modifier = Modifier.semantics { heading() },
-    )
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         places.forEach { place ->
-            CaptureChoice(
-                label = place.label(),
-                primary = place == CapturePlace.INBOX,
-                onClick = { onPlace(place) },
-            )
+            key(place) {
+                CaptureChoice(
+                    label = labelFor(place),
+                    tone = place.tone(),
+                    onClick = { onPlace(place) },
+                )
+            }
         }
-    }
-    TextButton(onClick = onBack, modifier = Modifier.heightIn(min = 48.dp)) {
-        Text("Back")
+        if (onBack != null) {
+            TextButton(onClick = onBack, modifier = Modifier.heightIn(min = 48.dp)) {
+                Text("Back")
+            }
+        }
     }
 }
 
 @Composable
-private fun ScheduleStep(
+private fun ScheduleFields(
     title: String,
     today: LocalDate,
     dayText: String,
     onDayText: (String) -> Unit,
     onDate: (LocalDate) -> Unit,
-    onBack: () -> Unit,
 ) {
-    val day = dayText.toIntOrNull()
-    val picked = if (day != null && day in 1..31) nextDayOfMonth(today, day) else null
+    val picked = pickedDay(today, dayText)
     Text(title, style = MaterialTheme.typography.headlineMedium)
     Text(
         "When should it come back?",
         style = MaterialTheme.typography.bodyLarge,
         modifier = Modifier.semantics { heading() },
     )
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        CaptureChoice("Tomorrow", onClick = { onDate(scheduleDate(today, ScheduleOffset.TOMORROW)) })
-        CaptureChoice(
-            "In a couple of days",
-            onClick = { onDate(scheduleDate(today, ScheduleOffset.IN_A_COUPLE_OF_DAYS)) },
-        )
-        CaptureChoice("Next week", onClick = { onDate(scheduleDate(today, ScheduleOffset.NEXT_WEEK)) })
-    }
     OutlinedTextField(
         value = dayText,
         onValueChange = onDayText,
@@ -556,34 +572,115 @@ private fun ScheduleStep(
             color = FocusColors.Muted,
         )
     }
-    CaptureChoice(
-        "That day",
-        onClick = {
-            if (picked != null) onDate(picked)
-        },
-        enabled = picked != null,
-    )
-    TextButton(onClick = onBack, modifier = Modifier.heightIn(min = 48.dp)) {
-        Text("Back")
+}
+
+@Composable
+private fun ScheduleChoices(
+    today: LocalDate,
+    dayText: String,
+    onDate: (LocalDate) -> Unit,
+    onBack: () -> Unit,
+) {
+    val picked = pickedDay(today, dayText)
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        CaptureChoice("Tomorrow", onClick = { onDate(scheduleDate(today, ScheduleOffset.TOMORROW)) })
+        CaptureChoice(
+            "In a couple of days",
+            onClick = { onDate(scheduleDate(today, ScheduleOffset.IN_A_COUPLE_OF_DAYS)) },
+        )
+        CaptureChoice("Next week", onClick = { onDate(scheduleDate(today, ScheduleOffset.NEXT_WEEK)) })
+        CaptureChoice(
+            "That day",
+            onClick = {
+                if (picked != null) onDate(picked)
+            },
+            enabled = picked != null,
+        )
+        TextButton(onClick = onBack, modifier = Modifier.heightIn(min = 48.dp)) {
+            Text("Back")
+        }
     }
+}
+
+private fun pickedDay(
+    today: LocalDate,
+    dayText: String,
+): LocalDate? {
+    val day = dayText.toIntOrNull()
+    return if (day != null && day in 1..31) nextDayOfMonth(today, day) else null
+}
+
+private enum class ChoiceTone {
+    Mint,
+    Lavender,
+    Amber,
+    Quiet,
 }
 
 @Composable
 private fun CaptureChoice(
     label: String,
     onClick: () -> Unit,
-    primary: Boolean = false,
+    tone: ChoiceTone = ChoiceTone.Quiet,
     enabled: Boolean = true,
 ) {
-    MintButton(
-        label = label,
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
-        container = if (primary) FocusColors.Mint else FocusColors.SurfaceHigh,
-        content = if (primary) FocusColors.OnMint else FocusColors.Text,
-        enabled = enabled,
-    )
+    val container: Color
+    val content: Color
+    when (tone) {
+        ChoiceTone.Mint -> {
+            container = FocusColors.Mint
+            content = FocusColors.OnMint
+        }
+        ChoiceTone.Lavender -> {
+            container = FocusColors.Lavender
+            content = FocusColors.OnLavender
+        }
+        ChoiceTone.Amber -> {
+            container = FocusColors.Amber
+            content = FocusColors.OnAmber
+        }
+        ChoiceTone.Quiet -> {
+            container = FocusColors.SurfaceHigh
+            content = FocusColors.Text
+        }
+    }
+    // No press scale: a graphics layer that shrinks during the down event
+    // cancels the click before onClick. These buttons also refuse focus so
+    // the keyboard does not resize the sheet between down and up.
+    WithoutRipple {
+        Button(
+            onClick = onClick,
+            enabled = enabled,
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp)
+                    .focusProperties { canFocus = false },
+            shape = RoundedCornerShape(24.dp),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+            colors =
+                ButtonDefaults.buttonColors(
+                    containerColor = container,
+                    contentColor = content,
+                    disabledContainerColor = container.copy(alpha = 0.38f),
+                    disabledContentColor = content.copy(alpha = 0.38f),
+                ),
+        ) {
+            Text(label)
+        }
+    }
 }
+
+private fun CapturePlace.tone(): ChoiceTone =
+    when (this) {
+        CapturePlace.INBOX -> ChoiceTone.Mint
+        CapturePlace.INTERRUPT -> ChoiceTone.Lavender
+        CapturePlace.SCHEDULE -> ChoiceTone.Amber
+        CapturePlace.TODAY,
+        CapturePlace.START,
+        CapturePlace.LATER,
+        -> ChoiceTone.Quiet
+    }
 
 private fun CapturePlace.label(): String =
     when (this) {
