@@ -68,6 +68,10 @@ class FocusUseCases(
 
     suspend fun interrupt(title: String?): Task = repository.interrupt(title)
 
+    suspend fun interruptFromPile(taskId: String) {
+        repository.interruptFromPile(taskId)
+    }
+
     suspend fun completeActive(): UndoToken? = repository.completeActive()
 
     suspend fun resume(frameId: String) {

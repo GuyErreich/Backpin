@@ -196,9 +196,11 @@ fun FocusApp(
                 InboxScreen(
                     tasks = state.inboxTasks,
                     ready = state.ready,
+                    canInterrupt = state.canInterrupt,
                     onBack = { navController.popBackStack() },
                     onToday = viewModel::promote,
                     onStart = viewModel::start,
+                    onInterrupt = viewModel::interruptFromPile,
                 )
             }
             composable(
@@ -209,9 +211,11 @@ fun FocusApp(
                 LaterScreen(
                     tasks = state.laterTasks,
                     ready = state.ready,
+                    canInterrupt = state.canInterrupt,
                     onBack = { navController.popBackStack() },
                     onToday = viewModel::promote,
                     onStart = viewModel::start,
+                    onInterrupt = viewModel::interruptFromPile,
                 )
             }
             composable(
@@ -222,9 +226,11 @@ fun FocusApp(
                 ScheduledScreen(
                     tasks = state.scheduledTasks,
                     ready = state.ready,
+                    canInterrupt = state.canInterrupt,
                     onBack = { navController.popBackStack() },
                     onToday = viewModel::promote,
                     onStart = viewModel::start,
+                    onInterrupt = viewModel::interruptFromPile,
                     onInbox = viewModel::moveToInbox,
                     onLater = viewModel::demote,
                     onRemove = viewModel::removeScheduled,

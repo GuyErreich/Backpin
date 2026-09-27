@@ -109,6 +109,16 @@ interface FocusRepository {
     suspend fun interrupt(title: String?): Task
 
     /**
+     * Pauses the active task and starts [taskId] nested under it.
+     * [taskId] must be an open Inbox, Later, or Scheduled task. It leaves that pile,
+     * and a schedule is cleared so it cannot also land on Today.
+     * The parent stays where it was, including a full Today, and keeps its return cue.
+     * Does not park or replace another Today task. Refuses when nothing is active,
+     * and does not hijack a frame that is waiting for an explicit resume.
+     */
+    suspend fun interruptFromPile(taskId: String)
+
+    /**
      * Marks the active task done, closes its frame, and sets the parent to
      * [FrameState.AWAITING_RESUME] when one exists. The task stays in history.
      * Returns null when nothing is active.

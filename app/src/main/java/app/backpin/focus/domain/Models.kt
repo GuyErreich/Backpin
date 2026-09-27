@@ -3,12 +3,14 @@ package app.backpin.focus.domain
 /**
  * Where a task sits. Placement is independent of which frame is in focus.
  * [SCHEDULED] waits outside Inbox, Today, and Later until its local date.
+ * [INTERRUPTION] is a nested task taken off those piles. It does not take a Today slot.
  */
 enum class TaskBucket {
     INBOX,
     TODAY,
     LATER,
     SCHEDULED,
+    INTERRUPTION,
 }
 
 /** Open tasks can be placed and focused. Done tasks stay in history. */

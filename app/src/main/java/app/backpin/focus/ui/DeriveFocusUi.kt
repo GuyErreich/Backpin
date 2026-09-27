@@ -127,6 +127,7 @@ internal fun deriveFocusUi(
     return FocusUiState(
         ready = true,
         now = now,
+        canInterrupt = now != null,
         recovery = recovery,
         paused = paused,
         todaySlots = slots,

@@ -42,9 +42,11 @@ import app.backpin.focus.ui.theme.Space
 fun InboxScreen(
     tasks: List<TaskUi>,
     ready: Boolean,
+    canInterrupt: Boolean,
     onBack: () -> Unit,
     onToday: (String) -> Unit,
     onStart: (String) -> Unit,
+    onInterrupt: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     ActionPileScreen(
@@ -52,9 +54,11 @@ fun InboxScreen(
         emptyLabel = "Inbox is clear.",
         tasks = tasks,
         ready = ready,
+        canInterrupt = canInterrupt,
         onBack = onBack,
         onToday = onToday,
         onStart = onStart,
+        onInterrupt = onInterrupt,
         modifier = modifier,
     )
 }
@@ -66,9 +70,11 @@ fun InboxScreen(
 fun LaterScreen(
     tasks: List<TaskUi>,
     ready: Boolean,
+    canInterrupt: Boolean,
     onBack: () -> Unit,
     onToday: (String) -> Unit,
     onStart: (String) -> Unit,
+    onInterrupt: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     ActionPileScreen(
@@ -76,9 +82,11 @@ fun LaterScreen(
         emptyLabel = "Nothing parked for later.",
         tasks = tasks,
         ready = ready,
+        canInterrupt = canInterrupt,
         onBack = onBack,
         onToday = onToday,
         onStart = onStart,
+        onInterrupt = onInterrupt,
         modifier = modifier,
     )
 }
@@ -92,9 +100,11 @@ fun LaterScreen(
 fun ScheduledScreen(
     tasks: List<ScheduledTaskUi>,
     ready: Boolean,
+    canInterrupt: Boolean,
     onBack: () -> Unit,
     onToday: (String) -> Unit,
     onStart: (String) -> Unit,
+    onInterrupt: (String) -> Unit,
     onInbox: (String) -> Unit,
     onLater: (String) -> Unit,
     onRemove: (String) -> Unit,
@@ -140,6 +150,9 @@ fun ScheduledScreen(
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                             QuietButton(label = "Today", onClick = { onToday(task.id) })
                             QuietButton(label = "Start", onClick = { onStart(task.id) })
+                            if (canInterrupt) {
+                                QuietButton(label = "Interrupt", onClick = { onInterrupt(task.id) })
+                            }
                             QuietButton(label = "Inbox", onClick = { onInbox(task.id) })
                             QuietButton(label = "Later", onClick = { onLater(task.id) })
                             QuietButton(label = "Remove", onClick = { onRemove(task.id) })
@@ -190,15 +203,18 @@ fun DoneScreen(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ActionPileScreen(
     title: String,
     emptyLabel: String,
     tasks: List<TaskUi>,
     ready: Boolean,
+    canInterrupt: Boolean,
     onBack: () -> Unit,
     onToday: (String) -> Unit,
     onStart: (String) -> Unit,
+    onInterrupt: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val reducedMotion = rememberReducedMotion()
@@ -233,9 +249,12 @@ private fun ActionPileScreen(
                 ) {
                     Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
                         Text(task.title, style = MaterialTheme.typography.bodyLarge)
-                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                             QuietButton(label = "Today", onClick = { onToday(task.id) })
                             QuietButton(label = "Start", onClick = { onStart(task.id) })
+                            if (canInterrupt) {
+                                QuietButton(label = "Interrupt", onClick = { onInterrupt(task.id) })
+                            }
                         }
                     }
                 }

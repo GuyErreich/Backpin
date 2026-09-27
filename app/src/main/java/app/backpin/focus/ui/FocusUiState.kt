@@ -62,6 +62,7 @@ data class PendingUndo(
 data class FocusUiState(
     val ready: Boolean = false,
     val now: NowUi? = null,
+    val canInterrupt: Boolean = false,
     val recovery: RecoveryUi? = null,
     val paused: PausedUi? = null,
     val todaySlots: List<SlotUi> = List(3) { SlotUi(SlotRole.EMPTY, null) },

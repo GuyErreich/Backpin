@@ -341,6 +341,33 @@ class FocusRepositoryImpl(
             task.toDomain()
         }.also { recordInteraction() }
 
+    override suspend fun interruptFromPile(taskId: String) {
+        val limit = todayLimit()
+        database.withTransaction {
+            val incoming = taskDao.getById(taskId) ?: error("Missing task")
+            check(incoming.status == TaskStatus.OPEN.name) { "Cannot interrupt with a done task" }
+            val fromPile =
+                incoming.bucket == TaskBucket.INBOX.name ||
+                    incoming.bucket == TaskBucket.LATER.name ||
+                    incoming.bucket == TaskBucket.SCHEDULED.name
+            check(fromPile) { "Interrupt is for Inbox, Later, or Scheduled" }
+            val active = frameDao.getActive() ?: error("Nothing is active")
+            check(active.taskId != taskId) { "Task is already active" }
+            val existing = frameDao.openFrameForTask(taskId)
+            if (existing?.state == FrameState.AWAITING_RESUME.name) {
+                error("Resume the waiting frame explicitly")
+            }
+            if (existing != null && frameDao.countOpenChildren(existing.id) > 0) {
+                error("Task still has an open interruption")
+            }
+            frameDao.upsert(pause(active))
+            taskDao.upsert(incoming.movedTo(TaskBucket.INTERRUPTION))
+            activateAsChild(existing, taskId, parentFrameId = active.id)
+            requireInvariants(limit)
+        }
+        recordInteraction()
+    }
+
     override suspend fun completeActive(): UndoToken? =
         database.withTransaction {
             val active = frameDao.getActive() ?: return@withTransaction null

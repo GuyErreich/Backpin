@@ -22,6 +22,7 @@ class DeriveFocusUiTest {
         assertTrue(state.todaySlots.all { it.role == SlotRole.EMPTY && it.task == null })
         assertNull(state.now)
         assertNull(state.recovery)
+        assertFalse(state.canInterrupt)
     }
 
     @Test
@@ -99,9 +100,52 @@ class DeriveFocusUiTest {
         val state = derive(snapshot)
         assertEquals("Message John", state.now?.title)
         assertTrue(state.now?.isInterruption == true)
+        assertTrue(state.canInterrupt)
         assertNull(state.recovery)
         assertEquals(SlotRole.OPEN, state.todaySlots.single { it.task != null }.role)
         assertEquals(2, state.todaySlots.count { it.role == SlotRole.EMPTY })
+    }
+
+    @Test
+    fun interruptIsAbsentWhenNothingIsActiveOrOnlyWaiting() {
+        assertFalse(derive(FocusSnapshot()).canInterrupt)
+        val waiting =
+            FocusSnapshot(
+                tasks = listOf(task("original", "Review CI failure", TaskBucket.TODAY)),
+                frames = listOf(frame("f-original", "original", parent = null, FrameState.AWAITING_RESUME)),
+            )
+        val recovery = derive(waiting)
+        assertNull(recovery.now)
+        assertEquals("Review CI failure", recovery.recovery?.title)
+        assertFalse(recovery.canInterrupt)
+        val paused =
+            FocusSnapshot(
+                tasks = listOf(task("original", "Review CI failure", TaskBucket.TODAY)),
+                frames = listOf(frame("f-original", "original", parent = null, FrameState.PAUSED)),
+            )
+        assertFalse(derive(paused).canInterrupt)
+    }
+
+    @Test
+    fun aNestedInterruptionLeavesThePiles() {
+        val parent = task("parent", "Review CI failure", TaskBucket.TODAY)
+        val child = task("child", "Call Dana", TaskBucket.INTERRUPTION)
+        val state =
+            derive(
+                FocusSnapshot(
+                    tasks = listOf(parent, child),
+                    frames =
+                        listOf(
+                            frame("f-parent", "parent", parent = null, FrameState.PAUSED),
+                            frame("f-child", "child", parent = "f-parent", FrameState.ACTIVE),
+                        ),
+                ),
+            )
+        assertEquals("Call Dana", state.now?.title)
+        assertTrue(state.inboxTasks.isEmpty())
+        assertTrue(state.laterTasks.isEmpty())
+        assertTrue(state.scheduledTasks.isEmpty())
+        assertEquals(listOf("Review CI failure"), state.todaySlots.mapNotNull { it.task?.title })
     }
 
     @Test

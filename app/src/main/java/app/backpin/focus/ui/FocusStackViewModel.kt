@@ -211,6 +211,20 @@ class FocusStackViewModel(
     }
 
     /**
+     * Pauses the active task and nests an Inbox, Later, or Scheduled task under it.
+     * Today is left alone, including when it is full. Hidden unless a frame is active.
+     */
+    fun interruptFromPile(taskId: String) {
+        viewModelScope.launch {
+            try {
+                useCases.interruptFromPile(taskId)
+            } catch (_: IllegalStateException) {
+                // Nothing active, or a waiting frame, leaves the pile row where it is.
+            }
+        }
+    }
+
+    /**
      * Pauses the current Today task and starts [taskId] on top of it.
      * Both stay in Today. This is a nested interruption, not a switch.
      * A task waiting for an explicit resume is left alone.
