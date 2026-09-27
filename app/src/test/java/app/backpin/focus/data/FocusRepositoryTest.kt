@@ -12,11 +12,15 @@ import app.backpin.focus.domain.PromoteOutcome
 import app.backpin.focus.domain.TaskBucket
 import app.backpin.focus.domain.TaskStatus
 import app.backpin.focus.domain.UNTITLED_INTERRUPTION
+import app.backpin.focus.notifications.NotificationCoordinator
+import app.backpin.focus.notifications.currentNoticeCopy
+import app.backpin.focus.notifications.relevantFocus
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -491,6 +495,106 @@ class FocusRepositoryTest {
             val waiting = recovered.frames.single { it.state == FrameState.AWAITING_RESUME }
             assertEquals(original, waiting.taskId)
             assertEquals(TaskBucket.LATER, task(original).bucket)
+        }
+
+    @Test
+    fun interruptInsideTodayStaysInTodayAndReturnsToTheParentCue() =
+        runBlocking {
+            val parent = capture("Review CI failure").also { repository.promote(it) }
+            val child = capture("Quick fix").also { repository.promote(it) }
+            repository.updateReturnCue(parent, "Next: reproduce CI failure")
+            repository.start(parent)
+            val parentFrame = snapshot().frames.single { it.state == FrameState.ACTIVE }.id
+            repository.interruptWith(child)
+            val after = snapshot()
+            assertEquals(setOf(parent, child), openToday().map { it.id }.toSet())
+            val active = after.frames.single { it.state == FrameState.ACTIVE }
+            assertEquals(child, active.taskId)
+            assertEquals(parentFrame, active.parentFrameId)
+            assertEquals(FrameState.PAUSED, after.frames.single { it.id == parentFrame }.state)
+            assertEquals(TaskBucket.TODAY, task(parent).bucket)
+            assertEquals(TaskBucket.TODAY, task(child).bucket)
+            repository.completeActive()
+            val recovered = snapshot()
+            val waiting = recovered.frames.single { it.state == FrameState.AWAITING_RESUME }
+            assertEquals(parent, waiting.taskId)
+            assertEquals(TaskBucket.TODAY, task(parent).bucket)
+            assertEquals("Next: reproduce CI failure", task(parent).returnCue)
+            assertEquals(TaskStatus.DONE, task(child).status)
+            val notice = relevantFocus(recovered)
+            assertEquals(true, notice?.recovery)
+            val copy =
+                currentNoticeCopy(
+                    target = notice!!,
+                    inFocusLabel = "In focus",
+                    beforeThis = { "Before this: $it" },
+                )
+            assertEquals("Before this: Review CI failure", copy.title)
+            assertEquals("Next: reproduce CI failure", copy.body)
+        }
+
+    @Test
+    fun interruptInsideTodayReactivatesAPausedFrame() =
+        runBlocking {
+            val parent = capture("Parent").also { repository.promote(it) }
+            val child = capture("Child").also { repository.promote(it) }
+            repository.start(child)
+            repository.pauseActive()
+            val pausedId = snapshot().frames.single { it.taskId == child }.id
+            repository.start(parent)
+            repository.interruptWith(child)
+            val after = snapshot()
+            val active = after.frames.single { it.state == FrameState.ACTIVE }
+            assertEquals(pausedId, active.id)
+            assertEquals(child, active.taskId)
+            assertEquals(after.frames.single { it.taskId == parent }.id, active.parentFrameId)
+            assertEquals(FrameState.PAUSED, after.frames.single { it.taskId == parent }.state)
+            assertEquals(TaskBucket.TODAY, task(parent).bucket)
+            assertEquals(TaskBucket.TODAY, task(child).bucket)
+        }
+
+    @Test
+    fun interruptInsideTodayDoesNotHijackAwaitingResume() =
+        runBlocking {
+            val parent = capture("Parent").also { repository.promote(it) }
+            val child = capture("Child").also { repository.promote(it) }
+            repository.start(parent)
+            repository.interruptWith(child)
+            repository.completeActive()
+            val other = capture("Other").also { repository.promote(it) }
+            repository.start(other)
+            val beforeFrames = snapshot().frames.map { it.id to it.state to it.parentFrameId }
+            val beforeTasks = snapshot().tasks.map { it.id to it.bucket to it.status }
+            val error =
+                assertThrows(IllegalStateException::class.java) {
+                    runBlocking { repository.interruptWith(parent) }
+                }
+            assertEquals("Resume the waiting frame explicitly", error.message)
+            assertEquals(beforeTasks, snapshot().tasks.map { it.id to it.bucket to it.status })
+            assertEquals(beforeFrames, snapshot().frames.map { it.id to it.state to it.parentFrameId })
+        }
+
+    @Test
+    fun noticeSwitchStartsWithoutNesting() =
+        runBlocking {
+            val current = capture("Current").also { repository.promote(it) }
+            val other = capture("Other").also { repository.promote(it) }
+            repository.start(current)
+            val parentFrame = snapshot().frames.single { it.state == FrameState.ACTIVE }.id
+            val coordinator = NotificationCoordinator(context, repository)
+            coordinator.handleSwitch(current)
+            assertEquals(parentFrame, snapshot().frames.single { it.state == FrameState.ACTIVE }.id)
+            coordinator.handleSwitch(other)
+            val after = snapshot()
+            val active = after.frames.single { it.state == FrameState.ACTIVE }
+            assertEquals(other, active.taskId)
+            assertNull(active.parentFrameId)
+            assertEquals(FrameState.PAUSED, after.frames.single { it.id == parentFrame }.state)
+            assertEquals(TaskBucket.TODAY, task(current).bucket)
+            assertEquals(TaskBucket.TODAY, task(other).bucket)
+            coordinator.handleSwitch(null)
+            coordinator.handleSwitch("missing")
+            assertEquals(other, snapshot().frames.single { it.state == FrameState.ACTIVE }.taskId)
         }
 
     @Test

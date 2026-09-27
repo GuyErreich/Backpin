@@ -6,9 +6,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -19,6 +21,8 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -26,12 +30,15 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import app.backpin.focus.ui.motion.MotionSpec
+import app.backpin.focus.ui.theme.CardRadius
 import app.backpin.focus.ui.theme.FocusColors
 import kotlin.math.abs
 import kotlinx.coroutines.Job
@@ -56,22 +63,25 @@ internal data class SwipeSide(
     val label: String,
     val accessibilityLabel: String,
     val tint: Color,
+    val onTint: Color,
     val onCommit: () -> Unit,
 )
 
 internal fun doneSwipe(onDone: () -> Unit): SwipeSide =
     SwipeSide(
-        label = "Done ✓",
+        label = "Done",
         accessibilityLabel = "Done",
         tint = FocusColors.Mint,
+        onTint = FocusColors.OnMint,
         onCommit = onDone,
     )
 
 internal fun laterSwipe(onLater: () -> Unit): SwipeSide =
     SwipeSide(
-        label = "Later ↩",
+        label = "Later",
         accessibilityLabel = "Move to Later",
         tint = FocusColors.Amber,
+        onTint = FocusColors.OnAmber,
         onCommit = onLater,
     )
 
@@ -80,6 +90,7 @@ internal fun todaySwipe(onToday: () -> Unit): SwipeSide =
         label = "Today",
         accessibilityLabel = "Add to Today",
         tint = FocusColors.Mint,
+        onTint = FocusColors.OnMint,
         onCommit = onToday,
     )
 
@@ -87,16 +98,27 @@ internal fun startSwipe(onStart: () -> Unit): SwipeSide =
     SwipeSide(
         label = "Start",
         accessibilityLabel = "Start",
-        tint = FocusColors.Lavender,
+        tint = FocusColors.Mint,
+        onTint = FocusColors.OnMint,
         onCommit = onStart,
     )
 
+internal fun interruptSwipe(onInterrupt: () -> Unit): SwipeSide =
+    SwipeSide(
+        label = "Interrupt",
+        accessibilityLabel = "Interrupt",
+        tint = FocusColors.Lavender,
+        onTint = FocusColors.OnLavender,
+        onCommit = onInterrupt,
+    )
+
 /**
- * Horizontal swipe reveals the two sides. The card tracks the finger.
+ * Horizontal swipe reveals a solid color band. The card tracks the finger.
  * Release past 40% of the width completes with a decelerate; otherwise it settles back.
+ * The word is centered in the band and grows slightly once the finger passes that point.
  * Today rows can also long-press and drag vertically; that callback only reorders
  * within Today and never changes a bucket.
- * Reduced motion keeps the card still. The hint still fades in with the drag.
+ * Reduced motion keeps the card still. The band and the word still appear with the drag.
  */
 @Composable
 internal fun SwipeRevealCard(
@@ -108,6 +130,7 @@ internal fun SwipeRevealCard(
     onReorderDragEnd: (() -> Unit)? = null,
     onReorderDragCancel: (() -> Unit)? = null,
     extraActions: List<CustomAccessibilityAction> = emptyList(),
+    cornerRadius: Dp = CardRadius,
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
@@ -122,7 +145,6 @@ internal fun SwipeRevealCard(
     val reorderCancel = rememberUpdatedState(onReorderDragCancel)
     val reducedState = rememberUpdatedState(reducedMotion)
     val threshold = width * 0.4f
-    val reveal = if (threshold <= 0f) 0f else (abs(logicalOffset) / threshold).coerceIn(0f, 1f)
     val visualOffset = if (reducedMotion) 0f else logicalOffset
     val reorderEnabled = onReorderDrag != null
 
@@ -273,25 +295,10 @@ internal fun SwipeRevealCard(
                 }
             },
     ) {
-        if (reveal > 0f) {
-            val startSide = logicalOffset > 0f
-            val tint = if (startSide) startState.value?.tint else endState.value?.tint
-            val label = if (startSide) startState.value?.label else endState.value?.label
-            if (tint != null && label != null) {
-                Box(
-                    Modifier
-                        .fillMaxSize()
-                        .background(tint.copy(alpha = 0.22f * reveal))
-                        .padding(horizontal = 20.dp),
-                ) {
-                    Text(
-                        text = label,
-                        modifier = Modifier.align(if (startSide) Alignment.CenterStart else Alignment.CenterEnd),
-                        color = tint.copy(alpha = reveal),
-                        style = MaterialTheme.typography.labelLarge,
-                    )
-                }
-            }
+        val revealed = revealSide(logicalOffset, startState.value, endState.value)
+        val committed = threshold > 0f && abs(logicalOffset) >= threshold
+        if (revealed != null && !reducedMotion) {
+            SwipeBandLayer(cornerRadius, revealed, logicalOffset, committed)
         }
         Box(
             Modifier
@@ -300,5 +307,82 @@ internal fun SwipeRevealCard(
         ) {
             content()
         }
+        if (revealed != null && reducedMotion) {
+            SwipeBandLayer(cornerRadius, revealed, logicalOffset, committed)
+        }
+    }
+}
+
+private data class RevealedSide(
+    val side: SwipeSide,
+    val alignStart: Boolean,
+)
+
+private fun revealSide(
+    logicalOffset: Float,
+    towardStart: SwipeSide?,
+    towardEnd: SwipeSide?,
+): RevealedSide? {
+    if (logicalOffset == 0f) return null
+    val alignStart = logicalOffset > 0f
+    val side = if (alignStart) towardStart else towardEnd
+    return side?.let { RevealedSide(it, alignStart) }
+}
+
+/** Clips the band to the card corners without clipping the card's shadow. */
+@Composable
+private fun BoxScope.SwipeBandLayer(
+    cornerRadius: Dp,
+    revealed: RevealedSide,
+    logicalOffset: Float,
+    committed: Boolean,
+) {
+    Box(
+        Modifier
+            .matchParentSize()
+            .clip(RoundedCornerShape(cornerRadius)),
+    ) {
+        SwipeBand(
+            side = revealed.side,
+            alignStart = revealed.alignStart,
+            widthPx = abs(logicalOffset),
+            committed = committed,
+        )
+    }
+}
+
+/** Solid band for the revealed side. The word sits in the middle of that band. */
+@Composable
+private fun BoxScope.SwipeBand(
+    side: SwipeSide,
+    alignStart: Boolean,
+    widthPx: Float,
+    committed: Boolean,
+) {
+    val band = with(LocalDensity.current) { widthPx.toDp() }
+    val base = MaterialTheme.typography.titleLarge
+    val style =
+        if (committed) {
+            base.copy(fontSize = base.fontSize * 1.15, lineHeight = base.lineHeight * 1.15)
+        } else {
+            base
+        }
+    Box(
+        Modifier
+            .align(if (alignStart) Alignment.CenterStart else Alignment.CenterEnd)
+            .width(band)
+            .fillMaxHeight()
+            .clipToBounds()
+            .background(side.tint),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = side.label,
+            color = side.onTint,
+            style = style,
+            maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Clip,
+        )
     }
 }

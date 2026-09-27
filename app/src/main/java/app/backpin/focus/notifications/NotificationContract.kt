@@ -13,6 +13,7 @@ object NotificationContract {
     const val DESTINATION_CAPTURE: String = "capture"
     const val EXTRA_TASK_ID: String = "app.backpin.focus.task"
     const val ACTION_LATER: String = "app.backpin.focus.action.LATER"
+    const val ACTION_SWITCH: String = "app.backpin.focus.action.SWITCH"
 
     /**
      * Low-importance channel from earlier builds. Left unused.

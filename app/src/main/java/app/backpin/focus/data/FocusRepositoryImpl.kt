@@ -147,7 +147,6 @@ class FocusRepositoryImpl(
         database.withTransaction {
             val incoming = taskDao.getById(taskId) ?: error("Missing task")
             check(incoming.status == TaskStatus.OPEN.name) { "Cannot interrupt with a done task" }
-            check(incoming.bucket != TaskBucket.TODAY.name) { "Task is already in Today" }
             val active = frameDao.getActive() ?: error("Nothing is active")
             check(active.taskId != taskId) { "Task is already active" }
             val activeTask = taskDao.getById(active.taskId) ?: error("Missing task")
@@ -160,22 +159,14 @@ class FocusRepositoryImpl(
             if (existing != null && frameDao.countOpenChildren(existing.id) > 0) {
                 error("Task still has an open interruption")
             }
-            val slot = activeTask.sortOrder
+            val staysInToday = incoming.bucket == TaskBucket.TODAY.name
             frameDao.upsert(pause(active))
-            taskDao.upsert(activeTask.copy(bucket = TaskBucket.LATER.name))
-            taskDao.upsert(incoming.copy(bucket = TaskBucket.TODAY.name, sortOrder = slot))
-            if (existing?.state == FrameState.PAUSED.name) {
-                frameDao.upsert(
-                    existing.copy(
-                        state = FrameState.ACTIVE.name,
-                        parentFrameId = active.id,
-                        startedAtEpochMillis = clock.nowEpochMillis(),
-                        pausedAtEpochMillis = null,
-                    ),
-                )
-            } else {
-                frameDao.upsert(newFrame(taskId, parentFrameId = active.id))
+            if (!staysInToday) {
+                val slot = activeTask.sortOrder
+                taskDao.upsert(activeTask.copy(bucket = TaskBucket.LATER.name))
+                taskDao.upsert(incoming.copy(bucket = TaskBucket.TODAY.name, sortOrder = slot))
             }
+            activateAsChild(existing, taskId, parentFrameId = active.id)
             requireInvariants(limit)
         }
         recordInteraction()
@@ -490,6 +481,29 @@ class FocusRepositoryImpl(
             createdAtEpochMillis = now,
             completedAtEpochMillis = null,
         )
+    }
+
+    /**
+     * Makes [taskId] the active child of [parentFrameId].
+     * A paused frame is reused. Otherwise a new frame is opened.
+     */
+    private suspend fun activateAsChild(
+        existing: FocusFrameEntity?,
+        taskId: String,
+        parentFrameId: String,
+    ) {
+        if (existing?.state == FrameState.PAUSED.name) {
+            frameDao.upsert(
+                existing.copy(
+                    state = FrameState.ACTIVE.name,
+                    parentFrameId = parentFrameId,
+                    startedAtEpochMillis = clock.nowEpochMillis(),
+                    pausedAtEpochMillis = null,
+                ),
+            )
+        } else {
+            frameDao.upsert(newFrame(taskId, parentFrameId = parentFrameId))
+        }
     }
 
     private fun newFrame(

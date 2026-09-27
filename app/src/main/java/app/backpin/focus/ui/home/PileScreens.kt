@@ -146,6 +146,7 @@ private fun ActionPileScreen(
                 towardStart = todaySwipe { onToday(task.id) },
                 towardEnd = startSwipe { onStart(task.id) },
                 reducedMotion = reducedMotion,
+                cornerRadius = 16.dp,
                 modifier =
                     Modifier
                         .fillMaxWidth()

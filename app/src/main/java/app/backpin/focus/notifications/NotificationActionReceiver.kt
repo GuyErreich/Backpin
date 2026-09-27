@@ -8,19 +8,23 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
-/** Idempotent Later action from a nudge. Resume opens the app instead of starting a timer. */
+/** Later from a nudge, and Switch from the expanded current-task notice. */
 class NotificationActionReceiver : BroadcastReceiver() {
     override fun onReceive(
         context: Context,
         intent: Intent,
     ) {
-        if (intent.action != NotificationContract.ACTION_LATER) return
+        val action = intent.action
+        if (action != NotificationContract.ACTION_LATER && action != NotificationContract.ACTION_SWITCH) return
         val pending = goAsync()
         val app = context.applicationContext as FocusStackApp
         val taskId = intent.getStringExtra(NotificationContract.EXTRA_TASK_ID)
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                app.container.notifications.handleLater(taskId)
+                when (action) {
+                    NotificationContract.ACTION_LATER -> app.container.notifications.handleLater(taskId)
+                    NotificationContract.ACTION_SWITCH -> app.container.notifications.handleSwitch(taskId)
+                }
             } finally {
                 pending.finish()
             }

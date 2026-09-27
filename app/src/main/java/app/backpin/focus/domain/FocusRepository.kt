@@ -40,8 +40,12 @@ interface FocusRepository {
 
     /**
      * Pauses the active Today frame and makes [taskId] the active child.
-     * Reuses [taskId]; does not create another task. The previous Now moves to Later
-     * and stays the parent frame, so Today stays within the cap and [taskId] is in Today.
+     * Reuses [taskId]; does not create another task.
+     * When [taskId] is already in Today, both tasks stay in Today. A paused frame
+     * for [taskId] is reactivated as the child. A frame waiting for an explicit
+     * resume is not hijacked.
+     * When [taskId] is not in Today, the previous Now moves to Later and stays the
+     * parent frame, so Today stays within the cap and [taskId] is in Today.
      */
     suspend fun interruptWith(taskId: String)
 

@@ -130,9 +130,11 @@ fun HomeScreen(
                 todayLimit = todayLimit,
                 reducedMotion = reducedMotion,
                 onOpenFocus = onOpenFocus,
+                somethingCurrent = state.now != null,
                 onStart = viewModel::start,
                 onDone = viewModel::markDone,
                 onLater = viewModel::demote,
+                onInterrupt = viewModel::interruptWith,
                 onReorder = viewModel::reorderToday,
             )
             HorizontalDivider(color = FocusColors.Outline)
@@ -253,10 +255,12 @@ private fun TodaySection(
     hasRoom: Boolean,
     todayLimit: Int,
     reducedMotion: Boolean,
+    somethingCurrent: Boolean,
     onOpenFocus: () -> Unit,
     onStart: (String) -> Unit,
     onDone: (String) -> Unit,
     onLater: (String) -> Unit,
+    onInterrupt: (String) -> Unit,
     onReorder: (List<String>) -> Unit,
 ) {
     val drag = remember { TodayDragState() }
@@ -362,11 +366,13 @@ private fun TodaySection(
                         task = task,
                         lift = if (reducedMotion) if (lifted) 1f else 0f else lift,
                         reducedMotion = reducedMotion,
+                        somethingCurrent = somethingCurrent,
                         reorderActions = reorderActions,
                         onOpen = onOpenFocus,
                         onStart = { onStart(task.id) },
                         onDone = { onDone(task.id) },
                         onLater = { onLater(task.id) },
+                        onInterrupt = { onInterrupt(task.id) },
                         onDragStart = { drag.begin(task.id) },
                         onDragBy = drag::dragBy,
                         onDragEnd = { settle(commitNearest = true) },
@@ -482,21 +488,35 @@ private fun TodayRow(
     task: TaskUi,
     lift: Float,
     reducedMotion: Boolean,
+    somethingCurrent: Boolean,
     reorderActions: List<CustomAccessibilityAction>,
     onOpen: () -> Unit,
     onStart: () -> Unit,
     onDone: () -> Unit,
     onLater: () -> Unit,
+    onInterrupt: () -> Unit,
     onDragStart: () -> Unit,
     onDragBy: (Float) -> Unit,
     onDragEnd: () -> Unit,
     onDragCancel: () -> Unit,
 ) {
+    val rightSwipe = todayRightSwipe(slot.role, somethingCurrent)
+    val rightWord =
+        when (rightSwipe) {
+            TodayRightSwipe.Done -> "done"
+            TodayRightSwipe.Start -> "start"
+            TodayRightSwipe.Interrupt -> "interrupt"
+        }
     val description =
-        "Today position ${index + 1}. ${slot.role.name.lowercase()}. ${task.title}. Swipe right for done, swipe left for later. Long press and drag to reorder within Today."
+        "Today position ${index + 1}. ${slot.role.name.lowercase()}. ${task.title}. Swipe right for $rightWord, swipe left for later. Long press and drag to reorder within Today."
     val openInteraction = rememberPressSource()
     SwipeRevealCard(
-        towardStart = doneSwipe(onDone),
+        towardStart =
+            when (rightSwipe) {
+                TodayRightSwipe.Done -> doneSwipe(onDone)
+                TodayRightSwipe.Start -> startSwipe(onStart)
+                TodayRightSwipe.Interrupt -> interruptSwipe(onInterrupt)
+            },
         towardEnd = laterSwipe(onLater),
         reducedMotion = reducedMotion,
         onReorderDragStart = onDragStart,

@@ -127,6 +127,21 @@ class FocusStackViewModel(
         }
     }
 
+    /**
+     * Pauses the current Today task and starts [taskId] on top of it.
+     * Both stay in Today. This is a nested interruption, not a switch.
+     * A task waiting for an explicit resume is left alone.
+     */
+    fun interruptWith(taskId: String) {
+        viewModelScope.launch {
+            try {
+                useCases.interruptWith(taskId)
+            } catch (_: IllegalStateException) {
+                // Resume stays explicit, and a stale row does not crash the swipe.
+            }
+        }
+    }
+
     fun cancelSwap() {
         swapIncomingId.value = null
     }

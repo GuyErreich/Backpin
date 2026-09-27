@@ -3,10 +3,18 @@ package app.backpin.focus.notifications
 import android.app.Notification
 import android.app.NotificationManager
 import android.content.Context
+import android.view.ViewGroup
+import android.widget.FrameLayout
+import android.widget.TextView
 import androidx.test.core.app.ApplicationProvider
 import app.backpin.focus.R
+import app.backpin.focus.domain.FocusSnapshot
+import app.backpin.focus.domain.Task
+import app.backpin.focus.domain.TaskBucket
+import app.backpin.focus.domain.TaskStatus
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -98,4 +106,80 @@ class CurrentNoticeTest {
         assertEquals(NotificationContract.CHANNEL_NUDGE, nudge.id)
         assertNotEquals(NotificationContract.CHANNEL_CURRENT, nudge.id)
     }
+
+    @Test
+    fun todayRowsFollowTheSavedLimitAndMarkTheCurrentTask() {
+        val tasks =
+            (1..6).map { index ->
+                task(id = "t$index", title = "Task $index", sortOrder = index.toLong())
+            } + task(id = "later", title = "Parked", sortOrder = 0, bucket = TaskBucket.LATER)
+        val snapshot = FocusSnapshot(tasks = tasks)
+        val rows = todayNoticeRows(snapshot, currentTaskId = "t2", limit = 5)
+        assertEquals(listOf("t1", "t2", "t3", "t4", "t5"), rows.map { it.taskId })
+        assertEquals(listOf(false, true, false, false, false), rows.map { it.current })
+        assertEquals(listOf("t1", "t2"), todayNoticeRows(snapshot, "t1", limit = 2).map { it.taskId })
+    }
+
+    @Test
+    fun noticeKeyChangesWhenTodayChangesWithoutANewCurrentTask() {
+        val target = FocusTarget("t1", "Task 1", null, recovery = false)
+        val copy = CurrentNoticeCopy(title = "Task 1", body = "In focus")
+        val first = listOf(TodayNoticeRow("t1", "Task 1", current = true))
+        val withAnother =
+            first + TodayNoticeRow("t2", "Task 2", current = false)
+        assertNotEquals(currentNoticeKey(target, copy, first), currentNoticeKey(target, copy, withAnother))
+    }
+
+    @Test
+    fun expandedNoticeListsTodayAndDoesNotSwitchTheCurrentRow() {
+        val rows =
+            listOf(
+                TodayNoticeRow("now", "Review CI failure", current = true),
+                TodayNoticeRow("next", "Message John", current = false),
+            )
+        val notification =
+            buildCurrentTaskNotification(
+                context,
+                "Review CI failure",
+                "Next: reproduce CI failure",
+                rows,
+            )
+        assertTrue(notification.flags and Notification.FLAG_ONGOING_EVENT != 0)
+        assertTrue(notification.flags and Notification.FLAG_FOREGROUND_SERVICE == 0)
+        assertEquals(NotificationContract.CHANNEL_CURRENT, notification.channelId)
+        val open = shadowOf(notification.contentIntent).savedIntent
+        assertEquals(NotificationContract.DESTINATION_FOCUS, open.getStringExtra(NotificationContract.EXTRA_DESTINATION))
+        assertEquals(1, notification.actions.size)
+        assertNotNull(notification.bigContentView)
+        assertEquals(
+            "Review CI failure",
+            notification.extras.getCharSequence(Notification.EXTRA_TITLE).toString(),
+        )
+
+        val applied = todayBigContent(context, rows).apply(context, FrameLayout(context)) as ViewGroup
+        assertEquals(2, applied.childCount)
+        assertEquals("Now · Review CI failure", (applied.getChildAt(0) as TextView).text.toString())
+        assertEquals("Message John", (applied.getChildAt(1) as TextView).text.toString())
+
+        val switch = switchBroadcast(context, "next")
+        assertEquals(NotificationContract.ACTION_SWITCH, switch.action)
+        assertEquals("next", switch.getStringExtra(NotificationContract.EXTRA_TASK_ID))
+        assertEquals(NotificationActionReceiver::class.java.name, switch.component?.className)
+    }
+
+    private fun task(
+        id: String,
+        title: String,
+        sortOrder: Long,
+        bucket: TaskBucket = TaskBucket.TODAY,
+    ) = Task(
+        id = id,
+        title = title,
+        bucket = bucket,
+        status = TaskStatus.OPEN,
+        returnCue = null,
+        sortOrder = sortOrder,
+        createdAtEpochMillis = sortOrder,
+        completedAtEpochMillis = null,
+    )
 }

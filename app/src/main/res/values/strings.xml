@@ -5,6 +5,7 @@
     <string name="nudge_text">Approximate reminder. Resume opens Focus. Later parks the task.</string>
     <string name="notification_before_this">Before this: %1$s</string>
     <string name="notification_in_focus">In focus</string>
+    <string name="notification_now_row">Now · %1$s</string>
     <string name="action_resume">Resume</string>
     <string name="action_later">Later</string>
     <string name="action_interrupt">Interrupt</string>
