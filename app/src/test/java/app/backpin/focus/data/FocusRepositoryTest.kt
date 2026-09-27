@@ -15,6 +15,7 @@ import app.backpin.focus.domain.UNTITLED_INTERRUPTION
 import app.backpin.focus.notifications.NotificationCoordinator
 import app.backpin.focus.notifications.currentNoticeCopy
 import app.backpin.focus.notifications.relevantFocus
+import app.backpin.focus.notifications.todayNoticeRows
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -523,14 +524,11 @@ class FocusRepositoryTest {
             assertEquals(TaskStatus.DONE, task(child).status)
             val notice = relevantFocus(recovered)
             assertEquals(true, notice?.recovery)
-            val copy =
-                currentNoticeCopy(
-                    target = notice!!,
-                    inFocusLabel = "In focus",
-                    beforeThis = { "Before this: $it" },
-                )
-            assertEquals("Before this: Review CI failure", copy.title)
+            val rows = todayNoticeRows(recovered, notice!!.taskId, limit = 3)
+            val copy = currentNoticeCopy(rows, notice, todayLabel = "Today", inFocusLabel = "In focus")
+            assertEquals("Review CI failure", copy.title)
             assertEquals("Next: reproduce CI failure", copy.body)
+            assertEquals(false, copy.idle)
         }
 
     @Test
@@ -595,6 +593,20 @@ class FocusRepositoryTest {
             coordinator.handleSwitch(null)
             coordinator.handleSwitch("missing")
             assertEquals(other, snapshot().frames.single { it.state == FrameState.ACTIVE }.taskId)
+        }
+
+    @Test
+    fun noticeSwitchFromIdleStartsWithoutNesting() =
+        runBlocking {
+            val first = capture("First").also { repository.promote(it) }
+            val second = capture("Second").also { repository.promote(it) }
+            val coordinator = NotificationCoordinator(context, repository)
+            coordinator.handleSwitch(second)
+            val active = snapshot().frames.single { it.state == FrameState.ACTIVE }
+            assertEquals(second, active.taskId)
+            assertNull(active.parentFrameId)
+            assertEquals(TaskBucket.TODAY, task(first).bucket)
+            assertEquals(TaskBucket.TODAY, task(second).bucket)
         }
 
     @Test

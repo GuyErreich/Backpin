@@ -21,8 +21,22 @@ object NotificationContract {
      */
     const val CHANNEL_CURRENT_LEGACY: String = "focus_current"
 
-    /** Ongoing current-task notice. Default importance so it can stay in the ongoing group. */
+    /** Active or waiting task. Default importance so a small status icon can show. */
     const val CHANNEL_CURRENT: String = "focus_current_ongoing"
+
+    /**
+     * Idle Today list from an earlier build, created at low importance.
+     * Left unused. Android will not raise a channel that already exists, and
+     * that quiet channel showed no status icon, so an unstarted Today list
+     * was easy to miss.
+     */
+    const val CHANNEL_TODAY_IDLE: String = "focus_today_idle"
+
+    /**
+     * Idle Today list. Default importance so a small status icon can show
+     * when nothing is started. Sound and vibration stay off.
+     */
+    const val CHANNEL_TODAY: String = "focus_today_ongoing"
 
     const val CHANNEL_NUDGE: String = "focus_nudge"
     const val ID_CURRENT: Int = 41

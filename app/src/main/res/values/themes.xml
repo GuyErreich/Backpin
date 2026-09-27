@@ -6,4 +6,17 @@
         <item name="android:windowBackground">@color/midnight</item>
         <item name="android:colorBackground">@color/midnight</item>
     </style>
+
+    <style name="TodayNoticeRow">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:minHeight">52dp</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:paddingTop">10dp</item>
+        <item name="android:paddingBottom">10dp</item>
+        <item name="android:textAppearance">@style/TextAppearance.Compat.Notification.Title</item>
+        <item name="android:textSize">18sp</item>
+        <item name="android:maxLines">2</item>
+        <item name="android:ellipsize">end</item>
+    </style>
 </resources>
