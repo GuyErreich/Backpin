@@ -24,6 +24,16 @@ data class ScheduledTaskUi(
     val due: Boolean,
 )
 
+/** A countdown still waiting for its day. [dayLabel] is "Today", "Tomorrow", or "12 days". */
+data class CountdownUi(
+    val id: String,
+    val title: String,
+    val epochDay: Long,
+    val dayLabel: String,
+    val dateLabel: String,
+)
+
+/** [isEvent] is a countdown that reached its day and came into focus. */
 data class NowUi(
     val taskId: String,
     val frameId: String,
@@ -32,6 +42,7 @@ data class NowUi(
     val accumulatedMillis: Long,
     val startedAtEpochMillis: Long,
     val isInterruption: Boolean,
+    val isEvent: Boolean = false,
 )
 
 /** The single parent waiting to be picked up. The rest of the stack stays hidden. */
@@ -74,6 +85,7 @@ data class FocusUiState(
     val archiveTasks: List<TaskUi> = emptyList(),
     val scheduledCount: Int = 0,
     val scheduledTasks: List<ScheduledTaskUi> = emptyList(),
+    val countdowns: List<CountdownUi> = emptyList(),
     val captureOpen: Boolean = false,
     val captureInterrupts: Boolean = false,
     val swapIncoming: TaskUi? = null,

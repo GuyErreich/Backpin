@@ -4,6 +4,8 @@ package app.backpin.focus.domain
  * Where a task sits. Placement is independent of which frame is in focus.
  * [SCHEDULED] waits outside Inbox, Today, and Later until its local date.
  * [INTERRUPTION] is a nested task taken off those piles. It does not take a Today slot.
+ * [COUNTDOWN] is an event on a local day, stored in [Task.scheduledOnEpochDay]. It does not
+ * take a Today slot. While it has an open focus frame it has arrived and is off the Countdown list.
  */
 enum class TaskBucket {
     INBOX,
@@ -11,6 +13,7 @@ enum class TaskBucket {
     LATER,
     SCHEDULED,
     INTERRUPTION,
+    COUNTDOWN,
 }
 
 /** Open tasks can be placed and focused. Done tasks stay in history. */
@@ -32,7 +35,8 @@ enum class FrameState {
 
 /**
  * A single task. [returnCue] is the one-line note that should still make
- * sense after an interruption.
+ * sense after an interruption. [scheduledAtMinuteOfDay] is an optional local
+ * time on [scheduledOnEpochDay] for a scheduled task. Null means any time that day.
  */
 data class Task(
     val id: String,
@@ -44,6 +48,7 @@ data class Task(
     val createdAtEpochMillis: Long,
     val completedAtEpochMillis: Long?,
     val scheduledOnEpochDay: Long? = null,
+    val scheduledAtMinuteOfDay: Int? = null,
 )
 
 /**
@@ -111,6 +116,20 @@ sealed interface PromoteOutcome {
     data class Rejected(
         val reason: String,
     ) : PromoteOutcome
+}
+
+/**
+ * Where an arrived countdown goes when it leaves focus without being done.
+ * [Countdown.epochDay] is the new event day.
+ */
+sealed interface DetachDestination {
+    data object Today : DetachDestination
+
+    data object Later : DetachDestination
+
+    data class Countdown(
+        val epochDay: Long,
+    ) : DetachDestination
 }
 
 /** Time source so elapsed segments and tests share one clock. */

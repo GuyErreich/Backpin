@@ -32,17 +32,20 @@ class FocusStackApp : Application() {
         }
         container = AppContainer(this)
         container.notifications.start(appScope)
-        ScheduleReleaseScheduler(WorkManager.getInstance(this)).ensure()
+        container.releaseScheduler.ensure()
         appScope.launch {
             container.preferences.ensureDefaultsStored()
-            container.repository.releaseDueScheduled()
+            container.releaseDue()
         }
     }
 
-    /** Each time the activity is visible, due scheduled tasks take a free Today slot. Nothing starts. */
+    /**
+     * Each time the activity is visible, due scheduled tasks take a free Today slot and a
+     * countdown on its day comes into focus. No paused task resumes.
+     */
     fun onForeground() {
         container.notifications.setAppVisible(true)
-        appScope.launch { container.repository.releaseDueScheduled() }
+        appScope.launch { container.releaseDue() }
     }
 
     fun onBackground() {
@@ -56,7 +59,14 @@ class AppContainer(
     val preferences = PreferencesDataStore(app)
     private val database = FocusStackDatabase.create(app)
     val repository = FocusRepositoryImpl(database, preferences, SystemAppClock)
-    val useCases = FocusUseCases(repository)
+    val releaseScheduler = ScheduleReleaseScheduler(WorkManager.getInstance(app))
+    val useCases = FocusUseCases(repository, releaseScheduler)
     val viewModelFactory = FocusStackViewModelFactory(useCases)
     val notifications = NotificationCoordinator(app, repository)
+
+    /** Runs both inexact release checks and posts the arrival notice when a countdown came into focus. */
+    suspend fun releaseDue() {
+        repository.releaseDueScheduled()
+        repository.releaseDueCountdowns()?.let { notifications.postCountdownArrival(it.title) }
+    }
 }

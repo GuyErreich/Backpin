@@ -1,7 +1,9 @@
 package app.backpin.focus.domain
 
 import java.time.LocalDate
-import java.time.YearMonth
+import java.time.LocalDateTime
+import java.time.LocalTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
@@ -24,34 +26,80 @@ fun scheduleDate(
     }
 
 /**
- * The next local date strictly after [today] whose day-of-month is [day].
- * A month that does not contain [day] is skipped, so the 31st never clamps to a short month.
- * One date, not a repeating reminder.
+ * A scheduled task is due on an earlier local date, or on today once [minuteOfDay] has passed.
+ * Without a time it is due any time on its date.
  */
-fun nextDayOfMonth(
-    today: LocalDate,
-    day: Int,
-): LocalDate {
-    require(day in 1..31) { "Day of the month is 1 through 31" }
-    var month = YearMonth.from(today)
-    if (month.lengthOfMonth() >= day) {
-        val candidate = month.atDay(day)
-        if (candidate.isAfter(today)) return candidate
-    }
-    repeat(12) {
-        month = month.plusMonths(1)
-        if (month.lengthOfMonth() >= day) return month.atDay(day)
-    }
-    error("No month contains day $day")
+fun isScheduledDue(
+    epochDay: Long,
+    minuteOfDay: Int?,
+    now: LocalDateTime,
+): Boolean {
+    val date = LocalDate.ofEpochDay(epochDay)
+    val today = now.toLocalDate()
+    if (date.isBefore(today)) return true
+    if (date.isAfter(today)) return false
+    return minuteOfDay == null || now.hour * 60 + now.minute >= minuteOfDay
 }
 
-/** Date line for the Scheduled screen. Due when that local date is today or earlier. */
-fun scheduledWhenLabel(
+/** `HH:mm` for a minute of the day. */
+fun minuteOfDayLabel(minuteOfDay: Int): String {
+    val clamped = minuteOfDay.coerceIn(0, MINUTES_PER_DAY - 1)
+    return LocalTime.of(clamped / 60, clamped % 60).format(DateTimeFormatter.ofPattern("HH:mm"))
+}
+
+/** "Thu, Oct 8", or "Thu, Oct 8 · 14:30" when a time is set. */
+fun scheduleMomentLabel(
     epochDay: Long,
-    today: LocalDate,
+    minuteOfDay: Int?,
     locale: Locale = Locale.getDefault(),
 ): String {
-    val date = LocalDate.ofEpochDay(epochDay)
-    val formatted = date.format(DateTimeFormatter.ofPattern("EEE, MMM d", locale))
-    return if (!date.isAfter(today)) "Due · $formatted" else formatted
+    val formatted = LocalDate.ofEpochDay(epochDay).format(DateTimeFormatter.ofPattern("EEE, MMM d", locale))
+    return if (minuteOfDay == null) formatted else "$formatted · ${minuteOfDayLabel(minuteOfDay)}"
 }
+
+/** Date line for the Scheduled screen, prefixed with "Due" once [isScheduledDue] holds. */
+fun scheduledWhenLabel(
+    epochDay: Long,
+    minuteOfDay: Int?,
+    now: LocalDateTime,
+    locale: Locale = Locale.getDefault(),
+): String {
+    val formatted = scheduleMomentLabel(epochDay, minuteOfDay, locale)
+    return if (isScheduledDue(epochDay, minuteOfDay, now)) "Due · $formatted" else formatted
+}
+
+/** Epoch millis of a scheduled local moment, used to queue one inexact check at that time. */
+fun scheduledMomentEpochMillis(
+    epochDay: Long,
+    minuteOfDay: Int,
+    zone: ZoneId = ZoneId.systemDefault(),
+): Long =
+    LocalDate
+        .ofEpochDay(epochDay)
+        .atTime(minuteOfDay / 60, minuteOfDay % 60)
+        .atZone(zone)
+        .toInstant()
+        .toEpochMilli()
+
+/** Local days from [today] to a countdown's event day. Negative once the day has passed. */
+fun countdownDaysLeft(
+    epochDay: Long,
+    today: LocalDate,
+): Long = epochDay - today.toEpochDay()
+
+/** "Today", "Tomorrow", or "12 days". A day that has passed reads "Passed". */
+fun countdownDayLabel(daysLeft: Long): String =
+    when {
+        daysLeft < 0L -> "Passed"
+        daysLeft == 0L -> "Today"
+        daysLeft == 1L -> "Tomorrow"
+        else -> "$daysLeft days"
+    }
+
+/** A countdown arrives on its event day, or on the first check after it when that day was missed. */
+fun isCountdownDue(
+    epochDay: Long,
+    today: LocalDate,
+): Boolean = !LocalDate.ofEpochDay(epochDay).isAfter(today)
+
+const val MINUTES_PER_DAY: Int = 24 * 60

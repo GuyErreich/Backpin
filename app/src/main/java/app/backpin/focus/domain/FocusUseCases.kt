@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.Flow
  */
 class FocusUseCases(
     private val repository: FocusRepository,
+    private val wakeUp: ReleaseWakeUp = ReleaseWakeUp {},
 ) {
     fun observeSnapshot(): Flow<FocusSnapshot> = repository.observeSnapshot()
 
@@ -25,12 +26,41 @@ class FocusUseCases(
         repository.captureLater(title)
     }
 
+    /** A set time also queues one inexact check for that moment. */
     suspend fun captureScheduled(
         title: String,
         scheduledOnEpochDay: Long,
+        scheduledAtMinuteOfDay: Int? = null,
     ) {
-        repository.captureScheduled(title, scheduledOnEpochDay)
+        if (title.isBlank()) return
+        repository.captureScheduled(title, scheduledOnEpochDay, scheduledAtMinuteOfDay)
+        if (scheduledAtMinuteOfDay != null) {
+            wakeUp.wakeAt(scheduledMomentEpochMillis(scheduledOnEpochDay, scheduledAtMinuteOfDay))
+        }
     }
+
+    suspend fun captureCountdown(
+        title: String,
+        epochDay: Long,
+    ) {
+        repository.captureCountdown(title, epochDay)
+    }
+
+    suspend fun rescheduleCountdown(
+        taskId: String,
+        epochDay: Long,
+    ) {
+        repository.rescheduleCountdown(taskId, epochDay)
+    }
+
+    suspend fun removeCountdown(taskId: String) {
+        repository.removeCountdown(taskId)
+    }
+
+    suspend fun detachInterruption(
+        taskId: String,
+        destination: DetachDestination,
+    ): PromoteOutcome = repository.detachInterruption(taskId, destination)
 
     suspend fun captureReplacing(
         title: String,

@@ -8,8 +8,13 @@ import app.backpin.focus.domain.Task
 import app.backpin.focus.domain.TaskBucket
 import app.backpin.focus.domain.TaskStatus
 import app.backpin.focus.domain.UserPreferences
+import app.backpin.focus.domain.countdownDayLabel
+import app.backpin.focus.domain.countdownDaysLeft
+import app.backpin.focus.domain.isScheduledDue
+import app.backpin.focus.domain.scheduleMomentLabel
 import app.backpin.focus.domain.scheduledWhenLabel
 import java.time.LocalDate
+import java.time.LocalTime
 
 internal data class ChromeState(
     val captureOpen: Boolean,
@@ -25,7 +30,9 @@ internal fun deriveFocusUi(
     snapshot: FocusSnapshot,
     chrome: ChromeState,
     localDate: LocalDate = LocalDate.now(),
+    localTime: LocalTime = LocalTime.now(),
 ): FocusUiState {
+    val localNow = localDate.atTime(localTime)
     val tasksById = snapshot.tasks.associateBy { it.id }
     val openTasks = snapshot.tasks.filter { it.status == TaskStatus.OPEN }
     val active = snapshot.frames.firstOrNull { it.state == FrameState.ACTIVE }
@@ -46,6 +53,7 @@ internal fun deriveFocusUi(
                 accumulatedMillis = frame.accumulatedMillis,
                 startedAtEpochMillis = frame.startedAtEpochMillis,
                 isInterruption = frame.parentFrameId != null,
+                isEvent = task.bucket == TaskBucket.COUNTDOWN,
             )
         }
 
@@ -102,14 +110,39 @@ internal fun deriveFocusUi(
     val scheduled =
         openTasks
             .filter { it.bucket == TaskBucket.SCHEDULED }
-            .sortedWith(compareBy({ it.scheduledOnEpochDay ?: Long.MAX_VALUE }, { it.sortOrder }))
-            .map { task ->
+            .sortedWith(
+                compareBy(
+                    { it.scheduledOnEpochDay ?: Long.MAX_VALUE },
+                    { it.scheduledAtMinuteOfDay ?: -1 },
+                    { it.sortOrder },
+                ),
+            ).map { task ->
                 val day = task.scheduledOnEpochDay
+                val minute = task.scheduledAtMinuteOfDay
                 ScheduledTaskUi(
                     id = task.id,
                     title = task.title,
-                    whenLabel = if (day == null) "Unscheduled" else scheduledWhenLabel(day, localDate),
-                    due = day != null && !LocalDate.ofEpochDay(day).isAfter(localDate),
+                    whenLabel = if (day == null) "Unscheduled" else scheduledWhenLabel(day, minute, localNow),
+                    due = day != null && isScheduledDue(day, minute, localNow),
+                )
+            }
+    val framedTaskIds =
+        snapshot.frames
+            .filter { it.state != FrameState.CLOSED }
+            .map { it.taskId }
+            .toSet()
+    val countdowns =
+        openTasks
+            .filter { it.bucket == TaskBucket.COUNTDOWN && it.id !in framedTaskIds }
+            .mapNotNull { task -> task.scheduledOnEpochDay?.let { day -> task to day } }
+            .sortedWith(compareBy({ it.second }, { it.first.sortOrder }))
+            .map { (task, day) ->
+                CountdownUi(
+                    id = task.id,
+                    title = task.title,
+                    epochDay = day,
+                    dayLabel = countdownDayLabel(countdownDaysLeft(day, localDate)),
+                    dateLabel = scheduleMomentLabel(day, null),
                 )
             }
     val archive =
@@ -139,6 +172,7 @@ internal fun deriveFocusUi(
         archiveTasks = archive,
         scheduledCount = scheduled.size,
         scheduledTasks = scheduled,
+        countdowns = countdowns,
         captureOpen = chrome.captureOpen,
         captureInterrupts = chrome.captureInterrupts,
         swapIncoming = incoming,

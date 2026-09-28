@@ -429,7 +429,9 @@ class CaptureSheetActionsTest {
                     onPlaceToday = { placed += "today:$it" },
                     onPlaceStart = { placed += "start:$it" },
                     onPlaceLater = { placed += "later:$it" },
-                    onSchedule = { title, day -> placed += "schedule:$title:$day" },
+                    onSchedule = { title, day, minute ->
+                        placed += if (minute == null) "schedule:$title:$day" else "schedule:$title:$day:$minute"
+                    },
                     recognizer = recognizer,
                     onSystemSpeech = onSystemSpeech,
                 )

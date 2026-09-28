@@ -1,12 +1,6 @@
 package app.backpin.focus.ui.capture
 
-import android.Manifest
-import android.content.ActivityNotFoundException
 import android.content.Intent
-import android.content.pm.PackageManager
-import android.speech.RecognizerIntent
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
@@ -43,13 +37,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -58,21 +50,20 @@ import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.core.content.ContextCompat
 import app.backpin.focus.R
 import app.backpin.focus.domain.CapturePlace
 import app.backpin.focus.domain.ScheduleOffset
 import app.backpin.focus.domain.capturePlaces
-import app.backpin.focus.domain.nextDayOfMonth
 import app.backpin.focus.domain.scheduleDate
+import app.backpin.focus.domain.scheduleMomentLabel
+import app.backpin.focus.ui.calendar.PickDateDialog
+import app.backpin.focus.ui.calendar.PickTimeDialog
+import app.backpin.focus.ui.calendar.suggestedMinuteOfDay
 import app.backpin.focus.ui.motion.MotionSpec
 import app.backpin.focus.ui.motion.WithoutRipple
 import app.backpin.focus.ui.motion.motionSpec
@@ -80,9 +71,7 @@ import app.backpin.focus.ui.motion.rememberReducedMotion
 import app.backpin.focus.ui.theme.FocusColors
 import app.backpin.focus.ui.theme.Space
 import java.time.LocalDate
-import java.time.format.DateTimeFormatter
-
-private val scheduleDayFormat: DateTimeFormatter = DateTimeFormatter.ofPattern("EEE, MMM d")
+import java.time.LocalTime
 
 private enum class ListenField {
     Title,
@@ -100,12 +89,10 @@ internal fun CaptureSheet(
     onPlaceToday: (String) -> Unit,
     onPlaceStart: (String) -> Unit,
     onPlaceLater: (String) -> Unit,
-    onSchedule: (String, Long) -> Unit,
+    onSchedule: (String, Long, Int?) -> Unit,
     recognizer: UtteranceRecognizer? = null,
     onSystemSpeech: ((Intent, (String) -> Unit) -> Unit)? = null,
 ) {
-    val context = LocalContext.current
-    val focusManager = LocalFocusManager.current
     val reducedMotion = rememberReducedMotion()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val titleDraft = remember { TitleDraft() }
@@ -116,165 +103,23 @@ internal fun CaptureSheet(
     var pendingTitle by remember { mutableStateOf<String?>(null) }
     var schedulingTitle by remember { mutableStateOf<String?>(null) }
     var scheduleFromPhrase by remember { mutableStateOf(false) }
-    var dayText by remember { mutableStateOf("") }
-    var speechNote by remember { mutableStateOf<String?>(null) }
-    var listening by remember { mutableStateOf(false) }
-    var listenField by remember { mutableStateOf<ListenField?>(null) }
-    var pendingListen by remember { mutableStateOf<(() -> Unit)?>(null) }
-    val pendingListenState = rememberUpdatedState(pendingListen)
-    val alive = remember { mutableStateOf(true) }
+    var pickedDate by remember { mutableStateOf<LocalDate?>(null) }
+    var pickedMinute by remember { mutableStateOf<Int?>(null) }
+    var datePickerOpen by remember { mutableStateOf(false) }
+    var timePickerOpen by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
     val fillFocusRequester = remember { FocusRequester() }
-    val speech = remember(context, recognizer) { recognizer ?: TitleSpeechRecognizer(context) }
+    val speech =
+        rememberSpeechInput<ListenField>(recognizer, onSystemSpeech) { field ->
+            when (field) {
+                ListenField.Title -> titleDraft
+                ListenField.Fill -> fillDraft
+            }
+        }
     val today = LocalDate.now()
 
-    fun hear(
-        field: ListenField,
-        spoken: String,
-    ) {
-        when (field) {
-            ListenField.Title -> titleDraft.hear(spoken)
-            ListenField.Fill -> fillDraft.hear(spoken)
-        }
-    }
-
-    var pendingSystem by remember { mutableStateOf<ListenField?>(null) }
-    var pendingProblem by remember { mutableStateOf<SpeechProblem?>(null) }
-    val systemSpeechLauncher =
-        rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-            if (!alive.value) return@rememberLauncherForActivityResult
-            val field = pendingSystem ?: return@rememberLauncherForActivityResult
-            val problem = pendingProblem
-            pendingSystem = null
-            pendingProblem = null
-            listening = false
-            val spoken =
-                result.data
-                    ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
-                    ?.firstOrNull { it.isNotBlank() }
-                    ?.trim()
-                    .orEmpty()
-            if (spoken.isNotEmpty()) {
-                hear(field, spoken)
-            } else {
-                val shown =
-                    if (problem != null && problem != SpeechProblem.Unavailable) {
-                        problem
-                    } else {
-                        SpeechProblem.Unheard
-                    }
-                speechNote = speechProblemNote(shown)
-            }
-        }
-
-    fun offerSystemSpeech(
-        field: ListenField,
-        problem: SpeechProblem?,
-    ) {
-        when (field) {
-            ListenField.Title -> titleDraft.beginUtterance()
-            ListenField.Fill -> fillDraft.beginUtterance()
-        }
-        listenField = field
-        listening = false
-        speech.cancel()
-        val deliver: (String) -> Unit = { spoken ->
-            val phrase = spoken.trim()
-            if (phrase.isNotEmpty()) {
-                hear(field, phrase)
-                speechNote = null
-            } else {
-                val shown =
-                    if (problem != null && problem != SpeechProblem.Unavailable) {
-                        problem
-                    } else {
-                        SpeechProblem.Unheard
-                    }
-                speechNote = speechProblemNote(shown)
-            }
-        }
-        val hook = onSystemSpeech
-        if (hook != null) {
-            hook(systemSpeechIntent(), deliver)
-            return
-        }
-        if (!canLaunchSystemSpeech(context.hostContext())) {
-            speechNote =
-                speechProblemNote(
-                    when (problem) {
-                        null, SpeechProblem.Unavailable -> SpeechProblem.Unavailable
-                        else -> problem
-                    },
-                )
-            return
-        }
-        pendingSystem = field
-        pendingProblem = problem
-        try {
-            systemSpeechLauncher.launch(systemSpeechIntent())
-        } catch (_: ActivityNotFoundException) {
-            pendingSystem = null
-            pendingProblem = null
-            speechNote = speechProblemNote(SpeechProblem.Unavailable)
-        } catch (_: IllegalStateException) {
-            pendingSystem = null
-            pendingProblem = null
-            speechNote =
-                speechProblemNote(
-                    when (problem) {
-                        null, SpeechProblem.Unavailable -> SpeechProblem.Unavailable
-                        else -> problem
-                    },
-                )
-        }
-    }
-
-    fun startUtterance(field: ListenField) {
-        when (field) {
-            ListenField.Title -> titleDraft.beginUtterance()
-            ListenField.Fill -> fillDraft.beginUtterance()
-        }
-        focusManager.clearFocus(force = true)
-        listenField = field
-        speechNote = null
-        listening = true
-        val started =
-            speech.listen(
-                onPartial = { spoken -> hear(field, spoken) },
-                onFinished = { spoken ->
-                    hear(field, spoken)
-                    listening = false
-                },
-                onProblem = { problem ->
-                    listening = false
-                    if (fallsBackToSystem(problem)) {
-                        offerSystemSpeech(field, problem)
-                    } else {
-                        speechNote = speechProblemNote(problem)
-                    }
-                },
-            )
-        if (!started) {
-            listening = false
-            offerSystemSpeech(field, SpeechProblem.NoService)
-        }
-    }
-
-    val permissionLauncher =
-        rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-            if (!alive.value) return@rememberLauncherForActivityResult
-            val start = pendingListenState.value
-            pendingListen = null
-            if (granted) {
-                start?.invoke()
-            } else {
-                speechNote = speechProblemNote(SpeechProblem.Denied)
-            }
-        }
-
     fun stopListening() {
-        speech.cancel()
-        listening = false
+        speech.stop()
     }
 
     fun dismiss() {
@@ -291,6 +136,13 @@ internal fun CaptureSheet(
         pendingTitle = filled
     }
 
+    fun clearSchedulePick() {
+        pickedDate = null
+        pickedMinute = null
+        datePickerOpen = false
+        timePickerOpen = false
+    }
+
     fun beginSchedule(
         resolved: String,
         fromPhrase: Boolean,
@@ -301,7 +153,7 @@ internal fun CaptureSheet(
         schedulingTitle = trimmed
         pendingTitle = null
         activeBlank = null
-        dayText = ""
+        clearSchedulePick()
         stopListening()
     }
 
@@ -345,45 +197,17 @@ internal fun CaptureSheet(
         placeResolved(place, resolved, fromPhrase = typed.isEmpty() && fromBlank.isNotEmpty())
     }
 
-    fun chooseDate(date: LocalDate) {
+    fun chooseMoment(
+        date: LocalDate,
+        minuteOfDay: Int?,
+    ) {
         val resolved = schedulingTitle ?: return
-        onSchedule(resolved, date.toEpochDay())
+        onSchedule(resolved, date.toEpochDay(), minuteOfDay)
         stopListening()
     }
 
-    fun onMic(field: ListenField) {
-        if (listening && listenField == field) {
-            stopListening()
-            return
-        }
-        if (!speech.available()) {
-            offerSystemSpeech(field, problem = null)
-            return
-        }
-        val start = { startUtterance(field) }
-        val granted =
-            ContextCompat.checkSelfPermission(
-                context.hostContext(),
-                Manifest.permission.RECORD_AUDIO,
-            ) == PackageManager.PERMISSION_GRANTED
-        if (granted) {
-            start()
-        } else {
-            pendingListen = start
-            try {
-                permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-            } catch (_: IllegalStateException) {
-                pendingListen = null
-                speechNote = speechProblemNote(SpeechProblem.Denied)
-            }
-        }
-    }
-
-    DisposableEffect(speech) {
-        onDispose {
-            alive.value = false
-            speech.cancel()
-        }
+    fun chooseDate(date: LocalDate) {
+        chooseMoment(date, minuteOfDay = null)
     }
 
     ModalBottomSheet(
@@ -440,10 +264,8 @@ internal fun CaptureSheet(
                 scheduling != null -> {
                     ScheduleFields(
                         title = scheduling,
-                        today = today,
-                        dayText = dayText,
-                        onDayText = { dayText = it.filter { char -> char.isDigit() }.take(2) },
-                        onDate = ::chooseDate,
+                        pickedDate = pickedDate,
+                        pickedMinute = pickedMinute,
                     )
                 }
                 placing != null -> {
@@ -499,7 +321,7 @@ internal fun CaptureSheet(
                         OutlinedTextField(
                             value = fillWord,
                             onValueChange = { incoming ->
-                                if (listening && listenField == ListenField.Fill) return@OutlinedTextField
+                                if (speech.isListening(ListenField.Fill)) return@OutlinedTextField
                                 fillDraft.edit(incoming)
                             },
                             modifier = Modifier.fillMaxWidth().focusRequester(fillFocusRequester),
@@ -508,15 +330,15 @@ internal fun CaptureSheet(
                             singleLine = true,
                             trailingIcon = {
                                 SpeakMic(
-                                    listening = listening && listenField == ListenField.Fill,
+                                    listening = speech.isListening(ListenField.Fill),
                                     reducedMotion = reducedMotion,
                                     contentDescription =
-                                        if (listening && listenField == ListenField.Fill) {
+                                        if (speech.isListening(ListenField.Fill)) {
                                             "Stop listening"
                                         } else {
                                             "Speak the missing word"
                                         },
-                                    onClick = { onMic(ListenField.Fill) },
+                                    onClick = { speech.toggle(ListenField.Fill) },
                                 )
                             },
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
@@ -549,7 +371,7 @@ internal fun CaptureSheet(
                 OutlinedTextField(
                     value = title,
                     onValueChange = { incoming ->
-                        if (listening && listenField == ListenField.Title) return@OutlinedTextField
+                        if (speech.isListening(ListenField.Title)) return@OutlinedTextField
                         titleDraft.edit(incoming)
                     },
                     modifier =
@@ -561,15 +383,15 @@ internal fun CaptureSheet(
                     singleLine = true,
                     trailingIcon = {
                         SpeakMic(
-                            listening = listening && listenField == ListenField.Title,
+                            listening = speech.isListening(ListenField.Title),
                             reducedMotion = reducedMotion,
                             contentDescription =
-                                if (listening && listenField == ListenField.Title) {
+                                if (speech.isListening(ListenField.Title)) {
                                     "Stop listening"
                                 } else {
                                     "Speak the title"
                                 },
-                            onClick = { onMic(ListenField.Title) },
+                            onClick = { speech.toggle(ListenField.Title) },
                         )
                     },
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
@@ -585,7 +407,7 @@ internal fun CaptureSheet(
                 LaunchedEffect(focusRequester, activeBlank) {
                     if (activeBlank == null) focusRequester.requestFocus()
                 }
-                speechNote?.let { note ->
+                speech.note?.let { note ->
                     Text(note, style = MaterialTheme.typography.bodyMedium, color = FocusColors.Muted)
                 }
             }
@@ -593,14 +415,18 @@ internal fun CaptureSheet(
                 scheduling != null -> {
                     ScheduleChoices(
                         today = today,
-                        dayText = dayText,
+                        pickedDate = pickedDate,
+                        pickedMinute = pickedMinute,
                         onDate = ::chooseDate,
+                        onPickDate = { datePickerOpen = true },
+                        onAddTime = { timePickerOpen = true },
+                        onConfirm = { date -> chooseMoment(date, pickedMinute) },
                         onBack = {
                             if (scheduleFromPhrase) {
                                 pendingTitle = scheduling
                             }
                             schedulingTitle = null
-                            dayText = ""
+                            clearSchedulePick()
                         },
                     )
                 }
@@ -622,6 +448,29 @@ internal fun CaptureSheet(
             }
             }
         }
+    }
+    if (datePickerOpen) {
+        PickDateDialog(
+            initial = pickedDate ?: today.plusDays(1),
+            earliest = today,
+            onPick = { date ->
+                datePickerOpen = false
+                if (date != pickedDate) pickedMinute = null
+                pickedDate = date
+            },
+            onDismiss = { datePickerOpen = false },
+        )
+    }
+    val timeFor = pickedDate
+    if (timePickerOpen && timeFor != null) {
+        PickTimeDialog(
+            initialMinuteOfDay = pickedMinute ?: suggestedMinuteOfDay(timeFor, today, LocalTime.now()),
+            onPick = { minute ->
+                timePickerOpen = false
+                pickedMinute = minute
+            },
+            onDismiss = { timePickerOpen = false },
+        )
     }
 }
 
@@ -653,50 +502,45 @@ private fun PlaceChoices(
 @Composable
 private fun ScheduleFields(
     title: String,
-    today: LocalDate,
-    dayText: String,
-    onDayText: (String) -> Unit,
-    onDate: (LocalDate) -> Unit,
+    pickedDate: LocalDate?,
+    pickedMinute: Int?,
 ) {
-    val picked = pickedDay(today, dayText)
     Text(title, style = MaterialTheme.typography.headlineMedium)
     Text(
         "When should it come back?",
         style = MaterialTheme.typography.bodyLarge,
         modifier = Modifier.semantics { heading() },
     )
-    OutlinedTextField(
-        value = dayText,
-        onValueChange = onDayText,
-        modifier = Modifier.fillMaxWidth(),
-        label = { Text("Day of the month") },
-        placeholder = { Text("1–31") },
-        singleLine = true,
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
-        keyboardActions =
-            KeyboardActions(
-                onDone = {
-                    if (picked != null) onDate(picked)
-                },
-            ),
-    )
-    picked?.let { date ->
+    if (pickedDate != null) {
         Text(
-            "Comes back ${date.format(scheduleDayFormat)}.",
+            "Comes back ${scheduleMomentLabel(pickedDate.toEpochDay(), pickedMinute)}.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = FocusColors.Muted,
+        )
+    } else {
+        Text(
+            "Without a time, it lands on Today any time that day.",
             style = MaterialTheme.typography.bodyMedium,
             color = FocusColors.Muted,
         )
     }
 }
 
+/**
+ * Quick days place the task at once. Pick a date opens the calendar; the picked day
+ * can then take an optional time before it is saved.
+ */
 @Composable
 private fun ScheduleChoices(
     today: LocalDate,
-    dayText: String,
+    pickedDate: LocalDate?,
+    pickedMinute: Int?,
     onDate: (LocalDate) -> Unit,
+    onPickDate: () -> Unit,
+    onAddTime: () -> Unit,
+    onConfirm: (LocalDate) -> Unit,
     onBack: () -> Unit,
 ) {
-    val picked = pickedDay(today, dayText)
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         CaptureChoice("Tomorrow", onClick = { onDate(scheduleDate(today, ScheduleOffset.TOMORROW)) })
         CaptureChoice(
@@ -704,36 +548,35 @@ private fun ScheduleChoices(
             onClick = { onDate(scheduleDate(today, ScheduleOffset.IN_A_COUPLE_OF_DAYS)) },
         )
         CaptureChoice("Next week", onClick = { onDate(scheduleDate(today, ScheduleOffset.NEXT_WEEK)) })
-        CaptureChoice(
-            "That day",
-            onClick = {
-                if (picked != null) onDate(picked)
-            },
-            enabled = picked != null,
-        )
+        CaptureChoice(if (pickedDate == null) "Pick a date" else "Change date", onClick = onPickDate)
+        if (pickedDate != null) {
+            CaptureChoice(if (pickedMinute == null) "Add a time" else "Change time", onClick = onAddTime)
+            CaptureChoice(
+                "Schedule for ${scheduleMomentLabel(pickedDate.toEpochDay(), pickedMinute)}",
+                tone = ChoiceTone.Amber,
+                onClick = { onConfirm(pickedDate) },
+            )
+        }
         TextButton(onClick = onBack, modifier = Modifier.heightIn(min = 48.dp)) {
             Text("Back")
         }
     }
 }
 
-private fun pickedDay(
-    today: LocalDate,
-    dayText: String,
-): LocalDate? {
-    val day = dayText.toIntOrNull()
-    return if (day != null && day in 1..31) nextDayOfMonth(today, day) else null
-}
-
-private enum class ChoiceTone {
+internal enum class ChoiceTone {
     Mint,
     Lavender,
     Amber,
     Quiet,
 }
 
+/**
+ * Outlined sheet button. No press scale: a graphics layer that shrinks during the
+ * down event cancels the click before onClick. It refuses focus so the keyboard
+ * does not resize the sheet between down and up.
+ */
 @Composable
-private fun CaptureChoice(
+internal fun CaptureChoice(
     label: String,
     onClick: () -> Unit,
     tone: ChoiceTone = ChoiceTone.Quiet,
@@ -748,9 +591,6 @@ private fun CaptureChoice(
         }
     val borderColor = if (tone == ChoiceTone.Quiet) FocusColors.Outline else accent
     val shown = if (enabled) 1f else 0.38f
-    // No press scale: a graphics layer that shrinks during the down event
-    // cancels the click before onClick. These buttons also refuse focus so
-    // the keyboard does not resize the sheet between down and up.
     WithoutRipple {
         OutlinedButton(
             onClick = onClick,
@@ -805,7 +645,7 @@ private fun CapturePlace.typedLabel(): String =
     }
 
 @Composable
-private fun SpeakMic(
+internal fun SpeakMic(
     listening: Boolean,
     reducedMotion: Boolean,
     contentDescription: String,

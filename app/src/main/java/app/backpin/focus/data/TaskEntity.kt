@@ -14,4 +14,5 @@ data class TaskEntity(
     val createdAtEpochMillis: Long,
     val completedAtEpochMillis: Long?,
     val scheduledOnEpochDay: Long? = null,
+    val scheduledAtMinuteOfDay: Int? = null,
 )

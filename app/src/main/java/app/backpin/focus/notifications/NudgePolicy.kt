@@ -4,6 +4,7 @@ import app.backpin.focus.domain.FocusSnapshot
 import app.backpin.focus.domain.FrameState
 import app.backpin.focus.domain.TaskStatus
 import app.backpin.focus.domain.UserPreferences
+import app.backpin.focus.domain.isQuietNow
 import java.time.LocalTime
 
 /** The task a nudge or the current-task notification can talk about. */
@@ -31,26 +32,6 @@ fun relevantFocus(snapshot: FocusSnapshot): FocusTarget? {
     val task = tasks[awaiting.taskId] ?: return null
     if (task.status != TaskStatus.OPEN) return null
     return FocusTarget(task.id, task.title, task.returnCue, recovery = true)
-}
-
-/**
- * Quiet hours may cross midnight. The end is exclusive.
- * A missing or equal bound means quiet hours are off.
- */
-fun isQuietNow(
-    start: String?,
-    end: String?,
-    now: LocalTime,
-): Boolean {
-    if (start.isNullOrBlank() || end.isNullOrBlank()) return false
-    val quietStart = runCatching { LocalTime.parse(start) }.getOrNull() ?: return false
-    val quietEnd = runCatching { LocalTime.parse(end) }.getOrNull() ?: return false
-    if (quietStart == quietEnd) return false
-    return if (quietStart.isBefore(quietEnd)) {
-        !now.isBefore(quietStart) && now.isBefore(quietEnd)
-    } else {
-        !now.isBefore(quietStart) || now.isBefore(quietEnd)
-    }
 }
 
 sealed interface NudgeDecision {

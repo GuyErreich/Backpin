@@ -39,8 +39,12 @@ object NotificationContract {
     const val CHANNEL_TODAY: String = "focus_today_ongoing"
 
     const val CHANNEL_NUDGE: String = "focus_nudge"
+
+    /** A countdown reached its day and is now in focus. Silent, dismissible, not a heads-up. */
+    const val CHANNEL_COUNTDOWN: String = "focus_countdown"
     const val ID_CURRENT: Int = 41
     const val ID_NUDGE: Int = 42
+    const val ID_COUNTDOWN: Int = 43
 }
 
 /** Runtime permission is required only on API 33+. App-level blocks count as denied too. */

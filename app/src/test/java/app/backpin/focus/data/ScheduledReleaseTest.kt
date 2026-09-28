@@ -176,7 +176,54 @@ class ScheduledReleaseTest {
             assertTrue(snapshot().frames.none { it.taskId == taskNamed("Due").id })
         }
 
+    @Test
+    fun aDatedTaskWithATimeWaitsForThatTime() =
+        runBlocking {
+            clock.now = epochAt(today, 14, 0)
+            repository.captureScheduled("Call Dana", today.toEpochDay(), 14 * 60 + 30)
+            repository.releaseDueScheduled()
+            val waiting = taskNamed("Call Dana")
+            assertEquals(TaskBucket.SCHEDULED, waiting.bucket)
+            assertEquals(14 * 60 + 30, waiting.scheduledAtMinuteOfDay)
+
+            clock.now = epochAt(today, 14, 31)
+            repository.releaseDueScheduled()
+            val moved = taskNamed("Call Dana")
+            assertEquals(TaskBucket.TODAY, moved.bucket)
+            assertNull(moved.scheduledOnEpochDay)
+            assertNull(moved.scheduledAtMinuteOfDay)
+            assertTrue(snapshot().frames.none { it.taskId == moved.id })
+        }
+
+    @Test
+    fun aTimedTaskFromAnEarlierDayIsDueAtOnce() =
+        runBlocking {
+            clock.now = epochAt(today, 8, 0)
+            repository.captureScheduled("Yesterday late", today.minusDays(1).toEpochDay(), 23 * 60)
+            repository.captureScheduled("Tomorrow early", today.plusDays(1).toEpochDay(), 0)
+            repository.releaseDueScheduled()
+            assertEquals(TaskBucket.TODAY, taskNamed("Yesterday late").bucket)
+            assertEquals(TaskBucket.SCHEDULED, taskNamed("Tomorrow early").bucket)
+        }
+
+    @Test
+    fun aTimedTaskStillWaitsWhenTodayIsFull() =
+        runBlocking {
+            fillToday(3)
+            clock.now = epochAt(today, 15, 0)
+            repository.captureScheduled("Call Dana", today.toEpochDay(), 14 * 60 + 30)
+            repository.releaseDueScheduled()
+            assertEquals(TaskBucket.SCHEDULED, taskNamed("Call Dana").bucket)
+            assertEquals(14 * 60 + 30, taskNamed("Call Dana").scheduledAtMinuteOfDay)
+        }
+
     private fun epochAt(date: LocalDate): Long = date.atStartOfDay(zone).toInstant().toEpochMilli()
+
+    private fun epochAt(
+        date: LocalDate,
+        hour: Int,
+        minute: Int,
+    ): Long = date.atTime(hour, minute).atZone(zone).toInstant().toEpochMilli()
 
     private suspend fun fillToday(count: Int): List<String> =
         (1..count).map { index ->

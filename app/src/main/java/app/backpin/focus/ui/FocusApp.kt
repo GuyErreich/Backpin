@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
@@ -39,6 +40,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import app.backpin.focus.notifications.NotificationContract
 import app.backpin.focus.ui.capture.CaptureSheet
+import app.backpin.focus.ui.countdown.CountdownScreen
 import app.backpin.focus.ui.focus.FocusScreen
 import app.backpin.focus.ui.home.DoneScreen
 import app.backpin.focus.ui.home.HomeScreen
@@ -61,6 +63,7 @@ private object Routes {
     const val SCHEDULED = "scheduled"
     const val DONE = "done"
     const val FOCUS = "focus"
+    const val COUNTDOWN = "countdown"
     const val SETTINGS = "settings"
 }
 
@@ -147,6 +150,12 @@ fun FocusApp(
                         onClick = { navController.navigateTab(Routes.FOCUS) },
                         icon = { Icon(Icons.Filled.Star, contentDescription = null) },
                         label = { Text("Focus") },
+                    )
+                    NavigationBarItem(
+                        selected = route == Routes.COUNTDOWN,
+                        onClick = { navController.navigateTab(Routes.COUNTDOWN) },
+                        icon = { Icon(Icons.Filled.DateRange, contentDescription = null) },
+                        label = { Text("Countdown") },
                     )
                     NavigationBarItem(
                         selected = route == Routes.SETTINGS,
@@ -252,6 +261,15 @@ fun FocusApp(
             }
             composable(Routes.FOCUS) {
                 FocusScreen(state = state, viewModel = viewModel)
+            }
+            composable(Routes.COUNTDOWN) {
+                CountdownScreen(
+                    countdowns = state.countdowns,
+                    ready = state.ready,
+                    onAdd = viewModel::addCountdown,
+                    onChangeDate = viewModel::changeCountdownDate,
+                    onRemove = viewModel::removeCountdown,
+                )
             }
             composable(Routes.SETTINGS) {
                 SettingsScreen(

@@ -32,13 +32,54 @@ interface FocusRepository {
     suspend fun captureLater(title: String)
 
     /**
-     * Stores a new task outside Inbox, Today, and Later until [scheduledOnEpochDay].
+     * Stores a new task outside Inbox, Today, and Later until [scheduledOnEpochDay], and,
+     * when [scheduledAtMinuteOfDay] is set, until that local time on that day.
      * Does not start it. A blank title changes nothing.
      */
     suspend fun captureScheduled(
         title: String,
         scheduledOnEpochDay: Long,
+        scheduledAtMinuteOfDay: Int? = null,
     )
+
+    /**
+     * Adds a countdown to the event on [epochDay]. It takes no Today slot and does not start.
+     * A blank title changes nothing.
+     */
+    suspend fun captureCountdown(
+        title: String,
+        epochDay: Long,
+    )
+
+    /** Moves a waiting countdown to [epochDay]. An arrived one, or another bucket, is left alone. */
+    suspend fun rescheduleCountdown(
+        taskId: String,
+        epochDay: Long,
+    )
+
+    /** Drops a waiting countdown. An arrived one, or another bucket, is left alone. */
+    suspend fun removeCountdown(taskId: String)
+
+    /**
+     * Brings the oldest due countdown into focus, outside quiet hours only.
+     * An active frame pauses and becomes the event's parent, like a pile interrupt.
+     * With nothing active, the event starts on its own. Only one countdown is in the
+     * stack at a time: while one has an open frame, the next waits.
+     * Returns the event that arrived, or null.
+     */
+    suspend fun releaseDueCountdowns(): Task?
+
+    /**
+     * Closes the open frame of [taskId] without marking it done, sets its parent to
+     * [FrameState.AWAITING_RESUME], and moves the task to [destination]. Nothing resumes on its own.
+     * [DetachDestination.Today] places it without starting it. When Today is full it
+     * waits in Inbox and returns [PromoteOutcome.NeedsSwap], so Replace can place it.
+     * [DetachDestination.Countdown] needs a day after today.
+     */
+    suspend fun detachInterruption(
+        taskId: String,
+        destination: DetachDestination,
+    ): PromoteOutcome
 
     /**
      * Creates a task in the slot freed by parking [outgoingTaskId] in Later.

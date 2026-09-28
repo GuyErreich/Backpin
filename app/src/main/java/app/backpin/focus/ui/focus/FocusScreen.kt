@@ -40,9 +40,11 @@ import app.backpin.focus.domain.timeInFocusLabel
 import app.backpin.focus.ui.FocusStackViewModel
 import app.backpin.focus.ui.FocusUiState
 import app.backpin.focus.ui.RecoveryUi
+import app.backpin.focus.ui.countdown.EventDetachButtons
 import app.backpin.focus.ui.home.AccentButton
 import app.backpin.focus.ui.home.AccentTone
 import app.backpin.focus.ui.home.QuietButton
+import app.backpin.focus.ui.home.nowLabel
 import app.backpin.focus.ui.theme.CardRadius
 import app.backpin.focus.ui.theme.FocusColors
 import app.backpin.focus.ui.theme.Space
@@ -115,15 +117,16 @@ private fun ActiveCard(
     viewModel: FocusStackViewModel,
 ) {
     val now = state.now ?: return
-    val label = if (now.isInterruption) "INTERRUPTED" else "NOW"
+    val label = nowLabel(now)
+    val accent = if (now.isEvent) FocusColors.Lavender else FocusColors.Mint
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(CardRadius),
         color = FocusColors.Surface,
-        border = BorderStroke(2.dp, FocusColors.Mint),
+        border = BorderStroke(2.dp, accent),
     ) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(Space * 2)) {
-            Text(label, color = FocusColors.Mint, style = MaterialTheme.typography.labelLarge, letterSpacing = 1.2.sp)
+            Text(label, color = accent, style = MaterialTheme.typography.labelLarge, letterSpacing = 1.2.sp)
             Text(
                 now.title,
                 style = MaterialTheme.typography.headlineLarge,
@@ -149,13 +152,17 @@ private fun ActiveCard(
                 horizontalArrangement = Arrangement.spacedBy(Space),
                 verticalArrangement = Arrangement.spacedBy(Space),
             ) {
-                QuietButton("Pause", onClick = viewModel::pause)
-                AccentButton(
-                    "Interrupt",
-                    AccentTone.Lavender,
-                    onClick = { viewModel.openCapture(interrupts = true) },
-                )
-                QuietButton("Switch", onClick = viewModel::openSwitch)
+                if (now.isEvent) {
+                    EventDetachButtons(now.taskId, onDetach = viewModel::detachEvent)
+                } else {
+                    QuietButton("Pause", onClick = viewModel::pause)
+                    AccentButton(
+                        "Interrupt",
+                        AccentTone.Lavender,
+                        onClick = { viewModel.openCapture(interrupts = true) },
+                    )
+                    QuietButton("Switch", onClick = viewModel::openSwitch)
+                }
             }
         }
     }

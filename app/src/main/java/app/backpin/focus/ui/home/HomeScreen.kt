@@ -60,15 +60,18 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import app.backpin.focus.domain.DetachDestination
 import app.backpin.focus.domain.MAX_TODAY_LIMIT
 import app.backpin.focus.domain.MIN_TODAY_LIMIT
 import app.backpin.focus.domain.elapsedMillis
 import app.backpin.focus.domain.formatElapsed
 import app.backpin.focus.ui.FocusStackViewModel
 import app.backpin.focus.ui.FocusUiState
+import app.backpin.focus.ui.NowUi
 import app.backpin.focus.ui.SlotRole
 import app.backpin.focus.ui.SlotUi
 import app.backpin.focus.ui.TaskUi
+import app.backpin.focus.ui.countdown.EventDetachButtons
 import app.backpin.focus.ui.focus.RecoveryCard
 import app.backpin.focus.ui.motion.MotionSpec
 import app.backpin.focus.ui.motion.WithoutRipple
@@ -172,12 +175,19 @@ private fun NowCard(
     val recovery = state.recovery
     when {
         now != null -> {
-            val accent = if (now.isInterruption) FocusColors.Lavender else FocusColors.Mint
-            val label = if (now.isInterruption) "INTERRUPTED" else "NOW"
+            val accent = if (now.isInterruption || now.isEvent) FocusColors.Lavender else FocusColors.Mint
+            val label = nowLabel(now)
             val openInteraction = rememberPressSource()
             SwipeRevealCard(
                 towardStart = doneSwipe(viewModel::completeActive),
-                towardEnd = laterSwipe { viewModel.demote(now.taskId) },
+                towardEnd =
+                    laterSwipe {
+                        if (now.isEvent) {
+                            viewModel.detachEvent(now.taskId, DetachDestination.Later)
+                        } else {
+                            viewModel.demote(now.taskId)
+                        }
+                    },
                 reducedMotion = reducedMotion,
                 modifier = Modifier.fillMaxWidth(),
             ) {
@@ -214,12 +224,16 @@ private fun NowCard(
                             verticalArrangement = Arrangement.spacedBy(Space),
                         ) {
                             AccentButton("Done", AccentTone.Mint, onClick = viewModel::completeActive)
-                            AccentButton(
-                                "Interrupt",
-                                AccentTone.Lavender,
-                                onClick = { viewModel.openCapture(interrupts = true) },
-                            )
-                            QuietButton("Later", onClick = { viewModel.demote(now.taskId) })
+                            if (now.isEvent) {
+                                EventDetachButtons(now.taskId, onDetach = viewModel::detachEvent)
+                            } else {
+                                AccentButton(
+                                    "Interrupt",
+                                    AccentTone.Lavender,
+                                    onClick = { viewModel.openCapture(interrupts = true) },
+                                )
+                                QuietButton("Later", onClick = { viewModel.demote(now.taskId) })
+                            }
                         }
                     }
                 }
@@ -248,6 +262,14 @@ private fun NowCard(
         }
     }
 }
+
+/** "EVENT" for an arrived countdown, "INTERRUPTED" for a nested task, otherwise "NOW". */
+internal fun nowLabel(now: NowUi): String =
+    when {
+        now.isEvent -> "EVENT"
+        now.isInterruption -> "INTERRUPTED"
+        else -> "NOW"
+    }
 
 @Composable
 private fun TodaySection(

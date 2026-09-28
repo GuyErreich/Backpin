@@ -3,6 +3,7 @@ package app.backpin.focus.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import app.backpin.focus.domain.DetachDestination
 import app.backpin.focus.domain.FocusUseCases
 import app.backpin.focus.domain.PromoteOutcome
 import app.backpin.focus.domain.TaskBucket
@@ -143,13 +144,56 @@ class FocusStackViewModel(
         }
     }
 
+    /** Schedules a new task for a day and, when [scheduledAtMinuteOfDay] is set, a time on it. */
     fun placeScheduled(
         title: String,
         scheduledOnEpochDay: Long,
+        scheduledAtMinuteOfDay: Int? = null,
     ) {
         viewModelScope.launch {
-            useCases.captureScheduled(title, scheduledOnEpochDay)
+            useCases.captureScheduled(title, scheduledOnEpochDay, scheduledAtMinuteOfDay)
             if (title.isNotBlank()) closeCapture()
+        }
+    }
+
+    fun addCountdown(
+        title: String,
+        epochDay: Long,
+    ) {
+        viewModelScope.launch {
+            useCases.captureCountdown(title, epochDay)
+        }
+    }
+
+    fun changeCountdownDate(
+        taskId: String,
+        epochDay: Long,
+    ) {
+        viewModelScope.launch {
+            useCases.rescheduleCountdown(taskId, epochDay)
+        }
+    }
+
+    fun removeCountdown(taskId: String) {
+        viewModelScope.launch {
+            useCases.removeCountdown(taskId)
+        }
+    }
+
+    /**
+     * Sends an arrived event out of focus to Today, Later, or back to counting down.
+     * The paused task then waits for Resume. A full Today opens Replace for the event.
+     */
+    fun detachEvent(
+        taskId: String,
+        destination: DetachDestination,
+    ) {
+        viewModelScope.launch {
+            when (useCases.detachInterruption(taskId, destination)) {
+                is PromoteOutcome.NeedsSwap -> swapIncomingId.value = taskId
+                is PromoteOutcome.Promoted -> swapIncomingId.value = null
+                is PromoteOutcome.Rejected -> Unit
+            }
         }
     }
 

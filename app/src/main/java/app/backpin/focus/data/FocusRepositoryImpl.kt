@@ -2,10 +2,12 @@ package app.backpin.focus.data
 
 import androidx.room.withTransaction
 import app.backpin.focus.domain.AppClock
+import app.backpin.focus.domain.DetachDestination
 import app.backpin.focus.domain.FocusRepository
 import app.backpin.focus.domain.FocusSnapshot
 import app.backpin.focus.domain.FrameState
 import app.backpin.focus.domain.MAX_TODAY_LIMIT
+import app.backpin.focus.domain.MINUTES_PER_DAY
 import app.backpin.focus.domain.MIN_TODAY_LIMIT
 import app.backpin.focus.domain.PromoteOutcome
 import app.backpin.focus.domain.SystemAppClock
@@ -15,11 +17,15 @@ import app.backpin.focus.domain.TaskStatus
 import app.backpin.focus.domain.UNTITLED_INTERRUPTION
 import app.backpin.focus.domain.UndoToken
 import app.backpin.focus.domain.UserPreferences
+import app.backpin.focus.domain.isCountdownDue
+import app.backpin.focus.domain.isQuietNow
+import app.backpin.focus.domain.isScheduledDue
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.ZoneId
 import java.util.UUID
 
@@ -105,13 +111,139 @@ class FocusRepositoryImpl(
     override suspend fun captureScheduled(
         title: String,
         scheduledOnEpochDay: Long,
+        scheduledAtMinuteOfDay: Int?,
+    ) {
+        val trimmed = title.trim()
+        if (trimmed.isEmpty()) return
+        val minute = scheduledAtMinuteOfDay?.coerceIn(0, MINUTES_PER_DAY - 1)
+        database.withTransaction {
+            taskDao.upsert(
+                newTask(trimmed, TaskBucket.SCHEDULED, scheduledOnEpochDay).copy(scheduledAtMinuteOfDay = minute),
+            )
+        }
+        recordInteraction()
+    }
+
+    override suspend fun captureCountdown(
+        title: String,
+        epochDay: Long,
     ) {
         val trimmed = title.trim()
         if (trimmed.isEmpty()) return
         database.withTransaction {
-            taskDao.upsert(newTask(trimmed, TaskBucket.SCHEDULED, scheduledOnEpochDay))
+            taskDao.upsert(newTask(trimmed, TaskBucket.COUNTDOWN, epochDay))
         }
         recordInteraction()
+    }
+
+    override suspend fun rescheduleCountdown(
+        taskId: String,
+        epochDay: Long,
+    ) {
+        val changed =
+            database.withTransaction {
+                val task = waitingCountdown(taskId) ?: return@withTransaction false
+                taskDao.upsert(task.copy(scheduledOnEpochDay = epochDay))
+                true
+            }
+        if (changed) recordInteraction()
+    }
+
+    override suspend fun removeCountdown(taskId: String) {
+        val removed =
+            database.withTransaction {
+                waitingCountdown(taskId) ?: return@withTransaction false
+                frameDao.deleteForTask(taskId)
+                taskDao.deleteById(taskId)
+                true
+            }
+        if (removed) recordInteraction()
+    }
+
+    override suspend fun releaseDueCountdowns(): Task? {
+        val preferences = preferencesStore.preferences.first()
+        val now = localNow()
+        if (isQuietNow(preferences.quietStart, preferences.quietEnd, now.toLocalTime())) return null
+        val arrived =
+            database.withTransaction {
+                val countdowns = taskDao.openInBucket(TaskBucket.COUNTDOWN.name)
+                if (countdowns.any { frameDao.openFrameForTask(it.id) != null }) return@withTransaction null
+                val due =
+                    countdowns
+                        .filter { entity ->
+                            val day = entity.scheduledOnEpochDay ?: return@filter false
+                            isCountdownDue(day, now.toLocalDate())
+                        }.minWithOrNull(compareBy({ it.scheduledOnEpochDay }, { it.sortOrder }, { it.id }))
+                        ?: return@withTransaction null
+                val active = frameDao.getActive()
+                if (active != null) frameDao.upsert(pause(active))
+                frameDao.upsert(newFrame(due.id, parentFrameId = active?.id))
+                requireInvariants(todayLimit())
+                due.toDomain()
+            }
+        if (arrived != null) recordInteraction()
+        return arrived
+    }
+
+    override suspend fun detachInterruption(
+        taskId: String,
+        destination: DetachDestination,
+    ): PromoteOutcome {
+        val limit = todayLimit()
+        val outcome =
+            database.withTransaction {
+                val task = taskDao.getById(taskId) ?: return@withTransaction PromoteOutcome.Rejected("Missing task")
+                if (task.status != TaskStatus.OPEN.name) {
+                    return@withTransaction PromoteOutcome.Rejected("Done tasks stay done")
+                }
+                val frame =
+                    frameDao.openFrameForTask(taskId)
+                        ?: return@withTransaction PromoteOutcome.Rejected("Not in focus")
+                if (frameDao.countOpenChildren(frame.id) > 0) {
+                    return@withTransaction PromoteOutcome.Rejected("Task still has an open interruption")
+                }
+                if (destination is DetachDestination.Countdown &&
+                    !LocalDate.ofEpochDay(destination.epochDay).isAfter(localToday())
+                ) {
+                    return@withTransaction PromoteOutcome.Rejected("Count down to a day after today")
+                }
+                frameDao.upsert(close(frame))
+                val parent = frame.parentFrameId?.let { frameDao.getById(it) }
+                if (parent != null && parent.state == FrameState.PAUSED.name) {
+                    frameDao.upsert(parent.copy(state = FrameState.AWAITING_RESUME.name))
+                }
+                val result =
+                    when (destination) {
+                        DetachDestination.Later -> {
+                            taskDao.upsert(task.movedTo(TaskBucket.LATER, clock.nowEpochMillis()))
+                            PromoteOutcome.Promoted
+                        }
+                        is DetachDestination.Countdown -> {
+                            taskDao.upsert(
+                                task
+                                    .movedTo(TaskBucket.COUNTDOWN, clock.nowEpochMillis())
+                                    .copy(scheduledOnEpochDay = destination.epochDay),
+                            )
+                            PromoteOutcome.Promoted
+                        }
+                        DetachDestination.Today -> {
+                            if (task.bucket == TaskBucket.TODAY.name) {
+                                PromoteOutcome.Promoted
+                            } else if (taskDao.countOpenToday() >= limit) {
+                                taskDao.upsert(task.movedTo(TaskBucket.INBOX, clock.nowEpochMillis()))
+                                val today = taskDao.openInBucket(TaskBucket.TODAY.name).map { it.toDomain() }
+                                PromoteOutcome.NeedsSwap(today, canInterrupt = false)
+                            } else {
+                                taskDao.upsert(task.movedTo(TaskBucket.TODAY, clock.nowEpochMillis()))
+                                PromoteOutcome.Promoted
+                            }
+                        }
+                    }
+                requireInvariants(limit)
+                result
+            }
+        if (outcome !is PromoteOutcome.Rejected) recordInteraction()
+        return outcome
     }
 
     override suspend fun captureReplacing(
@@ -489,6 +621,7 @@ class FocusRepositoryImpl(
                         completedAtEpochMillis = null,
                         sortOrder = clock.nowEpochMillis(),
                         scheduledOnEpochDay = null,
+                        scheduledAtMinuteOfDay = null,
                     ),
                 )
                 requireInvariants(todayLimit())
@@ -690,28 +823,47 @@ class FocusRepositoryImpl(
             bucket = bucket.name,
             sortOrder = sortOrder,
             scheduledOnEpochDay = if (bucket == TaskBucket.SCHEDULED) scheduledOnEpochDay else null,
+            scheduledAtMinuteOfDay = if (bucket == TaskBucket.SCHEDULED) scheduledAtMinuteOfDay else null,
         )
 
-    private fun localToday(): LocalDate =
-        Instant.ofEpochMilli(clock.nowEpochMillis()).atZone(ZoneId.systemDefault()).toLocalDate()
+    private fun localNow(): LocalDateTime =
+        Instant.ofEpochMilli(clock.nowEpochMillis()).atZone(ZoneId.systemDefault()).toLocalDateTime()
+
+    private fun localToday(): LocalDate = localNow().toLocalDate()
+
+    /** An open countdown that has not arrived yet, so the Countdown tab may edit it. */
+    private suspend fun waitingCountdown(taskId: String): TaskEntity? {
+        val task = taskDao.getById(taskId) ?: return null
+        if (task.bucket != TaskBucket.COUNTDOWN.name || task.status != TaskStatus.OPEN.name) return null
+        if (frameDao.openFrameForTask(taskId) != null) return null
+        return task
+    }
 
     /**
-     * Fills free Today slots with due scheduled tasks, oldest date first.
+     * Fills free Today slots with due scheduled tasks, oldest moment first.
+     * A task with a time waits until that time on its day.
      * Does not start them and does not move a Today task aside to make room.
      */
     private suspend fun releaseDue(
         limit: Int,
         exceptIds: Set<String> = emptySet(),
     ) {
-        val today = localToday()
+        val now = localNow()
         val due =
             taskDao
                 .openInBucket(TaskBucket.SCHEDULED.name)
                 .filter { entity ->
                     if (entity.id in exceptIds) return@filter false
                     val day = entity.scheduledOnEpochDay ?: return@filter false
-                    !LocalDate.ofEpochDay(day).isAfter(today)
-                }.sortedWith(compareBy({ it.scheduledOnEpochDay }, { it.sortOrder }, { it.id }))
+                    isScheduledDue(day, entity.scheduledAtMinuteOfDay, now)
+                }.sortedWith(
+                    compareBy(
+                        { it.scheduledOnEpochDay },
+                        { it.scheduledAtMinuteOfDay ?: -1 },
+                        { it.sortOrder },
+                        { it.id },
+                    ),
+                )
         for (entity in due) {
             if (taskDao.countOpenToday() >= limit) return
             taskDao.upsert(
@@ -719,6 +871,7 @@ class FocusRepositoryImpl(
                     bucket = TaskBucket.TODAY.name,
                     sortOrder = clock.nowEpochMillis(),
                     scheduledOnEpochDay = null,
+                    scheduledAtMinuteOfDay = null,
                 ),
             )
         }

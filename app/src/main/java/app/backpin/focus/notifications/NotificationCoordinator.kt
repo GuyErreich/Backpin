@@ -164,6 +164,15 @@ class NotificationCoordinator(
         }
     }
 
+    /**
+     * One dismissible, silent notice that [title] reached its day and is in focus.
+     * Tapping it opens Focus. The ongoing Today notice refreshes from the snapshot.
+     */
+    fun postCountdownArrival(title: String) {
+        if (!notificationsAllowed(context)) return
+        notify(NotificationContract.ID_COUNTDOWN, buildCountdownArrivalNotification(context, title))
+    }
+
     private fun postNudge(
         taskId: String,
         title: String,
@@ -459,6 +468,22 @@ internal fun todayBigContent(
     return root
 }
 
+/** Arrival notice for a countdown. Silent, auto-cancelled, and not ongoing. Opens Focus. */
+internal fun buildCountdownArrivalNotification(
+    context: Context,
+    title: String,
+): android.app.Notification =
+    NotificationCompat.Builder(context, NotificationContract.CHANNEL_COUNTDOWN)
+        .setSmallIcon(R.drawable.ic_stat_focus)
+        .setContentTitle(context.getString(R.string.countdown_arrived_title, title))
+        .setContentText(context.getString(R.string.countdown_arrived_text))
+        .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+        .setSilent(true)
+        .setOnlyAlertOnce(true)
+        .setAutoCancel(true)
+        .setContentIntent(focusPendingIntent(context, NotificationContract.DESTINATION_FOCUS, requestCode = 5))
+        .build()
+
 internal fun switchPendingIntent(
     context: Context,
     taskId: String,
@@ -540,9 +565,21 @@ internal fun ensureFocusChannels(context: Context) {
         ).apply {
             description = context.getString(R.string.channel_nudge_description)
         }
+    val countdown =
+        NotificationChannel(
+            NotificationContract.CHANNEL_COUNTDOWN,
+            context.getString(R.string.channel_countdown_name),
+            NotificationManager.IMPORTANCE_DEFAULT,
+        ).apply {
+            description = context.getString(R.string.channel_countdown_description)
+            setSound(null, null)
+            enableVibration(false)
+            enableLights(false)
+        }
     manager.createNotificationChannel(current)
     manager.createNotificationChannel(today)
     manager.createNotificationChannel(nudge)
+    manager.createNotificationChannel(countdown)
     // Drop the quiet idle channel if this install already created it. Recreating
     // that same id would restore the low importance, so the new id stays.
     manager.deleteNotificationChannel(NotificationContract.CHANNEL_TODAY_IDLE)

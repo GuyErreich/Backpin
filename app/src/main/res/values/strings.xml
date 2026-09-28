@@ -17,4 +17,8 @@
     <string name="channel_today_description">Ongoing list of open Today tasks when nothing is in focus. Silent, with a small status icon. It stays until Today is empty.</string>
     <string name="channel_nudge_name">Nudges</string>
     <string name="channel_nudge_description">Approximate reminders. Android may delay them. Focus Stack does not use exact alarms.</string>
+    <string name="channel_countdown_name">Countdowns</string>
+    <string name="channel_countdown_description">One silent notice when a countdown reaches its day and comes into focus. Never during quiet hours.</string>
+    <string name="countdown_arrived_title">Today: %1$s</string>
+    <string name="countdown_arrived_text">It\'s in focus now. Open Focus to choose where it goes.</string>
 </resources>
