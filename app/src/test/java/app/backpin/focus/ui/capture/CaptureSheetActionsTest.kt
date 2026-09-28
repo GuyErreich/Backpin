@@ -30,6 +30,7 @@ import androidx.compose.ui.test.performTouchInput
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import app.backpin.focus.data.FocusRepositoryImpl
+import app.backpin.focus.runOffTestThread
 import app.backpin.focus.data.FocusStackDatabase
 import app.backpin.focus.data.PreferencesDataStore
 import app.backpin.focus.domain.AppClock
@@ -72,7 +73,7 @@ class CaptureSheetActionsTest {
         tap("Later")
         tap("Schedule")
         tap("Tomorrow")
-        assertEquals(0, dismissed)
+        assertEquals(1, dismissed)
         assertEquals(
             listOf(
                 "today:Call Dana",
@@ -134,8 +135,11 @@ class CaptureSheetActionsTest {
             }
             assertEquals(0, dismissed)
 
-            val current = runBlocking { useCases.observeSnapshot().first().tasks.single { it.title == "Write the notes" }.id }
-            runBlocking { useCases.start(current) }
+            val current =
+                runOffTestThread {
+                    useCases.observeSnapshot().first().tasks.single { it.title == "Write the notes" }.id
+                }
+            runOffTestThread { useCases.start(current) }
             awaitNow(viewModel) { it.taskId == current }
 
             replaceTitle("Call Dana")
@@ -182,7 +186,7 @@ class CaptureSheetActionsTest {
                     scheduled.scheduledOnEpochDay == tomorrow &&
                     snapshot.frames.none { it.taskId == scheduled.id }
             }
-            assertEquals(0, dismissed)
+            assertEquals(1, dismissed)
         } finally {
             database.close()
         }

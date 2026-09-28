@@ -207,6 +207,30 @@ class ScheduledReleaseTest {
         }
 
     @Test
+    fun changingTheDayOrTimeKeepsTheSameScheduledTask() =
+        runBlocking {
+            val day = today.plusDays(4).toEpochDay()
+            repository.captureScheduled("Call Dana", day, 9 * 60)
+            val id = taskNamed("Call Dana").id
+            val next = today.plusDays(11).toEpochDay()
+            assertTrue(repository.rescheduleScheduled(id, next))
+            assertEquals(id, taskNamed("Call Dana").id)
+            assertEquals(next, task(id).scheduledOnEpochDay)
+            assertEquals(9 * 60, task(id).scheduledAtMinuteOfDay)
+            assertEquals(1, snapshot().tasks.count { it.title == "Call Dana" })
+
+            assertTrue(repository.setScheduledTime(id, 15 * 60))
+            assertEquals(id, task(id).id)
+            assertEquals(next, task(id).scheduledOnEpochDay)
+            assertEquals(15 * 60, task(id).scheduledAtMinuteOfDay)
+
+            assertTrue(repository.setScheduledTime(id, null))
+            assertNull(task(id).scheduledAtMinuteOfDay)
+            assertEquals(next, task(id).scheduledOnEpochDay)
+            assertEquals(1, snapshot().tasks.count { it.bucket == TaskBucket.SCHEDULED })
+        }
+
+    @Test
     fun aTimedTaskStillWaitsWhenTodayIsFull() =
         runBlocking {
             fillToday(3)

@@ -124,6 +124,8 @@ internal fun deriveFocusUi(
                     title = task.title,
                     whenLabel = if (day == null) "Unscheduled" else scheduledWhenLabel(day, minute, localNow),
                     due = day != null && isScheduledDue(day, minute, localNow),
+                    epochDay = day,
+                    minuteOfDay = minute,
                 )
             }
     val framedTaskIds =

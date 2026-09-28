@@ -48,10 +48,7 @@ import app.backpin.focus.domain.CapturePlace
 import app.backpin.focus.domain.ScheduleOffset
 import app.backpin.focus.domain.capturePlaces
 import app.backpin.focus.domain.scheduleDate
-import app.backpin.focus.domain.scheduleMomentLabel
 import app.backpin.focus.ui.calendar.PickDateDialog
-import app.backpin.focus.ui.calendar.PickTimeDialog
-import app.backpin.focus.ui.calendar.suggestedMinuteOfDay
 import app.backpin.focus.ui.components.ActionRow
 import app.backpin.focus.ui.components.BACK_LABEL
 import app.backpin.focus.ui.components.BackArrow
@@ -65,7 +62,6 @@ import app.backpin.focus.ui.theme.ButtonGap
 import app.backpin.focus.ui.theme.FocusColors
 import app.backpin.focus.ui.theme.Space
 import java.time.LocalDate
-import java.time.LocalTime
 
 private enum class ListenField {
     Title,
@@ -97,10 +93,7 @@ internal fun CaptureSheet(
     var pendingTitle by remember { mutableStateOf<String?>(null) }
     var schedulingTitle by remember { mutableStateOf<String?>(null) }
     var scheduleFromPhrase by remember { mutableStateOf(false) }
-    var pickedDate by remember { mutableStateOf<LocalDate?>(null) }
-    var pickedMinute by remember { mutableStateOf<Int?>(null) }
     var datePickerOpen by remember { mutableStateOf(false) }
-    var timePickerOpen by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
     val fillFocusRequester = remember { FocusRequester() }
     val speech =
@@ -131,10 +124,7 @@ internal fun CaptureSheet(
     }
 
     fun clearSchedulePick() {
-        pickedDate = null
-        pickedMinute = null
         datePickerOpen = false
-        timePickerOpen = false
     }
 
     fun beginSchedule(
@@ -191,17 +181,10 @@ internal fun CaptureSheet(
         placeResolved(place, resolved, fromPhrase = typed.isEmpty() && fromBlank.isNotEmpty())
     }
 
-    fun chooseMoment(
-        date: LocalDate,
-        minuteOfDay: Int?,
-    ) {
-        val resolved = schedulingTitle ?: return
-        onSchedule(resolved, date.toEpochDay(), minuteOfDay)
-        stopListening()
-    }
-
     fun chooseDate(date: LocalDate) {
-        chooseMoment(date, minuteOfDay = null)
+        val resolved = schedulingTitle ?: return
+        onSchedule(resolved, date.toEpochDay(), null)
+        dismiss()
     }
 
     val atFirstStep = schedulingTitle == null && pendingTitle == null && activeBlank == null
@@ -280,11 +263,7 @@ internal fun CaptureSheet(
             }
             when {
                 scheduling != null -> {
-                    ScheduleFields(
-                        title = scheduling,
-                        pickedDate = pickedDate,
-                        pickedMinute = pickedMinute,
-                    )
+                    ScheduleFields(title = scheduling)
                 }
                 placing != null -> {
                     Text(placing, style = MaterialTheme.typography.headlineMedium)
@@ -415,12 +394,8 @@ internal fun CaptureSheet(
                 scheduling != null -> {
                     ScheduleChoices(
                         today = today,
-                        pickedDate = pickedDate,
-                        pickedMinute = pickedMinute,
                         onDate = ::chooseDate,
                         onPickDate = { datePickerOpen = true },
-                        onAddTime = { timePickerOpen = true },
-                        onConfirm = { date -> chooseMoment(date, pickedMinute) },
                     )
                 }
                 placing != null -> {
@@ -442,25 +417,13 @@ internal fun CaptureSheet(
     }
     if (datePickerOpen) {
         PickDateDialog(
-            initial = pickedDate ?: today.plusDays(1),
+            initial = today.plusDays(1),
             earliest = today,
             onPick = { date ->
                 datePickerOpen = false
-                if (date != pickedDate) pickedMinute = null
-                pickedDate = date
+                chooseDate(date)
             },
             onDismiss = { datePickerOpen = false },
-        )
-    }
-    val timeFor = pickedDate
-    if (timePickerOpen && timeFor != null) {
-        PickTimeDialog(
-            initialMinuteOfDay = pickedMinute ?: suggestedMinuteOfDay(timeFor, today, LocalTime.now()),
-            onPick = { minute ->
-                timePickerOpen = false
-                pickedMinute = minute
-            },
-            onDismiss = { timePickerOpen = false },
         )
     }
 }
@@ -485,58 +448,34 @@ private fun PlaceChoices(
 }
 
 @Composable
-private fun ScheduleFields(
-    title: String,
-    pickedDate: LocalDate?,
-    pickedMinute: Int?,
-) {
+private fun ScheduleFields(title: String) {
     Text(title, style = MaterialTheme.typography.headlineMedium)
     Text(
         "When should it come back?",
         style = MaterialTheme.typography.bodyLarge,
         modifier = Modifier.semantics { heading() },
     )
-    if (pickedDate != null) {
-        Text(
-            "Comes back ${scheduleMomentLabel(pickedDate.toEpochDay(), pickedMinute)}.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = FocusColors.Muted,
-        )
-    } else {
-        Text(
-            "Without a time, it lands on Today any time that day.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = FocusColors.Muted,
-        )
-    }
+    Text(
+        "Without a time, it lands on Today any time that day.",
+        style = MaterialTheme.typography.bodyMedium,
+        color = FocusColors.Muted,
+    )
 }
 
 /**
- * Quick days place the task at once. Pick a date opens the calendar; the picked day
- * can then take an optional time before it is saved.
+ * Tomorrow, in 7 days, or the day chosen on the calendar schedules at once, with no time,
+ * and closes the sheet. The time is set later on the Scheduled row.
  */
 @Composable
 private fun ScheduleChoices(
     today: LocalDate,
-    pickedDate: LocalDate?,
-    pickedMinute: Int?,
     onDate: (LocalDate) -> Unit,
     onPickDate: () -> Unit,
-    onAddTime: () -> Unit,
-    onConfirm: (LocalDate) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(ButtonGap)) {
         CaptureChoice("Tomorrow", onClick = { onDate(scheduleDate(today, ScheduleOffset.TOMORROW)) })
         CaptureChoice("In 7 days", onClick = { onDate(scheduleDate(today, ScheduleOffset.IN_7_DAYS)) })
-        CaptureChoice(if (pickedDate == null) "Pick a date" else "Change date", onClick = onPickDate)
-        if (pickedDate != null) {
-            CaptureChoice(if (pickedMinute == null) "Add a time" else "Change time", onClick = onAddTime)
-            CaptureChoice(
-                "Schedule for ${scheduleMomentLabel(pickedDate.toEpochDay(), pickedMinute)}",
-                tone = ChoiceTone.Amber,
-                onClick = { onConfirm(pickedDate) },
-            )
-        }
+        CaptureChoice("Pick a date", onClick = onPickDate)
     }
 }
 

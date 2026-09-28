@@ -322,6 +322,35 @@ class FocusRepositoryImpl(
         if (removed) recordInteraction()
     }
 
+    override suspend fun rescheduleScheduled(
+        taskId: String,
+        epochDay: Long,
+    ): Boolean {
+        val changed =
+            database.withTransaction {
+                val task = openScheduled(taskId) ?: return@withTransaction false
+                taskDao.upsert(task.copy(scheduledOnEpochDay = epochDay))
+                true
+            }
+        if (changed) recordInteraction()
+        return changed
+    }
+
+    override suspend fun setScheduledTime(
+        taskId: String,
+        minuteOfDay: Int?,
+    ): Boolean {
+        val minute = minuteOfDay?.coerceIn(0, MINUTES_PER_DAY - 1)
+        val changed =
+            database.withTransaction {
+                val task = openScheduled(taskId) ?: return@withTransaction false
+                taskDao.upsert(task.copy(scheduledAtMinuteOfDay = minute))
+                true
+            }
+        if (changed) recordInteraction()
+        return changed
+    }
+
     override suspend fun releaseDueScheduled() {
         val limit = todayLimit()
         val moved =
@@ -830,6 +859,13 @@ class FocusRepositoryImpl(
         Instant.ofEpochMilli(clock.nowEpochMillis()).atZone(ZoneId.systemDefault()).toLocalDateTime()
 
     private fun localToday(): LocalDate = localNow().toLocalDate()
+
+    /** An open scheduled task that is still waiting, so its day and time can change in place. */
+    private suspend fun openScheduled(taskId: String): TaskEntity? {
+        val task = taskDao.getById(taskId) ?: return null
+        if (task.bucket != TaskBucket.SCHEDULED.name || task.status != TaskStatus.OPEN.name) return null
+        return task
+    }
 
     /** An open countdown that has not arrived yet, so the Countdown tab may edit it. */
     private suspend fun waitingCountdown(taskId: String): TaskEntity? {

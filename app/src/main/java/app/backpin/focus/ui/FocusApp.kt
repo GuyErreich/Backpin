@@ -244,6 +244,8 @@ fun FocusApp(
                     onInbox = viewModel::moveToInbox,
                     onLater = viewModel::demote,
                     onRemove = viewModel::removeScheduled,
+                    onChangeDate = viewModel::changeScheduledDate,
+                    onChangeTime = viewModel::changeScheduledTime,
                 )
             }
             composable(

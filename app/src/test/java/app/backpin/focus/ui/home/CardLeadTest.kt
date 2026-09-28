@@ -66,6 +66,7 @@ class CardLeadTest {
                                 title = "Call Dana",
                                 whenLabel = "In 12 days",
                                 due = false,
+                                epochDay = 20_000,
                             ),
                         ),
                     ready = true,
@@ -77,6 +78,8 @@ class CardLeadTest {
                     onInbox = {},
                     onLater = {},
                     onRemove = {},
+                    onChangeDate = { _, _ -> },
+                    onChangeTime = { _, _ -> },
                 )
             }
         }
@@ -84,7 +87,7 @@ class CardLeadTest {
         assertEquals(14.sp, fontSizeOf("In 12 days"))
         val today = boundsOf("Today")
         val interrupt = boundsOf("Interrupt")
-        listOf("Today", "Start", "Interrupt", "Inbox", "Later", "Remove").forEach { label ->
+        listOf("Today", "Start", "Interrupt", "Inbox", "Later", "Remove", "Change date", "Add a time").forEach { label ->
             val height = boundsOf(label).let { it.bottom - it.top }
             assertTrue("$label is $height tall", height <= 44.dp && height >= 40.dp - 0.5.dp)
         }

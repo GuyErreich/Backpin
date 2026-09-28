@@ -103,6 +103,26 @@ interface FocusRepository {
     suspend fun removeScheduled(taskId: String)
 
     /**
+     * Moves an open scheduled task to [epochDay] and keeps its time.
+     * Does not create a task. Other buckets are left alone.
+     * Returns false when nothing changed.
+     */
+    suspend fun rescheduleScheduled(
+        taskId: String,
+        epochDay: Long,
+    ): Boolean
+
+    /**
+     * Sets or clears the local time on an open scheduled task.
+     * Null clears the time. Does not create a task. Other buckets are left alone.
+     * Returns false when nothing changed.
+     */
+    suspend fun setScheduledTime(
+        taskId: String,
+        minuteOfDay: Int?,
+    ): Boolean
+
+    /**
      * Moves due scheduled tasks onto Today without starting them, while a slot is free.
      * When Today is full, leaves them scheduled. Does not park another Today task to make room.
      */

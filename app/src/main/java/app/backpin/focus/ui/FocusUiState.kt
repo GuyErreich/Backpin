@@ -22,6 +22,8 @@ data class ScheduledTaskUi(
     val title: String,
     val whenLabel: String,
     val due: Boolean,
+    val epochDay: Long? = null,
+    val minuteOfDay: Int? = null,
 )
 
 /** A countdown still waiting for its day. [dayLabel] is "Today", "Tomorrow", or "12 days". */

@@ -1,6 +1,7 @@
 package app.backpin.focus.domain
 
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 
 /**
  * Task and focus operations the UI calls. Each method delegates to one repository
@@ -77,6 +78,30 @@ class FocusUseCases(
 
     suspend fun removeScheduled(taskId: String) {
         repository.removeScheduled(taskId)
+    }
+
+    /** Keeps the time already on the task. A set time queues one inexact check for the new day. */
+    suspend fun rescheduleScheduled(
+        taskId: String,
+        epochDay: Long,
+    ) {
+        val task = observeSnapshot().first().tasks.firstOrNull { it.id == taskId } ?: return
+        if (task.bucket != TaskBucket.SCHEDULED) return
+        if (!repository.rescheduleScheduled(taskId, epochDay)) return
+        val minute = task.scheduledAtMinuteOfDay ?: return
+        wakeUp.wakeAt(scheduledMomentEpochMillis(epochDay, minute))
+    }
+
+    /** Null clears the time. A set time queues one inexact check on the task's existing day. */
+    suspend fun setScheduledTime(
+        taskId: String,
+        minuteOfDay: Int?,
+    ) {
+        val task = observeSnapshot().first().tasks.firstOrNull { it.id == taskId } ?: return
+        if (task.bucket != TaskBucket.SCHEDULED) return
+        val day = task.scheduledOnEpochDay ?: return
+        if (!repository.setScheduledTime(taskId, minuteOfDay)) return
+        if (minuteOfDay != null) wakeUp.wakeAt(scheduledMomentEpochMillis(day, minuteOfDay))
     }
 
     suspend fun releaseDueScheduled() {

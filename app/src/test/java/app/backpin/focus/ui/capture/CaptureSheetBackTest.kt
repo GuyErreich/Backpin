@@ -54,6 +54,9 @@ class CaptureSheetBackTest {
         compose.onNodeWithText("Pick a date").assertExists()
         compose.onNodeWithText("In a couple of days").assertDoesNotExist()
         compose.onNodeWithText("Next week").assertDoesNotExist()
+        compose.onNodeWithText("Schedule for", substring = true).assertDoesNotExist()
+        compose.onNodeWithText("Add a time").assertDoesNotExist()
+        compose.onNodeWithText("Change date").assertDoesNotExist()
         assertEquals(listOf("Tomorrow", "In 7 days", "Pick a date"), labelsTopToBottom("Tomorrow", "In 7 days", "Pick a date"))
     }
 

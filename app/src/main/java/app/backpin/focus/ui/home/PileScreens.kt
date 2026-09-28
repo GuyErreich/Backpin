@@ -13,6 +13,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
@@ -21,6 +25,9 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import app.backpin.focus.ui.ScheduledTaskUi
 import app.backpin.focus.ui.TaskUi
+import app.backpin.focus.ui.calendar.PickDateDialog
+import app.backpin.focus.ui.calendar.PickTimeDialog
+import app.backpin.focus.ui.calendar.suggestedMinuteOfDay
 import app.backpin.focus.ui.components.AccentButton
 import app.backpin.focus.ui.components.AccentTone
 import app.backpin.focus.ui.components.CardActions
@@ -31,6 +38,8 @@ import app.backpin.focus.ui.motion.rememberReducedMotion
 import app.backpin.focus.ui.theme.ButtonGap
 import app.backpin.focus.ui.theme.FocusColors
 import app.backpin.focus.ui.theme.Space
+import java.time.LocalDate
+import java.time.LocalTime
 
 private val PileRowPadding = Modifier.padding(horizontal = 12.dp, vertical = 12.dp)
 
@@ -106,9 +115,14 @@ fun ScheduledScreen(
     onInbox: (String) -> Unit,
     onLater: (String) -> Unit,
     onRemove: (String) -> Unit,
+    onChangeDate: (String, Long) -> Unit,
+    onChangeTime: (String, Int?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val reducedMotion = rememberReducedMotion()
+    var datingId by rememberSaveable { mutableStateOf<String?>(null) }
+    var timingId by rememberSaveable { mutableStateOf<String?>(null) }
+    val today = LocalDate.now()
     PileScaffold(
         title = "Scheduled",
         count = tasks.size,
@@ -160,11 +174,48 @@ fun ScheduledScreen(
                             QuietButton(label = "Inbox", onClick = { onInbox(task.id) })
                             QuietButton(label = "Later", onClick = { onLater(task.id) })
                             QuietButton(label = "Remove", onClick = { onRemove(task.id) })
+                            if (task.epochDay != null) {
+                                QuietButton(label = "Change date", onClick = { datingId = task.id })
+                                QuietButton(
+                                    label = if (task.minuteOfDay == null) "Add a time" else "Change time",
+                                    onClick = { timingId = task.id },
+                                )
+                            }
+                            if (task.minuteOfDay != null) {
+                                QuietButton(label = "Clear time", onClick = { onChangeTime(task.id, null) })
+                            }
                         }
                     }
                 }
             }
         }
+    }
+    val dating = tasks.firstOrNull { it.id == datingId }
+    val datingDay = dating?.epochDay
+    if (dating != null && datingDay != null) {
+        val initial = LocalDate.ofEpochDay(datingDay)
+        PickDateDialog(
+            initial = if (initial.isBefore(today)) today else initial,
+            earliest = today,
+            onPick = { date ->
+                datingId = null
+                onChangeDate(dating.id, date.toEpochDay())
+            },
+            onDismiss = { datingId = null },
+        )
+    }
+    val timing = tasks.firstOrNull { it.id == timingId }
+    val timingDay = timing?.epochDay
+    if (timing != null && timingDay != null) {
+        val date = LocalDate.ofEpochDay(timingDay)
+        PickTimeDialog(
+            initialMinuteOfDay = timing.minuteOfDay ?: suggestedMinuteOfDay(date, today, LocalTime.now()),
+            onPick = { minute ->
+                timingId = null
+                onChangeTime(timing.id, minute)
+            },
+            onDismiss = { timingId = null },
+        )
     }
 }
 

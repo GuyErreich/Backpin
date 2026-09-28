@@ -141,6 +141,8 @@ class InterruptButtonTapTest {
                                 onInbox = {},
                                 onLater = {},
                                 onRemove = {},
+                                onChangeDate = { _, _ -> },
+                                onChangeTime = { _, _ -> },
                             )
                         else ->
                             CaptureSheet(

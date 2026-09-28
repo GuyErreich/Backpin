@@ -22,6 +22,7 @@ import androidx.lifecycle.ViewModelStore
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import app.backpin.focus.data.FocusRepositoryImpl
+import app.backpin.focus.runOffTestThread
 import app.backpin.focus.data.FocusStackDatabase
 import app.backpin.focus.data.PreferencesDataStore
 import app.backpin.focus.domain.AppClock
@@ -117,7 +118,7 @@ class HomeActionTapTest {
             awaitSnapshot(useCases) { task(it, "Finish me").status == TaskStatus.DONE }
             assertSnapshot(useCases) { activeTitle(it) == "Hold this" && task(it, "Park me").bucket == TaskBucket.LATER }
 
-            runBlocking { todayTask(useCases, "Start me") }
+            runOffTestThread { todayTask(useCases, "Start me") }
             awaitToday(viewModel, "Hold this", "Start me")
             tap(inRow("Start", "Start me"))
             awaitSnapshot(useCases) { activeTitle(it) == "Start me" }
@@ -128,7 +129,7 @@ class HomeActionTapTest {
             awaitSnapshot(useCases) { task(it, "Start me").bucket == TaskBucket.LATER }
             assertSnapshot(useCases) { activeTitle(it) != "Start me" && task(it, "Hold this").status == TaskStatus.OPEN }
 
-            runBlocking { useCases.start(idOf(useCases, "Hold this")) }
+            runOffTestThread { useCases.start(idOf(useCases, "Hold this")) }
             await { viewModel.uiState.value.now?.title == "Hold this" }
             awaitToday(viewModel, "Hold this")
             tap(nowCard("Done"))

@@ -209,6 +209,26 @@ class FocusStackViewModel(
         }
     }
 
+    /** Moves that scheduled task to [epochDay]. Does not create another task. */
+    fun changeScheduledDate(
+        taskId: String,
+        epochDay: Long,
+    ) {
+        viewModelScope.launch {
+            useCases.rescheduleScheduled(taskId, epochDay)
+        }
+    }
+
+    /** Sets or clears the time on that scheduled task. Null clears it. */
+    fun changeScheduledTime(
+        taskId: String,
+        minuteOfDay: Int?,
+    ) {
+        viewModelScope.launch {
+            useCases.setScheduledTime(taskId, minuteOfDay)
+        }
+    }
+
     fun promote(taskId: String) {
         viewModelScope.launch {
             val before = useCases.observeSnapshot().first().tasks.firstOrNull { it.id == taskId }
