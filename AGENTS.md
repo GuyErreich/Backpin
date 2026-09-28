@@ -6,8 +6,8 @@ Read this before changing code. One line per rule.
 
 Buttons
 - Use only `QuietButton`, `AccentButton`, or `CaptureChoice` from [Buttons.kt](app/src/main/java/app/backpin/focus/ui/components/Buttons.kt). No raw `Button`, `OutlinedButton`, `TextButton`, chips, or filled buttons.
-- 56dp minimum height, 16dp radius, 12dp gaps, `ButtonLabel` text. The tokens live in [Theme.kt](app/src/main/java/app/backpin/focus/ui/theme/Theme.kt).
-- Action rows are equal-width: put them in `ActionRow`.
+- Sheets, Settings, and dialogs stay 56dp minimum height, 16dp radius, 12dp gaps, `ButtonLabel` text, equal width in `ActionRow`. The tokens live in [Theme.kt](app/src/main/java/app/backpin/focus/ui/theme/Theme.kt).
+- List cards lead with a `titleLarge` title. Their actions sit in `CardActions`: 40dp tall and only as wide as the label.
 
 Colors
 - Accent buttons are outlined, with the label in the same color as the border.

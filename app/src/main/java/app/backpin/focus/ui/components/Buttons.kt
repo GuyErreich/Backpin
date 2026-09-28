@@ -2,16 +2,27 @@ package app.backpin.focus.ui.components
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.graphics.Color
@@ -31,6 +42,8 @@ import app.backpin.focus.ui.theme.ButtonLabel
 import app.backpin.focus.ui.theme.ButtonMinHeight
 import app.backpin.focus.ui.theme.ButtonPadding
 import app.backpin.focus.ui.theme.ButtonRadius
+import app.backpin.focus.ui.theme.CardActionGap
+import app.backpin.focus.ui.theme.CardActionHeight
 import app.backpin.focus.ui.theme.FocusColors
 
 /** Mint is Done, Resume, and Inbox. Lavender is Interrupt and events. Amber is Schedule. */
@@ -54,7 +67,15 @@ private const val MAX_PER_ROW = 3
 /** Inside an [ActionRow] the row sets the width, so the label gets the room instead. */
 private val RowButtonPadding = 8.dp
 
+/** Horizontal room around a card-action label. The button stays as wide as that label. */
+private val CardActionPadding = 12.dp
+
 private val LocalButtonPadding = compositionLocalOf { ButtonPadding }
+private val LocalButtonVerticalPadding = compositionLocalOf { 12.dp }
+private val LocalButtonMinHeight = compositionLocalOf { ButtonMinHeight }
+
+/** Card actions are exactly [CardActionHeight]. Choice buttons only have a minimum. */
+private val LocalLockButtonHeight = compositionLocalOf { false }
 
 private fun Color.shown(enabled: Boolean): Color = if (enabled) this else copy(alpha = DISABLED_ALPHA)
 
@@ -89,7 +110,8 @@ private fun choiceBorderColor(
 ): Color = if (tone == ChoiceTone.Quiet) FocusColors.Outline.shown(enabled) else choiceLabelColor(tone, enabled)
 
 /**
- * The one button shape: outlined, 56dp tall, 16dp corners, no ripple.
+ * The one button shape: outlined, 16dp corners, no ripple.
+ * Choice buttons are at least 56dp. [CardActions] locks its buttons to 40dp.
  * The label color is set on the text itself; theme typography would otherwise win over the content color.
  */
 @Composable
@@ -103,24 +125,87 @@ private fun OutlinedFocusButton(
     interactionSource: MutableInteractionSource?,
     containerColor: Color = Color.Transparent,
 ) {
+    val minHeight = LocalButtonMinHeight.current
+    val locked = LocalLockButtonHeight.current
+    val heightModifier = if (locked) Modifier.height(minHeight) else Modifier.heightIn(min = minHeight)
     WithoutRipple {
-        OutlinedButton(
-            onClick = onClick,
-            enabled = enabled,
-            interactionSource = interactionSource,
-            modifier = modifier.heightIn(min = ButtonMinHeight),
-            shape = RoundedCornerShape(ButtonRadius),
-            border = BorderStroke(ButtonBorder, borderColor),
-            contentPadding = PaddingValues(horizontal = LocalButtonPadding.current, vertical = 12.dp),
-            colors =
-                ButtonDefaults.outlinedButtonColors(
-                    containerColor = containerColor,
-                    contentColor = labelColor,
-                    disabledContainerColor = containerColor,
-                    disabledContentColor = labelColor,
-                ),
+        if (locked) {
+            LabelWidthButton(
+                label = label,
+                labelColor = labelColor,
+                borderColor = borderColor,
+                onClick = onClick,
+                modifier = modifier.then(heightModifier),
+                enabled = enabled,
+                interactionSource = interactionSource,
+                containerColor = containerColor,
+            )
+        } else {
+            OutlinedButton(
+                onClick = onClick,
+                enabled = enabled,
+                interactionSource = interactionSource,
+                modifier = modifier.then(heightModifier),
+                shape = RoundedCornerShape(ButtonRadius),
+                border = BorderStroke(ButtonBorder, borderColor),
+                contentPadding =
+                    PaddingValues(
+                        horizontal = LocalButtonPadding.current,
+                        vertical = LocalButtonVerticalPadding.current,
+                    ),
+                colors =
+                    ButtonDefaults.outlinedButtonColors(
+                        containerColor = containerColor,
+                        contentColor = labelColor,
+                        disabledContainerColor = containerColor,
+                        disabledContentColor = labelColor,
+                    ),
+            ) {
+                Text(label, color = labelColor, style = ButtonLabel, textAlign = TextAlign.Center)
+            }
+        }
+    }
+}
+
+/**
+ * A card action. [OutlinedButton] is at least 58dp wide, which would make every short label the same block.
+ * This one is exactly as wide as the label.
+ */
+@Composable
+private fun LabelWidthButton(
+    label: String,
+    labelColor: Color,
+    borderColor: Color,
+    onClick: () -> Unit,
+    modifier: Modifier,
+    enabled: Boolean,
+    interactionSource: MutableInteractionSource?,
+    containerColor: Color,
+) {
+    Surface(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = modifier,
+        shape = RoundedCornerShape(ButtonRadius),
+        color = containerColor,
+        contentColor = labelColor,
+        border = BorderStroke(ButtonBorder, borderColor),
+        interactionSource = interactionSource,
+    ) {
+        Box(
+            modifier =
+                Modifier
+                    .fillMaxHeight()
+                    .padding(horizontal = LocalButtonPadding.current),
+            contentAlignment = Alignment.Center,
         ) {
-            Text(label, color = labelColor, style = ButtonLabel, textAlign = TextAlign.Center)
+            Text(
+                label,
+                color = labelColor,
+                style = ButtonLabel,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+            )
         }
     }
 }
@@ -203,9 +288,9 @@ internal fun CaptureChoice(
 }
 
 /**
- * Equal-width buttons, up to three to a line. Four or more wrap into balanced lines
- * whose cells all keep the same width, and each line takes its tallest button's height.
- * One button fills the line.
+ * Equal-width buttons for sheets, Settings, and dialogs. Up to three to a line.
+ * Four or more wrap into balanced lines whose cells all keep the same width, and each
+ * line takes its tallest button's height. One button fills the line.
  */
 @Composable
 internal fun ActionRow(
@@ -236,6 +321,33 @@ internal fun ActionRow(
                     y += row.maxOf { it.height } + gapPx
                 }
             }
+        }
+    }
+}
+
+/**
+ * Actions on a list card. They wrap, each only as wide as its label, 40dp tall, with 8dp between them.
+ * The title stays the first thing you read.
+ */
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
+@Composable
+internal fun CardActions(
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) {
+    CompositionLocalProvider(
+        LocalButtonMinHeight provides CardActionHeight,
+        LocalLockButtonHeight provides true,
+        LocalButtonPadding provides CardActionPadding,
+        LocalButtonVerticalPadding provides 0.dp,
+        LocalMinimumInteractiveComponentSize provides 0.dp,
+    ) {
+        FlowRow(
+            modifier = modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(CardActionGap),
+            verticalArrangement = Arrangement.spacedBy(CardActionGap),
+        ) {
+            content()
         }
     }
 }

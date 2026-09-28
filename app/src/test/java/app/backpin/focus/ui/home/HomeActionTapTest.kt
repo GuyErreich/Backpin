@@ -99,8 +99,8 @@ class HomeActionTapTest {
             }
             await { viewModel.uiState.value.now?.title == "Hold this" && viewModel.uiState.value.todaySlots.count { it.task != null } == 3 }
 
-            listOf(nowCard("Done"), nowCard("Interrupt"), nowCard("Later")).forEach(::assertTall)
-            listOf(inRow("Start", "Park me"), inRow("Done", "Park me"), inRow("Later", "Park me")).forEach(::assertTall)
+            listOf(nowCard("Done"), nowCard("Interrupt"), nowCard("Later")).forEach(::assertCardAction)
+            listOf(inRow("Start", "Park me"), inRow("Done", "Park me"), inRow("Later", "Park me")).forEach(::assertCardAction)
 
             tap(nowCard("Interrupt"))
             await { viewModel.uiState.value.captureOpen && viewModel.uiState.value.captureInterrupts }
@@ -160,9 +160,10 @@ class HomeActionTapTest {
         return nodes[below.minBy { found[it].boundsInRoot.top }]
     }
 
-    private fun assertTall(node: SemanticsNodeInteraction) {
+    private fun assertCardAction(node: SemanticsNodeInteraction) {
         val bounds = node.getBoundsInRoot()
-        assertTrue("Button is ${bounds.bottom - bounds.top} tall", bounds.bottom - bounds.top >= 56.dp - 0.5.dp)
+        val height = bounds.bottom - bounds.top
+        assertTrue("Button is $height tall", height <= 44.dp && height >= 40.dp - 0.5.dp)
     }
 
     private fun tap(node: SemanticsNodeInteraction) {

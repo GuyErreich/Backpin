@@ -40,7 +40,7 @@ import app.backpin.focus.ui.FocusUiState
 import app.backpin.focus.ui.RecoveryUi
 import app.backpin.focus.ui.components.AccentButton
 import app.backpin.focus.ui.components.AccentTone
-import app.backpin.focus.ui.components.ActionRow
+import app.backpin.focus.ui.components.CardActions
 import app.backpin.focus.ui.components.QuietButton
 import app.backpin.focus.ui.countdown.EventDetachButtons
 import app.backpin.focus.ui.home.nowLabel
@@ -102,8 +102,8 @@ private fun EmptyFocus(
                 style = MaterialTheme.typography.bodyMedium,
             )
             state.paused?.let { paused ->
-                Text("Paused: ${paused.title}", style = MaterialTheme.typography.titleMedium)
-                ActionRow {
+                Text("Paused: ${paused.title}", style = MaterialTheme.typography.titleLarge)
+                CardActions {
                     QuietButton("Start", onClick = { viewModel.start(paused.taskId) })
                 }
             }
@@ -141,13 +141,12 @@ private fun ActiveCard(
                 cue = now.returnCue.orEmpty(),
                 onSave = { viewModel.updateCue(now.taskId, it) },
             )
-            AccentButton(
-                "Done",
-                AccentTone.Mint,
-                onClick = viewModel::completeActive,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            ActionRow {
+            CardActions {
+                AccentButton(
+                    "Done",
+                    AccentTone.Mint,
+                    onClick = viewModel::completeActive,
+                )
                 if (now.isEvent) {
                     EventDetachButtons(now.taskId, onDetach = viewModel::detachEvent)
                 } else {
@@ -185,7 +184,7 @@ internal fun RecoveryCard(
             )
             Text(
                 recovery.title,
-                style = MaterialTheme.typography.headlineMedium,
+                style = MaterialTheme.typography.titleLarge,
                 modifier = Modifier.semantics { heading() },
             )
             if (showCueEditor) {
@@ -200,13 +199,14 @@ internal fun RecoveryCard(
                     style = MaterialTheme.typography.bodyLarge,
                 )
             }
-            AccentButton(
-                "Resume",
-                AccentTone.Mint,
-                onClick = { viewModel.resume(recovery.frameId) },
-                modifier = Modifier.fillMaxWidth(),
-            )
-            QuietButton("Later", onClick = { viewModel.demote(recovery.taskId) }, modifier = Modifier.fillMaxWidth())
+            CardActions {
+                AccentButton(
+                    "Resume",
+                    AccentTone.Mint,
+                    onClick = { viewModel.resume(recovery.frameId) },
+                )
+                QuietButton("Later", onClick = { viewModel.demote(recovery.taskId) })
+            }
         }
     }
 }
@@ -297,5 +297,7 @@ private fun UntitledField(
         label = { Text("Name this interruption") },
         singleLine = true,
     )
-    QuietButton("Save title", onClick = { viewModel.rename(taskId, draft) }, modifier = Modifier.fillMaxWidth())
+    CardActions {
+        QuietButton("Save title", onClick = { viewModel.rename(taskId, draft) })
+    }
 }

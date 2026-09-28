@@ -68,7 +68,7 @@ import app.backpin.focus.ui.SlotUi
 import app.backpin.focus.ui.TaskUi
 import app.backpin.focus.ui.components.AccentButton
 import app.backpin.focus.ui.components.AccentTone
-import app.backpin.focus.ui.components.ActionRow
+import app.backpin.focus.ui.components.CardActions
 import app.backpin.focus.ui.components.QuietButton
 import app.backpin.focus.ui.countdown.EventDetachButtons
 import app.backpin.focus.ui.focus.RecoveryCard
@@ -206,7 +206,7 @@ private fun NowCard(
                 ) {
                     Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(Space)) {
                         Text(label, color = accent, style = MaterialTheme.typography.labelLarge, letterSpacing = 1.2.sp)
-                        Text(now.title, style = MaterialTheme.typography.headlineMedium)
+                        Text(now.title, style = MaterialTheme.typography.titleLarge)
                         ElapsedText(
                             accumulatedMillis = now.accumulatedMillis,
                             startedAtEpochMillis = now.startedAtEpochMillis,
@@ -216,7 +216,7 @@ private fun NowCard(
                         if (!now.returnCue.isNullOrBlank()) {
                             Text(now.returnCue, style = MaterialTheme.typography.bodyLarge)
                         }
-                        ActionRow {
+                        CardActions {
                             AccentButton("Done", AccentTone.Mint, onClick = viewModel::completeActive)
                             if (now.isEvent) {
                                 EventDetachButtons(now.taskId, onDetach = viewModel::detachEvent)
@@ -248,8 +248,8 @@ private fun NowCard(
                         style = MaterialTheme.typography.bodyLarge,
                     )
                     state.paused?.let { paused ->
-                        Text("Paused: ${paused.title}", style = MaterialTheme.typography.bodyLarge)
-                        ActionRow {
+                        Text("Paused: ${paused.title}", style = MaterialTheme.typography.titleLarge)
+                        CardActions {
                             QuietButton("Start", onClick = { viewModel.start(paused.taskId) })
                         }
                     }
@@ -576,14 +576,14 @@ private fun TodayRow(
                 ) {
                     Text(
                         task.title,
-                        style = MaterialTheme.typography.titleMedium,
+                        style = MaterialTheme.typography.titleLarge,
                         modifier = Modifier.weight(1f),
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
                     RoleLabel(slot.role)
                 }
-                ActionRow {
+                CardActions {
                     if (slot.role == SlotRole.OPEN) {
                         QuietButton("Start", onClick = onStart)
                     }

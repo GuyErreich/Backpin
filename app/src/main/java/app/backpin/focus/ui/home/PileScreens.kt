@@ -23,7 +23,7 @@ import app.backpin.focus.ui.ScheduledTaskUi
 import app.backpin.focus.ui.TaskUi
 import app.backpin.focus.ui.components.AccentButton
 import app.backpin.focus.ui.components.AccentTone
-import app.backpin.focus.ui.components.ActionRow
+import app.backpin.focus.ui.components.CardActions
 import app.backpin.focus.ui.components.BACK_LABEL
 import app.backpin.focus.ui.components.BackArrow
 import app.backpin.focus.ui.components.QuietButton
@@ -140,14 +140,14 @@ fun ScheduledScreen(
                 ) {
                     Column(PileRowPadding, verticalArrangement = Arrangement.spacedBy(Space)) {
                         Column {
-                            Text(task.title, style = MaterialTheme.typography.bodyLarge)
+                            Text(task.title, style = MaterialTheme.typography.titleLarge)
                             Text(
                                 task.whenLabel,
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = if (task.due) FocusColors.Amber else FocusColors.Muted,
                             )
                         }
-                        ActionRow {
+                        CardActions {
                             QuietButton(label = "Today", onClick = { onToday(task.id) })
                             QuietButton(label = "Start", onClick = { onStart(task.id) })
                             if (canInterrupt) {
@@ -199,8 +199,8 @@ fun DoneScreen(
                 color = FocusColors.SurfaceHigh,
             ) {
                 Column(PileRowPadding, verticalArrangement = Arrangement.spacedBy(Space)) {
-                    Text(task.title, style = MaterialTheme.typography.bodyLarge)
-                    ActionRow {
+                    Text(task.title, style = MaterialTheme.typography.titleLarge)
+                    CardActions {
                         QuietButton(label = "Restore", onClick = { onRestore(task.id) })
                     }
                 }
@@ -253,8 +253,8 @@ private fun ActionPileScreen(
                     color = FocusColors.SurfaceHigh,
                 ) {
                     Column(PileRowPadding, verticalArrangement = Arrangement.spacedBy(Space)) {
-                        Text(task.title, style = MaterialTheme.typography.bodyLarge)
-                        ActionRow {
+                        Text(task.title, style = MaterialTheme.typography.titleLarge)
+                        CardActions {
                             QuietButton(label = "Today", onClick = { onToday(task.id) })
                             QuietButton(label = "Start", onClick = { onStart(task.id) })
                             if (canInterrupt) {

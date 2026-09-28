@@ -36,7 +36,6 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import app.backpin.focus.domain.countdownDayLabel
 import app.backpin.focus.domain.countdownDaysLeft
 import app.backpin.focus.domain.scheduleMomentLabel
@@ -48,7 +47,7 @@ import app.backpin.focus.ui.capture.UtteranceRecognizer
 import app.backpin.focus.ui.capture.rememberSpeechInput
 import app.backpin.focus.ui.components.AccentButton
 import app.backpin.focus.ui.components.AccentTone
-import app.backpin.focus.ui.components.ActionRow
+import app.backpin.focus.ui.components.CardActions
 import app.backpin.focus.ui.components.BackArrow
 import app.backpin.focus.ui.components.CLOSE_LABEL
 import app.backpin.focus.ui.components.CaptureChoice
@@ -167,23 +166,10 @@ private fun CountdownRow(
         color = FocusColors.Surface,
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(Space)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Column(Modifier.weight(1f)) {
-                    Text(countdown.title, style = MaterialTheme.typography.titleMedium)
-                    Text(countdown.dateLabel, style = MaterialTheme.typography.bodyMedium)
-                }
-                Text(
-                    countdown.dayLabel,
-                    style = MaterialTheme.typography.headlineMedium,
-                    color = FocusColors.Amber,
-                    fontSize = 28.sp,
-                )
-            }
-            ActionRow {
+            Text(countdown.title, style = MaterialTheme.typography.titleLarge)
+            Text(countdown.dayLabel, style = MaterialTheme.typography.bodyMedium)
+            Text(countdown.dateLabel, style = MaterialTheme.typography.bodyMedium)
+            CardActions {
                 QuietButton("Change date", onClick = onChangeDate)
                 QuietButton("Remove", onClick = onRemove)
             }

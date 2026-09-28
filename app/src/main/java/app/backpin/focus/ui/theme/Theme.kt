@@ -28,11 +28,20 @@ object FocusColors {
 val CardRadius = 24.dp
 val Space = 8.dp
 
-/** Every button is at least this tall, so a tap lands on the one you meant. */
+/**
+ * Sheets, Settings, and dialogs are at least this tall, so a tap lands on the one you meant.
+ * List-card actions use [CardActionHeight] instead.
+ */
 val ButtonMinHeight = 56.dp
+
+/** A list-card action: shorter than a choice button, and only as wide as its label. */
+val CardActionHeight = 40.dp
+
+/** Space between list-card actions. Choice rows keep [ButtonGap]. */
+val CardActionGap = 8.dp
 val ButtonRadius = 16.dp
 
-/** Space between neighboring buttons, in rows and in stacks. */
+/** Space between neighboring choice buttons, in rows and in stacks. */
 val ButtonGap = 12.dp
 val ButtonPadding = 20.dp
 val ButtonBorder = 1.5.dp

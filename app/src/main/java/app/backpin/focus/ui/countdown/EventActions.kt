@@ -13,7 +13,7 @@ import java.time.LocalDate
 /**
  * Where an arrived event goes instead of Done: Today, Later, or a new countdown day.
  * Each one closes the event and leaves the paused task waiting for Resume.
- * Emits its buttons into the caller's row, next to Done.
+ * Emits its buttons into the caller's actions, next to Done.
  */
 @Composable
 internal fun EventDetachButtons(
