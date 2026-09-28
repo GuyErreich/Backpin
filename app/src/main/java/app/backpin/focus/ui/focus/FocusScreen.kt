@@ -195,7 +195,7 @@ internal fun RecoveryCard(
                 )
             } else if (!recovery.returnCue.isNullOrBlank()) {
                 Text(
-                    "When you come back, ${recovery.returnCue}",
+                    "Return note: ${recovery.returnCue}",
                     style = MaterialTheme.typography.bodyLarge,
                 )
             }
@@ -276,8 +276,8 @@ private fun ReturnNoteField(
                         commit()
                     }
                 },
-        label = { Text("When you come back") },
-        placeholder = { Text("What to do next") },
+        label = { Text("Return note") },
+        placeholder = { Text("What to pick up after this") },
         singleLine = true,
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
         keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus(force = true) }),

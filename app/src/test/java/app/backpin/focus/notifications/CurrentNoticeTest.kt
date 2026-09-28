@@ -92,7 +92,7 @@ class CurrentNoticeTest {
                 inFocusLabel = "In focus",
             )
         assertEquals("Review CI failure", copy.title)
-        assertEquals("Next: reproduce CI failure", copy.body)
+        assertEquals("Return note: Next: reproduce CI failure", copy.body)
         assertFalse(copy.body.contains("·"))
         assertFalse(copy.body.contains("Message John"))
         assertFalse(copy.idle)
@@ -129,7 +129,7 @@ class CurrentNoticeTest {
                 inFocusLabel = "In focus",
             )
         assertEquals("Message John", copy.title)
-        assertEquals("Next: send the recap", copy.body)
+        assertEquals("Return note: Next: send the recap", copy.body)
         assertFalse(copy.body.contains("·"))
         assertFalse(copy.body.contains("Quick fix"))
         assertFalse(copy.idle)

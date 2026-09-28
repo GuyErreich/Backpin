@@ -214,6 +214,11 @@ private fun NowCard(
                             clock = true,
                         )
                         if (!now.returnCue.isNullOrBlank()) {
+                            Text(
+                                "Return note",
+                                color = FocusColors.Muted,
+                                style = MaterialTheme.typography.labelLarge,
+                            )
                             Text(now.returnCue, style = MaterialTheme.typography.bodyLarge)
                         }
                         CardActions {

@@ -527,7 +527,7 @@ class FocusRepositoryTest {
             val rows = todayNoticeRows(recovered, notice!!.taskId, limit = 3)
             val copy = currentNoticeCopy(rows, notice, todayLabel = "Today", inFocusLabel = "In focus")
             assertEquals("Review CI failure", copy.title)
-            assertEquals("Next: reproduce CI failure", copy.body)
+            assertEquals("Return note: Next: reproduce CI failure", copy.body)
             assertEquals(false, copy.idle)
         }
 

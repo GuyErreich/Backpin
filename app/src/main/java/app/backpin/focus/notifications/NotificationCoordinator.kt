@@ -305,8 +305,9 @@ internal fun currentNoticeKey(
  * Collapsed copy. Idle Today is titled Today. The body is a count, because the
  * collapsed shade has about two lines and must not join titles into one phrase.
  * Each title is its own row once the notice is expanded.
- * An active or waiting task is titled with that task. The body is the return
- * note, or [inFocusLabel] when there is none. Other titles stay in the rows.
+ * An active or waiting task is titled with that task. The body is
+ * "Return note: " plus the note, or [inFocusLabel] when there is none.
+ * Other titles stay in the rows.
  */
 internal fun currentNoticeCopy(
     rows: List<TodayNoticeRow>,
@@ -325,7 +326,7 @@ internal fun currentNoticeCopy(
     val cue = target.returnCue?.trim()?.takeIf { it.isNotEmpty() }
     return CurrentNoticeCopy(
         title = target.title,
-        body = cue ?: inFocusLabel,
+        body = cue?.let { "Return note: $it" } ?: inFocusLabel,
         idle = false,
         offersInterrupt = !target.recovery,
     )
@@ -390,7 +391,7 @@ internal fun buildCurrentTaskNotification(
     return builder.build()
 }
 
-/** Collapsed body. A count or a return note, capped at two lines. Titles stay in the expanded rows. */
+/** Collapsed body. A count, or "Return note: …", capped at two lines. Titles stay in the expanded rows. */
 internal fun todayCollapsedContent(
     context: Context,
     text: String,
