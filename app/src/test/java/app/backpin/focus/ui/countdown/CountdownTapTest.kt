@@ -10,12 +10,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsEnabled
-import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performTouchInput
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -79,7 +79,7 @@ class CountdownTapTest {
                 .assertExists()
 
             tap("Add countdown")
-            compose.onNodeWithText("Save countdown").assertIsNotEnabled()
+            compose.onNodeWithText("Save countdown").assertIsEnabled()
             compose.onNode(hasSetTextAction()).performTextInput("Dana's birthday")
             tap("Pick a date")
             tap("OK")
@@ -101,6 +101,62 @@ class CountdownTapTest {
             compose.onNodeWithText("7 days").assertExists()
             tap("Remove")
             awaitSnapshot(useCases) { snapshot -> snapshot.tasks.none { it.title == "Dana's birthday" } }
+        }
+    }
+
+    @Test
+    fun saveCountdownNamesWhatIsMissingUntilBothAreSet() {
+        withViewModel { viewModel, useCases, _ ->
+            compose.setContent {
+                val state by viewModel.uiState.collectAsState()
+                FocusStackTheme {
+                    CountdownScreen(
+                        countdowns = state.countdowns,
+                        ready = state.ready,
+                        onAdd = viewModel::addCountdown,
+                        onChangeDate = viewModel::changeCountdownDate,
+                        onRemove = viewModel::removeCountdown,
+                        recognizer = QuietRecognizer,
+                    )
+                }
+            }
+            await { viewModel.uiState.value.ready }
+            tap("Add countdown")
+
+            tap("Save countdown")
+            compose.onNodeWithText("Name the event.").assertExists()
+            compose.onNodeWithText("Pick a date.").assertExists()
+            compose.onNodeWithText("Save countdown").assertExists()
+            assertEquals(0, taskCount(useCases))
+
+            compose.onNode(hasSetTextAction()).performTextInput("Dana's birthday")
+            compose.waitForIdle()
+            compose.onNodeWithText("Name the event.").assertDoesNotExist()
+            tap("Save countdown")
+            compose.onNodeWithText("Name the event.").assertDoesNotExist()
+            compose.onNodeWithText("Pick a date.").assertExists()
+            assertEquals(0, taskCount(useCases))
+
+            compose.onNode(hasSetTextAction()).performTextReplacement("")
+            compose.waitForIdle()
+            tap("Pick a date")
+            tap("OK")
+            compose.onNodeWithText("Pick a date.").assertDoesNotExist()
+            tap("Save countdown")
+            compose.onNodeWithText("Name the event.").assertExists()
+            compose.onNodeWithText("Pick a date.").assertDoesNotExist()
+            assertEquals(0, taskCount(useCases))
+
+            compose.onNode(hasSetTextAction()).performTextInput("Dana's birthday")
+            compose.waitForIdle()
+            compose.onNodeWithText("Name the event.").assertDoesNotExist()
+            tap("Save countdown")
+            val eventDay = LocalDate.now().plusDays(7).toEpochDay()
+            awaitSnapshot(useCases) { snapshot ->
+                val task = snapshot.tasks.singleOrNull { it.title == "Dana's birthday" }
+                task != null && task.bucket == TaskBucket.COUNTDOWN && task.scheduledOnEpochDay == eventDay
+            }
+            compose.onNodeWithText("Save countdown").assertDoesNotExist()
         }
     }
 
@@ -263,6 +319,9 @@ class CountdownTapTest {
             database.close()
         }
     }
+
+    private fun taskCount(useCases: FocusUseCases): Int =
+        runBlocking { useCases.observeSnapshot().first().tasks.size }
 
     private fun tap(label: String): SemanticsNodeInteraction {
         compose.waitForIdle()

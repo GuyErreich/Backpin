@@ -23,6 +23,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -206,10 +207,16 @@ private fun AddCountdownSheet(
     val draft = remember { TitleDraft() }
     var pickedDay by rememberSaveable { mutableStateOf<Long?>(null) }
     var picking by remember { mutableStateOf(false) }
+    var askForName by remember { mutableStateOf(false) }
+    var askForDate by remember { mutableStateOf(false) }
     val speech = rememberSpeechInput<CountdownField>(recognizer, onSystemSpeech) { draft }
     val today = LocalDate.now()
     val title = draft.text.trim()
     val day = pickedDay
+    SideEffect {
+        if (title.isNotEmpty()) askForName = false
+        if (day != null) askForDate = false
+    }
 
     fun dismiss() {
         speech.stop()
@@ -267,6 +274,9 @@ private fun AddCountdownSheet(
                 },
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
             )
+            if (askForName && title.isEmpty()) {
+                Text("Name the event.", style = MaterialTheme.typography.bodyMedium, color = FocusColors.Muted)
+            }
             speech.note?.let { note ->
                 Text(note, style = MaterialTheme.typography.bodyMedium, color = FocusColors.Muted)
             }
@@ -276,16 +286,20 @@ private fun AddCountdownSheet(
                     style = MaterialTheme.typography.bodyLarge,
                 )
             }
+            if (askForDate && day == null) {
+                Text("Pick a date.", style = MaterialTheme.typography.bodyMedium, color = FocusColors.Muted)
+            }
             Column(verticalArrangement = Arrangement.spacedBy(ButtonGap)) {
                 CaptureChoice(if (day == null) "Pick a date" else "Change date", onClick = { picking = true })
                 CaptureChoice(
                     "Save countdown",
                     tone = ChoiceTone.Amber,
-                    enabled = title.isNotEmpty() && day != null,
                     onClick = {
-                        val chosen = pickedDay ?: return@CaptureChoice
                         val resolved = draft.text.trim()
-                        if (resolved.isEmpty()) return@CaptureChoice
+                        val chosen = pickedDay
+                        askForName = resolved.isEmpty()
+                        askForDate = chosen == null
+                        if (resolved.isEmpty() || chosen == null) return@CaptureChoice
                         speech.stop()
                         onAdd(resolved, chosen)
                     },
