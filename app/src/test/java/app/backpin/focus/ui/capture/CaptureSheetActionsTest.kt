@@ -2,6 +2,8 @@ package app.backpin.focus.ui.capture
 
 import android.Manifest
 import android.content.Context
+import android.content.Intent
+import android.speech.RecognizerIntent
 import android.graphics.Insets
 import android.os.Build
 import android.os.Looper
@@ -40,6 +42,7 @@ import app.backpin.focus.ui.theme.FocusStackTheme
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -324,12 +327,96 @@ class CaptureSheetActionsTest {
         assertTrue(placed.isEmpty())
     }
 
+    @Test
+    fun failedRecognizerFallsBackIntoTheTitleAndDoesNotSave() {
+        val placed = mutableListOf<String>()
+        var launched: Intent? = null
+        show(
+            frameActive = false,
+            placed = placed,
+            recognizer = ProblemRecognizer(SpeechProblem.NoNetwork),
+            onSystemSpeech = { intent, deliver ->
+                launched = intent
+                deliver("Buy milk")
+            },
+        )
+        shadowOf(compose.activity).grantPermissions(Manifest.permission.RECORD_AUDIO)
+        compose.onNodeWithContentDescription("Speak the title").performTouchInput { click() }
+        assertEquals(RecognizerIntent.ACTION_RECOGNIZE_SPEECH, launched?.action)
+        assertFalse(launched?.hasExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE) == true)
+        compose.onNodeWithText("Buy milk").assertExists()
+        assertTrue(placed.isEmpty())
+    }
+
+    @Test
+    fun unavailableRecognizerFallsBackIntoTheTitleAndDoesNotSave() {
+        val placed = mutableListOf<String>()
+        var launched: Intent? = null
+        show(
+            frameActive = false,
+            placed = placed,
+            recognizer = ProblemRecognizer(SpeechProblem.NoService, available = false),
+            onSystemSpeech = { intent, deliver ->
+                launched = intent
+                deliver("Call Dana")
+            },
+        )
+        compose.onNodeWithContentDescription("Speak the title").performTouchInput { click() }
+        assertEquals(RecognizerIntent.ACTION_RECOGNIZE_SPEECH, launched?.action)
+        compose.onNodeWithText("Call Dana").assertExists()
+        assertTrue(placed.isEmpty())
+    }
+
+    @Test
+    fun deniedSpeechStaysInTheSheet() {
+        assertProblemStaysInTheSheet(
+            SpeechProblem.Denied,
+            "Microphone permission is off. You can still type.",
+        )
+    }
+
+    @Test
+    fun missedUtteranceStaysInTheSheet() {
+        assertProblemStaysInTheSheet(
+            SpeechProblem.Unheard,
+            "Didn't catch that. You can still type.",
+        )
+    }
+
+    @Test
+    fun networkFailureWithoutASystemScreenSaysWhy() {
+        val placed = mutableListOf<String>()
+        show(frameActive = false, placed = placed, recognizer = ProblemRecognizer(SpeechProblem.NoNetwork))
+        shadowOf(compose.activity).grantPermissions(Manifest.permission.RECORD_AUDIO)
+        compose.onNodeWithContentDescription("Speak the title").performTouchInput { click() }
+        compose.onNodeWithText("No network for speech. You can still type.").assertExists()
+        assertTrue(placed.isEmpty())
+    }
+
+    private fun assertProblemStaysInTheSheet(
+        problem: SpeechProblem,
+        note: String,
+    ) {
+        var launches = 0
+        show(
+            frameActive = false,
+            placed = mutableListOf(),
+            recognizer = ProblemRecognizer(problem),
+            onSystemSpeech = { _, _ -> launches += 1 },
+        )
+        shadowOf(compose.activity).grantPermissions(Manifest.permission.RECORD_AUDIO)
+        compose.onNodeWithContentDescription("Speak the title").performTouchInput { click() }
+        assertEquals(0, launches)
+        compose.onNodeWithText(note).assertExists()
+    }
+
     private fun show(
         frameActive: Boolean,
         placed: MutableList<String>,
         recognizer: UtteranceRecognizer? = AllowAllRecognizer,
         phrases: List<String> = emptyList(),
         onDismiss: () -> Unit = {},
+        onSystemSpeech: ((Intent, (String) -> Unit) -> Unit)? = null,
     ) {
         compose.setContent {
             FocusStackTheme {
@@ -344,6 +431,7 @@ class CaptureSheetActionsTest {
                     onPlaceLater = { placed += "later:$it" },
                     onSchedule = { title, day -> placed += "schedule:$title:$day" },
                     recognizer = recognizer,
+                    onSystemSpeech = onSystemSpeech,
                 )
             }
         }
@@ -441,6 +529,25 @@ private class FakeRecognizer(
     fun deliver(phrase: String) {
         onFinished?.invoke(phrase)
     }
+}
+
+private class ProblemRecognizer(
+    private val problem: SpeechProblem,
+    private val available: Boolean = true,
+) : UtteranceRecognizer {
+    override fun available(): Boolean = available
+
+    override fun listen(
+        onPartial: (String) -> Unit,
+        onFinished: (String) -> Unit,
+        onProblem: (SpeechProblem) -> Unit,
+    ): Boolean {
+        if (!available) return false
+        onProblem(problem)
+        return true
+    }
+
+    override fun cancel() = Unit
 }
 
 /** Keeps the sheet off the device recognizer. Clicks do not listen. */

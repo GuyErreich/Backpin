@@ -151,7 +151,11 @@ fun ScheduledScreen(
                             QuietButton(label = "Today", onClick = { onToday(task.id) })
                             QuietButton(label = "Start", onClick = { onStart(task.id) })
                             if (canInterrupt) {
-                                QuietButton(label = "Interrupt", onClick = { onInterrupt(task.id) })
+                                AccentButton(
+                                    label = "Interrupt",
+                                    tone = AccentTone.Lavender,
+                                    onClick = { onInterrupt(task.id) },
+                                )
                             }
                             QuietButton(label = "Inbox", onClick = { onInbox(task.id) })
                             QuietButton(label = "Later", onClick = { onLater(task.id) })
@@ -253,7 +257,11 @@ private fun ActionPileScreen(
                             QuietButton(label = "Today", onClick = { onToday(task.id) })
                             QuietButton(label = "Start", onClick = { onStart(task.id) })
                             if (canInterrupt) {
-                                QuietButton(label = "Interrupt", onClick = { onInterrupt(task.id) })
+                                AccentButton(
+                                    label = "Interrupt",
+                                    tone = AccentTone.Lavender,
+                                    onClick = { onInterrupt(task.id) },
+                                )
                             }
                         }
                     }

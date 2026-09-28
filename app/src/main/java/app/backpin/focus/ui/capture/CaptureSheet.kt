@@ -1,7 +1,10 @@
 package app.backpin.focus.ui.capture
 
 import android.Manifest
+import android.content.ActivityNotFoundException
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.speech.RecognizerIntent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.animateFloatAsState
@@ -26,8 +29,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -99,6 +102,7 @@ internal fun CaptureSheet(
     onPlaceLater: (String) -> Unit,
     onSchedule: (String, Long) -> Unit,
     recognizer: UtteranceRecognizer? = null,
+    onSystemSpeech: ((Intent, (String) -> Unit) -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
@@ -134,6 +138,97 @@ internal fun CaptureSheet(
         }
     }
 
+    var pendingSystem by remember { mutableStateOf<ListenField?>(null) }
+    var pendingProblem by remember { mutableStateOf<SpeechProblem?>(null) }
+    val systemSpeechLauncher =
+        rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            if (!alive.value) return@rememberLauncherForActivityResult
+            val field = pendingSystem ?: return@rememberLauncherForActivityResult
+            val problem = pendingProblem
+            pendingSystem = null
+            pendingProblem = null
+            listening = false
+            val spoken =
+                result.data
+                    ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
+                    ?.firstOrNull { it.isNotBlank() }
+                    ?.trim()
+                    .orEmpty()
+            if (spoken.isNotEmpty()) {
+                hear(field, spoken)
+            } else {
+                val shown =
+                    if (problem != null && problem != SpeechProblem.Unavailable) {
+                        problem
+                    } else {
+                        SpeechProblem.Unheard
+                    }
+                speechNote = speechProblemNote(shown)
+            }
+        }
+
+    fun offerSystemSpeech(
+        field: ListenField,
+        problem: SpeechProblem?,
+    ) {
+        when (field) {
+            ListenField.Title -> titleDraft.beginUtterance()
+            ListenField.Fill -> fillDraft.beginUtterance()
+        }
+        listenField = field
+        listening = false
+        speech.cancel()
+        val deliver: (String) -> Unit = { spoken ->
+            val phrase = spoken.trim()
+            if (phrase.isNotEmpty()) {
+                hear(field, phrase)
+                speechNote = null
+            } else {
+                val shown =
+                    if (problem != null && problem != SpeechProblem.Unavailable) {
+                        problem
+                    } else {
+                        SpeechProblem.Unheard
+                    }
+                speechNote = speechProblemNote(shown)
+            }
+        }
+        val hook = onSystemSpeech
+        if (hook != null) {
+            hook(systemSpeechIntent(), deliver)
+            return
+        }
+        if (!canLaunchSystemSpeech(context.hostContext())) {
+            speechNote =
+                speechProblemNote(
+                    when (problem) {
+                        null, SpeechProblem.Unavailable -> SpeechProblem.Unavailable
+                        else -> problem
+                    },
+                )
+            return
+        }
+        pendingSystem = field
+        pendingProblem = problem
+        try {
+            systemSpeechLauncher.launch(systemSpeechIntent())
+        } catch (_: ActivityNotFoundException) {
+            pendingSystem = null
+            pendingProblem = null
+            speechNote = speechProblemNote(SpeechProblem.Unavailable)
+        } catch (_: IllegalStateException) {
+            pendingSystem = null
+            pendingProblem = null
+            speechNote =
+                speechProblemNote(
+                    when (problem) {
+                        null, SpeechProblem.Unavailable -> SpeechProblem.Unavailable
+                        else -> problem
+                    },
+                )
+        }
+    }
+
     fun startUtterance(field: ListenField) {
         when (field) {
             ListenField.Title -> titleDraft.beginUtterance()
@@ -152,12 +247,16 @@ internal fun CaptureSheet(
                 },
                 onProblem = { problem ->
                     listening = false
-                    speechNote = speechProblemNote(problem)
+                    if (fallsBackToSystem(problem)) {
+                        offerSystemSpeech(field, problem)
+                    } else {
+                        speechNote = speechProblemNote(problem)
+                    }
                 },
             )
         if (!started) {
             listening = false
-            speechNote = speechProblemNote(SpeechProblem.Unavailable)
+            offerSystemSpeech(field, SpeechProblem.NoService)
         }
     }
 
@@ -258,7 +357,7 @@ internal fun CaptureSheet(
             return
         }
         if (!speech.available()) {
-            speechNote = speechProblemNote(SpeechProblem.Unavailable)
+            offerSystemSpeech(field, problem = null)
             return
         }
         val start = { startUtterance(field) }
@@ -640,31 +739,20 @@ private fun CaptureChoice(
     tone: ChoiceTone = ChoiceTone.Quiet,
     enabled: Boolean = true,
 ) {
-    val container: Color
-    val content: Color
-    when (tone) {
-        ChoiceTone.Mint -> {
-            container = FocusColors.Mint
-            content = FocusColors.OnMint
+    val accent =
+        when (tone) {
+            ChoiceTone.Mint -> FocusColors.Mint
+            ChoiceTone.Lavender -> FocusColors.Lavender
+            ChoiceTone.Amber -> FocusColors.Amber
+            ChoiceTone.Quiet -> FocusColors.Text
         }
-        ChoiceTone.Lavender -> {
-            container = FocusColors.Lavender
-            content = FocusColors.OnLavender
-        }
-        ChoiceTone.Amber -> {
-            container = FocusColors.Amber
-            content = FocusColors.OnAmber
-        }
-        ChoiceTone.Quiet -> {
-            container = FocusColors.SurfaceHigh
-            content = FocusColors.Text
-        }
-    }
+    val borderColor = if (tone == ChoiceTone.Quiet) FocusColors.Outline else accent
+    val shown = if (enabled) 1f else 0.38f
     // No press scale: a graphics layer that shrinks during the down event
     // cancels the click before onClick. These buttons also refuse focus so
     // the keyboard does not resize the sheet between down and up.
     WithoutRipple {
-        Button(
+        OutlinedButton(
             onClick = onClick,
             enabled = enabled,
             modifier =
@@ -673,13 +761,14 @@ private fun CaptureChoice(
                     .heightIn(min = 48.dp)
                     .focusProperties { canFocus = false },
             shape = RoundedCornerShape(24.dp),
+            border = BorderStroke(1.5.dp, borderColor.copy(alpha = shown)),
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
             colors =
-                ButtonDefaults.buttonColors(
-                    containerColor = container,
-                    contentColor = content,
-                    disabledContainerColor = container.copy(alpha = 0.38f),
-                    disabledContentColor = content.copy(alpha = 0.38f),
+                ButtonDefaults.outlinedButtonColors(
+                    containerColor = Color.Transparent,
+                    contentColor = accent,
+                    disabledContainerColor = Color.Transparent,
+                    disabledContentColor = accent.copy(alpha = 0.38f),
                 ),
         ) {
             Text(label)

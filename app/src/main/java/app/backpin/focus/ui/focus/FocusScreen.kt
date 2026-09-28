@@ -40,7 +40,8 @@ import app.backpin.focus.domain.timeInFocusLabel
 import app.backpin.focus.ui.FocusStackViewModel
 import app.backpin.focus.ui.FocusUiState
 import app.backpin.focus.ui.RecoveryUi
-import app.backpin.focus.ui.home.MintButton
+import app.backpin.focus.ui.home.AccentButton
+import app.backpin.focus.ui.home.AccentTone
 import app.backpin.focus.ui.home.QuietButton
 import app.backpin.focus.ui.theme.CardRadius
 import app.backpin.focus.ui.theme.FocusColors
@@ -101,7 +102,7 @@ private fun EmptyFocus(
             )
             state.paused?.let { paused ->
                 Text("Paused: ${paused.title}", style = MaterialTheme.typography.titleMedium)
-                MintButton("Start", onClick = { viewModel.start(paused.taskId) })
+                QuietButton("Start", onClick = { viewModel.start(paused.taskId) })
             }
         }
     }
@@ -137,8 +138,9 @@ private fun ActiveCard(
                 cue = now.returnCue.orEmpty(),
                 onSave = { viewModel.updateCue(now.taskId, it) },
             )
-            MintButton(
+            AccentButton(
                 "Done",
+                AccentTone.Mint,
                 onClick = viewModel::completeActive,
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -148,7 +150,11 @@ private fun ActiveCard(
                 verticalArrangement = Arrangement.spacedBy(Space),
             ) {
                 QuietButton("Pause", onClick = viewModel::pause)
-                QuietButton("Interrupt", onClick = { viewModel.openCapture(interrupts = true) })
+                AccentButton(
+                    "Interrupt",
+                    AccentTone.Lavender,
+                    onClick = { viewModel.openCapture(interrupts = true) },
+                )
                 QuietButton("Switch", onClick = viewModel::openSwitch)
             }
         }
@@ -191,12 +197,11 @@ internal fun RecoveryCard(
                     style = MaterialTheme.typography.bodyLarge,
                 )
             }
-            MintButton(
+            AccentButton(
                 "Resume",
+                AccentTone.Lavender,
                 onClick = { viewModel.resume(recovery.frameId) },
                 modifier = Modifier.fillMaxWidth(),
-                container = FocusColors.Lavender,
-                content = FocusColors.OnLavender,
             )
             QuietButton("Later", onClick = { viewModel.demote(recovery.taskId) }, modifier = Modifier.fillMaxWidth())
         }

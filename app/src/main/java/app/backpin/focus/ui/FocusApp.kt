@@ -45,7 +45,8 @@ import app.backpin.focus.ui.home.HomeScreen
 import app.backpin.focus.ui.home.InboxScreen
 import app.backpin.focus.ui.home.LaterScreen
 import app.backpin.focus.ui.home.ScheduledScreen
-import app.backpin.focus.ui.home.MintButton
+import app.backpin.focus.ui.home.AccentButton
+import app.backpin.focus.ui.home.AccentTone
 import app.backpin.focus.ui.motion.pileEnter
 import app.backpin.focus.ui.motion.pileExit
 import app.backpin.focus.ui.motion.rememberReducedMotion
@@ -123,8 +124,9 @@ fun FocusApp(
         bottomBar = {
             Column {
                 if (showCapture) {
-                    MintButton(
+                    AccentButton(
                         label = "+ Capture",
+                        tone = AccentTone.Mint,
                         onClick = { viewModel.openCapture(interrupts = false) },
                         modifier =
                             Modifier

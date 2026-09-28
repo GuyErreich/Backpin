@@ -21,7 +21,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -173,7 +172,7 @@ private fun NowCard(
     val recovery = state.recovery
     when {
         now != null -> {
-            val accent = if (now.isInterruption) FocusColors.Amber else FocusColors.Mint
+            val accent = if (now.isInterruption) FocusColors.Lavender else FocusColors.Mint
             val label = if (now.isInterruption) "INTERRUPTED" else "NOW"
             val openInteraction = rememberPressSource()
             SwipeRevealCard(
@@ -214,12 +213,11 @@ private fun NowCard(
                             horizontalArrangement = Arrangement.spacedBy(Space),
                             verticalArrangement = Arrangement.spacedBy(Space),
                         ) {
-                            MintButton("Done", onClick = viewModel::completeActive)
-                            MintButton(
+                            AccentButton("Done", AccentTone.Mint, onClick = viewModel::completeActive)
+                            AccentButton(
                                 "Interrupt",
+                                AccentTone.Lavender,
                                 onClick = { viewModel.openCapture(interrupts = true) },
-                                container = FocusColors.Amber,
-                                content = FocusColors.OnAmber,
                             )
                             QuietButton("Later", onClick = { viewModel.demote(now.taskId) })
                         }
@@ -571,7 +569,7 @@ private fun TodayRow(
                     if (slot.role == SlotRole.OPEN) {
                         QuietButton("Start", onClick = onStart)
                     }
-                    QuietButton("Done", onClick = onDone)
+                    AccentButton("Done", AccentTone.Mint, onClick = onDone)
                     QuietButton("Later", onClick = onLater)
                 }
             }
@@ -745,30 +743,42 @@ internal fun ElapsedText(
     )
 }
 
+internal enum class AccentTone {
+    Mint,
+    Lavender,
+    Amber,
+}
+
 @Composable
-internal fun MintButton(
+internal fun AccentButton(
     label: String,
+    tone: AccentTone,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    container: Color = FocusColors.Mint,
-    content: Color = FocusColors.OnMint,
     enabled: Boolean = true,
 ) {
+    val color =
+        when (tone) {
+            AccentTone.Mint -> FocusColors.Mint
+            AccentTone.Lavender -> FocusColors.Lavender
+            AccentTone.Amber -> FocusColors.Amber
+        }
     val interaction = rememberPressSource()
     WithoutRipple {
-        Button(
+        OutlinedButton(
             onClick = onClick,
             enabled = enabled,
             interactionSource = interaction,
             modifier = modifier.pressScale(interaction).heightIn(min = 48.dp),
             shape = RoundedCornerShape(24.dp),
+            border = BorderStroke(1.5.dp, color.copy(alpha = if (enabled) 1f else 0.38f)),
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
             colors =
-                ButtonDefaults.buttonColors(
-                    containerColor = container,
-                    contentColor = content,
-                    disabledContainerColor = container.copy(alpha = 0.38f),
-                    disabledContentColor = content.copy(alpha = 0.38f),
+                ButtonDefaults.outlinedButtonColors(
+                    containerColor = Color.Transparent,
+                    contentColor = color,
+                    disabledContainerColor = Color.Transparent,
+                    disabledContentColor = color.copy(alpha = 0.38f),
                 ),
         ) {
             Text(label)
