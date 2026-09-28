@@ -5,12 +5,13 @@ import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
 import androidx.compose.material3.TimePickerDialog
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
+import app.backpin.focus.ui.components.ActionRow
+import app.backpin.focus.ui.components.QuietButton
 import java.time.LocalDate
 import java.time.LocalTime
 
@@ -50,17 +51,11 @@ internal fun PickDateDialog(
     DatePickerDialog(
         onDismissRequest = onDismiss,
         confirmButton = {
-            TextButton(
-                onClick = { if (selected != null) onPick(pickerMillisToDate(selected)) },
-                enabled = selected != null,
-            ) {
-                Text("OK")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
+            DialogActions(
+                confirmEnabled = selected != null,
+                onConfirm = { if (selected != null) onPick(pickerMillisToDate(selected)) },
+                onCancel = onDismiss,
+            )
         },
     ) {
         DatePicker(state = state)
@@ -84,18 +79,27 @@ internal fun PickTimeDialog(
     TimePickerDialog(
         onDismissRequest = onDismiss,
         confirmButton = {
-            TextButton(onClick = { onPick(state.hour * 60 + state.minute) }) {
-                Text("OK")
-            }
+            DialogActions(
+                onConfirm = { onPick(state.hour * 60 + state.minute) },
+                onCancel = onDismiss,
+            )
         },
         title = { Text("Pick a time") },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
-        },
     ) {
         TimePicker(state = state)
+    }
+}
+
+/** Cancel and OK as one equal-width row, so the gap between them is the button gap. */
+@Composable
+private fun DialogActions(
+    onConfirm: () -> Unit,
+    onCancel: () -> Unit,
+    confirmEnabled: Boolean = true,
+) {
+    ActionRow {
+        QuietButton("Cancel", onClick = onCancel)
+        QuietButton("OK", onClick = onConfirm, enabled = confirmEnabled)
     }
 }
 

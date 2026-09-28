@@ -1,40 +1,29 @@
 package app.backpin.focus.ui.capture
 
 import android.content.Intent
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.ModalBottomSheetProperties
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SuggestionChip
-import androidx.compose.material3.SuggestionChipDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -48,7 +37,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.heading
@@ -64,10 +52,16 @@ import app.backpin.focus.domain.scheduleMomentLabel
 import app.backpin.focus.ui.calendar.PickDateDialog
 import app.backpin.focus.ui.calendar.PickTimeDialog
 import app.backpin.focus.ui.calendar.suggestedMinuteOfDay
+import app.backpin.focus.ui.components.ActionRow
+import app.backpin.focus.ui.components.BACK_LABEL
+import app.backpin.focus.ui.components.BackArrow
+import app.backpin.focus.ui.components.CLOSE_LABEL
+import app.backpin.focus.ui.components.CaptureChoice
+import app.backpin.focus.ui.components.ChoiceTone
 import app.backpin.focus.ui.motion.MotionSpec
-import app.backpin.focus.ui.motion.WithoutRipple
 import app.backpin.focus.ui.motion.motionSpec
 import app.backpin.focus.ui.motion.rememberReducedMotion
+import app.backpin.focus.ui.theme.ButtonGap
 import app.backpin.focus.ui.theme.FocusColors
 import app.backpin.focus.ui.theme.Space
 import java.time.LocalDate
@@ -78,7 +72,7 @@ private enum class ListenField {
     Fill,
 }
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun CaptureSheet(
     phrases: List<String>,
@@ -210,6 +204,28 @@ internal fun CaptureSheet(
         chooseMoment(date, minuteOfDay = null)
     }
 
+    val atFirstStep = schedulingTitle == null && pendingTitle == null && activeBlank == null
+
+    // One step back: When → Where (for a phrase) or the title, Where → the title,
+    // the phrase blank → the title. From the title it closes the sheet.
+    fun stepBack() {
+        val scheduled = schedulingTitle
+        when {
+            scheduled != null -> {
+                if (scheduleFromPhrase) pendingTitle = scheduled
+                schedulingTitle = null
+                clearSchedulePick()
+            }
+            pendingTitle != null -> pendingTitle = null
+            activeBlank != null -> {
+                stopListening()
+                activeBlank = null
+                fillDraft.edit("")
+            }
+            else -> dismiss()
+        }
+    }
+
     ModalBottomSheet(
         onDismissRequest = { dismiss() },
         sheetState = sheetState,
@@ -218,7 +234,10 @@ internal fun CaptureSheet(
         // Navigation bars only. The sheet's own ime padding already lifts it. A
         // second ime inset here would shrink the actions twice.
         contentWindowInsets = { WindowInsets.navigationBars },
+        // System back is handled below, so it steps back exactly like the arrow.
+        properties = ModalBottomSheetProperties(shouldDismissOnBackPress = false),
     ) {
+        BackHandler(onBack = ::stepBack)
         val scheduling = schedulingTitle
         val placing = pendingTitle
         Column(
@@ -245,20 +264,19 @@ internal fun CaptureSheet(
             ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                BackArrow(
+                    label = if (atFirstStep) CLOSE_LABEL else BACK_LABEL,
+                    onClick = ::stepBack,
+                    inSheet = true,
+                )
                 Text(
                     "Get it out of your head.",
                     style = MaterialTheme.typography.headlineMedium,
                     modifier = Modifier.weight(1f).semantics { heading() },
                 )
-                IconButton(
-                    onClick = { dismiss() },
-                    modifier = Modifier.heightIn(min = 48.dp),
-                ) {
-                    Icon(Icons.Filled.Close, contentDescription = "Close capture")
-                }
             }
             when {
                 scheduling != null -> {
@@ -278,13 +296,11 @@ internal fun CaptureSheet(
                 }
                 else -> {
                     if (phrases.isNotEmpty()) {
-                        WithoutRipple {
-                            FlowRow(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp),
-                            ) {
-                                phrases.forEach { phrase ->
-                                    SuggestionChip(
+                        ActionRow {
+                            phrases.forEach { phrase ->
+                                key(phrase) {
+                                    CaptureChoice(
+                                        label = phraseChipLabel(phrase),
                                         onClick = {
                                             stopListening()
                                             when (val action = phraseChipAction(phrase)) {
@@ -300,17 +316,6 @@ internal fun CaptureSheet(
                                                 }
                                             }
                                         },
-                                        label = { Text(phraseChipLabel(phrase)) },
-                                        modifier =
-                                            Modifier
-                                                .heightIn(min = 48.dp)
-                                                .focusProperties { canFocus = false },
-                                        colors =
-                                            SuggestionChipDefaults.suggestionChipColors(
-                                                containerColor = FocusColors.Surface,
-                                                labelColor = FocusColors.Text,
-                                            ),
-                                        border = BorderStroke(1.dp, FocusColors.Outline),
                                     )
                                 }
                             }
@@ -350,16 +355,11 @@ internal fun CaptureSheet(
                         fillPhraseBlank(template, fillWord)?.let { preview ->
                             Text(preview, style = MaterialTheme.typography.bodyLarge, color = FocusColors.Text)
                         }
-                        TextButton(
+                        CaptureChoice(
+                            label = "Next",
                             onClick = { commitFill() },
                             enabled = fillPhraseBlank(template, fillWord) != null,
-                            modifier =
-                                Modifier
-                                    .heightIn(min = 48.dp)
-                                    .focusProperties { canFocus = false },
-                        ) {
-                            Text("Next")
-                        }
+                        )
                     }
                     Text(
                         "One line. Choose where it goes. Speaking only fills the title.",
@@ -421,20 +421,12 @@ internal fun CaptureSheet(
                         onPickDate = { datePickerOpen = true },
                         onAddTime = { timePickerOpen = true },
                         onConfirm = { date -> chooseMoment(date, pickedMinute) },
-                        onBack = {
-                            if (scheduleFromPhrase) {
-                                pendingTitle = scheduling
-                            }
-                            schedulingTitle = null
-                            clearSchedulePick()
-                        },
                     )
                 }
                 placing != null -> {
                     PlaceChoices(
                         places = capturePlaces(frameActive),
                         onPlace = ::placePhrase,
-                        onBack = { pendingTitle = null },
                     )
                 }
                 else -> {
@@ -442,7 +434,6 @@ internal fun CaptureSheet(
                         places = capturePlaces(frameActive),
                         labelFor = { it.typedLabel() },
                         onPlace = ::placeTyped,
-                        onBack = null,
                     )
                 }
             }
@@ -478,10 +469,9 @@ internal fun CaptureSheet(
 private fun PlaceChoices(
     places: List<CapturePlace>,
     onPlace: (CapturePlace) -> Unit,
-    onBack: (() -> Unit)?,
     labelFor: (CapturePlace) -> String = { it.label() },
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(ButtonGap)) {
         places.forEach { place ->
             key(place) {
                 CaptureChoice(
@@ -489,11 +479,6 @@ private fun PlaceChoices(
                     tone = place.tone(),
                     onClick = { onPlace(place) },
                 )
-            }
-        }
-        if (onBack != null) {
-            TextButton(onClick = onBack, modifier = Modifier.heightIn(min = 48.dp)) {
-                Text("Back")
             }
         }
     }
@@ -539,15 +524,10 @@ private fun ScheduleChoices(
     onPickDate: () -> Unit,
     onAddTime: () -> Unit,
     onConfirm: (LocalDate) -> Unit,
-    onBack: () -> Unit,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(ButtonGap)) {
         CaptureChoice("Tomorrow", onClick = { onDate(scheduleDate(today, ScheduleOffset.TOMORROW)) })
-        CaptureChoice(
-            "In a couple of days",
-            onClick = { onDate(scheduleDate(today, ScheduleOffset.IN_A_COUPLE_OF_DAYS)) },
-        )
-        CaptureChoice("Next week", onClick = { onDate(scheduleDate(today, ScheduleOffset.NEXT_WEEK)) })
+        CaptureChoice("In 7 days", onClick = { onDate(scheduleDate(today, ScheduleOffset.IN_7_DAYS)) })
         CaptureChoice(if (pickedDate == null) "Pick a date" else "Change date", onClick = onPickDate)
         if (pickedDate != null) {
             CaptureChoice(if (pickedMinute == null) "Add a time" else "Change time", onClick = onAddTime)
@@ -556,62 +536,6 @@ private fun ScheduleChoices(
                 tone = ChoiceTone.Amber,
                 onClick = { onConfirm(pickedDate) },
             )
-        }
-        TextButton(onClick = onBack, modifier = Modifier.heightIn(min = 48.dp)) {
-            Text("Back")
-        }
-    }
-}
-
-internal enum class ChoiceTone {
-    Mint,
-    Lavender,
-    Amber,
-    Quiet,
-}
-
-/**
- * Outlined sheet button. No press scale: a graphics layer that shrinks during the
- * down event cancels the click before onClick. It refuses focus so the keyboard
- * does not resize the sheet between down and up.
- */
-@Composable
-internal fun CaptureChoice(
-    label: String,
-    onClick: () -> Unit,
-    tone: ChoiceTone = ChoiceTone.Quiet,
-    enabled: Boolean = true,
-) {
-    val accent =
-        when (tone) {
-            ChoiceTone.Mint -> FocusColors.Mint
-            ChoiceTone.Lavender -> FocusColors.Lavender
-            ChoiceTone.Amber -> FocusColors.Amber
-            ChoiceTone.Quiet -> FocusColors.Text
-        }
-    val borderColor = if (tone == ChoiceTone.Quiet) FocusColors.Outline else accent
-    val shown = if (enabled) 1f else 0.38f
-    WithoutRipple {
-        OutlinedButton(
-            onClick = onClick,
-            enabled = enabled,
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 48.dp)
-                    .focusProperties { canFocus = false },
-            shape = RoundedCornerShape(24.dp),
-            border = BorderStroke(1.5.dp, borderColor.copy(alpha = shown)),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-            colors =
-                ButtonDefaults.outlinedButtonColors(
-                    containerColor = Color.Transparent,
-                    contentColor = accent,
-                    disabledContainerColor = Color.Transparent,
-                    disabledContentColor = accent.copy(alpha = 0.38f),
-                ),
-        ) {
-            Text(label)
         }
     }
 }

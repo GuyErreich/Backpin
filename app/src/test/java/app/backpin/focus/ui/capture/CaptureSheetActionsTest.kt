@@ -314,7 +314,7 @@ class CaptureSheetActionsTest {
         compose.runOnIdle { fake.deliver("Buy milk") }
         compose.onNodeWithText("Buy milk").assertExists()
         assertTrue(placed.isEmpty())
-        compose.onNodeWithContentDescription("Close capture").performClick()
+        compose.onNodeWithContentDescription("Close").performTouchInput { click() }
         assertTrue(fake.cancelled)
     }
 

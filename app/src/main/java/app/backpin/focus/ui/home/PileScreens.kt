@@ -2,8 +2,6 @@ package app.backpin.focus.ui.home
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -11,10 +9,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -27,13 +21,18 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import app.backpin.focus.ui.ScheduledTaskUi
 import app.backpin.focus.ui.TaskUi
-import app.backpin.focus.ui.motion.WithoutRipple
-import app.backpin.focus.ui.motion.pressScale
-import app.backpin.focus.ui.motion.rememberPressSource
+import app.backpin.focus.ui.components.AccentButton
+import app.backpin.focus.ui.components.AccentTone
+import app.backpin.focus.ui.components.ActionRow
+import app.backpin.focus.ui.components.BACK_LABEL
+import app.backpin.focus.ui.components.BackArrow
+import app.backpin.focus.ui.components.QuietButton
 import app.backpin.focus.ui.motion.rememberReducedMotion
-import app.backpin.focus.ui.theme.CardRadius
+import app.backpin.focus.ui.theme.ButtonGap
 import app.backpin.focus.ui.theme.FocusColors
 import app.backpin.focus.ui.theme.Space
+
+private val PileRowPadding = Modifier.padding(horizontal = 12.dp, vertical = 12.dp)
 
 /**
  * Inbox on its own screen. Today and Start move the task and leave this screen open.
@@ -95,7 +94,6 @@ fun LaterScreen(
  * Scheduled on its own screen. A task stays here until its local date, then moves onto Today
  * without starting. From here it can move early, or be removed.
  */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ScheduledScreen(
     tasks: List<ScheduledTaskUi>,
@@ -140,14 +138,16 @@ fun ScheduledScreen(
                     shape = RoundedCornerShape(16.dp),
                     color = FocusColors.SurfaceHigh,
                 ) {
-                    Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-                        Text(task.title, style = MaterialTheme.typography.bodyLarge)
-                        Text(
-                            task.whenLabel,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = if (task.due) FocusColors.Amber else FocusColors.Muted,
-                        )
-                        FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Column(PileRowPadding, verticalArrangement = Arrangement.spacedBy(Space)) {
+                        Column {
+                            Text(task.title, style = MaterialTheme.typography.bodyLarge)
+                            Text(
+                                task.whenLabel,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = if (task.due) FocusColors.Amber else FocusColors.Muted,
+                            )
+                        }
+                        ActionRow {
                             QuietButton(label = "Today", onClick = { onToday(task.id) })
                             QuietButton(label = "Start", onClick = { onStart(task.id) })
                             if (canInterrupt) {
@@ -198,16 +198,17 @@ fun DoneScreen(
                 shape = RoundedCornerShape(16.dp),
                 color = FocusColors.SurfaceHigh,
             ) {
-                Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+                Column(PileRowPadding, verticalArrangement = Arrangement.spacedBy(Space)) {
                     Text(task.title, style = MaterialTheme.typography.bodyLarge)
-                    QuietButton(label = "Restore", onClick = { onRestore(task.id) })
+                    ActionRow {
+                        QuietButton(label = "Restore", onClick = { onRestore(task.id) })
+                    }
                 }
             }
         }
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ActionPileScreen(
     title: String,
@@ -251,9 +252,9 @@ private fun ActionPileScreen(
                     shape = RoundedCornerShape(16.dp),
                     color = FocusColors.SurfaceHigh,
                 ) {
-                    Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+                    Column(PileRowPadding, verticalArrangement = Arrangement.spacedBy(Space)) {
                         Text(task.title, style = MaterialTheme.typography.bodyLarge)
-                        FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        ActionRow {
                             QuietButton(label = "Today", onClick = { onToday(task.id) })
                             QuietButton(label = "Start", onClick = { onStart(task.id) })
                             if (canInterrupt) {
@@ -285,7 +286,7 @@ private fun PileScaffold(
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(Space),
+        verticalArrangement = Arrangement.spacedBy(ButtonGap),
     ) {
         PileHeader(title = title, count = count, onBack = onBack)
         if (!ready) {
@@ -307,20 +308,7 @@ private fun PileHeader(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        val backInteraction = rememberPressSource()
-        WithoutRipple {
-            IconButton(
-                onClick = onBack,
-                interactionSource = backInteraction,
-                modifier = Modifier.pressScale(backInteraction),
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Back to Today",
-                    tint = FocusColors.Mint,
-                )
-            }
-        }
+        BackArrow(label = BACK_LABEL, onClick = onBack)
         Text(
             title,
             modifier =

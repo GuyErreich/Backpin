@@ -10,8 +10,6 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -22,13 +20,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
@@ -55,12 +51,14 @@ import app.backpin.focus.domain.MAX_TODAY_LIMIT
 import app.backpin.focus.domain.MIN_TODAY_LIMIT
 import app.backpin.focus.domain.UserPreferences
 import app.backpin.focus.notifications.notificationsAllowed
+import app.backpin.focus.ui.components.ActionRow
+import app.backpin.focus.ui.components.QuietButton
 import app.backpin.focus.ui.theme.CardRadius
 import app.backpin.focus.ui.theme.FocusColors
 import app.backpin.focus.ui.theme.Space
 import java.time.LocalTime
 
-@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     preferences: UserPreferences,
@@ -143,14 +141,13 @@ fun SettingsScreen(
                     "How many open tasks Today can hold. Empty places stay empty until you add a task. A smaller number parks the extra Today tasks in Later. The task in focus stays when it still fits.",
                     style = MaterialTheme.typography.bodyMedium,
                 )
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                ActionRow {
                     for (limit in MIN_TODAY_LIMIT..MAX_TODAY_LIMIT) {
-                        NudgeChip(
+                        QuietButton(
                             label = limit.toString(),
                             selected = preferences.todayLimit == limit,
-                        ) {
-                            onTodayLimit(limit)
-                        }
+                            onClick = { onTodayLimit(limit) },
+                        )
                     }
                 }
             }
@@ -167,21 +164,15 @@ fun SettingsScreen(
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 preferences.savedPhrases.forEachIndexed { index, phrase ->
-                    Column(Modifier.fillMaxWidth()) {
+                    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Space)) {
                         Text(
                             phrase,
                             style = MaterialTheme.typography.bodyLarge,
                             color = FocusColors.Text,
                         )
-                        Row {
-                            TextButton(
-                                onClick = { renaming = index },
-                                modifier = Modifier.heightIn(min = 48.dp),
-                            ) { Text("Rename") }
-                            TextButton(
-                                onClick = { onRemovePhrase(index) },
-                                modifier = Modifier.heightIn(min = 48.dp),
-                            ) { Text("Remove") }
+                        ActionRow {
+                            QuietButton("Rename", onClick = { renaming = index })
+                            QuietButton("Remove", onClick = { onRemovePhrase(index) })
                         }
                     }
                 }
@@ -201,14 +192,15 @@ fun SettingsScreen(
                             },
                         ),
                 )
-                TextButton(
+                QuietButton(
+                    label = "Add",
                     onClick = {
                         onAddPhrase(newPhrase)
                         if (newPhrase.isNotBlank()) newPhrase = ""
                     },
                     enabled = newPhrase.isNotBlank(),
-                    modifier = Modifier.heightIn(min = 48.dp),
-                ) { Text("Add") }
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
         }
         Surface(
@@ -222,35 +214,26 @@ fun SettingsScreen(
                     "Off, or about every 30 minutes, 1 hour, or 2 hours. Quiet hours are checked when a nudge is about to show.",
                     style = MaterialTheme.typography.bodyMedium,
                 )
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    NudgeChip("Off", selected = !preferences.nudgesEnabled) {
-                        onNudgeSelected(false, preferences.nudgeMinutes)
-                    }
-                    NudgeChip("30 min", selected = preferences.nudgesEnabled && preferences.nudgeMinutes == 30) {
-                        enableThen { onNudgeSelected(true, 30) }
-                    }
-                    NudgeChip("1 h", selected = preferences.nudgesEnabled && preferences.nudgeMinutes == 60) {
-                        enableThen { onNudgeSelected(true, 60) }
-                    }
-                    NudgeChip("2 h", selected = preferences.nudgesEnabled && preferences.nudgeMinutes == 120) {
-                        enableThen { onNudgeSelected(true, 120) }
+                ActionRow {
+                    QuietButton(
+                        "Off",
+                        selected = !preferences.nudgesEnabled,
+                        onClick = { onNudgeSelected(false, preferences.nudgeMinutes) },
+                    )
+                    for ((label, minutes) in listOf("30 min" to 30, "1 h" to 60, "2 h" to 120)) {
+                        QuietButton(
+                            label,
+                            selected = preferences.nudgesEnabled && preferences.nudgeMinutes == minutes,
+                            onClick = { enableThen { onNudgeSelected(true, minutes) } },
+                        )
                     }
                 }
                 Text("Quiet hours", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = Space))
                 Text(quietHours(preferences), style = MaterialTheme.typography.bodyLarge)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TextButton(
-                        onClick = { picking = QuietPick.START },
-                        modifier = Modifier.heightIn(min = 48.dp),
-                    ) { Text("Start") }
-                    TextButton(
-                        onClick = { picking = QuietPick.END },
-                        modifier = Modifier.heightIn(min = 48.dp),
-                    ) { Text("End") }
-                    TextButton(
-                        onClick = { onQuietHours(null, null) },
-                        modifier = Modifier.heightIn(min = 48.dp),
-                    ) { Text("Clear") }
+                ActionRow {
+                    QuietButton("Start", onClick = { picking = QuietPick.START })
+                    QuietButton("End", onClick = { picking = QuietPick.END })
+                    QuietButton("Clear", onClick = { onQuietHours(null, null) })
                 }
             }
         }
@@ -295,7 +278,8 @@ fun SettingsScreen(
                         "Notifications are off for Focus Stack. Home, capture, and recovery keep working.",
                         style = MaterialTheme.typography.bodyLarge,
                     )
-                    TextButton(
+                    QuietButton(
+                        label = "Notification settings",
                         onClick = {
                             val intent =
                                 Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
@@ -303,8 +287,8 @@ fun SettingsScreen(
                                 }
                             context.startActivity(intent)
                         },
-                        modifier = Modifier.heightIn(min = 48.dp),
-                    ) { Text("Notification settings") }
+                        modifier = Modifier.fillMaxWidth(),
+                    )
                 }
             }
         }
@@ -348,20 +332,6 @@ fun SettingsScreen(
     }
 }
 
-@Composable
-private fun NudgeChip(
-    label: String,
-    selected: Boolean,
-    onClick: () -> Unit,
-) {
-    FilterChip(
-        selected = selected,
-        onClick = onClick,
-        label = { Text(label) },
-        modifier = Modifier.heightIn(min = 48.dp),
-    )
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun QuietTimeDialog(
@@ -384,13 +354,10 @@ private fun QuietTimeDialog(
         title = { Text(title) },
         text = { TimePicker(state = state) },
         confirmButton = {
-            TextButton(
-                onClick = { onConfirm("%02d:%02d".format(state.hour, state.minute)) },
-                modifier = Modifier.heightIn(min = 48.dp),
-            ) { Text("Save") }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss, modifier = Modifier.heightIn(min = 48.dp)) { Text("Cancel") }
+            ActionRow {
+                QuietButton("Cancel", onClick = onDismiss)
+                QuietButton("Save", onClick = { onConfirm("%02d:%02d".format(state.hour, state.minute)) })
+            }
         },
     )
 }
@@ -417,14 +384,10 @@ private fun RenamePhraseDialog(
             )
         },
         confirmButton = {
-            TextButton(
-                onClick = { onConfirm(draft) },
-                enabled = draft.isNotBlank(),
-                modifier = Modifier.heightIn(min = 48.dp),
-            ) { Text("Save") }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss, modifier = Modifier.heightIn(min = 48.dp)) { Text("Cancel") }
+            ActionRow {
+                QuietButton("Cancel", onClick = onDismiss)
+                QuietButton("Save", onClick = { onConfirm(draft) }, enabled = draft.isNotBlank())
+            }
         },
     )
 }

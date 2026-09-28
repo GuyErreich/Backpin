@@ -28,6 +28,23 @@ object FocusColors {
 val CardRadius = 24.dp
 val Space = 8.dp
 
+/** Every button is at least this tall, so a tap lands on the one you meant. */
+val ButtonMinHeight = 56.dp
+val ButtonRadius = 16.dp
+
+/** Space between neighboring buttons, in rows and in stacks. */
+val ButtonGap = 12.dp
+val ButtonPadding = 20.dp
+val ButtonBorder = 1.5.dp
+
+/** Label on every button. It carries no color; each button passes its own. */
+val ButtonLabel =
+    TextStyle(
+        fontSize = 16.sp,
+        lineHeight = 22.sp,
+        fontWeight = FontWeight.SemiBold,
+    )
+
 private val scheme =
     darkColorScheme(
         primary = FocusColors.Mint,

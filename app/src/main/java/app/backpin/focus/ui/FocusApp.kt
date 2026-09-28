@@ -6,7 +6,6 @@ import androidx.compose.animation.ExitTransition
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DateRange
@@ -24,7 +23,6 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -47,12 +45,14 @@ import app.backpin.focus.ui.home.HomeScreen
 import app.backpin.focus.ui.home.InboxScreen
 import app.backpin.focus.ui.home.LaterScreen
 import app.backpin.focus.ui.home.ScheduledScreen
-import app.backpin.focus.ui.home.AccentButton
-import app.backpin.focus.ui.home.AccentTone
+import app.backpin.focus.ui.components.AccentButton
+import app.backpin.focus.ui.components.AccentTone
+import app.backpin.focus.ui.components.QuietButton
 import app.backpin.focus.ui.motion.pileEnter
 import app.backpin.focus.ui.motion.pileExit
 import app.backpin.focus.ui.motion.rememberReducedMotion
 import app.backpin.focus.ui.settings.SettingsScreen
+import app.backpin.focus.ui.theme.ButtonGap
 import app.backpin.focus.ui.theme.FocusColors
 import app.backpin.focus.ui.theme.Space
 
@@ -134,8 +134,7 @@ fun FocusApp(
                         modifier =
                             Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = Space)
-                                .heightIn(min = 48.dp),
+                                .padding(horizontal = 16.dp, vertical = Space),
                     )
                 }
                 NavigationBar(containerColor = FocusColors.Surface) {
@@ -319,28 +318,27 @@ fun FocusApp(
                             "“$swapTitle” needs a Today slot. Replace one Today task. That task moves to Later, and the new one takes its place without starting."
                         },
                     )
-                    if (canInterrupt) {
-                        TextButton(
-                            onClick = viewModel::confirmInterrupt,
-                            modifier = Modifier.heightIn(min = 48.dp),
-                        ) {
-                            Text("Interrupt current task")
+                    Column(verticalArrangement = Arrangement.spacedBy(ButtonGap)) {
+                        if (canInterrupt) {
+                            AccentButton(
+                                label = "Interrupt current task",
+                                tone = AccentTone.Lavender,
+                                onClick = viewModel::confirmInterrupt,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
                         }
-                    }
-                    state.swapChoices.forEach { choice ->
-                        TextButton(
-                            onClick = { viewModel.confirmReplace(choice.id) },
-                            modifier = Modifier.heightIn(min = 48.dp),
-                        ) {
-                            Text("Replace “${choice.title}”")
+                        state.swapChoices.forEach { choice ->
+                            QuietButton(
+                                label = "Replace “${choice.title}”",
+                                onClick = { viewModel.confirmReplace(choice.id) },
+                                modifier = Modifier.fillMaxWidth(),
+                            )
                         }
                     }
                 }
             },
             confirmButton = {
-                TextButton(onClick = viewModel::cancelSwap, modifier = Modifier.heightIn(min = 48.dp)) {
-                    Text("Cancel")
-                }
+                QuietButton("Cancel", onClick = viewModel::cancelSwap, modifier = Modifier.fillMaxWidth())
             },
         )
     }
@@ -356,23 +354,18 @@ fun FocusApp(
                 Text("Pauses Now and starts another Today task. The return cue stays on the paused task. This is not an interruption.")
             },
             confirmButton = {
-                Column {
+                Column(verticalArrangement = Arrangement.spacedBy(ButtonGap)) {
                     if (state.switchTargets.isEmpty()) {
                         Text("Nothing else is in Today.", color = FocusColors.Muted)
                     }
                     state.switchTargets.forEach { target ->
-                        TextButton(
+                        QuietButton(
+                            label = target.title,
                             onClick = { viewModel.switchTo(target.id) },
-                            modifier = Modifier.heightIn(min = 48.dp),
-                        ) {
-                            Text(target.title)
-                        }
+                            modifier = Modifier.fillMaxWidth(),
+                        )
                     }
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = viewModel::dismissSwitch, modifier = Modifier.heightIn(min = 48.dp)) {
-                    Text("Cancel")
+                    QuietButton("Cancel", onClick = viewModel::dismissSwitch, modifier = Modifier.fillMaxWidth())
                 }
             },
         )

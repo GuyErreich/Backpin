@@ -3,8 +3,6 @@ package app.backpin.focus.ui.focus
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -40,10 +38,11 @@ import app.backpin.focus.domain.timeInFocusLabel
 import app.backpin.focus.ui.FocusStackViewModel
 import app.backpin.focus.ui.FocusUiState
 import app.backpin.focus.ui.RecoveryUi
+import app.backpin.focus.ui.components.AccentButton
+import app.backpin.focus.ui.components.AccentTone
+import app.backpin.focus.ui.components.ActionRow
+import app.backpin.focus.ui.components.QuietButton
 import app.backpin.focus.ui.countdown.EventDetachButtons
-import app.backpin.focus.ui.home.AccentButton
-import app.backpin.focus.ui.home.AccentTone
-import app.backpin.focus.ui.home.QuietButton
 import app.backpin.focus.ui.home.nowLabel
 import app.backpin.focus.ui.theme.CardRadius
 import app.backpin.focus.ui.theme.FocusColors
@@ -104,13 +103,14 @@ private fun EmptyFocus(
             )
             state.paused?.let { paused ->
                 Text("Paused: ${paused.title}", style = MaterialTheme.typography.titleMedium)
-                QuietButton("Start", onClick = { viewModel.start(paused.taskId) })
+                ActionRow {
+                    QuietButton("Start", onClick = { viewModel.start(paused.taskId) })
+                }
             }
         }
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ActiveCard(
     state: FocusUiState,
@@ -147,11 +147,7 @@ private fun ActiveCard(
                 onClick = viewModel::completeActive,
                 modifier = Modifier.fillMaxWidth(),
             )
-            FlowRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(Space),
-                verticalArrangement = Arrangement.spacedBy(Space),
-            ) {
+            ActionRow {
                 if (now.isEvent) {
                     EventDetachButtons(now.taskId, onDetach = viewModel::detachEvent)
                 } else {
@@ -206,7 +202,7 @@ internal fun RecoveryCard(
             }
             AccentButton(
                 "Resume",
-                AccentTone.Lavender,
+                AccentTone.Mint,
                 onClick = { viewModel.resume(recovery.frameId) },
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -301,5 +297,5 @@ private fun UntitledField(
         label = { Text("Name this interruption") },
         singleLine = true,
     )
-    QuietButton("Save title", onClick = { viewModel.rename(taskId, draft) })
+    QuietButton("Save title", onClick = { viewModel.rename(taskId, draft) }, modifier = Modifier.fillMaxWidth())
 }

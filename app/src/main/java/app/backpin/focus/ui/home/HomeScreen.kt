@@ -9,9 +9,6 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -21,10 +18,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -71,10 +66,13 @@ import app.backpin.focus.ui.NowUi
 import app.backpin.focus.ui.SlotRole
 import app.backpin.focus.ui.SlotUi
 import app.backpin.focus.ui.TaskUi
+import app.backpin.focus.ui.components.AccentButton
+import app.backpin.focus.ui.components.AccentTone
+import app.backpin.focus.ui.components.ActionRow
+import app.backpin.focus.ui.components.QuietButton
 import app.backpin.focus.ui.countdown.EventDetachButtons
 import app.backpin.focus.ui.focus.RecoveryCard
 import app.backpin.focus.ui.motion.MotionSpec
-import app.backpin.focus.ui.motion.WithoutRipple
 import app.backpin.focus.ui.motion.motionSpec
 import app.backpin.focus.ui.motion.pressScale
 import app.backpin.focus.ui.motion.rememberPressSource
@@ -163,7 +161,6 @@ private fun move(
     return next
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun NowCard(
     state: FocusUiState,
@@ -219,10 +216,7 @@ private fun NowCard(
                         if (!now.returnCue.isNullOrBlank()) {
                             Text(now.returnCue, style = MaterialTheme.typography.bodyLarge)
                         }
-                        FlowRow(
-                            horizontalArrangement = Arrangement.spacedBy(Space),
-                            verticalArrangement = Arrangement.spacedBy(Space),
-                        ) {
+                        ActionRow {
                             AccentButton("Done", AccentTone.Mint, onClick = viewModel::completeActive)
                             if (now.isEvent) {
                                 EventDetachButtons(now.taskId, onDetach = viewModel::detachEvent)
@@ -255,7 +249,9 @@ private fun NowCard(
                     )
                     state.paused?.let { paused ->
                         Text("Paused: ${paused.title}", style = MaterialTheme.typography.bodyLarge)
-                        QuietButton("Start", onClick = { viewModel.start(paused.taskId) })
+                        ActionRow {
+                            QuietButton("Start", onClick = { viewModel.start(paused.taskId) })
+                        }
                     }
                 }
             }
@@ -572,7 +568,7 @@ private fun TodayRow(
             color = FocusColors.Surface,
             shadowElevation = 8.dp * lift,
         ) {
-            Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(Space)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -587,7 +583,7 @@ private fun TodayRow(
                     )
                     RoleLabel(slot.role)
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                ActionRow {
                     if (slot.role == SlotRole.OPEN) {
                         QuietButton("Start", onClick = onStart)
                     }
@@ -763,69 +759,4 @@ internal fun ElapsedText(
                 contentDescription = "Elapsed $hours hours $remainder minutes"
             },
     )
-}
-
-internal enum class AccentTone {
-    Mint,
-    Lavender,
-    Amber,
-}
-
-@Composable
-internal fun AccentButton(
-    label: String,
-    tone: AccentTone,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    enabled: Boolean = true,
-) {
-    val color =
-        when (tone) {
-            AccentTone.Mint -> FocusColors.Mint
-            AccentTone.Lavender -> FocusColors.Lavender
-            AccentTone.Amber -> FocusColors.Amber
-        }
-    val interaction = rememberPressSource()
-    WithoutRipple {
-        OutlinedButton(
-            onClick = onClick,
-            enabled = enabled,
-            interactionSource = interaction,
-            modifier = modifier.pressScale(interaction).heightIn(min = 48.dp),
-            shape = RoundedCornerShape(24.dp),
-            border = BorderStroke(1.5.dp, color.copy(alpha = if (enabled) 1f else 0.38f)),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-            colors =
-                ButtonDefaults.outlinedButtonColors(
-                    containerColor = Color.Transparent,
-                    contentColor = color,
-                    disabledContainerColor = Color.Transparent,
-                    disabledContentColor = color.copy(alpha = 0.38f),
-                ),
-        ) {
-            Text(label)
-        }
-    }
-}
-
-@Composable
-internal fun QuietButton(
-    label: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    enabled: Boolean = true,
-) {
-    val interaction = rememberPressSource()
-    WithoutRipple {
-        OutlinedButton(
-            onClick = onClick,
-            enabled = enabled,
-            interactionSource = interaction,
-            modifier = modifier.pressScale(interaction).heightIn(min = 48.dp),
-            shape = RoundedCornerShape(24.dp),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-        ) {
-            Text(label)
-        }
-    }
 }

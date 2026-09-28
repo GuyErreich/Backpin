@@ -15,16 +15,19 @@ class ScheduleDateTest {
     @Test
     fun offsetsAreLocalDaysFromToday() {
         assertEquals(LocalDate.of(2026, 1, 16), scheduleDate(today, ScheduleOffset.TOMORROW))
-        assertEquals(LocalDate.of(2026, 1, 17), scheduleDate(today, ScheduleOffset.IN_A_COUPLE_OF_DAYS))
-        assertEquals(LocalDate.of(2026, 1, 22), scheduleDate(today, ScheduleOffset.NEXT_WEEK))
+        assertEquals(LocalDate.of(2026, 1, 22), scheduleDate(today, ScheduleOffset.IN_7_DAYS))
+    }
+
+    @Test
+    fun theQuickDaysAreTomorrowAndInSevenDaysOnly() {
+        assertEquals(listOf(ScheduleOffset.TOMORROW, ScheduleOffset.IN_7_DAYS), ScheduleOffset.entries)
     }
 
     @Test
     fun offsetsCrossAMonthBoundary() {
         val late = LocalDate.of(2026, 1, 31)
         assertEquals(LocalDate.of(2026, 2, 1), scheduleDate(late, ScheduleOffset.TOMORROW))
-        assertEquals(LocalDate.of(2026, 2, 2), scheduleDate(late, ScheduleOffset.IN_A_COUPLE_OF_DAYS))
-        assertEquals(LocalDate.of(2026, 2, 7), scheduleDate(late, ScheduleOffset.NEXT_WEEK))
+        assertEquals(LocalDate.of(2026, 2, 7), scheduleDate(late, ScheduleOffset.IN_7_DAYS))
     }
 
     @Test

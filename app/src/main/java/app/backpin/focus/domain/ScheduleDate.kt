@@ -10,19 +10,17 @@ import java.util.Locale
 /** A one-shot local date counted from today. Not a weekday name and not a series. */
 enum class ScheduleOffset {
     TOMORROW,
-    IN_A_COUPLE_OF_DAYS,
-    NEXT_WEEK,
+    IN_7_DAYS,
 }
 
-/** Tomorrow, two local days out, or seven local days out. */
+/** Tomorrow, or seven local days out. */
 fun scheduleDate(
     today: LocalDate,
     offset: ScheduleOffset,
 ): LocalDate =
     when (offset) {
         ScheduleOffset.TOMORROW -> today.plusDays(1)
-        ScheduleOffset.IN_A_COUPLE_OF_DAYS -> today.plusDays(2)
-        ScheduleOffset.NEXT_WEEK -> today.plusDays(7)
+        ScheduleOffset.IN_7_DAYS -> today.plusDays(7)
     }
 
 /**

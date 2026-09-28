@@ -1,28 +1,23 @@
 package app.backpin.focus.ui.countdown
 
 import android.content.Intent
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.ModalBottomSheetProperties
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -46,16 +41,20 @@ import app.backpin.focus.domain.countdownDaysLeft
 import app.backpin.focus.domain.scheduleMomentLabel
 import app.backpin.focus.ui.CountdownUi
 import app.backpin.focus.ui.calendar.PickDateDialog
-import app.backpin.focus.ui.capture.CaptureChoice
-import app.backpin.focus.ui.capture.ChoiceTone
 import app.backpin.focus.ui.capture.SpeakMic
 import app.backpin.focus.ui.capture.TitleDraft
 import app.backpin.focus.ui.capture.UtteranceRecognizer
 import app.backpin.focus.ui.capture.rememberSpeechInput
-import app.backpin.focus.ui.home.AccentButton
-import app.backpin.focus.ui.home.AccentTone
-import app.backpin.focus.ui.home.QuietButton
+import app.backpin.focus.ui.components.AccentButton
+import app.backpin.focus.ui.components.AccentTone
+import app.backpin.focus.ui.components.ActionRow
+import app.backpin.focus.ui.components.BackArrow
+import app.backpin.focus.ui.components.CLOSE_LABEL
+import app.backpin.focus.ui.components.CaptureChoice
+import app.backpin.focus.ui.components.ChoiceTone
+import app.backpin.focus.ui.components.QuietButton
 import app.backpin.focus.ui.motion.rememberReducedMotion
+import app.backpin.focus.ui.theme.ButtonGap
 import app.backpin.focus.ui.theme.CardRadius
 import app.backpin.focus.ui.theme.FocusColors
 import app.backpin.focus.ui.theme.Space
@@ -65,7 +64,6 @@ import java.time.LocalDate
  * Events counted in local days, nearest first. None takes a Today slot.
  * On its day, outside quiet hours, an event interrupts whatever is in focus.
  */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun CountdownScreen(
     countdowns: List<CountdownUi>,
@@ -151,7 +149,6 @@ internal fun CountdownScreen(
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun CountdownRow(
     countdown: CountdownUi,
@@ -168,7 +165,7 @@ private fun CountdownRow(
         shape = RoundedCornerShape(CardRadius),
         color = FocusColors.Surface,
     ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(Space)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -185,7 +182,7 @@ private fun CountdownRow(
                     fontSize = 28.sp,
                 )
             }
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            ActionRow {
                 QuietButton("Change date", onClick = onChangeDate)
                 QuietButton("Remove", onClick = onRemove)
             }
@@ -225,7 +222,9 @@ private fun AddCountdownSheet(
         sheetGesturesEnabled = false,
         containerColor = FocusColors.Surface,
         contentWindowInsets = { WindowInsets.navigationBars },
+        properties = ModalBottomSheetProperties(shouldDismissOnBackPress = false),
     ) {
+        BackHandler(onBack = ::dismiss)
         Column(
             modifier =
                 Modifier
@@ -237,16 +236,15 @@ private fun AddCountdownSheet(
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                BackArrow(label = CLOSE_LABEL, onClick = ::dismiss, inSheet = true)
                 Text(
                     "Count down to",
                     style = MaterialTheme.typography.headlineMedium,
                     modifier = Modifier.weight(1f).semantics { heading() },
                 )
-                IconButton(onClick = { dismiss() }, modifier = Modifier.heightIn(min = 48.dp)) {
-                    Icon(Icons.Filled.Close, contentDescription = "Close countdown")
-                }
             }
             OutlinedTextField(
                 value = draft.text,
@@ -278,19 +276,21 @@ private fun AddCountdownSheet(
                     style = MaterialTheme.typography.bodyLarge,
                 )
             }
-            CaptureChoice(if (day == null) "Pick a date" else "Change date", onClick = { picking = true })
-            CaptureChoice(
-                "Save countdown",
-                tone = ChoiceTone.Amber,
-                enabled = title.isNotEmpty() && day != null,
-                onClick = {
-                    val chosen = pickedDay ?: return@CaptureChoice
-                    val resolved = draft.text.trim()
-                    if (resolved.isEmpty()) return@CaptureChoice
-                    speech.stop()
-                    onAdd(resolved, chosen)
-                },
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(ButtonGap)) {
+                CaptureChoice(if (day == null) "Pick a date" else "Change date", onClick = { picking = true })
+                CaptureChoice(
+                    "Save countdown",
+                    tone = ChoiceTone.Amber,
+                    enabled = title.isNotEmpty() && day != null,
+                    onClick = {
+                        val chosen = pickedDay ?: return@CaptureChoice
+                        val resolved = draft.text.trim()
+                        if (resolved.isEmpty()) return@CaptureChoice
+                        speech.stop()
+                        onAdd(resolved, chosen)
+                    },
+                )
+            }
         }
     }
     if (picking) {

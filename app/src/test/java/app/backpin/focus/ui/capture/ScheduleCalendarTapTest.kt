@@ -80,7 +80,7 @@ class ScheduleCalendarTapTest {
         tap("Pick a date")
         tap("Cancel")
         compose.onNodeWithText("Add a time").assertDoesNotExist()
-        tap("Next week")
+        tap("In 7 days")
         assertEquals(listOf("schedule:Call Dana:${LocalDate.now().plusDays(7).toEpochDay()}"), placed)
     }
 
