@@ -4,6 +4,12 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
+val publishedVersionName = rootProject.file("version.txt").readText().trim()
+val publishedVersionCode = providers.exec {
+    commandLine("git", "rev-list", "--count", "HEAD")
+    workingDir(rootProject.projectDir)
+}.standardOutput.asText.map { raw -> raw.trim().toInt() }
+
 android {
     namespace = "app.backpin.focus"
     compileSdk = 37
@@ -13,11 +19,28 @@ android {
         applicationId = "app.backpin.focus"
         minSdk = 26
         targetSdk = 37
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = publishedVersionCode.get()
+        versionName = publishedVersionName
+    }
+
+    signingConfigs {
+        create("preview") {
+            val storePath = System.getenv("ANDROID_KEYSTORE_PATH")
+            if (!storePath.isNullOrBlank()) {
+                storeFile = file(storePath)
+                storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("ANDROID_KEY_ALIAS")
+                keyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+            }
+        }
     }
 
     buildTypes {
+        create("preview") {
+            isMinifyEnabled = false
+            matchingFallbacks += listOf("debug")
+            signingConfig = signingConfigs.getByName("preview")
+        }
         release {
             isMinifyEnabled = false
         }

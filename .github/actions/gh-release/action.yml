@@ -1,0 +1,77 @@
+name: 'GH Release'
+description: 'Creates a GitHub Release for the current tag and attaches the preview APK'
+inputs:
+  github_token:
+    description: 'GitHub Token for creating releases'
+    required: false
+  apk_path:
+    description: 'Preview APK to upload as focus-stack.apk'
+    required: true
+runs:
+  using: "composite"
+  steps:
+    - name: Determine Release Details
+      id: details
+      shell: bash
+      run: |
+        TAG=$(git describe --tags --exact-match)
+        echo "Found tag: $TAG"
+        echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+        if [[ "$TAG" == *"-rc"* ]] || [[ "$TAG" == *"-dev"* ]]; then
+          echo "is_prerelease=true" >> "$GITHUB_OUTPUT"
+          echo "make_latest=false" >> "$GITHUB_OUTPUT"
+        else
+          echo "is_prerelease=false" >> "$GITHUB_OUTPUT"
+          echo "make_latest=true" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Prepare Release Notes
+      id: notes
+      shell: bash
+      run: |
+        if [ -f "CHANGELOG.md" ]; then
+          sed -n '/^## \[/,$p' CHANGELOG.md | sed '/^## License/Q' > RELEASE_NOTES.md
+          if [ -s RELEASE_NOTES.md ]; then
+            echo "notes_file=RELEASE_NOTES.md" >> "$GITHUB_OUTPUT"
+          else
+            echo "CHANGELOG.md has no version section, falling back to auto-generated notes"
+            echo "notes_file=" >> "$GITHUB_OUTPUT"
+          fi
+        else
+          echo "CHANGELOG.md not found, falling back to auto-generated notes"
+          echo "notes_file=" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Create GitHub Release
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github_token || github.token }}
+        TAG: ${{ steps.details.outputs.tag }}
+        PRERELEASE: ${{ steps.details.outputs.is_prerelease }}
+        LATEST: ${{ steps.details.outputs.make_latest }}
+        NOTES_FILE: ${{ steps.notes.outputs.notes_file }}
+        APK_PATH: ${{ inputs.apk_path }}
+      run: |
+        set -euo pipefail
+        if [ ! -f "$APK_PATH" ]; then
+          echo "Preview APK not found at $APK_PATH"
+          exit 1
+        fi
+        cp "$APK_PATH" focus-stack.apk
+
+        NOTES_ARG=()
+        if [ -n "$NOTES_FILE" ] && [ -f "$NOTES_FILE" ]; then
+          echo "Using release notes from $NOTES_FILE"
+          NOTES_ARG=(--notes-file "$NOTES_FILE")
+        else
+          echo "Using auto-generated release notes"
+          NOTES_ARG=(--generate-notes)
+        fi
+
+        gh release create "$TAG" \
+          "${NOTES_ARG[@]}" \
+          focus-stack.apk \
+          --prerelease="$PRERELEASE" \
+          --latest="$LATEST" \
+          --title "$TAG"

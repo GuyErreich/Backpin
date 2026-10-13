@@ -18,9 +18,14 @@ Point the SDK at the project with `ANDROID_HOME` or `sdk.dir` in `local.properti
 ./gradlew assembleDebug
 ```
 
-The debug APK is written to `app/build/outputs/apk/debug/app-debug.apk`.
+The debug APK is written to `app/build/outputs/apk/debug/app-debug.apk`. Use that APK for a local emulator build.
 
-Install that APK on a device or emulator running Android 8.0 (API 26) or newer.
+Install a published build on a phone running Android 8.0 (API 26) or newer:
+
+- Staging: `https://github.com/GuyErreich/Backpin/releases/download/<version>-rc/focus-stack.apk`
+- Production: `https://github.com/GuyErreich/Backpin/releases/latest/download/focus-stack.apk`
+
+Staging publishes when a `*.*.*-rc` tag is pushed. Production publishes when a `*.*.*` tag is pushed. Both artifacts are the preview APK, signed with the same key and the same application id, so a newer install replaces the previous one and keeps the on-device database.
 
 ## What the MVP does
 
