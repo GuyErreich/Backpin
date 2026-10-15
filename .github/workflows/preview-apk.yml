@@ -3,7 +3,7 @@ name: Preview APK
 on:
   push:
     branches:
-      - main
+      - staging
 
 permissions:
   contents: write
