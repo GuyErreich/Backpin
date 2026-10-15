@@ -1,6 +1,6 @@
-# Focus Stack
+# Backpin
 
-Focus Stack is an offline Android app for keeping your place. Capture a thought into Inbox without leaving the active task, keep a small number of open tasks in Today, and unwind nested interruptions back to the exact task you paused.
+Backpin is an offline Android app for keeping your place. Capture a thought into Inbox without leaving the active task, keep a small number of open tasks in Today, and unwind nested interruptions back to the exact task you paused.
 
 There is no account or backend. Speaking a title uses the phone's speech recognizer, prefers an offline pack, and may use the network only when that pack is missing. Elapsed time is computed from stored timestamps while the screen is open.
 

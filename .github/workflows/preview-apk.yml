@@ -42,11 +42,11 @@ jobs:
             echo "ANDROID_KEYSTORE_BASE64 is not set."
             exit 1
           fi
-          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/focus-stack-preview.jks"
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/backpin-preview.jks"
 
       - name: Build preview APK
         env:
-          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/focus-stack-preview.jks
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/backpin-preview.jks
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
@@ -58,11 +58,11 @@ jobs:
         run: |
           apk="app/build/outputs/apk/preview/app-preview.apk"
           test -f "$apk"
-          cp "$apk" focus-stack.apk
+          cp "$apk" backpin.apk
           if gh release view preview >/dev/null 2>&1; then
             gh release delete preview --yes --cleanup-tag
           fi
-          gh release create preview focus-stack.apk \
+          gh release create preview backpin.apk \
             --target "$GITHUB_SHA" \
             --title preview \
-            --notes "Latest Focus Stack preview."
+            --notes "Latest Backpin preview."

@@ -1,4 +1,4 @@
-# Agent rules for Focus Stack
+# Agent rules for Backpin
 
 Read this before changing code. One line per rule.
 
