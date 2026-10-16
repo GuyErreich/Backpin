@@ -87,6 +87,7 @@ fun SettingsScreen(
     val allowed = remember(permissionTick, preferences) { notificationsAllowed(context) }
     var pending by remember { mutableStateOf<(() -> Unit)?>(null) }
     val pendingState = rememberUpdatedState(pending)
+    val refreshExactAlarm = rememberUpdatedState(onRefreshExactAlarmPermission)
     val launcher =
         rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
             permissionTick += 1
@@ -108,7 +109,6 @@ fun SettingsScreen(
     var bandPicking by remember { mutableStateOf<BandPick?>(null) }
     var renaming by remember { mutableStateOf<Int?>(null) }
     var newPhrase by remember { mutableStateOf("") }
-    val refreshExactAlarm = rememberUpdatedState(onRefreshExactAlarmPermission)
 
     fun enableThen(action: () -> Unit) {
         val needsRuntime =
