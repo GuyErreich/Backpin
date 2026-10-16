@@ -48,3 +48,10 @@ Copy
 - `main` is production. Feature pull requests do not target it.
 - A squash-merged branch counts as merged when its tree matches `dev`, so follow-ups start a new branch.
 - Do not edit plan files.
+
+## Cursor Cloud
+
+- JDK 21 lives at `/usr/lib/jvm/java-21-openjdk-amd64` and is the default `java`. Login shells export `JAVA_HOME` and `ANDROID_HOME` from `/etc/profile.d/backpin-android.sh`.
+- The Android SDK is `$HOME/Android/Sdk` (platform 37.2, build-tools 37.0.0). `local.properties` sets `sdk.dir` to that path.
+- A missing `local.properties` is rewritten by `~/.gradle/init.d/backpin-sdk.gradle` the next time Gradle runs.
+- Check the app with `./gradlew test` and `./gradlew assembleDebug`. The debug APK is `app/build/outputs/apk/debug/app-debug.apk`.
