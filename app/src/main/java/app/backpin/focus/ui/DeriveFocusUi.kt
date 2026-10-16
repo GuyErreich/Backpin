@@ -8,6 +8,7 @@ import app.backpin.focus.domain.Task
 import app.backpin.focus.domain.TaskBucket
 import app.backpin.focus.domain.TaskStatus
 import app.backpin.focus.domain.UserPreferences
+import app.backpin.focus.domain.editPlace
 import app.backpin.focus.domain.countdownDayLabel
 import app.backpin.focus.domain.countdownDaysLeft
 import app.backpin.focus.domain.isScheduledDue
@@ -162,7 +163,7 @@ internal fun deriveFocusUi(
             .map { it.toUi() }
     val editing =
         chrome.editingTaskId?.let { id ->
-            tasksById[id]?.takeIf { it.status == TaskStatus.OPEN }?.toUi()
+            tasksById[id]?.takeIf { it.status == TaskStatus.OPEN }?.toEditing()
         }
 
     return FocusUiState(
@@ -195,3 +196,11 @@ internal fun deriveFocusUi(
 }
 
 private fun Task.toUi(): TaskUi = TaskUi(id = id, title = title, returnCue = returnCue)
+
+private fun Task.toEditing(): EditingUi =
+    EditingUi(
+        id = id,
+        title = title,
+        place = bucket.editPlace(),
+        scheduledOnEpochDay = scheduledOnEpochDay,
+    )

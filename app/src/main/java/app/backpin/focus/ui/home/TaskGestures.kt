@@ -118,7 +118,7 @@ internal fun interruptSwipe(onInterrupt: () -> Unit): SwipeSide =
  * The word is centered in the band and grows slightly once the finger passes that point.
  * Today rows can also long-press and drag vertically; that callback only reorders
  * within Today and never changes a bucket.
- * Inbox, Later, and Scheduled can long-press to edit. That path does not drag.
+ * Inbox, Later, and Scheduled do not use long-press. Edit is a button on the card.
  * Reduced motion keeps the card still. The band and the word still appear with the drag.
  */
 @Composable

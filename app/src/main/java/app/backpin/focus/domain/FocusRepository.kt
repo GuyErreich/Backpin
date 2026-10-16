@@ -96,7 +96,10 @@ interface FocusRepository {
      */
     suspend fun interruptWithNew(title: String)
 
-    /** Moves a scheduled task to Inbox without starting it. Other buckets are left alone. */
+    /**
+     * Moves an open task to Inbox without starting it. Parks an open frame the same
+     * way Later does. A schedule is cleared. Already-Inbox tasks are left alone.
+     */
     suspend fun moveToInbox(taskId: String)
 
     /** Drops a scheduled task. Other buckets are left alone. */
@@ -110,6 +113,17 @@ interface FocusRepository {
     suspend fun rescheduleScheduled(
         taskId: String,
         epochDay: Long,
+    ): Boolean
+
+    /**
+     * Moves an open task onto [scheduledOnEpochDay] as [TaskBucket.SCHEDULED].
+     * Parks an open frame the same way Later does. Keeps a time already on a
+     * scheduled task. Countdown tasks are left alone; use [rescheduleCountdown].
+     * Returns false when nothing changed.
+     */
+    suspend fun scheduleExisting(
+        taskId: String,
+        scheduledOnEpochDay: Long,
     ): Boolean
 
     /**

@@ -144,7 +144,6 @@ fun ScheduledScreen(
                 towardStart = todaySwipe { onToday(task.id) },
                 towardEnd = startSwipe { onStart(task.id) },
                 reducedMotion = reducedMotion,
-                onLongPress = { onEdit(task.id) },
                 extraActions =
                     listOf(
                         CustomAccessibilityAction("Edit") {
@@ -305,7 +304,6 @@ private fun ActionPileScreen(
                 towardStart = todaySwipe { onToday(task.id) },
                 towardEnd = startSwipe { onStart(task.id) },
                 reducedMotion = reducedMotion,
-                onLongPress = { onEdit(task.id) },
                 extraActions =
                     listOf(
                         CustomAccessibilityAction("Edit") {

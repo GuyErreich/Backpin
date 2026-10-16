@@ -21,6 +21,25 @@ class CapturePlaceTest {
     }
 
     @Test
+    fun editPlacesAreWhereATaskLives() {
+        assertEquals(
+            listOf(
+                CapturePlace.INBOX,
+                CapturePlace.TODAY,
+                CapturePlace.LATER,
+                CapturePlace.SCHEDULE,
+            ),
+            editPlaces(),
+        )
+        assertEquals(CapturePlace.INBOX, TaskBucket.INBOX.editPlace())
+        assertEquals(CapturePlace.TODAY, TaskBucket.TODAY.editPlace())
+        assertEquals(CapturePlace.LATER, TaskBucket.LATER.editPlace())
+        assertEquals(CapturePlace.SCHEDULE, TaskBucket.SCHEDULED.editPlace())
+        assertEquals(CapturePlace.SCHEDULE, TaskBucket.COUNTDOWN.editPlace())
+        assertEquals(null, TaskBucket.INTERRUPTION.editPlace())
+    }
+
+    @Test
     fun interruptIsOfferedOnlyWhileAFrameIsActive() {
         assertEquals(
             listOf(

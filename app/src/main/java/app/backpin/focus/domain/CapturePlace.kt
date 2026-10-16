@@ -26,3 +26,27 @@ fun capturePlaces(frameActive: Boolean): List<CapturePlace> =
         add(CapturePlace.LATER)
         add(CapturePlace.SCHEDULE)
     }
+
+/**
+ * Where an existing task can live after edit. Start and Interrupt stay on the card;
+ * they are actions, not fields.
+ */
+fun editPlaces(): List<CapturePlace> =
+    listOf(
+        CapturePlace.INBOX,
+        CapturePlace.TODAY,
+        CapturePlace.LATER,
+        CapturePlace.SCHEDULE,
+    )
+
+/** The capture place that matches this bucket, or null when the task is a nested interruption. */
+fun TaskBucket.editPlace(): CapturePlace? =
+    when (this) {
+        TaskBucket.INBOX -> CapturePlace.INBOX
+        TaskBucket.TODAY -> CapturePlace.TODAY
+        TaskBucket.LATER -> CapturePlace.LATER
+        TaskBucket.SCHEDULED,
+        TaskBucket.COUNTDOWN,
+        -> CapturePlace.SCHEDULE
+        TaskBucket.INTERRUPTION -> null
+    }

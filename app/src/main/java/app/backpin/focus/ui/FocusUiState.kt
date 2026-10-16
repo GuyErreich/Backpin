@@ -1,5 +1,6 @@
 package app.backpin.focus.ui
 
+import app.backpin.focus.domain.CapturePlace
 import app.backpin.focus.domain.UndoToken
 import app.backpin.focus.domain.UserPreferences
 
@@ -14,6 +15,14 @@ data class TaskUi(
     val id: String,
     val title: String,
     val returnCue: String?,
+)
+
+/** The open task currently in the edit sheet. [place] is null for a nested interruption. */
+data class EditingUi(
+    val id: String,
+    val title: String,
+    val place: CapturePlace?,
+    val scheduledOnEpochDay: Long? = null,
 )
 
 /** A task waiting on a local date. [due] means that date is today or earlier and it is still scheduled. */
@@ -91,7 +100,7 @@ data class FocusUiState(
     val countdowns: List<CountdownUi> = emptyList(),
     val captureOpen: Boolean = false,
     val captureInterrupts: Boolean = false,
-    val editing: TaskUi? = null,
+    val editing: EditingUi? = null,
     val swapIncoming: TaskUi? = null,
     val freshSwapTitle: String? = null,
     val swapChoices: List<TaskUi> = emptyList(),

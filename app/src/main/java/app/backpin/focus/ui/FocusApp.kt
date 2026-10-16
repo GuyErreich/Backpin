@@ -37,9 +37,9 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import app.backpin.focus.notifications.NotificationContract
+import app.backpin.focus.ui.capture.CaptureEdit
 import app.backpin.focus.ui.capture.CaptureSheet
 import app.backpin.focus.ui.countdown.CountdownScreen
-import app.backpin.focus.ui.edit.EditTaskSheet
 import app.backpin.focus.ui.focus.FocusScreen
 import app.backpin.focus.ui.home.DoneScreen
 import app.backpin.focus.ui.home.HomeScreen
@@ -292,7 +292,27 @@ fun FocusApp(
         }
     }
 
-    if (state.captureOpen) {
+    val editing = state.editing
+    if (editing != null) {
+        CaptureSheet(
+            phrases = emptyList(),
+            frameActive = state.now != null,
+            onDismiss = viewModel::dismissEdit,
+            onSaveToInbox = {},
+            onInterruptNow = {},
+            onPlaceToday = {},
+            onPlaceStart = {},
+            onPlaceLater = {},
+            onSchedule = { _, _, _ -> },
+            edit =
+                CaptureEdit(
+                    title = editing.title,
+                    place = editing.place,
+                    scheduledEpochDay = editing.scheduledOnEpochDay,
+                ),
+            onCommitEdit = viewModel::saveEdit,
+        )
+    } else if (state.captureOpen) {
         CaptureSheet(
             phrases = state.preferences.savedPhrases,
             frameActive = state.now != null,
@@ -303,14 +323,6 @@ fun FocusApp(
             onPlaceStart = viewModel::placeAndStart,
             onPlaceLater = viewModel::placeLater,
             onSchedule = viewModel::placeScheduled,
-        )
-    }
-
-    state.editing?.let { editing ->
-        EditTaskSheet(
-            initialTitle = editing.title,
-            onDismiss = viewModel::dismissEdit,
-            onSave = viewModel::saveEdit,
         )
     }
 

@@ -7,6 +7,7 @@ import app.backpin.focus.data.FocusRepositoryImpl
 import app.backpin.focus.data.FocusStackDatabase
 import app.backpin.focus.data.PreferencesDataStore
 import app.backpin.focus.domain.AppClock
+import app.backpin.focus.domain.CapturePlace
 import app.backpin.focus.domain.FocusUseCases
 import app.backpin.focus.domain.FrameState
 import app.backpin.focus.domain.TaskBucket
@@ -392,7 +393,7 @@ class FocusStackViewModelTest {
         }
 
     @Test
-    fun editSheetSavesATitleAndLeavesABlankOpen() =
+    fun editSheetSavesATitleAndABlankKeepsTheOldOne() =
         runBlocking {
             val viewModel = FocusStackViewModel(useCases)
             val collect = launch { viewModel.uiState.collect {} }
@@ -408,9 +409,13 @@ class FocusStackViewModelTest {
                 }
             assertEquals("Review CI failure", opened.editing?.title)
             viewModel.saveEdit("   ")
-            shadowOf(Looper.getMainLooper()).idle()
-            assertEquals("Review CI failure", viewModel.uiState.value.editing?.title)
-            assertEquals("Review CI failure", viewModel.uiState.value.now?.title)
+            val kept =
+                withTimeout(5_000) {
+                    viewModel.uiState.first { it.now?.title == "Review CI failure" && it.editing == null }
+                }
+            assertEquals("Review CI failure", kept.now?.title)
+            viewModel.openEdit(original)
+            withTimeout(5_000) { viewModel.uiState.first { it.editing?.id == original } }
             viewModel.saveEdit("Talk to Sarah")
             val saved =
                 withTimeout(5_000) {
@@ -424,6 +429,24 @@ class FocusStackViewModelTest {
             withTimeout(5_000) {
                 viewModel.uiState.first { it.captureOpen && it.editing == null }
             }
+            collect.cancel()
+        }
+
+    @Test
+    fun editSheetCanMoveATaskToLater() =
+        runBlocking {
+            val viewModel = FocusStackViewModel(useCases)
+            val collect = launch { viewModel.uiState.collect {} }
+            useCases.capture("Park me")
+            val id = useCases.observeSnapshot().first().tasks.single { it.title == "Park me" }.id
+            viewModel.openEdit(id)
+            withTimeout(5_000) { viewModel.uiState.first { it.editing?.id == id } }
+            viewModel.saveEdit("Park me later", CapturePlace.LATER)
+            val moved =
+                withTimeout(5_000) {
+                    viewModel.uiState.first { it.editing == null && it.laterTasks.any { task -> task.id == id } }
+                }
+            assertEquals("Park me later", moved.laterTasks.single { it.id == id }.title)
             collect.cancel()
         }
 
