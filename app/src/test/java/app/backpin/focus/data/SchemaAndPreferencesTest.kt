@@ -3,6 +3,7 @@ package app.backpin.focus.data
 import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
+import app.backpin.focus.domain.BandTimes
 import app.backpin.focus.domain.UserPreferences
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -22,7 +23,7 @@ class SchemaAndPreferencesTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
 
     @Test
-    fun freshDatabaseIsVersionFourWithACountdownInterval() {
+    fun freshDatabaseIsVersionFiveWithRepeatTables() {
         val database =
             Room
                 .inMemoryDatabaseBuilder(context, FocusStackDatabase::class.java)
@@ -30,8 +31,8 @@ class SchemaAndPreferencesTest {
                 .addMigrations(*FocusStackDatabase.migrations)
                 .build()
         val sqlite = database.openHelper.readableDatabase
-        assertEquals(4, sqlite.version)
-        assertEquals(3, FocusStackDatabase.migrations.size)
+        assertEquals(5, sqlite.version)
+        assertEquals(4, FocusStackDatabase.migrations.size)
         val columns = mutableListOf<String>()
         sqlite.query("PRAGMA table_info(tasks)").use { cursor ->
             while (cursor.moveToNext()) columns += cursor.getString(cursor.getColumnIndexOrThrow("name"))
@@ -39,6 +40,12 @@ class SchemaAndPreferencesTest {
         assertTrue(columns.contains("scheduledOnEpochDay"))
         assertTrue(columns.contains("scheduledAtMinuteOfDay"))
         assertTrue(columns.contains("countdownIntervalDays"))
+        val tables = mutableListOf<String>()
+        sqlite.query("SELECT name FROM sqlite_master WHERE type = 'table'").use { cursor ->
+            while (cursor.moveToNext()) tables += cursor.getString(0)
+        }
+        assertTrue(tables.contains("repeats"))
+        assertTrue(tables.contains("repeat_log"))
         database.close()
     }
 
@@ -114,7 +121,7 @@ class SchemaAndPreferencesTest {
                 .allowMainThreadQueries()
                 .build()
         val sqlite = migrated.openHelper.readableDatabase
-        assertEquals(4, sqlite.version)
+        assertEquals(5, sqlite.version)
         sqlite
             .query(
                 "SELECT title, bucket, scheduledOnEpochDay, countdownIntervalDays FROM tasks WHERE id = 't1'",
@@ -133,6 +140,89 @@ class SchemaAndPreferencesTest {
             assertTrue(cursor.moveToFirst())
             assertEquals("t2", cursor.getString(0))
             assertEquals("ACTIVE", cursor.getString(1))
+        }
+        migrated.close()
+        context.deleteDatabase(name)
+    }
+
+    @Test
+    fun migrationFromVersionFourKeepsRowsAndAddsEmptyRepeatTables() {
+        val name = "migrate-v4-${UUID.randomUUID()}"
+        val helper =
+            androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory().create(
+                androidx.sqlite.db.SupportSQLiteOpenHelper.Configuration
+                    .builder(context)
+                    .name(name)
+                    .callback(
+                        object : androidx.sqlite.db.SupportSQLiteOpenHelper.Callback(4) {
+                            override fun onCreate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                                db.execSQL(
+                                    "CREATE TABLE IF NOT EXISTS `tasks` (`id` TEXT NOT NULL, `title` TEXT NOT NULL, " +
+                                        "`bucket` TEXT NOT NULL, `status` TEXT NOT NULL, `returnCue` TEXT, " +
+                                        "`sortOrder` INTEGER NOT NULL, `createdAtEpochMillis` INTEGER NOT NULL, " +
+                                        "`completedAtEpochMillis` INTEGER, `scheduledOnEpochDay` INTEGER, " +
+                                        "`scheduledAtMinuteOfDay` INTEGER, `countdownIntervalDays` INTEGER, " +
+                                        "PRIMARY KEY(`id`))",
+                                )
+                                db.execSQL(
+                                    "CREATE TABLE IF NOT EXISTS `focus_frames` (`id` TEXT NOT NULL, `taskId` TEXT NOT NULL, " +
+                                        "`parentFrameId` TEXT, `state` TEXT NOT NULL, `startedAtEpochMillis` INTEGER NOT NULL, " +
+                                        "`pausedAtEpochMillis` INTEGER, `accumulatedMillis` INTEGER NOT NULL, " +
+                                        "PRIMARY KEY(`id`), FOREIGN KEY(`taskId`) REFERENCES `tasks`(`id`) " +
+                                        "ON UPDATE NO ACTION ON DELETE NO ACTION )",
+                                )
+                                db.execSQL(
+                                    "CREATE INDEX IF NOT EXISTS `index_focus_frames_taskId` ON `focus_frames` (`taskId`)",
+                                )
+                                db.execSQL(
+                                    "CREATE INDEX IF NOT EXISTS `index_focus_frames_state` ON `focus_frames` (`state`)",
+                                )
+                                db.execSQL(
+                                    "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+                                )
+                                db.execSQL(
+                                    "INSERT OR REPLACE INTO room_master_table (id,identity_hash) " +
+                                        "VALUES(42, 'cfd62a5c4c75fbd6ff949da239090139')",
+                                )
+                                db.execSQL(
+                                    "INSERT INTO tasks (id, title, bucket, status, returnCue, sortOrder, " +
+                                        "createdAtEpochMillis, completedAtEpochMillis, scheduledOnEpochDay, " +
+                                        "scheduledAtMinuteOfDay, countdownIntervalDays) " +
+                                        "VALUES ('t1', 'Dana birthday', 'COUNTDOWN', 'OPEN', NULL, 1, 1, NULL, 20746, NULL, 12)",
+                                )
+                            }
+
+                            override fun onUpgrade(
+                                db: androidx.sqlite.db.SupportSQLiteDatabase,
+                                oldVersion: Int,
+                                newVersion: Int,
+                            ) = Unit
+                        },
+                    ).build(),
+            )
+        helper.writableDatabase.close()
+        val migrated =
+            Room
+                .databaseBuilder(context, FocusStackDatabase::class.java, name)
+                .addMigrations(*FocusStackDatabase.migrations)
+                .allowMainThreadQueries()
+                .build()
+        val sqlite = migrated.openHelper.readableDatabase
+        assertEquals(5, sqlite.version)
+        sqlite
+            .query("SELECT title, countdownIntervalDays FROM tasks WHERE id = 't1'")
+            .use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals("Dana birthday", cursor.getString(0))
+                assertEquals(12, cursor.getInt(1))
+            }
+        sqlite.query("SELECT COUNT(*) FROM repeats").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals(0, cursor.getInt(0))
+        }
+        sqlite.query("SELECT COUNT(*) FROM repeat_log").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals(0, cursor.getInt(0))
         }
         migrated.close()
         context.deleteDatabase(name)
@@ -207,7 +297,7 @@ class SchemaAndPreferencesTest {
                 .allowMainThreadQueries()
                 .build()
         val sqlite = migrated.openHelper.readableDatabase
-        assertEquals(4, sqlite.version)
+        assertEquals(5, sqlite.version)
         sqlite
             .query("SELECT title, bucket, returnCue, scheduledOnEpochDay, scheduledAtMinuteOfDay FROM tasks WHERE id = 't1'")
             .use { cursor ->
@@ -291,7 +381,7 @@ class SchemaAndPreferencesTest {
                 .allowMainThreadQueries()
                 .build()
         val sqlite = migrated.openHelper.readableDatabase
-        assertEquals(4, sqlite.version)
+        assertEquals(5, sqlite.version)
         sqlite.query("SELECT title, scheduledOnEpochDay, scheduledAtMinuteOfDay FROM tasks WHERE id = 't1'").use { cursor ->
             assertTrue(cursor.moveToFirst())
             assertEquals("Buy milk", cursor.getString(0))
@@ -325,6 +415,12 @@ class SchemaAndPreferencesTest {
             assertEquals(12, store.preferences.first().lastCountdownDays)
             store.setLastCountdownDays(0)
             assertEquals(12, store.preferences.first().lastCountdownDays)
+            assertEquals(7 * 60, store.preferences.first().bandTimes.morningStartMinute)
+            assertEquals(12 * 60, store.preferences.first().bandTimes.noonStartMinute)
+            assertEquals(18 * 60, store.preferences.first().bandTimes.nightStartMinute)
+            assertEquals(23 * 60, store.preferences.first().bandTimes.nightEndMinute)
+            store.setBandTimes(BandTimes(6 * 60, 11 * 60, 17 * 60, 22 * 60))
+            assertEquals(6 * 60, store.preferences.first().bandTimes.morningStartMinute)
         }
 
     @Test
