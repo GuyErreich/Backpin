@@ -12,6 +12,7 @@ import app.backpin.focus.domain.PromoteOutcome
 import app.backpin.focus.domain.Task
 import app.backpin.focus.domain.TaskBucket
 import app.backpin.focus.domain.TaskStatus
+import app.backpin.focus.domain.UndoToken
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -66,6 +67,7 @@ class CountdownArrivalTest {
             val countdown = taskNamed("Dana's birthday")
             assertEquals(TaskBucket.COUNTDOWN, countdown.bucket)
             assertEquals(today.plusDays(12).toEpochDay(), countdown.scheduledOnEpochDay)
+            assertEquals(12, countdown.countdownIntervalDays)
             assertNull(repository.releaseDueCountdowns())
             repository.releaseDueScheduled()
             assertEquals(TaskBucket.COUNTDOWN, taskNamed("Dana's birthday").bucket)
@@ -215,8 +217,81 @@ class CountdownArrivalTest {
             )
             assertEquals(TaskBucket.COUNTDOWN, task(event.id).bucket)
             assertEquals(next, task(event.id).scheduledOnEpochDay)
+            assertEquals(30, task(event.id).countdownIntervalDays)
             assertParentWaits(work)
             assertNull(repository.releaseDueCountdowns())
+        }
+
+    @Test
+    fun captureRescheduleAndDetachWriteTheIntervalAndKeepItThroughAMove() =
+        runBlocking {
+            repository.captureCountdown("Trip", today.plusDays(12).toEpochDay())
+            val trip = taskNamed("Trip")
+            assertEquals(12, trip.countdownIntervalDays)
+            assertEquals(12, repository.preferences.first().lastCountdownDays)
+
+            repository.rescheduleCountdown(trip.id, today.plusDays(9).toEpochDay())
+            assertEquals(9, task(trip.id).countdownIntervalDays)
+            assertEquals(9, repository.preferences.first().lastCountdownDays)
+
+            val work = startedToday()
+            val event = arrive("Dentist")
+            assertNull(event.countdownIntervalDays)
+            assertEquals(
+                PromoteOutcome.Promoted,
+                repository.detachInterruption(event.id, DetachDestination.Countdown(today.plusDays(21).toEpochDay())),
+            )
+            val resumed = task(event.id)
+            assertEquals(TaskBucket.COUNTDOWN, resumed.bucket)
+            assertEquals(21, resumed.countdownIntervalDays)
+            assertEquals(21, repository.preferences.first().lastCountdownDays)
+
+            val parked = arrive("Parked")
+            val parkedRow = database.taskDao().getById(parked.id) ?: error("Missing parked event")
+            database.taskDao().upsert(parkedRow.copy(countdownIntervalDays = 14))
+            repository.detachInterruption(parked.id, DetachDestination.Later)
+            assertEquals(TaskBucket.LATER, task(parked.id).bucket)
+            assertEquals(14, task(parked.id).countdownIntervalDays)
+            assertEquals(21, task(event.id).countdownIntervalDays)
+            assertEquals(21, repository.preferences.first().lastCountdownDays)
+            assertParentWaits(work)
+        }
+
+    @Test
+    fun undoAfterCountDownAgainRestoresTheEventParentAndInterval() =
+        runBlocking {
+            val work = startedToday()
+            val event = arrive("Dentist")
+            val row = database.taskDao().getById(event.id) ?: error("Missing dentist")
+            database.taskDao().upsert(row.copy(countdownIntervalDays = 180))
+            val before = snapshot()
+            val beforeTask = before.tasks.single { it.id == event.id }
+            val beforeFrame = before.frames.single { it.taskId == event.id && it.state == FrameState.ACTIVE }
+            val beforeParent = before.frames.single { it.taskId == work }
+            assertEquals(180, beforeTask.countdownIntervalDays)
+            assertEquals(FrameState.PAUSED, beforeParent.state)
+
+            val next = today.plusDays(45).toEpochDay()
+            assertEquals(
+                PromoteOutcome.Promoted,
+                repository.detachInterruption(event.id, DetachDestination.Countdown(next)),
+            )
+            assertEquals(45, task(event.id).countdownIntervalDays)
+            assertParentWaits(work)
+
+            repository.undo(
+                UndoToken(
+                    tasks = listOf(beforeTask),
+                    frames = listOf(beforeFrame, beforeParent),
+                ),
+            )
+            val restored = snapshot()
+            val restoredTask = restored.tasks.single { it.id == event.id }
+            assertEquals(TaskBucket.COUNTDOWN, restoredTask.bucket)
+            assertEquals(beforeTask.scheduledOnEpochDay, restoredTask.scheduledOnEpochDay)
+            assertEquals(180, restoredTask.countdownIntervalDays)
+            assertEquals(FrameState.ACTIVE, restored.frames.single { it.taskId == event.id }.state)
+            assertEquals(FrameState.PAUSED, restored.frames.single { it.taskId == work }.state)
         }
 
     @Test
@@ -242,6 +317,7 @@ class CountdownArrivalTest {
             val trip = taskNamed("Trip")
             repository.rescheduleCountdown(trip.id, today.plusDays(9).toEpochDay())
             assertEquals(today.plusDays(9).toEpochDay(), task(trip.id).scheduledOnEpochDay)
+            assertEquals(9, task(trip.id).countdownIntervalDays)
             repository.removeCountdown(trip.id)
             assertTrue(snapshot().tasks.none { it.id == trip.id })
         }

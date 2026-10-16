@@ -9,7 +9,9 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStoreFile
 import app.backpin.focus.domain.DEFAULT_TODAY_LIMIT
+import app.backpin.focus.domain.MAX_COUNTDOWN_DAYS
 import app.backpin.focus.domain.MAX_TODAY_LIMIT
+import app.backpin.focus.domain.MIN_COUNTDOWN_DAYS
 import app.backpin.focus.domain.MIN_TODAY_LIMIT
 import app.backpin.focus.domain.UserPreferences
 import kotlinx.coroutines.flow.Flow
@@ -17,8 +19,8 @@ import kotlinx.coroutines.flow.map
 
 /**
  * Stores nudge timing, quiet hours, the current-task notification preference,
- * and the ordered capture phrases. Writing a value does not schedule work;
- * the notification coordinator does that.
+ * the ordered capture phrases, and the last countdown count used on this phone.
+ * Writing a value does not schedule work; the notification coordinator does that.
  */
 class PreferencesDataStore(
     context: Context,
@@ -42,6 +44,8 @@ class PreferencesDataStore(
                 lastNudgedTaskId = prefs[Keys.LAST_NUDGED_TASK],
                 todayLimit = (prefs[Keys.TODAY_LIMIT] ?: DEFAULT_TODAY_LIMIT).coerceIn(MIN_TODAY_LIMIT, MAX_TODAY_LIMIT),
                 savedPhrases = decodeSavedPhrases(prefs[Keys.SAVED_PHRASES]),
+                lastCountdownDays =
+                    prefs[Keys.LAST_COUNTDOWN_DAYS]?.takeIf { it in MIN_COUNTDOWN_DAYS..MAX_COUNTDOWN_DAYS },
             )
         }
 
@@ -113,6 +117,14 @@ class PreferencesDataStore(
         }
     }
 
+    /** Remembers the last countdown count used on this phone. Out-of-range values are ignored. */
+    suspend fun setLastCountdownDays(days: Int) {
+        if (days !in MIN_COUNTDOWN_DAYS..MAX_COUNTDOWN_DAYS) return
+        dataStore.edit { prefs ->
+            prefs[Keys.LAST_COUNTDOWN_DAYS] = days
+        }
+    }
+
     /** Replaces the capture phrases. An empty list stays empty and is not seeded again. */
     suspend fun setSavedPhrases(phrases: List<String>) {
         dataStore.edit { prefs ->
@@ -131,6 +143,7 @@ class PreferencesDataStore(
         val LAST_NUDGED_TASK = stringPreferencesKey("last_nudged_task")
         val TODAY_LIMIT = intPreferencesKey("today_limit")
         val SAVED_PHRASES = stringPreferencesKey("saved_phrases")
+        val LAST_COUNTDOWN_DAYS = intPreferencesKey("last_countdown_days")
     }
 
     companion object {

@@ -5,10 +5,13 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import app.backpin.focus.domain.DetachDestination
 import app.backpin.focus.domain.FocusUseCases
+import app.backpin.focus.domain.FrameState
 import app.backpin.focus.domain.PromoteOutcome
 import app.backpin.focus.domain.TaskBucket
 import app.backpin.focus.domain.UndoToken
 import app.backpin.focus.domain.UserPreferences
+import app.backpin.focus.domain.backInDaysLabel
+import app.backpin.focus.domain.countdownIntervalDays
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -16,6 +19,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.time.LocalDate
 
 /**
  * One activity-scoped model. Home, capture, and focus all read the database flow,
@@ -183,15 +187,33 @@ class FocusStackViewModel(
     /**
      * Sends an arrived event out of focus to Today, Later, or back to counting down.
      * The paused task then waits for Resume. A full Today opens Replace for the event.
+     * A countdown resume stays on the current tab and offers Undo for the event and parent.
      */
     fun detachEvent(
         taskId: String,
         destination: DetachDestination,
     ) {
         viewModelScope.launch {
+            val snapshot = useCases.observeSnapshot().first()
+            val before = snapshot.tasks.firstOrNull { it.id == taskId }
+            val frame = snapshot.frames.firstOrNull { it.taskId == taskId && it.state != FrameState.CLOSED }
+            val parent = frame?.parentFrameId?.let { parentId -> snapshot.frames.firstOrNull { it.id == parentId } }
             when (useCases.detachInterruption(taskId, destination)) {
                 is PromoteOutcome.NeedsSwap -> swapIncomingId.value = taskId
-                is PromoteOutcome.Promoted -> swapIncomingId.value = null
+                is PromoteOutcome.Promoted -> {
+                    swapIncomingId.value = null
+                    if (destination is DetachDestination.Countdown && before != null) {
+                        val today = LocalDate.now()
+                        val days = countdownIntervalDays(destination.epochDay, today) ?: return@launch
+                        offerUndo(
+                            backInDaysLabel(days, today),
+                            UndoToken(
+                                tasks = listOf(before),
+                                frames = listOfNotNull(frame, parent),
+                            ),
+                        )
+                    }
+                }
                 is PromoteOutcome.Rejected -> Unit
             }
         }

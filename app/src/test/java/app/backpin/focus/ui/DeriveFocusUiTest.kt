@@ -127,6 +127,28 @@ class DeriveFocusUiTest {
     }
 
     @Test
+    fun anArrivedEventCarriesItsStoredInterval() {
+        val event =
+            task(
+                "event",
+                "Dentist",
+                TaskBucket.COUNTDOWN,
+                scheduledOnEpochDay = LocalDate.of(2026, 9, 27).toEpochDay(),
+            ).copy(countdownIntervalDays = 30)
+        val state =
+            derive(
+                FocusSnapshot(
+                    tasks = listOf(event),
+                    frames = listOf(frame("f-event", "event", parent = null, FrameState.ACTIVE)),
+                ),
+            )
+        assertEquals("Dentist", state.now?.title)
+        assertTrue(state.now?.isEvent == true)
+        assertEquals(30, state.now?.countdownIntervalDays)
+        assertTrue(state.countdowns.isEmpty())
+    }
+
+    @Test
     fun aNestedInterruptionLeavesThePiles() {
         val parent = task("parent", "Review CI failure", TaskBucket.TODAY)
         val child = task("child", "Call Dana", TaskBucket.INTERRUPTION)

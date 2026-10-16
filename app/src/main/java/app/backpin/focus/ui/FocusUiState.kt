@@ -45,6 +45,7 @@ data class NowUi(
     val startedAtEpochMillis: Long,
     val isInterruption: Boolean,
     val isEvent: Boolean = false,
+    val countdownIntervalDays: Int? = null,
 )
 
 /** The single parent waiting to be picked up. The rest of the stack stays hidden. */

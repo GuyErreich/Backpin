@@ -54,6 +54,7 @@ internal fun deriveFocusUi(
                 startedAtEpochMillis = frame.startedAtEpochMillis,
                 isInterruption = frame.parentFrameId != null,
                 isEvent = task.bucket == TaskBucket.COUNTDOWN,
+                countdownIntervalDays = task.countdownIntervalDays,
             )
         }
 

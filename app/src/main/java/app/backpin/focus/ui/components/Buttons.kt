@@ -109,6 +109,23 @@ private fun choiceBorderColor(
     enabled: Boolean,
 ): Color = if (tone == ChoiceTone.Quiet) FocusColors.Outline.shown(enabled) else choiceLabelColor(tone, enabled)
 
+/** Soft container behind a default choice. Outlined choices stay transparent. */
+internal fun choiceContainerColor(
+    tone: ChoiceTone,
+    filled: Boolean,
+    enabled: Boolean = true,
+): Color {
+    if (!filled) return Color.Transparent
+    val fill =
+        when (tone) {
+            ChoiceTone.Lavender -> FocusColors.LavenderContainer
+            ChoiceTone.Mint -> FocusColors.Mint.copy(alpha = 0.25f)
+            ChoiceTone.Amber -> FocusColors.Amber.copy(alpha = 0.25f)
+            ChoiceTone.Quiet -> FocusColors.SurfaceHigh
+        }
+    return fill.shown(enabled)
+}
+
 /**
  * The one button shape: outlined, 16dp corners, no ripple.
  * Choice buttons are at least 56dp. [CardActions] locks its buttons to 40dp.
@@ -272,6 +289,7 @@ internal fun CaptureChoice(
     onClick: () -> Unit,
     tone: ChoiceTone = ChoiceTone.Quiet,
     enabled: Boolean = true,
+    filled: Boolean = false,
 ) {
     OutlinedFocusButton(
         label = label,
@@ -284,6 +302,7 @@ internal fun CaptureChoice(
                 .focusProperties { canFocus = false },
         enabled = enabled,
         interactionSource = null,
+        containerColor = choiceContainerColor(tone, filled, enabled),
     )
 }
 

@@ -60,6 +60,7 @@ import app.backpin.focus.domain.MAX_TODAY_LIMIT
 import app.backpin.focus.domain.MIN_TODAY_LIMIT
 import app.backpin.focus.domain.elapsedMillis
 import app.backpin.focus.domain.formatElapsed
+import app.backpin.focus.domain.suggestedCountdownDays
 import app.backpin.focus.ui.FocusStackViewModel
 import app.backpin.focus.ui.FocusUiState
 import app.backpin.focus.ui.NowUi
@@ -71,6 +72,7 @@ import app.backpin.focus.ui.components.AccentTone
 import app.backpin.focus.ui.components.CardActions
 import app.backpin.focus.ui.components.QuietButton
 import app.backpin.focus.ui.countdown.EventDetachButtons
+import app.backpin.focus.ui.countdown.EventResumeHost
 import app.backpin.focus.ui.focus.RecoveryCard
 import app.backpin.focus.ui.motion.MotionSpec
 import app.backpin.focus.ui.motion.motionSpec
@@ -221,17 +223,32 @@ private fun NowCard(
                             )
                             Text(now.returnCue, style = MaterialTheme.typography.bodyLarge)
                         }
-                        CardActions {
-                            AccentButton("Done", AccentTone.Mint, onClick = viewModel::completeActive)
-                            if (now.isEvent) {
-                                EventDetachButtons(now.taskId, onDetach = viewModel::detachEvent)
-                            } else {
-                                AccentButton(
-                                    "Interrupt",
-                                    AccentTone.Lavender,
-                                    onClick = { viewModel.openCapture(interrupts = true) },
-                                )
-                                QuietButton("Later", onClick = { viewModel.demote(now.taskId) })
+                        EventResumeHost(
+                            taskId = now.taskId,
+                            title = now.title,
+                            suggestedDays =
+                                suggestedCountdownDays(
+                                    now.countdownIntervalDays,
+                                    state.preferences.lastCountdownDays,
+                                ),
+                            onDetach = viewModel::detachEvent,
+                        ) { onCountDownAgain ->
+                            CardActions {
+                                AccentButton("Done", AccentTone.Mint, onClick = viewModel::completeActive)
+                                if (now.isEvent) {
+                                    EventDetachButtons(
+                                        taskId = now.taskId,
+                                        onDetach = viewModel::detachEvent,
+                                        onCountDownAgain = onCountDownAgain,
+                                    )
+                                } else {
+                                    AccentButton(
+                                        "Interrupt",
+                                        AccentTone.Lavender,
+                                        onClick = { viewModel.openCapture(interrupts = true) },
+                                    )
+                                    QuietButton("Later", onClick = { viewModel.demote(now.taskId) })
+                                }
                             }
                         }
                     }

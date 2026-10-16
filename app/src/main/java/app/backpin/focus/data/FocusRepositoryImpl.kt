@@ -17,6 +17,7 @@ import app.backpin.focus.domain.TaskStatus
 import app.backpin.focus.domain.UNTITLED_INTERRUPTION
 import app.backpin.focus.domain.UndoToken
 import app.backpin.focus.domain.UserPreferences
+import app.backpin.focus.domain.countdownIntervalDays
 import app.backpin.focus.domain.isCountdownDue
 import app.backpin.focus.domain.isQuietNow
 import app.backpin.focus.domain.isScheduledDue
@@ -130,9 +131,11 @@ class FocusRepositoryImpl(
     ) {
         val trimmed = title.trim()
         if (trimmed.isEmpty()) return
+        val interval = intervalFor(epochDay)
         database.withTransaction {
-            taskDao.upsert(newTask(trimmed, TaskBucket.COUNTDOWN, epochDay))
+            taskDao.upsert(newTask(trimmed, TaskBucket.COUNTDOWN, epochDay, interval))
         }
+        rememberLastCountdown(interval)
         recordInteraction()
     }
 
@@ -140,13 +143,17 @@ class FocusRepositoryImpl(
         taskId: String,
         epochDay: Long,
     ) {
+        val interval = intervalFor(epochDay)
         val changed =
             database.withTransaction {
                 val task = waitingCountdown(taskId) ?: return@withTransaction false
-                taskDao.upsert(task.copy(scheduledOnEpochDay = epochDay))
+                taskDao.upsert(task.copy(scheduledOnEpochDay = epochDay, countdownIntervalDays = interval))
                 true
             }
-        if (changed) recordInteraction()
+        if (changed) {
+            rememberLastCountdown(interval)
+            recordInteraction()
+        }
     }
 
     override suspend fun removeCountdown(taskId: String) {
@@ -219,10 +226,14 @@ class FocusRepositoryImpl(
                             PromoteOutcome.Promoted
                         }
                         is DetachDestination.Countdown -> {
+                            val interval = intervalFor(destination.epochDay)
                             taskDao.upsert(
                                 task
                                     .movedTo(TaskBucket.COUNTDOWN, clock.nowEpochMillis())
-                                    .copy(scheduledOnEpochDay = destination.epochDay),
+                                    .copy(
+                                        scheduledOnEpochDay = destination.epochDay,
+                                        countdownIntervalDays = interval,
+                                    ),
                             )
                             PromoteOutcome.Promoted
                         }
@@ -242,7 +253,12 @@ class FocusRepositoryImpl(
                 requireInvariants(limit)
                 result
             }
-        if (outcome !is PromoteOutcome.Rejected) recordInteraction()
+        if (outcome !is PromoteOutcome.Rejected) {
+            if (destination is DetachDestination.Countdown) {
+                rememberLastCountdown(intervalFor(destination.epochDay))
+            }
+            recordInteraction()
+        }
         return outcome
     }
 
@@ -829,6 +845,7 @@ class FocusRepositoryImpl(
         title: String,
         bucket: TaskBucket,
         scheduledOnEpochDay: Long? = null,
+        countdownIntervalDays: Int? = null,
     ): TaskEntity {
         val now = clock.nowEpochMillis()
         return TaskEntity(
@@ -841,9 +858,14 @@ class FocusRepositoryImpl(
             createdAtEpochMillis = now,
             completedAtEpochMillis = null,
             scheduledOnEpochDay = scheduledOnEpochDay,
+            countdownIntervalDays = countdownIntervalDays,
         )
     }
 
+    /**
+     * Clears the schedule day and time except on [TaskBucket.SCHEDULED].
+     * [TaskEntity.countdownIntervalDays] stays: it is the last count, not a schedule.
+     */
     private fun TaskEntity.movedTo(
         bucket: TaskBucket,
         sortOrder: Long = this.sortOrder,
@@ -854,6 +876,12 @@ class FocusRepositoryImpl(
             scheduledOnEpochDay = if (bucket == TaskBucket.SCHEDULED) scheduledOnEpochDay else null,
             scheduledAtMinuteOfDay = if (bucket == TaskBucket.SCHEDULED) scheduledAtMinuteOfDay else null,
         )
+
+    private fun intervalFor(epochDay: Long): Int? = countdownIntervalDays(epochDay, localToday())
+
+    private suspend fun rememberLastCountdown(interval: Int?) {
+        if (interval != null) preferencesStore.setLastCountdownDays(interval)
+    }
 
     private fun localNow(): LocalDateTime =
         Instant.ofEpochMilli(clock.nowEpochMillis()).atZone(ZoneId.systemDefault()).toLocalDateTime()
