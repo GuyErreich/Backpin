@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "FocusStack"
+rootProject.name = "Backpin"
 include(":app")

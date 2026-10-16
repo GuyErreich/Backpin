@@ -1,4 +1,4 @@
-# Agent rules for Focus Stack
+# Agent rules for Backpin
 
 Read this before changing code. One line per rule.
 
@@ -43,6 +43,8 @@ Copy
 
 ## Git
 
-- New work goes on a `cursor/` branch from `origin/main`, with one ready pull request.
-- A squash-merged branch counts as merged when its tree matches `main`, so follow-ups start a new branch.
+- New work goes on a `cursor/` branch from `dev`, with one pull request into `dev`.
+- A merged pull request into `dev` lets Action-Semver-Control promote `staging`. That promotion publishes the preview APK.
+- `main` is production. Feature pull requests do not target it.
+- A squash-merged branch counts as merged when its tree matches `dev`, so follow-ups start a new branch.
 - Do not edit plan files.
