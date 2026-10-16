@@ -1,0 +1,7 @@
+version: 0.1.2-dev
+source_branch: cursor/release-changelog
+target_branch: dev
+target_base_sha: ed67cf34b392a17bb3f3c94712c40bf1191794bb
+finalized: false
+managed_by: auto-semver
+branch_role: release
