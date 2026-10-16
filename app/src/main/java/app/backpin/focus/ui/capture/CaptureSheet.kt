@@ -454,13 +454,6 @@ internal fun CaptureSheet(
                             },
                         ),
                 )
-                if (editing) {
-                    Text(
-                        "Same sheet as capture. Back keeps the edit too, so leaving halfway never loses work. Empty title reverts.",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = FocusColors.Text,
-                    )
-                }
                 LaunchedEffect(focusRequester, activeBlank) {
                     if (activeBlank == null) focusRequester.requestFocus()
                 }
