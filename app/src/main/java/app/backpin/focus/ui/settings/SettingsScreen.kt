@@ -1,7 +1,6 @@
 package app.backpin.focus.ui.settings
 
 import android.Manifest
-import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -49,12 +48,13 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import app.backpin.focus.domain.BandEdge
 import app.backpin.focus.domain.BandTimes
 import app.backpin.focus.domain.MAX_TODAY_LIMIT
 import app.backpin.focus.domain.MIN_TODAY_LIMIT
 import app.backpin.focus.domain.UserPreferences
-import app.backpin.focus.ui.repeat.minuteOfDayClock
-import app.backpin.focus.ui.repeat.parseClockToMinute
+import app.backpin.focus.domain.minuteOfDayClock
+import app.backpin.focus.domain.parseClockToMinute
 import app.backpin.focus.notifications.notificationsAllowed
 import app.backpin.focus.ui.components.ActionRow
 import app.backpin.focus.ui.components.QuietButton
@@ -74,8 +74,11 @@ fun SettingsScreen(
     onAddPhrase: (String) -> Unit,
     onRenamePhrase: (index: Int, text: String) -> Unit,
     onRemovePhrase: (index: Int) -> Unit,
-    onBandTimes: (BandTimes) -> Unit = {},
-    canScheduleExactAlarms: () -> Boolean = { true },
+    bandTimes: BandTimes = BandTimes.DEFAULT,
+    onBandTime: (BandEdge, Int) -> Unit = { _, _ -> },
+    showExactAlarmPrompt: Boolean = false,
+    onDismissExactAlarmPrompt: () -> Unit = {},
+    onRefreshExactAlarmPermission: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -93,7 +96,10 @@ fun SettingsScreen(
     DisposableEffect(lifecycleOwner) {
         val observer =
             LifecycleEventObserver { _, event ->
-                if (event == Lifecycle.Event.ON_RESUME) permissionTick += 1
+                if (event == Lifecycle.Event.ON_RESUME) {
+                    permissionTick += 1
+                    refreshExactAlarm.value()
+                }
             }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
@@ -102,11 +108,7 @@ fun SettingsScreen(
     var bandPicking by remember { mutableStateOf<BandPick?>(null) }
     var renaming by remember { mutableStateOf<Int?>(null) }
     var newPhrase by remember { mutableStateOf("") }
-    val exactPrefs = remember { context.getSharedPreferences(EXACT_ALARM_PREFS, Context.MODE_PRIVATE) }
-    var exactPromptDismissed by remember {
-        mutableStateOf(exactPrefs.getBoolean(EXACT_ALARM_DISMISSED_KEY, false))
-    }
-    val exactAllowed = remember(permissionTick) { canScheduleExactAlarms() }
+    val refreshExactAlarm = rememberUpdatedState(onRefreshExactAlarmPermission)
 
     fun enableThen(action: () -> Unit) {
         val needsRuntime =
@@ -176,20 +178,13 @@ fun SettingsScreen(
                     "Morning, noon, and night start times. A reminder uses the start of that band. Night ends when you say it does.",
                     style = MaterialTheme.typography.bodyMedium,
                 )
-                val times = preferences.bandTimes
-                BandTimeRow("Morning", times.morningStartMinute) { bandPicking = BandPick.MORNING }
-                BandTimeRow("Noon", times.noonStartMinute) { bandPicking = BandPick.NOON }
-                BandTimeRow("Night", times.nightStartMinute) { bandPicking = BandPick.NIGHT }
-                BandTimeRow("Night ends", times.nightEndMinute) { bandPicking = BandPick.NIGHT_END }
-                if (!times.isValid()) {
-                    Text(
-                        "Morning has to start before noon, then night, then night end.",
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                }
+                BandTimeRow("Morning", bandTimes.morningStartMinute) { bandPicking = BandPick.MORNING }
+                BandTimeRow("Noon", bandTimes.noonStartMinute) { bandPicking = BandPick.NOON }
+                BandTimeRow("Night", bandTimes.nightStartMinute) { bandPicking = BandPick.NIGHT }
+                BandTimeRow("Night ends", bandTimes.nightEndMinute) { bandPicking = BandPick.NIGHT_END }
             }
         }
-        if (!exactAllowed && !exactPromptDismissed) {
+        if (showExactAlarmPrompt) {
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(CardRadius),
@@ -216,10 +211,7 @@ fun SettingsScreen(
                     )
                     QuietButton(
                         label = "Not now",
-                        onClick = {
-                            exactPrefs.edit().putBoolean(EXACT_ALARM_DISMISSED_KEY, true).apply()
-                            exactPromptDismissed = true
-                        },
+                        onClick = onDismissExactAlarmPrompt,
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
@@ -384,13 +376,12 @@ fun SettingsScreen(
     }
 
     bandPicking?.let { which ->
-        val times = preferences.bandTimes
         val initialMinute =
             when (which) {
-                BandPick.MORNING -> times.morningStartMinute
-                BandPick.NOON -> times.noonStartMinute
-                BandPick.NIGHT -> times.nightStartMinute
-                BandPick.NIGHT_END -> times.nightEndMinute
+                BandPick.MORNING -> bandTimes.morningStartMinute
+                BandPick.NOON -> bandTimes.noonStartMinute
+                BandPick.NIGHT -> bandTimes.nightStartMinute
+                BandPick.NIGHT_END -> bandTimes.nightEndMinute
             }
         QuietTimeDialog(
             title =
@@ -405,14 +396,14 @@ fun SettingsScreen(
             onConfirm = { value ->
                 val minute = parseClockToMinute(value)
                 if (minute != null) {
-                    val next =
+                    val edge =
                         when (which) {
-                            BandPick.MORNING -> times.copy(morningStartMinute = minute)
-                            BandPick.NOON -> times.copy(noonStartMinute = minute)
-                            BandPick.NIGHT -> times.copy(nightStartMinute = minute)
-                            BandPick.NIGHT_END -> times.copy(nightEndMinute = minute)
+                            BandPick.MORNING -> BandEdge.MORNING
+                            BandPick.NOON -> BandEdge.NOON
+                            BandPick.NIGHT -> BandEdge.NIGHT
+                            BandPick.NIGHT_END -> BandEdge.NIGHT_END
                         }
-                    if (next.isValid()) onBandTimes(next)
+                    onBandTime(edge, minute)
                 }
                 bandPicking = null
             },
@@ -520,9 +511,6 @@ private fun BandTimeRow(
 private enum class QuietPick { START, END }
 
 private enum class BandPick { MORNING, NOON, NIGHT, NIGHT_END }
-
-private const val EXACT_ALARM_PREFS: String = "backpin_repeat_ui"
-private const val EXACT_ALARM_DISMISSED_KEY: String = "exact_alarm_prompt_dismissed"
 
 private fun quietHours(preferences: UserPreferences): String {
     val start = preferences.quietStart

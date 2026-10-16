@@ -51,8 +51,8 @@ import androidx.compose.ui.unit.round
 import androidx.compose.ui.unit.sp
 import app.backpin.focus.domain.Repeat
 import app.backpin.focus.domain.RepeatDayStatus
-import app.backpin.focus.domain.RepeatOccurrence
-import app.backpin.focus.domain.TodaysRepeats
+import app.backpin.focus.domain.RepeatRow as RepeatRowModel
+import app.backpin.focus.domain.RepeatRowsState
 import app.backpin.focus.ui.components.QuietButton
 import app.backpin.focus.ui.motion.MotionSpec
 import app.backpin.focus.ui.motion.motionSpec
@@ -60,7 +60,6 @@ import app.backpin.focus.ui.motion.pressScale
 import app.backpin.focus.ui.motion.rememberPressSource
 import app.backpin.focus.ui.repeat.everyNDaysLabel
 import app.backpin.focus.ui.repeat.missedRepeatCopy
-import app.backpin.focus.ui.repeat.orderedRepeatRows
 import app.backpin.focus.ui.repeat.repeatBandMark
 import app.backpin.focus.ui.repeat.repeatRowDescription
 import app.backpin.focus.ui.repeat.repeatsLeftLabel
@@ -71,16 +70,15 @@ import kotlinx.coroutines.launch
 
 @Composable
 internal fun RepeatSection(
-    todays: TodaysRepeats,
+    rows: RepeatRowsState,
     reducedMotion: Boolean,
-    onCheckOff: (RepeatOccurrence) -> Unit,
+    onCheckOff: (RepeatRowModel) -> Unit,
     onEdit: (Repeat) -> Unit,
     onCreate: () -> Unit,
 ) {
-    val rows = orderedRepeatRows(todays)
     Column(verticalArrangement = Arrangement.spacedBy(Space)) {
         SectionLabel("REPEAT", repeatsLeftLabel(rows))
-        if (rows.isEmpty()) {
+        if (rows.rows.isEmpty()) {
             Text(
                 "Nothing due today.",
                 style = MaterialTheme.typography.bodyLarge,
@@ -92,13 +90,13 @@ internal fun RepeatSection(
                 modifier = Modifier.fillMaxWidth(),
             )
         } else {
-            rows.forEach { occurrence ->
-                key(occurrence.repeat.id) {
+            rows.rows.forEach { row ->
+                key(row.repeat.id) {
                     RepeatRow(
-                        occurrence = occurrence,
+                        row = row,
                         reducedMotion = reducedMotion,
-                        onCheckOff = { onCheckOff(occurrence) },
-                        onEdit = { onEdit(occurrence.repeat) },
+                        onCheckOff = { onCheckOff(row) },
+                        onEdit = { onEdit(row.repeat) },
                     )
                 }
             }
@@ -108,17 +106,17 @@ internal fun RepeatSection(
 
 @Composable
 private fun RepeatRow(
-    occurrence: RepeatOccurrence,
+    row: RepeatRowModel,
     reducedMotion: Boolean,
     onCheckOff: () -> Unit,
     onEdit: () -> Unit,
 ) {
-    val open = occurrence.status == RepeatDayStatus.OPEN
-    val done = occurrence.status == RepeatDayStatus.DONE
-    val missed = occurrence.status == RepeatDayStatus.MISSED
+    val open = row.status == RepeatDayStatus.OPEN
+    val done = row.status == RepeatDayStatus.DONE
+    val missed = row.status == RepeatDayStatus.MISSED
     val checkable = open || missed
     val targetAlpha =
-        when (occurrence.status) {
+        when (row.status) {
             RepeatDayStatus.DONE -> 0.45f
             RepeatDayStatus.MISSED -> 0.72f
             RepeatDayStatus.OPEN -> 1f
@@ -129,8 +127,8 @@ private fun RepeatRow(
         label = "repeatFade",
     )
     val interaction = rememberPressSource()
-    val description = repeatRowDescription(occurrence)
-    val interval = everyNDaysLabel(occurrence.repeat.everyNDays)
+    val description = repeatRowDescription(row)
+    val interval = everyNDaysLabel(row.cadenceDays)
     val shape = RoundedCornerShape(CardRadius)
     val content: @Composable () -> Unit = {
         Row(
@@ -144,7 +142,7 @@ private fun RepeatRow(
             RepeatMark(done = done, missed = missed, color = if (done) FocusColors.Muted else FocusColors.Text)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
-                    occurrence.repeat.title,
+                    row.repeat.title,
                     style = MaterialTheme.typography.titleLarge,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
@@ -153,7 +151,7 @@ private fun RepeatRow(
                 )
                 if (missed) {
                     Text(
-                        missedRepeatCopy(occurrence.repeat.band),
+                        missedRepeatCopy(row.repeat.band),
                         style = MaterialTheme.typography.bodyMedium,
                         color = FocusColors.Muted,
                     )
@@ -162,7 +160,7 @@ private fun RepeatRow(
                 }
             }
             Text(
-                repeatBandMark(occurrence.repeat.band),
+                repeatBandMark(row.repeat.band),
                 style = MaterialTheme.typography.labelLarge,
                 color = FocusColors.Muted,
                 letterSpacing = 1.sp,

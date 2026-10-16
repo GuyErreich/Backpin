@@ -1,7 +1,10 @@
 package app.backpin.focus.ui.settings
 
-import android.content.Context
 import androidx.activity.ComponentActivity
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.click
@@ -9,12 +12,9 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTouchInput
-import androidx.test.core.app.ApplicationProvider
 import app.backpin.focus.domain.BandTimes
 import app.backpin.focus.domain.UserPreferences
 import app.backpin.focus.ui.theme.FocusStackTheme
-import org.junit.Assert.assertEquals
-import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -27,20 +27,10 @@ class BandTimeSettingsTest {
     @get:Rule
     val compose = createAndroidComposeRule<ComponentActivity>()
 
-    @Before
-    fun clearExactAlarmPrompt() {
-        ApplicationProvider
-            .getApplicationContext<Context>()
-            .getSharedPreferences("backpin_repeat_ui", Context.MODE_PRIVATE)
-            .edit()
-            .clear()
-            .commit()
-    }
-
     @Test
     fun defaultsShowAndTheExactAlarmPromptCanBeDismissed() {
-        var allowed = false
         compose.setContent {
+            var showPrompt by remember { mutableStateOf(true) }
             FocusStackTheme {
                 SettingsScreen(
                     preferences = UserPreferences(),
@@ -51,8 +41,10 @@ class BandTimeSettingsTest {
                     onAddPhrase = {},
                     onRenamePhrase = { _, _ -> },
                     onRemovePhrase = {},
-                    onBandTimes = {},
-                    canScheduleExactAlarms = { allowed },
+                    bandTimes = BandTimes.DEFAULT,
+                    onBandTime = { _, _ -> },
+                    showExactAlarmPrompt = showPrompt,
+                    onDismissExactAlarmPrompt = { showPrompt = false },
                 )
             }
         }
@@ -70,7 +62,6 @@ class BandTimeSettingsTest {
         compose.waitForIdle()
         compose.onNodeWithText("On-time reminders").assertDoesNotExist()
         compose.onNodeWithText("Allow exact alarms").assertDoesNotExist()
-        assertEquals(false, allowed)
     }
 
     @Test
@@ -78,10 +69,7 @@ class BandTimeSettingsTest {
         compose.setContent {
             FocusStackTheme {
                 SettingsScreen(
-                    preferences =
-                        UserPreferences(
-                            bandTimes = BandTimes(8 * 60, 13 * 60, 19 * 60, 22 * 60),
-                        ),
+                    preferences = UserPreferences(),
                     onNudgeSelected = { _, _ -> },
                     onQuietHours = { _, _ -> },
                     onCurrentNotification = {},
@@ -89,8 +77,9 @@ class BandTimeSettingsTest {
                     onAddPhrase = {},
                     onRenamePhrase = { _, _ -> },
                     onRemovePhrase = {},
-                    onBandTimes = {},
-                    canScheduleExactAlarms = { true },
+                    bandTimes = BandTimes(8 * 60, 13 * 60, 19 * 60, 22 * 60),
+                    onBandTime = { _, _ -> },
+                    showExactAlarmPrompt = false,
                 )
             }
         }
