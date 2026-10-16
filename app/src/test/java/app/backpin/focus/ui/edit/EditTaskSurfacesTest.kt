@@ -164,7 +164,7 @@ class EditTaskSurfacesTest {
 
             tapEditNear("Park me")
             saveTitleAs("Today renamed")
-            awaitSnapshot(useCases) { task(it, "Today renamed").bucket == TaskBucket.TODAY }
+            awaitSnapshot(useCases) { hasTask(it, "Today renamed", TaskBucket.TODAY) }
 
             compose.runOnIdle { screen = "focus" }
             compose.waitForIdle()
@@ -176,25 +176,25 @@ class EditTaskSurfacesTest {
             compose.waitForIdle()
             tapEditNear("From inbox")
             saveTitleAs("Inbox renamed")
-            awaitSnapshot(useCases) { task(it, "Inbox renamed").bucket == TaskBucket.INBOX }
+            awaitSnapshot(useCases) { hasTask(it, "Inbox renamed", TaskBucket.INBOX) }
 
             compose.runOnIdle { screen = "later" }
             compose.waitForIdle()
             tapEditNear("From later")
             saveTitleAs("Later renamed")
-            awaitSnapshot(useCases) { task(it, "Later renamed").bucket == TaskBucket.LATER }
+            awaitSnapshot(useCases) { hasTask(it, "Later renamed", TaskBucket.LATER) }
 
             compose.runOnIdle { screen = "scheduled" }
             compose.waitForIdle()
             tapEditNear("From scheduled")
             saveTitleAs("Scheduled renamed")
-            awaitSnapshot(useCases) { task(it, "Scheduled renamed").bucket == TaskBucket.SCHEDULED }
+            awaitSnapshot(useCases) { hasTask(it, "Scheduled renamed", TaskBucket.SCHEDULED) }
 
             compose.runOnIdle { screen = "countdown" }
             compose.waitForIdle()
             tapEditNear("From countdown")
             saveTitleAs("Countdown renamed")
-            awaitSnapshot(useCases) { task(it, "Countdown renamed").bucket == TaskBucket.COUNTDOWN }
+            awaitSnapshot(useCases) { hasTask(it, "Countdown renamed", TaskBucket.COUNTDOWN) }
 
             compose.runOnIdle { screen = "done" }
             compose.waitForIdle()
@@ -279,7 +279,7 @@ class EditTaskSurfacesTest {
             compose.onNode(hasContentDescription("Inbox. From inbox.", substring = true)).performTouchInput {
                 swipeRight()
             }
-            awaitSnapshot(useCases) { task(it, "From inbox").bucket == TaskBucket.TODAY }
+            awaitSnapshot(useCases) { hasTask(it, "From inbox", TaskBucket.TODAY) }
 
             compose.runOnIdle { screen = "later" }
             compose.waitForIdle()
@@ -368,7 +368,7 @@ class EditTaskSurfacesTest {
             titleField().performTextReplacement("Inbox kept by back")
             compose.onNodeWithContentDescription("Close").performTouchInput { click() }
             compose.waitForIdle()
-            awaitSnapshot(useCases) { task(it, "Inbox kept by back").bucket == TaskBucket.INBOX }
+            awaitSnapshot(useCases) { hasTask(it, "Inbox kept by back", TaskBucket.INBOX) }
             await { compose.onAllNodesWithText("Inbox kept by back").fetchSemanticsNodes().isNotEmpty() }
 
             tapEditNear("Inbox kept by back")
@@ -380,7 +380,7 @@ class EditTaskSurfacesTest {
             tapEditNear("Inbox kept by back")
             tap("Later")
             tapDone()
-            awaitSnapshot(useCases) { task(it, "Inbox kept by back").bucket == TaskBucket.LATER }
+            awaitSnapshot(useCases) { hasTask(it, "Inbox kept by back", TaskBucket.LATER) }
 
             compose.runOnIdle { viewModel.openEdit(runBlocking { idOf(useCases, "From later") }) }
             await { viewModel.uiState.value.editing?.title == "From later" }
@@ -388,8 +388,11 @@ class EditTaskSurfacesTest {
             tap("Tomorrow")
             val tomorrow = LocalDate.now().plusDays(1).toEpochDay()
             awaitSnapshot(useCases) {
-                val moved = task(it, "From later")
-                moved.bucket == TaskBucket.SCHEDULED && moved.scheduledOnEpochDay == tomorrow
+                it.tasks.any { task ->
+                    task.title == "From later" &&
+                        task.bucket == TaskBucket.SCHEDULED &&
+                        task.scheduledOnEpochDay == tomorrow
+                }
             }
         }
     }
@@ -474,10 +477,11 @@ class EditTaskSurfacesTest {
         title: String,
     ): String = useCases.observeSnapshot().first().tasks.single { it.title == title }.id
 
-    private fun task(
+    private fun hasTask(
         snapshot: FocusSnapshot,
         title: String,
-    ) = snapshot.tasks.single { it.title == title }
+        bucket: TaskBucket,
+    ): Boolean = snapshot.tasks.any { it.title == title && it.bucket == bucket }
 
     private fun tapEditNear(title: String) {
         await { compose.onAllNodesWithText(title).fetchSemanticsNodes().isNotEmpty() }

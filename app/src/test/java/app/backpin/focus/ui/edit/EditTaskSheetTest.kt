@@ -8,16 +8,20 @@ import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.dp
 import app.backpin.focus.domain.CapturePlace
 import app.backpin.focus.ui.capture.CaptureEdit
 import app.backpin.focus.ui.capture.CaptureSheet
 import app.backpin.focus.ui.capture.SpeechProblem
 import app.backpin.focus.ui.capture.UtteranceRecognizer
+import app.backpin.focus.ui.theme.FocusColors
 import app.backpin.focus.ui.theme.FocusStackTheme
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -114,6 +118,41 @@ class EditTaskSheetTest {
         compose.onNodeWithText("Talk to …").assertDoesNotExist()
         compose.onNodeWithText("Start").assertDoesNotExist()
         compose.onNodeWithText("Interrupt now").assertDoesNotExist()
+    }
+
+    @Test
+    fun editSheetStacksTheFieldThenCopyThenPlacesThenDone() {
+        show()
+        val field = compose.onNode(hasSetTextAction()).getBoundsInRoot()
+        val helper =
+            compose
+                .onNodeWithText("Same sheet as capture.", substring = true)
+                .getBoundsInRoot()
+        val inbox = compose.onNodeWithText("Inbox").getBoundsInRoot()
+        val today = compose.onNodeWithText("Today").getBoundsInRoot()
+        val later = compose.onNodeWithText("Later").getBoundsInRoot()
+        val schedule = compose.onNodeWithText("Schedule").getBoundsInRoot()
+        val done = compose.onNodeWithText("Done").getBoundsInRoot()
+        assertTrue("The Task field sits above the helper", field.bottom <= helper.top + 0.5.dp)
+        assertTrue("The helper sits above Inbox", helper.bottom <= inbox.top + 0.5.dp)
+        assertTrue("Places stay stacked", today.top >= inbox.bottom + 12.dp - 0.5.dp)
+        assertTrue("Places stay stacked", later.top >= today.bottom + 12.dp - 0.5.dp)
+        assertTrue("Places stay stacked", schedule.top >= later.bottom + 12.dp - 0.5.dp)
+        assertTrue("Schedule sits above Done", schedule.bottom <= done.top + 0.5.dp)
+        assertTrue("Sheet gaps are 12dp", inbox.top - helper.bottom >= 12.dp - 0.5.dp)
+        assertTrue("Done is mint", labelColor("Done") == FocusColors.Mint)
+        val heading = compose.onNodeWithText("Edit task").getBoundsInRoot()
+        assertTrue(
+            "The sheet sits at the bottom, with room above: heading.top=${heading.top}",
+            heading.top > 80.dp,
+        )
+    }
+
+    private fun labelColor(text: String): Color {
+        val node = compose.onNodeWithText(text, useUnmergedTree = true).fetchSemanticsNode()
+        val layouts = mutableListOf<TextLayoutResult>()
+        node.config[SemanticsActions.GetTextLayoutResult].action?.invoke(layouts)
+        return layouts.single().layoutInput.style.color
     }
 
     private fun show() {

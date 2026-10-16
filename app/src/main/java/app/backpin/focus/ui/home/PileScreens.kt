@@ -37,12 +37,14 @@ import app.backpin.focus.ui.components.BackArrow
 import app.backpin.focus.ui.components.QuietButton
 import app.backpin.focus.ui.motion.rememberReducedMotion
 import app.backpin.focus.ui.theme.ButtonGap
+import app.backpin.focus.ui.theme.CardRadius
 import app.backpin.focus.ui.theme.FocusColors
 import app.backpin.focus.ui.theme.Space
 import java.time.LocalDate
 import java.time.LocalTime
 
 private val PileRowPadding = Modifier.padding(horizontal = 12.dp, vertical = 12.dp)
+private val ActionPileCardPadding = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
 
 /**
  * Inbox on its own screen. Today and Start move the task and leave this screen open.
@@ -311,7 +313,7 @@ private fun ActionPileScreen(
                             true
                         },
                     ),
-                cornerRadius = 16.dp,
+                cornerRadius = CardRadius,
                 modifier =
                     Modifier
                         .fillMaxWidth()
@@ -322,10 +324,10 @@ private fun ActionPileScreen(
             ) {
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(CardRadius),
                     color = FocusColors.SurfaceHigh,
                 ) {
-                    Column(PileRowPadding, verticalArrangement = Arrangement.spacedBy(Space)) {
+                    Column(ActionPileCardPadding, verticalArrangement = Arrangement.spacedBy(Space)) {
                         Text(task.title, style = MaterialTheme.typography.titleLarge)
                         CardActions {
                             QuietButton(label = "Today", onClick = { onToday(task.id) })

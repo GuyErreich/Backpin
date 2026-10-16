@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -23,6 +24,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ModalBottomSheetProperties
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -37,6 +39,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.heading
@@ -60,6 +63,7 @@ import app.backpin.focus.ui.motion.MotionSpec
 import app.backpin.focus.ui.motion.motionSpec
 import app.backpin.focus.ui.motion.rememberReducedMotion
 import app.backpin.focus.ui.theme.ButtonGap
+import app.backpin.focus.ui.theme.ButtonRadius
 import app.backpin.focus.ui.theme.FocusColors
 import app.backpin.focus.ui.theme.Space
 import java.time.LocalDate
@@ -271,27 +275,37 @@ internal fun CaptureSheet(
         BackHandler(onBack = ::stepBack)
         val scheduling = schedulingTitle
         val placing = pendingTitle
+        val sheetGap = if (editing) ButtonGap else Space
         Column(
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    .fillMaxHeight()
+                    .then(if (editing) Modifier else Modifier.fillMaxHeight())
                     .padding(horizontal = 16.dp)
                     .padding(bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(Space),
+            verticalArrangement = Arrangement.spacedBy(sheetGap),
         ) {
             // One scrolling column, not a fixed stack under the title. A finite-height
             // column measures buttons in order and gives every button after Save to
             // Inbox a zero-height hit target once the keyboard has taken the room.
             // Those taps never reach onClick. Inside the scroll each button keeps
             // its height, so the visible center is a real click.
+            // Edit wraps the sheet to its fields, like the Figma frame, instead of
+            // stretching to the full window.
             Column(
                 modifier =
                     Modifier
                         .fillMaxWidth()
-                        .weight(1f)
-                        .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(Space),
+                        .then(
+                            if (editing) {
+                                Modifier
+                            } else {
+                                Modifier
+                                    .weight(1f)
+                                    .verticalScroll(rememberScrollState())
+                            },
+                        ),
+                verticalArrangement = Arrangement.spacedBy(sheetGap),
             ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -388,15 +402,13 @@ internal fun CaptureSheet(
                             enabled = fillPhraseBlank(template, fillWord) != null,
                         )
                     }
-                    Text(
-                        if (editing) {
-                            "Same sheet as capture. Back keeps the edit, so leaving halfway never loses work. A blank title keeps the old one."
-                        } else {
-                            "One line. Choose where it goes. Speaking only fills the title."
-                        },
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = if (editing) FocusColors.Muted else FocusColors.Text,
-                    )
+                    if (!editing) {
+                        Text(
+                            "One line. Choose where it goes. Speaking only fills the title.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = FocusColors.Text,
+                        )
+                    }
                 }
             }
             if (scheduling == null && placing == null) {
@@ -410,6 +422,8 @@ internal fun CaptureSheet(
                         Modifier
                             .fillMaxWidth()
                             .focusRequester(focusRequester),
+                    shape = RoundedCornerShape(ButtonRadius),
+                    colors = titleFieldColors(),
                     label = { Text(if (editing) "Task" else "Title") },
                     placeholder = { Text("A stray thought") },
                     singleLine = true,
@@ -440,6 +454,13 @@ internal fun CaptureSheet(
                             },
                         ),
                 )
+                if (editing) {
+                    Text(
+                        "Same sheet as capture. Back keeps the edit too, so leaving halfway never loses work. Empty title reverts.",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = FocusColors.Text,
+                    )
+                }
                 LaunchedEffect(focusRequester, activeBlank) {
                     if (activeBlank == null) focusRequester.requestFocus()
                 }
@@ -461,20 +482,25 @@ internal fun CaptureSheet(
                         onPlace = ::placePhrase,
                     )
                 }
-                else -> {
+                editing -> {
                     PlaceChoices(
-                        places = if (editing) editPlaces() else capturePlaces(frameActive),
-                        labelFor = { if (editing) it.label() else it.typedLabel() },
-                        selected = if (editing) selectedPlace else null,
+                        places = editPlaces(),
+                        labelFor = { it.label() },
+                        selected = selectedPlace,
                         onPlace = ::placeTyped,
                     )
-                    if (editing) {
-                        CaptureChoice(
-                            label = "Done",
-                            tone = ChoiceTone.Mint,
-                            onClick = ::commitEditAndClose,
-                        )
-                    }
+                    CaptureChoice(
+                        label = "Done",
+                        tone = ChoiceTone.Mint,
+                        onClick = ::commitEditAndClose,
+                    )
+                }
+                else -> {
+                    PlaceChoices(
+                        places = capturePlaces(frameActive),
+                        labelFor = { it.typedLabel() },
+                        onPlace = ::placeTyped,
+                    )
                 }
             }
             }
@@ -573,6 +599,22 @@ private fun CapturePlace.typedLabel(): String =
         CapturePlace.INTERRUPT -> "Interrupt now"
         else -> label()
     }
+
+@Composable
+private fun titleFieldColors() =
+    OutlinedTextFieldDefaults.colors(
+        focusedTextColor = FocusColors.Text,
+        unfocusedTextColor = FocusColors.Text,
+        cursorColor = FocusColors.Mint,
+        focusedBorderColor = FocusColors.Outline,
+        unfocusedBorderColor = FocusColors.Outline,
+        focusedLabelColor = FocusColors.Muted,
+        unfocusedLabelColor = FocusColors.Muted,
+        focusedPlaceholderColor = FocusColors.Muted,
+        unfocusedPlaceholderColor = FocusColors.Muted,
+        focusedContainerColor = Color.Transparent,
+        unfocusedContainerColor = Color.Transparent,
+    )
 
 @Composable
 internal fun SpeakMic(
