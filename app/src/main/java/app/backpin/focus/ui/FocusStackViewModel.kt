@@ -3,6 +3,7 @@ package app.backpin.focus.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import app.backpin.focus.domain.CapturePlace
 import app.backpin.focus.domain.DetachDestination
 import app.backpin.focus.domain.FocusUseCases
 import app.backpin.focus.domain.FrameState
@@ -12,6 +13,7 @@ import app.backpin.focus.domain.UndoToken
 import app.backpin.focus.domain.UserPreferences
 import app.backpin.focus.domain.backInDaysLabel
 import app.backpin.focus.domain.countdownIntervalDays
+import app.backpin.focus.domain.editPlace
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -30,6 +32,7 @@ class FocusStackViewModel(
 ) : ViewModel() {
     private val captureOpen = MutableStateFlow(false)
     private val captureInterrupts = MutableStateFlow(false)
+    private val editingTaskId = MutableStateFlow<String?>(null)
     private val swapIncomingId = MutableStateFlow<String?>(null)
     private val freshSwapTitle = MutableStateFlow<String?>(null)
     private val switchOpen = MutableStateFlow(false)
@@ -52,11 +55,11 @@ class FocusStackViewModel(
                     freshSwapTitle = fresh,
                 )
             },
-            combine(switchOpen, pendingUndo) { switching, undo ->
-                switching to undo
+            combine(switchOpen, pendingUndo, editingTaskId) { switching, undo, editing ->
+                Triple(switching, undo, editing)
             },
-        ) { snapshot, preferences, capture, switchAndUndo ->
-            val (switching, undo) = switchAndUndo
+        ) { snapshot, preferences, capture, extras ->
+            val (switching, undo, editing) = extras
             deriveFocusUi(
                 snapshot,
                 ChromeState(
@@ -67,6 +70,7 @@ class FocusStackViewModel(
                     switchOpen = switching,
                     undo = undo,
                     preferences = preferences,
+                    editingTaskId = editing,
                 ),
             )
         }.stateIn(
@@ -81,8 +85,65 @@ class FocusStackViewModel(
      * chip saves to Inbox without touching the active task.
      */
     fun openCapture(interrupts: Boolean = false) {
+        editingTaskId.value = null
         captureInterrupts.value = interrupts
         captureOpen.value = true
+    }
+
+    /** Opens the edit sheet for [taskId]. Closes capture so only one sheet is up. */
+    fun openEdit(taskId: String) {
+        closeCapture()
+        editingTaskId.value = taskId
+    }
+
+    fun dismissEdit() {
+        editingTaskId.value = null
+    }
+
+    /**
+     * Writes the edit and closes the sheet. A blank title keeps the old one.
+     * [place] and [scheduledOnEpochDay] reuse the same move and schedule paths as
+     * the cards, so a day or bucket change reschedules or cancels as before.
+     */
+    fun saveEdit(
+        title: String,
+        place: CapturePlace? = null,
+        scheduledOnEpochDay: Long? = null,
+    ) {
+        val id = editingTaskId.value ?: return
+        editingTaskId.value = null
+        viewModelScope.launch {
+            val task = useCases.observeSnapshot().first().tasks.firstOrNull { it.id == id } ?: return@launch
+            val resolved = title.trim().ifEmpty { task.title }
+            if (resolved != task.title) {
+                useCases.rename(id, resolved)
+            }
+            when (place ?: task.bucket.editPlace()) {
+                CapturePlace.INBOX -> if (task.bucket != TaskBucket.INBOX) useCases.moveToInbox(id)
+                CapturePlace.TODAY ->
+                    if (task.bucket != TaskBucket.TODAY) {
+                        when (useCases.promote(id)) {
+                            is PromoteOutcome.NeedsSwap -> swapIncomingId.value = id
+                            is PromoteOutcome.Promoted -> swapIncomingId.value = null
+                            is PromoteOutcome.Rejected -> Unit
+                        }
+                    }
+                CapturePlace.LATER -> if (task.bucket != TaskBucket.LATER) useCases.demote(id)
+                CapturePlace.SCHEDULE -> {
+                    val day = scheduledOnEpochDay ?: task.scheduledOnEpochDay
+                    val alreadyOnThatDay =
+                        day == task.scheduledOnEpochDay &&
+                            (task.bucket == TaskBucket.SCHEDULED || task.bucket == TaskBucket.COUNTDOWN)
+                    if (day != null && !alreadyOnThatDay) {
+                        useCases.scheduleExisting(id, day)
+                    }
+                }
+                CapturePlace.START,
+                CapturePlace.INTERRUPT,
+                null,
+                -> Unit
+            }
+        }
     }
 
     fun dismissCapture() {

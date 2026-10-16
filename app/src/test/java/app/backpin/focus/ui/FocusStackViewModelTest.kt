@@ -7,6 +7,7 @@ import app.backpin.focus.data.FocusRepositoryImpl
 import app.backpin.focus.data.FocusStackDatabase
 import app.backpin.focus.data.PreferencesDataStore
 import app.backpin.focus.domain.AppClock
+import app.backpin.focus.domain.CapturePlace
 import app.backpin.focus.domain.FocusUseCases
 import app.backpin.focus.domain.FrameState
 import app.backpin.focus.domain.TaskBucket
@@ -388,6 +389,64 @@ class FocusStackViewModelTest {
             assertTrue(snapshot.tasks.none { it.title == "Call Dana" })
             assertEquals(today[0], snapshot.frames.single { it.state == FrameState.ACTIVE }.taskId)
             assertEquals(3, waiting.swapChoices.size)
+            collect.cancel()
+        }
+
+    @Test
+    fun editSheetSavesATitleAndABlankKeepsTheOldOne() =
+        runBlocking {
+            val viewModel = FocusStackViewModel(useCases)
+            val collect = launch { viewModel.uiState.collect {} }
+            val original = seedToday("Review CI failure")
+            useCases.start(original)
+            withTimeout(5_000) { viewModel.uiState.first { it.now?.taskId == original } }
+            viewModel.openCapture()
+            withTimeout(5_000) { viewModel.uiState.first { it.captureOpen } }
+            viewModel.openEdit(original)
+            val opened =
+                withTimeout(5_000) {
+                    viewModel.uiState.first { it.editing?.id == original && !it.captureOpen }
+                }
+            assertEquals("Review CI failure", opened.editing?.title)
+            viewModel.saveEdit("   ")
+            val kept =
+                withTimeout(5_000) {
+                    viewModel.uiState.first { it.now?.title == "Review CI failure" && it.editing == null }
+                }
+            assertEquals("Review CI failure", kept.now?.title)
+            viewModel.openEdit(original)
+            withTimeout(5_000) { viewModel.uiState.first { it.editing?.id == original } }
+            viewModel.saveEdit("Talk to Sarah")
+            val saved =
+                withTimeout(5_000) {
+                    viewModel.uiState.first { it.now?.title == "Talk to Sarah" && it.editing == null }
+                }
+            assertEquals("Talk to Sarah", saved.now?.title)
+            assertTrue(saved.todaySlots.any { it.task?.title == "Talk to Sarah" })
+            viewModel.openEdit(original)
+            withTimeout(5_000) { viewModel.uiState.first { it.editing?.id == original } }
+            viewModel.openCapture()
+            withTimeout(5_000) {
+                viewModel.uiState.first { it.captureOpen && it.editing == null }
+            }
+            collect.cancel()
+        }
+
+    @Test
+    fun editSheetCanMoveATaskToLater() =
+        runBlocking {
+            val viewModel = FocusStackViewModel(useCases)
+            val collect = launch { viewModel.uiState.collect {} }
+            useCases.capture("Park me")
+            val id = useCases.observeSnapshot().first().tasks.single { it.title == "Park me" }.id
+            viewModel.openEdit(id)
+            withTimeout(5_000) { viewModel.uiState.first { it.editing?.id == id } }
+            viewModel.saveEdit("Park me later", CapturePlace.LATER)
+            val moved =
+                withTimeout(5_000) {
+                    viewModel.uiState.first { it.editing == null && it.laterTasks.any { task -> task.id == id } }
+                }
+            assertEquals("Park me later", moved.laterTasks.single { it.id == id }.title)
             collect.cancel()
         }
 

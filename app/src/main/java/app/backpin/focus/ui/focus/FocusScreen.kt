@@ -26,13 +26,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import app.backpin.focus.domain.UNTITLED_INTERRUPTION
 import app.backpin.focus.domain.elapsedMillis
 import app.backpin.focus.domain.suggestedCountdownDays
 import app.backpin.focus.domain.timeInFocusLabel
@@ -122,7 +123,18 @@ private fun ActiveCard(
     val label = nowLabel(now)
     val accent = if (now.isEvent) FocusColors.Lavender else FocusColors.Mint
     Surface(
-        modifier = Modifier.fillMaxWidth(),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .semantics {
+                    customActions =
+                        listOf(
+                            CustomAccessibilityAction("Edit") {
+                                viewModel.openEdit(now.taskId)
+                                true
+                            },
+                        )
+                },
         shape = RoundedCornerShape(CardRadius),
         color = FocusColors.Surface,
         border = BorderStroke(2.dp, accent),
@@ -135,9 +147,6 @@ private fun ActiveCard(
                 modifier = Modifier.semantics { heading() },
             )
             TimeInFocus(now.accumulatedMillis, now.startedAtEpochMillis)
-            if (now.title == UNTITLED_INTERRUPTION) {
-                UntitledField(now.taskId, viewModel)
-            }
             ReturnNoteField(
                 taskId = now.taskId,
                 cue = now.returnCue.orEmpty(),
@@ -174,6 +183,7 @@ private fun ActiveCard(
                         )
                         QuietButton("Switch", onClick = viewModel::openSwitch)
                     }
+                    QuietButton("Edit", onClick = { viewModel.openEdit(now.taskId) })
                 }
             }
         }
@@ -301,20 +311,3 @@ private fun ReturnNoteField(
     )
 }
 
-@Composable
-private fun UntitledField(
-    taskId: String,
-    viewModel: FocusStackViewModel,
-) {
-    var draft by rememberSaveable(taskId) { mutableStateOf("") }
-    OutlinedTextField(
-        value = draft,
-        onValueChange = { draft = it },
-        modifier = Modifier.fillMaxWidth(),
-        label = { Text("Name this interruption") },
-        singleLine = true,
-    )
-    CardActions {
-        QuietButton("Save title", onClick = { viewModel.rename(taskId, draft) })
-    }
-}

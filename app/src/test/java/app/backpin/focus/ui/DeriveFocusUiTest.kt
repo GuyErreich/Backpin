@@ -228,6 +228,38 @@ class DeriveFocusUiTest {
     }
 
     @Test
+    fun editingNamesOnlyAnOpenTask() {
+        val open = task("open", "Buy milk", TaskBucket.INBOX)
+        val done = task("done", "Old work", TaskBucket.INBOX, status = TaskStatus.DONE)
+        val shown =
+            deriveFocusUi(
+                FocusSnapshot(tasks = listOf(open, done)),
+                ChromeState(
+                    captureOpen = false,
+                    swapIncomingId = null,
+                    switchOpen = false,
+                    undo = null,
+                    preferences = UserPreferences(),
+                    editingTaskId = "open",
+                ),
+            )
+        assertEquals("Buy milk", shown.editing?.title)
+        val hidden =
+            deriveFocusUi(
+                FocusSnapshot(tasks = listOf(open, done)),
+                ChromeState(
+                    captureOpen = false,
+                    swapIncomingId = null,
+                    switchOpen = false,
+                    undo = null,
+                    preferences = UserPreferences(),
+                    editingTaskId = "done",
+                ),
+            )
+        assertNull(hidden.editing)
+    }
+
+    @Test
     fun captureReasonAndPhrasesStayOnTheSheetState() {
         val state =
             deriveFocusUi(

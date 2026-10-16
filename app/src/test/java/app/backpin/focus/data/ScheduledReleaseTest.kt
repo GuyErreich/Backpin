@@ -241,6 +241,35 @@ class ScheduledReleaseTest {
             assertEquals(14 * 60 + 30, taskNamed("Call Dana").scheduledAtMinuteOfDay)
         }
 
+    @Test
+    fun schedulingAnInboxTaskClearsItsPileAndKeepsTheDay() =
+        runBlocking {
+            repository.capture("Call Dana")
+            val id = taskNamed("Call Dana").id
+            val day = today.plusDays(5).toEpochDay()
+            assertTrue(repository.scheduleExisting(id, day))
+            val moved = task(id)
+            assertEquals(TaskBucket.SCHEDULED, moved.bucket)
+            assertEquals(day, moved.scheduledOnEpochDay)
+            assertNull(moved.scheduledAtMinuteOfDay)
+            assertTrue(snapshot().frames.none { it.taskId == id })
+        }
+
+    @Test
+    fun inboxFromLaterClearsAScheduleAfterAMove() =
+        runBlocking {
+            val day = today.plusDays(4).toEpochDay()
+            repository.captureScheduled("Talk to Dana", day, 9 * 60)
+            val id = taskNamed("Talk to Dana").id
+            repository.demote(id)
+            assertEquals(TaskBucket.LATER, task(id).bucket)
+            assertNull(task(id).scheduledOnEpochDay)
+            repository.moveToInbox(id)
+            assertEquals(TaskBucket.INBOX, task(id).bucket)
+            assertNull(task(id).scheduledOnEpochDay)
+            assertTrue(snapshot().frames.none { it.taskId == id })
+        }
+
     private fun epochAt(date: LocalDate): Long = date.atStartOfDay(zone).toInstant().toEpochMilli()
 
     private fun epochAt(

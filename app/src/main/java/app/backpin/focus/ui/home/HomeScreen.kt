@@ -139,6 +139,7 @@ fun HomeScreen(
                 onLater = viewModel::demote,
                 onInterrupt = viewModel::interruptWith,
                 onReorder = viewModel::reorderToday,
+                onEdit = viewModel::openEdit,
             )
             HorizontalDivider(color = FocusColors.Outline)
             Column(verticalArrangement = Arrangement.spacedBy(Space)) {
@@ -188,6 +189,13 @@ private fun NowCard(
                         }
                     },
                 reducedMotion = reducedMotion,
+                extraActions =
+                    listOf(
+                        CustomAccessibilityAction("Edit") {
+                            viewModel.openEdit(now.taskId)
+                            true
+                        },
+                    ),
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Surface(
@@ -249,6 +257,7 @@ private fun NowCard(
                                     )
                                     QuietButton("Later", onClick = { viewModel.demote(now.taskId) })
                                 }
+                                QuietButton("Edit", onClick = { viewModel.openEdit(now.taskId) })
                             }
                         }
                     }
@@ -302,6 +311,7 @@ private fun TodaySection(
     onLater: (String) -> Unit,
     onInterrupt: (String) -> Unit,
     onReorder: (List<String>) -> Unit,
+    onEdit: (String) -> Unit,
 ) {
     val drag = remember { TodayDragState() }
     var rows by remember { mutableStateOf(filled) }
@@ -413,6 +423,7 @@ private fun TodaySection(
                         onDone = { onDone(task.id) },
                         onLater = { onLater(task.id) },
                         onInterrupt = { onInterrupt(task.id) },
+                        onEdit = { onEdit(task.id) },
                         onDragStart = { drag.begin(task.id) },
                         onDragBy = drag::dragBy,
                         onDragEnd = { settle(commitNearest = true) },
@@ -535,6 +546,7 @@ private fun TodayRow(
     onDone: () -> Unit,
     onLater: () -> Unit,
     onInterrupt: () -> Unit,
+    onEdit: () -> Unit,
     onDragStart: () -> Unit,
     onDragBy: (Float) -> Unit,
     onDragEnd: () -> Unit,
@@ -563,7 +575,12 @@ private fun TodayRow(
         onReorderDrag = onDragBy,
         onReorderDragEnd = onDragEnd,
         onReorderDragCancel = onDragCancel,
-        extraActions = reorderActions,
+        extraActions =
+            reorderActions +
+                CustomAccessibilityAction("Edit") {
+                    onEdit()
+                    true
+                },
         modifier = Modifier.fillMaxWidth(),
     ) {
         Surface(
@@ -611,6 +628,7 @@ private fun TodayRow(
                     }
                     AccentButton("Done", AccentTone.Mint, onClick = onDone)
                     QuietButton("Later", onClick = onLater)
+                    QuietButton("Edit", onClick = onEdit)
                 }
             }
         }

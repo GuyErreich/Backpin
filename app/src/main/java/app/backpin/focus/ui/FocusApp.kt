@@ -37,6 +37,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import app.backpin.focus.notifications.NotificationContract
+import app.backpin.focus.ui.capture.CaptureEdit
 import app.backpin.focus.ui.capture.CaptureSheet
 import app.backpin.focus.ui.countdown.CountdownScreen
 import app.backpin.focus.ui.focus.FocusScreen
@@ -211,6 +212,7 @@ fun FocusApp(
                     onToday = viewModel::promote,
                     onStart = viewModel::start,
                     onInterrupt = viewModel::interruptFromPile,
+                    onEdit = viewModel::openEdit,
                 )
             }
             composable(
@@ -226,6 +228,7 @@ fun FocusApp(
                     onToday = viewModel::promote,
                     onStart = viewModel::start,
                     onInterrupt = viewModel::interruptFromPile,
+                    onEdit = viewModel::openEdit,
                 )
             }
             composable(
@@ -246,6 +249,7 @@ fun FocusApp(
                     onRemove = viewModel::removeScheduled,
                     onChangeDate = viewModel::changeScheduledDate,
                     onChangeTime = viewModel::changeScheduledTime,
+                    onEdit = viewModel::openEdit,
                 )
             }
             composable(
@@ -270,6 +274,7 @@ fun FocusApp(
                     onAdd = viewModel::addCountdown,
                     onChangeDate = viewModel::changeCountdownDate,
                     onRemove = viewModel::removeCountdown,
+                    onEdit = viewModel::openEdit,
                 )
             }
             composable(Routes.SETTINGS) {
@@ -287,7 +292,27 @@ fun FocusApp(
         }
     }
 
-    if (state.captureOpen) {
+    val editing = state.editing
+    if (editing != null) {
+        CaptureSheet(
+            phrases = emptyList(),
+            frameActive = state.now != null,
+            onDismiss = viewModel::dismissEdit,
+            onSaveToInbox = {},
+            onInterruptNow = {},
+            onPlaceToday = {},
+            onPlaceStart = {},
+            onPlaceLater = {},
+            onSchedule = { _, _, _ -> },
+            edit =
+                CaptureEdit(
+                    title = editing.title,
+                    place = editing.place,
+                    scheduledEpochDay = editing.scheduledOnEpochDay,
+                ),
+            onCommitEdit = viewModel::saveEdit,
+        )
+    } else if (state.captureOpen) {
         CaptureSheet(
             phrases = state.preferences.savedPhrases,
             frameActive = state.now != null,

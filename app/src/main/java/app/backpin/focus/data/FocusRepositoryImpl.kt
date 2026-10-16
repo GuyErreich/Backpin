@@ -315,11 +315,14 @@ class FocusRepositoryImpl(
         val moved =
             database.withTransaction {
                 val task = taskDao.getById(taskId) ?: return@withTransaction false
-                if (task.bucket != TaskBucket.SCHEDULED.name || task.status != TaskStatus.OPEN.name) {
-                    return@withTransaction false
-                }
-                taskDao.upsert(task.movedTo(TaskBucket.INBOX, clock.nowEpochMillis()))
-                requireInvariants(todayLimit())
+                if (task.status != TaskStatus.OPEN.name) return@withTransaction false
+                if (task.bucket == TaskBucket.INBOX.name) return@withTransaction false
+                parkOpenFrame(taskId)
+                val current = taskDao.getById(taskId) ?: return@withTransaction false
+                val limit = todayLimit()
+                taskDao.upsert(current.movedTo(TaskBucket.INBOX, clock.nowEpochMillis()))
+                releaseDue(limit)
+                requireInvariants(limit)
                 true
             }
         if (moved) recordInteraction()
@@ -346,6 +349,32 @@ class FocusRepositoryImpl(
             database.withTransaction {
                 val task = openScheduled(taskId) ?: return@withTransaction false
                 taskDao.upsert(task.copy(scheduledOnEpochDay = epochDay))
+                true
+            }
+        if (changed) recordInteraction()
+        return changed
+    }
+
+    override suspend fun scheduleExisting(
+        taskId: String,
+        scheduledOnEpochDay: Long,
+    ): Boolean {
+        val changed =
+            database.withTransaction {
+                val task = taskDao.getById(taskId) ?: return@withTransaction false
+                if (task.status != TaskStatus.OPEN.name) return@withTransaction false
+                if (task.bucket == TaskBucket.COUNTDOWN.name) return@withTransaction false
+                if (task.bucket == TaskBucket.SCHEDULED.name) {
+                    if (task.scheduledOnEpochDay == scheduledOnEpochDay) return@withTransaction false
+                    taskDao.upsert(task.copy(scheduledOnEpochDay = scheduledOnEpochDay))
+                    return@withTransaction true
+                }
+                parkOpenFrame(taskId)
+                val current = taskDao.getById(taskId) ?: return@withTransaction false
+                val limit = todayLimit()
+                taskDao.upsert(current.movedTo(TaskBucket.SCHEDULED).copy(scheduledOnEpochDay = scheduledOnEpochDay))
+                releaseDue(limit)
+                requireInvariants(limit)
                 true
             }
         if (changed) recordInteraction()
@@ -812,12 +841,24 @@ class FocusRepositoryImpl(
                 }
             }
         val token = UndoToken(tasks = listOf(task.toDomain()), frames = frames)
-        if (openFrame?.state == FrameState.ACTIVE.name) {
+        parkOpenFrame(taskId)
+        taskDao.upsert(task.movedTo(TaskBucket.LATER))
+        check(frameDao.countActive() <= 1) {
+            "At most one frame can be active"
+        }
+        return token
+    }
+
+    /** Parks an open frame the same way [parkInLater] does. Does not move the task. */
+    private suspend fun parkOpenFrame(taskId: String) {
+        val openFrame = frameDao.openFrameForTask(taskId) ?: return
+        val parent = openFrame.parentFrameId?.let { frameDao.getById(it) }
+        if (openFrame.state == FrameState.ACTIVE.name) {
             frameDao.upsert(pause(openFrame))
             if (parent != null) {
                 frameDao.upsert(parent.copy(state = FrameState.AWAITING_RESUME.name))
             }
-        } else if (openFrame?.state == FrameState.AWAITING_RESUME.name) {
+        } else if (openFrame.state == FrameState.AWAITING_RESUME.name) {
             frameDao.upsert(
                 openFrame.copy(
                     state = FrameState.PAUSED.name,
@@ -825,11 +866,9 @@ class FocusRepositoryImpl(
                 ),
             )
         }
-        taskDao.upsert(task.movedTo(TaskBucket.LATER))
         check(frameDao.countActive() <= 1) {
             "At most one frame can be active"
         }
-        return token
     }
 
     private suspend fun requireInvariants(limit: Int) {

@@ -290,19 +290,31 @@ internal fun CaptureChoice(
     tone: ChoiceTone = ChoiceTone.Quiet,
     enabled: Boolean = true,
     filled: Boolean = false,
+    selected: Boolean = false,
 ) {
     OutlinedFocusButton(
         label = label,
         labelColor = choiceLabelColor(tone, enabled),
-        borderColor = choiceBorderColor(tone, enabled),
+        borderColor =
+            if (selected && tone == ChoiceTone.Quiet) {
+                FocusColors.Text.shown(enabled)
+            } else {
+                choiceBorderColor(tone, enabled)
+            },
         onClick = onClick,
         modifier =
             Modifier
                 .fillMaxWidth()
-                .focusProperties { canFocus = false },
+                .focusProperties { canFocus = false }
+                .then(if (selected) Modifier.semantics { this.selected = true } else Modifier),
         enabled = enabled,
         interactionSource = null,
-        containerColor = choiceContainerColor(tone, filled, enabled),
+        containerColor =
+            when {
+                filled -> choiceContainerColor(tone, true, enabled)
+                selected -> FocusColors.SurfaceHigh
+                else -> Color.Transparent
+            },
     )
 }
 

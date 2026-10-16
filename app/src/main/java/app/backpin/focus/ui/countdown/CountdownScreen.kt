@@ -31,7 +31,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
@@ -65,6 +67,7 @@ internal fun CountdownScreen(
     onAdd: (String, Long) -> Unit,
     onChangeDate: (String, Long) -> Unit,
     onRemove: (String) -> Unit,
+    onEdit: (String) -> Unit,
     modifier: Modifier = Modifier,
     recognizer: UtteranceRecognizer? = null,
     onSystemSpeech: ((Intent, (String) -> Unit) -> Unit)? = null,
@@ -113,6 +116,7 @@ internal fun CountdownScreen(
                         countdown = countdown,
                         onChangeDate = { changingId = countdown.id },
                         onRemove = { onRemove(countdown.id) },
+                        onEdit = { onEdit(countdown.id) },
                     )
                 }
         }
@@ -147,6 +151,7 @@ private fun CountdownRow(
     countdown: CountdownUi,
     onChangeDate: () -> Unit,
     onRemove: () -> Unit,
+    onEdit: () -> Unit,
 ) {
     Surface(
         modifier =
@@ -154,6 +159,13 @@ private fun CountdownRow(
                 .fillMaxWidth()
                 .semantics(mergeDescendants = false) {
                     contentDescription = "Countdown. ${countdown.title}. ${countdown.dayLabel}, ${countdown.dateLabel}."
+                    customActions =
+                        listOf(
+                            CustomAccessibilityAction("Edit") {
+                                onEdit()
+                                true
+                            },
+                        )
                 },
         shape = RoundedCornerShape(CardRadius),
         color = FocusColors.Surface,
@@ -165,6 +177,7 @@ private fun CountdownRow(
             CardActions {
                 QuietButton("Change date", onClick = onChangeDate)
                 QuietButton("Remove", onClick = onRemove)
+                QuietButton("Edit", onClick = onEdit)
             }
         }
     }
