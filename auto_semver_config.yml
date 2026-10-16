@@ -1,0 +1,21 @@
+start_version: "0.1.0"
+
+suffixes:
+  dev: "-dev"
+  staging: "-rc"
+  main: ""
+
+promotions:
+  - from_branch: dev
+    to_branch: staging
+    auto_promote: true
+  - from_branch: staging
+    to_branch: main
+    auto_promote: false
+
+version_files:
+  - "version.txt"
+
+pull_request: {}
+
+changelog: {}

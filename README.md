@@ -24,7 +24,7 @@ The debug APK is written to `app/build/outputs/apk/debug/app-debug.apk`.
 
 Install that APK on a device or emulator running Android 8.0 (API 26) or newer.
 
-The phone build is https://github.com/guy-erreich/Backpin/releases/download/preview/backpin.apk. A push to `dev` promotes `staging`, and that promotion updates this file.
+The phone build is https://github.com/guy-erreich/Backpin/releases/download/preview/backpin.apk. A merged pull request into `dev` promotes `staging`, and that promotion updates this file.
 
 ## What the MVP does
 

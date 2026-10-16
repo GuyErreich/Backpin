@@ -44,7 +44,7 @@ Copy
 ## Git
 
 - New work goes on a `cursor/` branch from `dev`, with one pull request into `dev`.
-- A push to `dev` promotes `staging`. That promotion publishes the preview APK.
+- A merged pull request into `dev` lets Action-Semver-Control promote `staging`. That promotion publishes the preview APK.
 - `main` is production. Feature pull requests do not target it.
 - A squash-merged branch counts as merged when its tree matches `dev`, so follow-ups start a new branch.
 - Do not edit plan files.
