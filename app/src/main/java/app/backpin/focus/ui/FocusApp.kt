@@ -41,6 +41,7 @@ import androidx.navigation.compose.rememberNavController
 import app.backpin.focus.notifications.NotificationContract
 import app.backpin.focus.ui.capture.CaptureSheet
 import app.backpin.focus.ui.countdown.CountdownScreen
+import app.backpin.focus.ui.repeat.RepeatSheet
 import app.backpin.focus.ui.focus.FocusScreen
 import app.backpin.focus.ui.home.DoneScreen
 import app.backpin.focus.ui.home.HomeScreen
@@ -57,6 +58,7 @@ import app.backpin.focus.ui.settings.SettingsScreen
 import app.backpin.focus.ui.theme.ButtonGap
 import app.backpin.focus.ui.theme.FocusColors
 import app.backpin.focus.ui.theme.Space
+import java.time.LocalDate
 
 private object Routes {
     const val HOME = "home"
@@ -81,6 +83,7 @@ fun FocusApp(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val checkedOffMessage = stringResource(R.string.undo_checked_off)
+    val repeatDraft by viewModel.editingRepeat.collectAsStateWithLifecycle()
     val navController = rememberNavController()
     val snackbarHostState = remember { SnackbarHostState() }
     val backStack by navController.currentBackStackEntryAsState()
@@ -286,12 +289,27 @@ fun FocusApp(
                     onAddPhrase = viewModel::addSavedPhrase,
                     onRenamePhrase = viewModel::renameSavedPhrase,
                     onRemovePhrase = viewModel::removeSavedPhrase,
+                    onBandTimes = viewModel::setBandTimes,
+                    canScheduleExactAlarms = viewModel::canScheduleExactAlarms,
                 )
             }
         }
     }
 
-    if (state.captureOpen) {
+    val editingRepeat = repeatDraft
+    if (editingRepeat != null) {
+        RepeatSheet(
+            draft = editingRepeat,
+            onDismiss = viewModel::dismissRepeatSheet,
+            onCreate = { title, band, everyNDays, reminderOn ->
+                viewModel.createRepeat(title, band, everyNDays, LocalDate.now().toEpochDay(), reminderOn)
+            },
+            onUpdate = { id, title, band, everyNDays, reminderOn, sortOrder, anchorEpochDay ->
+                viewModel.updateRepeat(id, title, band, everyNDays, anchorEpochDay, reminderOn, sortOrder)
+            },
+            onArchive = viewModel::archiveRepeat,
+        )
+    } else if (state.captureOpen) {
         CaptureSheet(
             phrases = state.preferences.savedPhrases,
             frameActive = state.now != null,
@@ -302,6 +320,7 @@ fun FocusApp(
             onPlaceStart = viewModel::placeAndStart,
             onPlaceLater = viewModel::placeLater,
             onSchedule = viewModel::placeScheduled,
+            onRepeat = viewModel::openRepeatCreate,
         )
     }
 

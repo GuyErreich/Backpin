@@ -24,6 +24,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
@@ -58,6 +59,7 @@ import androidx.compose.ui.zIndex
 import app.backpin.focus.domain.DetachDestination
 import app.backpin.focus.domain.MAX_TODAY_LIMIT
 import app.backpin.focus.domain.MIN_TODAY_LIMIT
+import app.backpin.focus.domain.RepeatDayStatus
 import app.backpin.focus.domain.elapsedMillis
 import app.backpin.focus.domain.formatElapsed
 import app.backpin.focus.domain.suggestedCountdownDays
@@ -99,6 +101,7 @@ fun HomeScreen(
     modifier: Modifier = Modifier,
 ) {
     val reducedMotion = rememberReducedMotion()
+    val todaysRepeats by viewModel.todaysRepeats.collectAsState()
     val todayLimit = state.preferences.todayLimit.coerceIn(MIN_TODAY_LIMIT, MAX_TODAY_LIMIT)
     val filled = state.todaySlots.mapNotNull { slot -> slot.task?.let { slot to it } }
     val hasRoom = filled.size < todayLimit
@@ -139,6 +142,17 @@ fun HomeScreen(
                 onLater = viewModel::demote,
                 onInterrupt = viewModel::interruptWith,
                 onReorder = viewModel::reorderToday,
+            )
+            RepeatSection(
+                todays = todaysRepeats,
+                reducedMotion = reducedMotion,
+                onCheckOff = { occurrence ->
+                    if (occurrence.status == RepeatDayStatus.OPEN) {
+                        viewModel.markRepeatDone(occurrence.repeat.id, occurrence.epochDay)
+                    }
+                },
+                onEdit = viewModel::openRepeatEdit,
+                onCreate = { viewModel.openRepeatCreate() },
             )
             HorizontalDivider(color = FocusColors.Outline)
             Column(verticalArrangement = Arrangement.spacedBy(Space)) {
@@ -637,7 +651,7 @@ private fun EmptyTodaySlot() {
     }
 }
 
-private fun Modifier.dashedSlot(color: Color): Modifier =
+internal fun Modifier.dashedSlot(color: Color): Modifier =
     this.drawBehind {
         val stroke = 1.5.dp.toPx()
         drawRoundRect(
@@ -668,7 +682,7 @@ private fun RoleLabel(role: SlotRole) {
 }
 
 @Composable
-private fun SectionLabel(
+internal fun SectionLabel(
     title: String,
     trailing: String,
 ) {
