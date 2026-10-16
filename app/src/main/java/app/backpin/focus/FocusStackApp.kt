@@ -12,6 +12,8 @@ import app.backpin.focus.notifications.BandScheduler
 import app.backpin.focus.notifications.NotificationCoordinator
 import app.backpin.focus.notifications.RepeatNotificationCoordinator
 import app.backpin.focus.notifications.ScheduleReleaseScheduler
+import app.backpin.focus.repeats.RepeatsApi
+import app.backpin.focus.repeats.RepeatsService
 import app.backpin.focus.ui.FocusStackViewModelFactory
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -66,8 +68,9 @@ class AppContainer(
     val repository = FocusRepositoryImpl(database, preferences, SystemAppClock)
     val releaseScheduler = ScheduleReleaseScheduler(WorkManager.getInstance(app))
     val bandScheduler = BandScheduler(app, repository, scope)
-    val useCases = FocusUseCases(repository, releaseScheduler, bandScheduler, bandScheduler)
-    val viewModelFactory = FocusStackViewModelFactory(useCases)
+    val useCases = FocusUseCases(repository, releaseScheduler)
+    val repeats: RepeatsApi = RepeatsService(repository, bandScheduler, bandScheduler)
+    val viewModelFactory = FocusStackViewModelFactory(useCases, repeats)
     val notifications = NotificationCoordinator(app, repository)
     val repeatNotifications = RepeatNotificationCoordinator(app, repository, bandScheduler)
 

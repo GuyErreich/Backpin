@@ -421,6 +421,9 @@ class SchemaAndPreferencesTest {
             assertEquals(23 * 60, store.preferences.first().bandTimes.nightEndMinute)
             store.setBandTimes(BandTimes(6 * 60, 11 * 60, 17 * 60, 22 * 60))
             assertEquals(6 * 60, store.preferences.first().bandTimes.morningStartMinute)
+            assertFalse(store.preferences.first().exactAlarmPromptDismissed)
+            store.setExactAlarmPromptDismissed(true)
+            assertTrue(store.preferences.first().exactAlarmPromptDismissed)
         }
 
     @Test

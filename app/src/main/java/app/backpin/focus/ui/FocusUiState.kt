@@ -1,6 +1,7 @@
 package app.backpin.focus.ui
 
 import app.backpin.focus.domain.CapturePlace
+import app.backpin.focus.domain.RepeatDayStatus
 import app.backpin.focus.domain.UndoToken
 import app.backpin.focus.domain.UserPreferences
 
@@ -76,10 +77,22 @@ data class SlotUi(
     val task: TaskUi?,
 )
 
+sealed interface UndoTarget {
+    data class Tasks(
+        val token: UndoToken,
+    ) : UndoTarget
+
+    data class RepeatCheckOff(
+        val repeatId: String,
+        val epochDay: Long,
+        val restore: RepeatDayStatus = RepeatDayStatus.OPEN,
+    ) : UndoTarget
+}
+
 data class PendingUndo(
     val id: Long,
     val message: String,
-    val token: UndoToken,
+    val target: UndoTarget,
 )
 
 data class FocusUiState(

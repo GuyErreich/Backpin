@@ -54,6 +54,7 @@ class PreferencesDataStore(
                 bandTimes = readBandTimes(prefs),
                 heldBandNudge = prefs[Keys.HELD_BAND_NUDGE]?.let { runCatching { RepeatBand.valueOf(it) }.getOrNull() },
                 heldBandEpochDay = prefs[Keys.HELD_BAND_EPOCH_DAY],
+                exactAlarmPromptDismissed = prefs[Keys.EXACT_ALARM_PROMPT_DISMISSED] ?: false,
             )
         }
 
@@ -199,6 +200,13 @@ class PreferencesDataStore(
         }
     }
 
+    /** One-time Settings "Not now" for the exact-alarm prompt. */
+    suspend fun setExactAlarmPromptDismissed(dismissed: Boolean) {
+        dataStore.edit { prefs ->
+            prefs[Keys.EXACT_ALARM_PROMPT_DISMISSED] = dismissed
+        }
+    }
+
     private object Keys {
         val NUDGES_ENABLED = booleanPreferencesKey("nudges_enabled")
         val NUDGE_MINUTES = intPreferencesKey("nudge_minutes")
@@ -220,6 +228,7 @@ class PreferencesDataStore(
         val FOLLOW_UP_MORNING = longPreferencesKey("follow_up_morning_day")
         val FOLLOW_UP_NOON = longPreferencesKey("follow_up_noon_day")
         val FOLLOW_UP_NIGHT = longPreferencesKey("follow_up_night_day")
+        val EXACT_ALARM_PROMPT_DISMISSED = booleanPreferencesKey("exact_alarm_prompt_dismissed")
     }
 
     private fun followUpKey(band: RepeatBand) =

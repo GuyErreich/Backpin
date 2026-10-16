@@ -934,6 +934,27 @@ class FocusRepositoryImpl(
             true
         }
 
+    override suspend fun writeRepeatOutcome(
+        repeatId: String,
+        epochDay: Long,
+        outcome: RepeatOutcome,
+    ): Boolean {
+        val now = clock.nowEpochMillis()
+        return database.withTransaction {
+            val repeat = repeatDao.getById(repeatId) ?: return@withTransaction false
+            if (repeat.archivedAtEpochMillis != null) return@withTransaction false
+            repeatLogDao.upsert(
+                RepeatLogEntity(
+                    repeatId = repeatId,
+                    epochDay = epochDay,
+                    outcome = outcome.name,
+                    atEpochMillis = now,
+                ),
+            )
+            true
+        }
+    }
+
     override suspend fun markOpenRepeatsMissed(
         band: RepeatBand,
         epochDay: Long,
@@ -959,6 +980,10 @@ class FocusRepositoryImpl(
     }
 
     override suspend fun setBandTimes(times: BandTimes): Boolean = preferencesStore.setBandTimes(times)
+
+    override suspend fun dismissExactAlarmPrompt() {
+        preferencesStore.setExactAlarmPromptDismissed(true)
+    }
 
     override suspend fun setHeldBandNudge(
         band: RepeatBand?,

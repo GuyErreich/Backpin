@@ -10,8 +10,6 @@ import kotlinx.coroutines.flow.first
 class FocusUseCases(
     private val repository: FocusRepository,
     private val wakeUp: ReleaseWakeUp = ReleaseWakeUp {},
-    private val repeatSchedule: RepeatScheduleSync = RepeatScheduleSync {},
-    private val exactAlarms: ExactAlarmAccess = ExactAlarmAccess { false },
 ) {
     fun observeSnapshot(): Flow<FocusSnapshot> = repository.observeSnapshot()
 
@@ -210,70 +208,4 @@ class FocusUseCases(
     suspend fun setSavedPhrases(phrases: List<String>) {
         repository.setSavedPhrases(phrases)
     }
-
-    fun observeRepeats(): Flow<List<Repeat>> = repository.observeRepeats()
-
-    fun observeTodaysRepeats(): Flow<TodaysRepeats> = repository.observeTodaysRepeats()
-
-    /** Adds a repeat and rebuilds band alarms. A blank title writes nothing. */
-    suspend fun createRepeat(
-        title: String,
-        band: RepeatBand,
-        everyNDays: Int,
-        anchorEpochDay: Long,
-        reminderOn: Boolean = true,
-    ): String? {
-        val id = repository.createRepeat(title, band, everyNDays, anchorEpochDay, reminderOn) ?: return null
-        repeatSchedule.resync()
-        return id
-    }
-
-    /** Rewrites every field on an unarchived repeat and rebuilds band alarms. */
-    suspend fun updateRepeat(
-        id: String,
-        title: String,
-        band: RepeatBand,
-        everyNDays: Int,
-        anchorEpochDay: Long,
-        reminderOn: Boolean,
-        sortOrder: Long,
-    ): Boolean {
-        val changed = repository.updateRepeat(id, title, band, everyNDays, anchorEpochDay, reminderOn, sortOrder)
-        if (changed) repeatSchedule.resync()
-        return changed
-    }
-
-    suspend fun archiveRepeat(id: String): Boolean {
-        val changed = repository.archiveRepeat(id)
-        if (changed) repeatSchedule.resync()
-        return changed
-    }
-
-    suspend fun markRepeatDone(
-        repeatId: String,
-        epochDay: Long,
-    ): Boolean {
-        val changed = repository.markRepeatDone(repeatId, epochDay)
-        if (changed) repeatSchedule.resync()
-        return changed
-    }
-
-    suspend fun undoRepeatDone(
-        repeatId: String,
-        epochDay: Long,
-    ): Boolean {
-        val changed = repository.undoRepeatDone(repeatId, epochDay)
-        if (changed) repeatSchedule.resync()
-        return changed
-    }
-
-    /** User-set band times. Rebuilds alarms when the write succeeds. */
-    suspend fun setBandTimes(times: BandTimes): Boolean {
-        val changed = repository.setBandTimes(times)
-        if (changed) repeatSchedule.resync()
-        return changed
-    }
-
-    /** True when the OS will honor exact band alarms. The settings UI can prompt once when this is false. */
-    fun canScheduleExactAlarms(): Boolean = exactAlarms.canScheduleExactAlarms()
 }

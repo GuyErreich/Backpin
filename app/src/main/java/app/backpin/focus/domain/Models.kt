@@ -76,6 +76,7 @@ data class FocusFrame(
  * [lastCountdownDays] is the last count used on this phone, when an event has none of its own.
  * [bandTimes] are the user-set morning, noon, and night bounds for repeats.
  * [heldBandNudge] is a band reminder waiting for an active focus frame to end.
+ * [exactAlarmPromptDismissed] is the one-time Settings "Not now" for exact alarms.
  */
 data class UserPreferences(
     val nudgesEnabled: Boolean = false,
@@ -92,6 +93,7 @@ data class UserPreferences(
     val bandTimes: BandTimes = BandTimes.DEFAULT,
     val heldBandNudge: RepeatBand? = null,
     val heldBandEpochDay: Long? = null,
+    val exactAlarmPromptDismissed: Boolean = false,
 )
 
 /** Point-in-time tasks and frames used to rebuild the screen after process death. */
