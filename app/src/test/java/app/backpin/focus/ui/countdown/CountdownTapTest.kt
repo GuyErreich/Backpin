@@ -13,6 +13,7 @@ import androidx.compose.ui.test.click
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -329,9 +330,9 @@ class CountdownTapTest {
             await { viewModel.uiState.value.now?.title == "Checkup" }
             tap("Count down again")
             compose.onNodeWithText("Again in 12 days").assertExists()
-            compose.onNode(hasSetTextAction()).performTextInput("14")
-            compose.onNode(hasSetTextAction()).performTouchInput { click() }
-            compose.onNode(hasSetTextAction()).performImeAction()
+            resumeDaysField().performTextInput("14")
+            resumeDaysField().performTouchInput { click() }
+            resumeDaysField().performImeAction()
             awaitSnapshot(useCases) { snapshot ->
                 val event = snapshot.tasks.single { it.title == "Checkup" }
                 event.bucket == TaskBucket.COUNTDOWN &&
@@ -492,6 +493,9 @@ class CountdownTapTest {
     private fun nameField(): SemanticsNodeInteraction = compose.onAllNodes(hasSetTextAction())[0]
 
     private fun daysField(): SemanticsNodeInteraction = compose.onAllNodes(hasSetTextAction())[1]
+
+    private fun resumeDaysField(): SemanticsNodeInteraction =
+        compose.onNode(hasSetTextAction() and hasText("Days from today"))
 
     private fun taskCount(useCases: FocusUseCases): Int =
         runBlocking { useCases.observeSnapshot().first().tasks.size }
