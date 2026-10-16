@@ -1,0 +1,7 @@
+version: 0.1.1-dev
+source_branch: cursor/promote-dev-to-staging
+target_branch: dev
+target_base_sha: ae8d2fb900b4efa53b2607c213e7d29507e55473
+finalized: false
+managed_by: auto-semver
+branch_role: release
