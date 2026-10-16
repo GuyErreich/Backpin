@@ -447,9 +447,9 @@ class EditTaskSurfacesTest {
         val found = nodes.fetchSemanticsNodes()
         check(found.isNotEmpty()) { "No $label action near $nearTitle" }
         val index = found.indices.minBy { kotlin.math.abs(found[it].boundsInRoot.top - titleTop) }
-        nodes[index].performSemanticsAction(SemanticsActions.CustomActions) { actions ->
-            actions.first { it.label == label }.action()
-        }
+        val action =
+            found[index].config[SemanticsActions.CustomActions].single { it.label == label }
+        compose.runOnIdle { check(action.action()) }
         compose.waitForIdle()
     }
 
