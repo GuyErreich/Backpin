@@ -19,6 +19,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -55,6 +56,7 @@ fun InboxScreen(
     onToday: (String) -> Unit,
     onStart: (String) -> Unit,
     onInterrupt: (String) -> Unit,
+    onEdit: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     ActionPileScreen(
@@ -67,6 +69,7 @@ fun InboxScreen(
         onToday = onToday,
         onStart = onStart,
         onInterrupt = onInterrupt,
+        onEdit = onEdit,
         modifier = modifier,
     )
 }
@@ -83,6 +86,7 @@ fun LaterScreen(
     onToday: (String) -> Unit,
     onStart: (String) -> Unit,
     onInterrupt: (String) -> Unit,
+    onEdit: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     ActionPileScreen(
@@ -95,6 +99,7 @@ fun LaterScreen(
         onToday = onToday,
         onStart = onStart,
         onInterrupt = onInterrupt,
+        onEdit = onEdit,
         modifier = modifier,
     )
 }
@@ -117,6 +122,7 @@ fun ScheduledScreen(
     onRemove: (String) -> Unit,
     onChangeDate: (String, Long) -> Unit,
     onChangeTime: (String, Int?) -> Unit,
+    onEdit: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val reducedMotion = rememberReducedMotion()
@@ -138,6 +144,14 @@ fun ScheduledScreen(
                 towardStart = todaySwipe { onToday(task.id) },
                 towardEnd = startSwipe { onStart(task.id) },
                 reducedMotion = reducedMotion,
+                onLongPress = { onEdit(task.id) },
+                extraActions =
+                    listOf(
+                        CustomAccessibilityAction("Edit") {
+                            onEdit(task.id)
+                            true
+                        },
+                    ),
                 cornerRadius = 16.dp,
                 modifier =
                     Modifier
@@ -184,6 +198,7 @@ fun ScheduledScreen(
                             if (task.minuteOfDay != null) {
                                 QuietButton(label = "Clear time", onClick = { onChangeTime(task.id, null) })
                             }
+                            QuietButton(label = "Edit", onClick = { onEdit(task.id) })
                         }
                     }
                 }
@@ -271,6 +286,7 @@ private fun ActionPileScreen(
     onToday: (String) -> Unit,
     onStart: (String) -> Unit,
     onInterrupt: (String) -> Unit,
+    onEdit: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val reducedMotion = rememberReducedMotion()
@@ -289,6 +305,14 @@ private fun ActionPileScreen(
                 towardStart = todaySwipe { onToday(task.id) },
                 towardEnd = startSwipe { onStart(task.id) },
                 reducedMotion = reducedMotion,
+                onLongPress = { onEdit(task.id) },
+                extraActions =
+                    listOf(
+                        CustomAccessibilityAction("Edit") {
+                            onEdit(task.id)
+                            true
+                        },
+                    ),
                 cornerRadius = 16.dp,
                 modifier =
                     Modifier
@@ -315,6 +339,7 @@ private fun ActionPileScreen(
                                     onClick = { onInterrupt(task.id) },
                                 )
                             }
+                            QuietButton(label = "Edit", onClick = { onEdit(task.id) })
                         }
                     }
                 }

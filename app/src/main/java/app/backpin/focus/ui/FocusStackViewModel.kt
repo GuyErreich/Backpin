@@ -30,6 +30,7 @@ class FocusStackViewModel(
 ) : ViewModel() {
     private val captureOpen = MutableStateFlow(false)
     private val captureInterrupts = MutableStateFlow(false)
+    private val editingTaskId = MutableStateFlow<String?>(null)
     private val swapIncomingId = MutableStateFlow<String?>(null)
     private val freshSwapTitle = MutableStateFlow<String?>(null)
     private val switchOpen = MutableStateFlow(false)
@@ -52,11 +53,11 @@ class FocusStackViewModel(
                     freshSwapTitle = fresh,
                 )
             },
-            combine(switchOpen, pendingUndo) { switching, undo ->
-                switching to undo
+            combine(switchOpen, pendingUndo, editingTaskId) { switching, undo, editing ->
+                Triple(switching, undo, editing)
             },
-        ) { snapshot, preferences, capture, switchAndUndo ->
-            val (switching, undo) = switchAndUndo
+        ) { snapshot, preferences, capture, extras ->
+            val (switching, undo, editing) = extras
             deriveFocusUi(
                 snapshot,
                 ChromeState(
@@ -67,6 +68,7 @@ class FocusStackViewModel(
                     switchOpen = switching,
                     undo = undo,
                     preferences = preferences,
+                    editingTaskId = editing,
                 ),
             )
         }.stateIn(
@@ -81,8 +83,33 @@ class FocusStackViewModel(
      * chip saves to Inbox without touching the active task.
      */
     fun openCapture(interrupts: Boolean = false) {
+        editingTaskId.value = null
         captureInterrupts.value = interrupts
         captureOpen.value = true
+    }
+
+    /** Opens the edit sheet for [taskId]. Closes capture so only one sheet is up. */
+    fun openEdit(taskId: String) {
+        closeCapture()
+        editingTaskId.value = taskId
+    }
+
+    fun dismissEdit() {
+        editingTaskId.value = null
+    }
+
+    /**
+     * Writes [title] through [FocusUseCases.rename] and closes the sheet.
+     * A blank title changes nothing and leaves the sheet open.
+     */
+    fun saveEdit(title: String) {
+        val id = editingTaskId.value ?: return
+        val trimmed = title.trim()
+        if (trimmed.isEmpty()) return
+        viewModelScope.launch {
+            useCases.rename(id, trimmed)
+            editingTaskId.value = null
+        }
     }
 
     fun dismissCapture() {

@@ -118,6 +118,7 @@ internal fun interruptSwipe(onInterrupt: () -> Unit): SwipeSide =
  * The word is centered in the band and grows slightly once the finger passes that point.
  * Today rows can also long-press and drag vertically; that callback only reorders
  * within Today and never changes a bucket.
+ * Inbox, Later, and Scheduled can long-press to edit. That path does not drag.
  * Reduced motion keeps the card still. The band and the word still appear with the drag.
  */
 @Composable
@@ -129,6 +130,7 @@ internal fun SwipeRevealCard(
     onReorderDrag: ((Float) -> Unit)? = null,
     onReorderDragEnd: (() -> Unit)? = null,
     onReorderDragCancel: (() -> Unit)? = null,
+    onLongPress: (() -> Unit)? = null,
     extraActions: List<CustomAccessibilityAction> = emptyList(),
     cornerRadius: Dp = CardRadius,
     modifier: Modifier = Modifier,
@@ -143,10 +145,12 @@ internal fun SwipeRevealCard(
     val reorderDrag = rememberUpdatedState(onReorderDrag)
     val reorderEnd = rememberUpdatedState(onReorderDragEnd)
     val reorderCancel = rememberUpdatedState(onReorderDragCancel)
+    val longPress = rememberUpdatedState(onLongPress)
     val reducedState = rememberUpdatedState(reducedMotion)
     val threshold = width * 0.4f
     val visualOffset = if (reducedMotion) 0f else logicalOffset
     val reorderEnabled = onReorderDrag != null
+    val longPressEnabled = onLongPress != null
 
     Box(
         modifier
@@ -163,7 +167,7 @@ internal fun SwipeRevealCard(
                         addAll(extraActions)
                     }
             }
-            .pointerInput(towardStart != null, towardEnd != null, reorderEnabled) {
+            .pointerInput(towardStart != null, towardEnd != null, reorderEnabled, longPressEnabled) {
                 val slop = viewConfiguration.touchSlop
                 val longPressMs = viewConfiguration.longPressTimeoutMillis
                 coroutineScope {
@@ -234,25 +238,32 @@ internal fun SwipeRevealCard(
                             }
                         }
                         null -> {
-                            if (!reorderEnabled) return@awaitEachGesture
-                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            reorderStart.value?.invoke()
-                            var ended = false
-                            try {
-                                while (true) {
-                                    val event = awaitPointerEvent(pass = PointerEventPass.Initial)
-                                    val change = event.changes.firstOrNull { it.id == pointerId } ?: break
-                                    change.consume()
-                                    if (!change.pressed) {
-                                        ended = true
-                                        reorderEnd.value?.invoke()
-                                        break
+                            when {
+                                reorderEnabled -> {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    reorderStart.value?.invoke()
+                                    var ended = false
+                                    try {
+                                        while (true) {
+                                            val event = awaitPointerEvent(pass = PointerEventPass.Initial)
+                                            val change = event.changes.firstOrNull { it.id == pointerId } ?: break
+                                            change.consume()
+                                            if (!change.pressed) {
+                                                ended = true
+                                                reorderEnd.value?.invoke()
+                                                break
+                                            }
+                                            val delta = change.position.y - change.previousPosition.y
+                                            if (delta != 0f) reorderDrag.value?.invoke(delta)
+                                        }
+                                    } finally {
+                                        if (!ended) reorderCancel.value?.invoke()
                                     }
-                                    val delta = change.position.y - change.previousPosition.y
-                                    if (delta != 0f) reorderDrag.value?.invoke(delta)
                                 }
-                            } finally {
-                                if (!ended) reorderCancel.value?.invoke()
+                                longPressEnabled -> {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    longPress.value?.invoke()
+                                }
                             }
                         }
                         is Race.Moved -> {

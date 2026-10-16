@@ -192,6 +192,7 @@ class ScheduleCalendarTapTest {
                             onRemove = {},
                             onChangeDate = viewModel::changeScheduledDate,
                             onChangeTime = viewModel::changeScheduledTime,
+                            onEdit = {},
                         )
                     }
                 }

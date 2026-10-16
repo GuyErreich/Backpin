@@ -91,6 +91,7 @@ data class FocusUiState(
     val countdowns: List<CountdownUi> = emptyList(),
     val captureOpen: Boolean = false,
     val captureInterrupts: Boolean = false,
+    val editing: TaskUi? = null,
     val swapIncoming: TaskUi? = null,
     val freshSwapTitle: String? = null,
     val swapChoices: List<TaskUi> = emptyList(),

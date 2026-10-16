@@ -391,6 +391,42 @@ class FocusStackViewModelTest {
             collect.cancel()
         }
 
+    @Test
+    fun editSheetSavesATitleAndLeavesABlankOpen() =
+        runBlocking {
+            val viewModel = FocusStackViewModel(useCases)
+            val collect = launch { viewModel.uiState.collect {} }
+            val original = seedToday("Review CI failure")
+            useCases.start(original)
+            withTimeout(5_000) { viewModel.uiState.first { it.now?.taskId == original } }
+            viewModel.openCapture()
+            withTimeout(5_000) { viewModel.uiState.first { it.captureOpen } }
+            viewModel.openEdit(original)
+            val opened =
+                withTimeout(5_000) {
+                    viewModel.uiState.first { it.editing?.id == original && !it.captureOpen }
+                }
+            assertEquals("Review CI failure", opened.editing?.title)
+            viewModel.saveEdit("   ")
+            shadowOf(Looper.getMainLooper()).idle()
+            assertEquals("Review CI failure", viewModel.uiState.value.editing?.title)
+            assertEquals("Review CI failure", viewModel.uiState.value.now?.title)
+            viewModel.saveEdit("Talk to Sarah")
+            val saved =
+                withTimeout(5_000) {
+                    viewModel.uiState.first { it.now?.title == "Talk to Sarah" && it.editing == null }
+                }
+            assertEquals("Talk to Sarah", saved.now?.title)
+            assertTrue(saved.todaySlots.any { it.task?.title == "Talk to Sarah" })
+            viewModel.openEdit(original)
+            withTimeout(5_000) { viewModel.uiState.first { it.editing?.id == original } }
+            viewModel.openCapture()
+            withTimeout(5_000) {
+                viewModel.uiState.first { it.captureOpen && it.editing == null }
+            }
+            collect.cancel()
+        }
+
     private suspend fun seedToday(title: String): String {
         useCases.capture(title)
         val id = useCases.observeSnapshot().first().tasks.single { it.title == title }.id

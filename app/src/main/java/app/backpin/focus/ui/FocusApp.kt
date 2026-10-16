@@ -39,6 +39,7 @@ import androidx.navigation.compose.rememberNavController
 import app.backpin.focus.notifications.NotificationContract
 import app.backpin.focus.ui.capture.CaptureSheet
 import app.backpin.focus.ui.countdown.CountdownScreen
+import app.backpin.focus.ui.edit.EditTaskSheet
 import app.backpin.focus.ui.focus.FocusScreen
 import app.backpin.focus.ui.home.DoneScreen
 import app.backpin.focus.ui.home.HomeScreen
@@ -211,6 +212,7 @@ fun FocusApp(
                     onToday = viewModel::promote,
                     onStart = viewModel::start,
                     onInterrupt = viewModel::interruptFromPile,
+                    onEdit = viewModel::openEdit,
                 )
             }
             composable(
@@ -226,6 +228,7 @@ fun FocusApp(
                     onToday = viewModel::promote,
                     onStart = viewModel::start,
                     onInterrupt = viewModel::interruptFromPile,
+                    onEdit = viewModel::openEdit,
                 )
             }
             composable(
@@ -246,6 +249,7 @@ fun FocusApp(
                     onRemove = viewModel::removeScheduled,
                     onChangeDate = viewModel::changeScheduledDate,
                     onChangeTime = viewModel::changeScheduledTime,
+                    onEdit = viewModel::openEdit,
                 )
             }
             composable(
@@ -270,6 +274,7 @@ fun FocusApp(
                     onAdd = viewModel::addCountdown,
                     onChangeDate = viewModel::changeCountdownDate,
                     onRemove = viewModel::removeCountdown,
+                    onEdit = viewModel::openEdit,
                 )
             }
             composable(Routes.SETTINGS) {
@@ -298,6 +303,14 @@ fun FocusApp(
             onPlaceStart = viewModel::placeAndStart,
             onPlaceLater = viewModel::placeLater,
             onSchedule = viewModel::placeScheduled,
+        )
+    }
+
+    state.editing?.let { editing ->
+        EditTaskSheet(
+            initialTitle = editing.title,
+            onDismiss = viewModel::dismissEdit,
+            onSave = viewModel::saveEdit,
         )
     }
 

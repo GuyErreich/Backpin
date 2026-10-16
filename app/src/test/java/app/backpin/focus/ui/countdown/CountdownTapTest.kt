@@ -539,6 +539,7 @@ class CountdownTapTest {
                     onAdd = viewModel::addCountdown,
                     onChangeDate = viewModel::changeCountdownDate,
                     onRemove = viewModel::removeCountdown,
+                    onEdit = viewModel::openEdit,
                     recognizer = QuietRecognizer,
                 )
             }

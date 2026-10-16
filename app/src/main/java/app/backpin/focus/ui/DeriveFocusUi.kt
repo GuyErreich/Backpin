@@ -24,6 +24,7 @@ internal data class ChromeState(
     val switchOpen: Boolean,
     val undo: PendingUndo?,
     val preferences: UserPreferences,
+    val editingTaskId: String? = null,
 )
 
 internal fun deriveFocusUi(
@@ -159,6 +160,10 @@ internal fun deriveFocusUi(
         today
             .filter { it.id != now?.taskId }
             .map { it.toUi() }
+    val editing =
+        chrome.editingTaskId?.let { id ->
+            tasksById[id]?.takeIf { it.status == TaskStatus.OPEN }?.toUi()
+        }
 
     return FocusUiState(
         ready = true,
@@ -178,6 +183,7 @@ internal fun deriveFocusUi(
         countdowns = countdowns,
         captureOpen = chrome.captureOpen,
         captureInterrupts = chrome.captureInterrupts,
+        editing = editing,
         swapIncoming = incoming,
         freshSwapTitle = chrome.freshSwapTitle,
         swapChoices = if (!swapping) emptyList() else today.map { it.toUi() },

@@ -100,8 +100,8 @@ class HomeActionTapTest {
             }
             await { viewModel.uiState.value.now?.title == "Hold this" && viewModel.uiState.value.todaySlots.count { it.task != null } == 3 }
 
-            listOf(nowCard("Done"), nowCard("Interrupt"), nowCard("Later")).forEach(::assertCardAction)
-            listOf(inRow("Start", "Park me"), inRow("Done", "Park me"), inRow("Later", "Park me")).forEach(::assertCardAction)
+            listOf(nowCard("Done"), nowCard("Interrupt"), nowCard("Later"), nowCard("Edit")).forEach(::assertCardAction)
+            listOf(inRow("Start", "Park me"), inRow("Done", "Park me"), inRow("Later", "Park me"), inRow("Edit", "Park me")).forEach(::assertCardAction)
 
             tap(nowCard("Interrupt"))
             await { viewModel.uiState.value.captureOpen && viewModel.uiState.value.captureInterrupts }
