@@ -37,6 +37,8 @@ enum class FrameState {
  * A single task. [returnCue] is the one-line note that should still make
  * sense after an interruption. [scheduledAtMinuteOfDay] is an optional local
  * time on [scheduledOnEpochDay] for a scheduled task. Null means any time that day.
+ * [countdownIntervalDays] is the last count used for this event, so resume can
+ * offer it again. It is not a schedule field and survives a move off COUNTDOWN.
  */
 data class Task(
     val id: String,
@@ -49,6 +51,7 @@ data class Task(
     val completedAtEpochMillis: Long?,
     val scheduledOnEpochDay: Long? = null,
     val scheduledAtMinuteOfDay: Int? = null,
+    val countdownIntervalDays: Int? = null,
 )
 
 /**
@@ -70,6 +73,7 @@ data class FocusFrame(
  * from repeating during recent activity.
  * [todayLimit] is how many open tasks Today can hold. Empty places are not filled on their own.
  * [savedPhrases] is the capture list, in the order it is shown. Angle brackets mark one blank.
+ * [lastCountdownDays] is the last count used on this phone, when an event has none of its own.
  */
 data class UserPreferences(
     val nudgesEnabled: Boolean = false,
@@ -82,6 +86,7 @@ data class UserPreferences(
     val lastNudgedTaskId: String? = null,
     val todayLimit: Int = DEFAULT_TODAY_LIMIT,
     val savedPhrases: List<String> = emptyList(),
+    val lastCountdownDays: Int? = null,
 )
 
 /** Point-in-time tasks and frames used to rebuild the screen after process death. */

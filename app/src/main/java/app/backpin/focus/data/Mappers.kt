@@ -18,6 +18,7 @@ fun TaskEntity.toDomain(): Task =
         completedAtEpochMillis = completedAtEpochMillis,
         scheduledOnEpochDay = scheduledOnEpochDay,
         scheduledAtMinuteOfDay = scheduledAtMinuteOfDay,
+        countdownIntervalDays = countdownIntervalDays,
     )
 
 fun Task.toEntity(): TaskEntity =
@@ -32,6 +33,7 @@ fun Task.toEntity(): TaskEntity =
         completedAtEpochMillis = completedAtEpochMillis,
         scheduledOnEpochDay = scheduledOnEpochDay,
         scheduledAtMinuteOfDay = scheduledAtMinuteOfDay,
+        countdownIntervalDays = countdownIntervalDays,
     )
 
 fun FocusFrameEntity.toDomain(): FocusFrame =

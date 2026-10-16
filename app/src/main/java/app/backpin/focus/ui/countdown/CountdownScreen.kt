@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -36,9 +35,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import app.backpin.focus.domain.scheduleMomentLabel
 import app.backpin.focus.ui.CountdownUi
 import app.backpin.focus.ui.calendar.PickDateDialog
 import app.backpin.focus.ui.capture.SpeakMic
@@ -50,7 +47,6 @@ import app.backpin.focus.ui.components.AccentTone
 import app.backpin.focus.ui.components.CardActions
 import app.backpin.focus.ui.components.BackArrow
 import app.backpin.focus.ui.components.CLOSE_LABEL
-import app.backpin.focus.ui.components.CaptureChoice
 import app.backpin.focus.ui.components.QuietButton
 import app.backpin.focus.ui.motion.rememberReducedMotion
 import app.backpin.focus.ui.theme.CardRadius
@@ -175,20 +171,6 @@ private fun CountdownRow(
 }
 
 private object CountdownField
-
-private const val MIN_COUNTDOWN_DAYS: Int = 1
-private const val MAX_COUNTDOWN_DAYS: Int = 999
-
-/** Digits only, 0 through 999. A leading zero collapses so 25 stays 25. */
-internal fun sanitizeCountdownDays(incoming: String): String {
-    val digits = incoming.filter(Char::isDigit).take(3)
-    if (digits.isEmpty()) return ""
-    val value = digits.toIntOrNull() ?: return ""
-    return value.coerceIn(0, MAX_COUNTDOWN_DAYS).toString()
-}
-
-private fun countdownDays(text: String): Int? =
-    text.toIntOrNull()?.takeIf { it in MIN_COUNTDOWN_DAYS..MAX_COUNTDOWN_DAYS }
 
 /**
  * Title with the mic, then either a number of days or a calendar day.
@@ -412,29 +394,4 @@ private fun ChangeCountdownSheet(
             onDismiss = { picking = false },
         )
     }
-}
-
-/** Number of days after today. Done on the keyboard is the choice. Pick a date opens the calendar. */
-@Composable
-private fun CountdownDayEntry(
-    daysText: String,
-    onDaysChange: (String) -> Unit,
-    shownDay: Long?,
-    onDone: () -> Unit,
-    onPickDate: () -> Unit,
-) {
-    OutlinedTextField(
-        value = daysText,
-        onValueChange = onDaysChange,
-        modifier = Modifier.fillMaxWidth(),
-        label = { Text("Days from today") },
-        placeholder = { Text("25") },
-        singleLine = true,
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
-        keyboardActions = KeyboardActions(onDone = { onDone() }),
-    )
-    if (shownDay != null) {
-        Text(scheduleMomentLabel(shownDay, null), style = MaterialTheme.typography.bodyLarge)
-    }
-    CaptureChoice("Pick a date", onClick = onPickDate)
 }

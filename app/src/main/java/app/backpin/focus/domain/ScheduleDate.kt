@@ -100,4 +100,32 @@ fun isCountdownDue(
     today: LocalDate,
 ): Boolean = !LocalDate.ofEpochDay(epochDay).isAfter(today)
 
+/** Days from today a countdown may be set. Typed and stored counts stay in this range. */
+const val MIN_COUNTDOWN_DAYS: Int = 1
+
+const val MAX_COUNTDOWN_DAYS: Int = 999
+
+/**
+ * Days from [today] to [epochDay], when that gap is a countdown that can be reused.
+ * Today, the past, and more than [MAX_COUNTDOWN_DAYS] return null.
+ */
+fun countdownIntervalDays(
+    epochDay: Long,
+    today: LocalDate,
+): Int? {
+    val days = epochDay - today.toEpochDay()
+    return days.toInt().takeIf { it in MIN_COUNTDOWN_DAYS..MAX_COUNTDOWN_DAYS }
+}
+
+/**
+ * The count the resume sheet offers first: the event's own interval, then the last
+ * count used on this phone. Either value is ignored when it is outside the allowed range.
+ */
+fun suggestedCountdownDays(
+    taskInterval: Int?,
+    lastCountdownDays: Int?,
+): Int? =
+    taskInterval?.takeIf { it in MIN_COUNTDOWN_DAYS..MAX_COUNTDOWN_DAYS }
+        ?: lastCountdownDays?.takeIf { it in MIN_COUNTDOWN_DAYS..MAX_COUNTDOWN_DAYS }
+
 const val MINUTES_PER_DAY: Int = 24 * 60

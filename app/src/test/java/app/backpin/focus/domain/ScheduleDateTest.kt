@@ -93,4 +93,23 @@ class ScheduleDateTest {
         assertTrue(isCountdownDue(today.minusDays(1).toEpochDay(), today))
         assertFalse(isCountdownDue(today.plusDays(1).toEpochDay(), today))
     }
+
+    @Test
+    fun countdownIntervalIsDaysFromTodayInRange() {
+        assertEquals(12, countdownIntervalDays(today.plusDays(12).toEpochDay(), today))
+        assertEquals(1, countdownIntervalDays(today.plusDays(1).toEpochDay(), today))
+        assertEquals(999, countdownIntervalDays(today.plusDays(999).toEpochDay(), today))
+        assertEquals(null, countdownIntervalDays(today.toEpochDay(), today))
+        assertEquals(null, countdownIntervalDays(today.minusDays(1).toEpochDay(), today))
+        assertEquals(null, countdownIntervalDays(today.plusDays(1000).toEpochDay(), today))
+    }
+
+    @Test
+    fun suggestedDaysPrefersTheEventIntervalThenTheLastCount() {
+        assertEquals(30, suggestedCountdownDays(30, 12))
+        assertEquals(12, suggestedCountdownDays(null, 12))
+        assertEquals(12, suggestedCountdownDays(0, 12))
+        assertEquals(null, suggestedCountdownDays(null, null))
+        assertEquals(null, suggestedCountdownDays(0, 0))
+    }
 }

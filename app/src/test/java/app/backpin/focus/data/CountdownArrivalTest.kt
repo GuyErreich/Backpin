@@ -66,6 +66,7 @@ class CountdownArrivalTest {
             val countdown = taskNamed("Dana's birthday")
             assertEquals(TaskBucket.COUNTDOWN, countdown.bucket)
             assertEquals(today.plusDays(12).toEpochDay(), countdown.scheduledOnEpochDay)
+            assertEquals(12, countdown.countdownIntervalDays)
             assertNull(repository.releaseDueCountdowns())
             repository.releaseDueScheduled()
             assertEquals(TaskBucket.COUNTDOWN, taskNamed("Dana's birthday").bucket)
@@ -215,8 +216,44 @@ class CountdownArrivalTest {
             )
             assertEquals(TaskBucket.COUNTDOWN, task(event.id).bucket)
             assertEquals(next, task(event.id).scheduledOnEpochDay)
+            assertEquals(30, task(event.id).countdownIntervalDays)
             assertParentWaits(work)
             assertNull(repository.releaseDueCountdowns())
+        }
+
+    @Test
+    fun captureRescheduleAndDetachWriteTheIntervalAndKeepItThroughAMove() =
+        runBlocking {
+            repository.captureCountdown("Trip", today.plusDays(12).toEpochDay())
+            val trip = taskNamed("Trip")
+            assertEquals(12, trip.countdownIntervalDays)
+            assertEquals(12, repository.preferences.first().lastCountdownDays)
+
+            repository.rescheduleCountdown(trip.id, today.plusDays(9).toEpochDay())
+            assertEquals(9, task(trip.id).countdownIntervalDays)
+            assertEquals(9, repository.preferences.first().lastCountdownDays)
+
+            val work = startedToday()
+            val event = arrive("Dentist")
+            assertNull(event.countdownIntervalDays)
+            assertEquals(
+                PromoteOutcome.Promoted,
+                repository.detachInterruption(event.id, DetachDestination.Countdown(today.plusDays(21).toEpochDay())),
+            )
+            val resumed = task(event.id)
+            assertEquals(TaskBucket.COUNTDOWN, resumed.bucket)
+            assertEquals(21, resumed.countdownIntervalDays)
+            assertEquals(21, repository.preferences.first().lastCountdownDays)
+
+            val parked = arrive("Parked")
+            val parkedRow = database.taskDao().getById(parked.id) ?: error("Missing parked event")
+            database.taskDao().upsert(parkedRow.copy(countdownIntervalDays = 14))
+            repository.detachInterruption(parked.id, DetachDestination.Later)
+            assertEquals(TaskBucket.LATER, task(parked.id).bucket)
+            assertEquals(14, task(parked.id).countdownIntervalDays)
+            assertEquals(21, task(event.id).countdownIntervalDays)
+            assertEquals(21, repository.preferences.first().lastCountdownDays)
+            assertParentWaits(work)
         }
 
     @Test
@@ -242,6 +279,7 @@ class CountdownArrivalTest {
             val trip = taskNamed("Trip")
             repository.rescheduleCountdown(trip.id, today.plusDays(9).toEpochDay())
             assertEquals(today.plusDays(9).toEpochDay(), task(trip.id).scheduledOnEpochDay)
+            assertEquals(9, task(trip.id).countdownIntervalDays)
             repository.removeCountdown(trip.id)
             assertTrue(snapshot().tasks.none { it.id == trip.id })
         }
