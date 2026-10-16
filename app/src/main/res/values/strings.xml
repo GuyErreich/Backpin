@@ -12,6 +12,7 @@
     <string name="action_later">Later</string>
     <string name="action_interrupt">Interrupt</string>
     <string name="action_done">Done</string>
+    <string name="undo_checked_off">Checked off</string>
     <string name="channel_current_name">Current task</string>
     <string name="channel_current_description">Ongoing notice of the task to return to. It stays until you leave it. Elapsed time stays in the app.</string>
     <string name="channel_today_name">Today</string>

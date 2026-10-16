@@ -29,7 +29,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import app.backpin.focus.R
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
@@ -78,6 +80,7 @@ fun FocusApp(
     onLaunchDestinationConsumed: () -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val checkedOffMessage = stringResource(R.string.undo_checked_off)
     val navController = rememberNavController()
     val snackbarHostState = remember { SnackbarHostState() }
     val backStack by navController.currentBackStackEntryAsState()
@@ -98,9 +101,15 @@ fun FocusApp(
 
     LaunchedEffect(state.undo?.id) {
         val undo = state.undo ?: return@LaunchedEffect
+        val message =
+            if (undo.target is UndoTarget.RepeatCheckOff) {
+                checkedOffMessage
+            } else {
+                undo.message
+            }
         val result =
             snackbarHostState.showSnackbar(
-                message = undo.message,
+                message = message,
                 actionLabel = "Undo",
                 withDismissAction = true,
             )

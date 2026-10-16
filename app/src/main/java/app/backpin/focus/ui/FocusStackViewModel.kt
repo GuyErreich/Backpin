@@ -69,7 +69,7 @@ class FocusStackViewModel(
                         repeatUndo?.let { pending ->
                             PendingUndo(
                                 id = pending.id,
-                                message = "Checked off",
+                                message = "",
                                 target =
                                     UndoTarget.RepeatCheckOff(
                                         repeatId = pending.repeatId,
@@ -155,6 +155,13 @@ class FocusStackViewModel(
             viewModelScope,
             SharingStarted.WhileSubscribed(5_000),
             false,
+        )
+
+    val bandTimes: StateFlow<BandTimes> =
+        repeatsApi.observeBandTimes().stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5_000),
+            BandTimes.DEFAULT,
         )
 
     /**
@@ -654,14 +661,19 @@ class FocusStackViewModel(
     }
 
     fun undo(id: Long) {
-        val pending = pendingUndo.value ?: return
-        if (pending.id != id) return
-        pendingUndo.value = null
-        viewModelScope.launch {
-            when (val target = pending.target) {
-                is UndoTarget.Tasks -> useCases.undo(target.token)
-                is UndoTarget.RepeatCheckOff -> repeatsApi.undo(pending.id)
+        val pending = pendingUndo.value
+        if (pending != null && pending.id == id) {
+            pendingUndo.value = null
+            viewModelScope.launch {
+                when (val target = pending.target) {
+                    is UndoTarget.Tasks -> useCases.undo(target.token)
+                    is UndoTarget.RepeatCheckOff -> repeatsApi.undo(id)
+                }
             }
+            return
+        }
+        viewModelScope.launch {
+            repeatsApi.undo(id)
         }
     }
 
