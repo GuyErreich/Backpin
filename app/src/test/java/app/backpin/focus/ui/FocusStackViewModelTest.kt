@@ -244,6 +244,9 @@ class FocusStackViewModelTest {
             val viewModel = FocusStackViewModel(useCases)
             val collect = launch { viewModel.uiState.collect {} }
             repeat(3) { index -> seedToday("Today $index") }
+            withTimeout(5_000) {
+                viewModel.uiState.first { state -> state.todaySlots.count { it.task != null } == 3 }
+            }
             viewModel.placeOnToday("Call the school")
             val waiting =
                 withTimeout(5_000) {

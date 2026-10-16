@@ -2,6 +2,7 @@ package app.backpin.focus.notifications
 
 import android.app.Notification
 import android.content.Context
+import androidx.core.app.NotificationCompat
 import androidx.test.core.app.ApplicationProvider
 import app.backpin.focus.R
 import app.backpin.focus.domain.RepeatBand
@@ -28,8 +29,8 @@ class RepeatNotificationBuildTest {
                 alert = true,
             )
         assertEquals("Morning · 3 things", notification.extras.getString(Notification.EXTRA_TITLE))
-        assertEquals(bandGroupKey(RepeatBand.MORNING), notification.group)
-        assertTrue(notification.extras.getBoolean(NotificationCompatGroupSummary))
+        assertEquals(bandGroupKey(RepeatBand.MORNING), NotificationCompat.getGroup(notification))
+        assertTrue(NotificationCompat.isGroupSummary(notification))
     }
 
     @Test
@@ -58,12 +59,8 @@ class RepeatNotificationBuildTest {
             )
         assertEquals("Take meds", notification.extras.getString(Notification.EXTRA_TITLE))
         assertEquals("Morning repeat", notification.extras.getString(Notification.EXTRA_TEXT))
-        assertEquals(bandGroupKey(RepeatBand.MORNING), notification.group)
+        assertEquals(bandGroupKey(RepeatBand.MORNING), NotificationCompat.getGroup(notification))
         assertEquals(1, notification.actions.size)
         assertEquals(context.getString(R.string.action_done), notification.actions[0].title.toString())
-    }
-
-    companion object {
-        private const val NotificationCompatGroupSummary: String = "android.isGroupSummary"
     }
 }
