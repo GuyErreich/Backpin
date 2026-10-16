@@ -257,8 +257,8 @@ private fun NowCard(
                                     )
                                     QuietButton("Later", onClick = { viewModel.demote(now.taskId) })
                                 }
+                                QuietButton("Edit", onClick = { viewModel.openEdit(now.taskId) })
                             }
-                            QuietButton("Edit", onClick = { viewModel.openEdit(now.taskId) })
                         }
                     }
                 }

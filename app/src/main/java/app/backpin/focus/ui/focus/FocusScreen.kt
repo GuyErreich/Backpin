@@ -183,8 +183,8 @@ private fun ActiveCard(
                         )
                         QuietButton("Switch", onClick = viewModel::openSwitch)
                     }
+                    QuietButton("Edit", onClick = { viewModel.openEdit(now.taskId) })
                 }
-                QuietButton("Edit", onClick = { viewModel.openEdit(now.taskId) })
             }
         }
     }
