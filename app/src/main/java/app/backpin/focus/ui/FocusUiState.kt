@@ -86,6 +86,19 @@ data class PendingUndo(
     val target: UndoTarget,
 )
 
+/**
+ * Snackbar text for [undo]. Repeat check-off always uses [checkedOffLabel]
+ * (`R.string.undo_checked_off`) so an empty ViewModel message cannot go blank.
+ */
+fun undoSnackbarMessage(
+    undo: PendingUndo,
+    checkedOffLabel: String,
+): String {
+    val preferred =
+        if (undo.target is UndoTarget.RepeatCheckOff) checkedOffLabel else undo.message
+    return preferred.ifBlank { checkedOffLabel }.ifBlank { undo.message }
+}
+
 data class FocusUiState(
     val ready: Boolean = false,
     val now: NowUi? = null,
