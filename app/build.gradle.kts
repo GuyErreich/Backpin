@@ -4,6 +4,19 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
+val commitCount = providers.exec {
+    commandLine("git", "rev-list", "--count", "HEAD")
+}.standardOutput.asText.map { output -> output.trim().toInt() }
+
+val shortCommit = providers.exec {
+    commandLine("git", "rev-parse", "--short=7", "HEAD")
+}.standardOutput.asText.map { output -> output.trim() }
+
+val previewKeystorePath = System.getenv("ANDROID_KEYSTORE_PATH")
+val previewKeystorePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+val previewKeyAlias = System.getenv("ANDROID_KEY_ALIAS")
+val previewKeyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+
 android {
     namespace = "app.backpin.focus"
     compileSdk = 37
@@ -13,11 +26,28 @@ android {
         applicationId = "app.backpin.focus"
         minSdk = 26
         targetSdk = 37
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = commitCount.get()
+        versionName = "0.1.0+${shortCommit.get()}"
+    }
+
+    signingConfigs {
+        create("preview") {
+            if (!previewKeystorePath.isNullOrBlank()) {
+                storeFile = file(previewKeystorePath)
+                storePassword = previewKeystorePassword
+                keyAlias = previewKeyAlias
+                keyPassword = previewKeyPassword
+            }
+        }
     }
 
     buildTypes {
+        create("preview") {
+            isMinifyEnabled = false
+            if (!previewKeystorePath.isNullOrBlank()) {
+                signingConfig = signingConfigs.getByName("preview")
+            }
+        }
         release {
             isMinifyEnabled = false
         }

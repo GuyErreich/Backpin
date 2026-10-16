@@ -1,4 +1,4 @@
-# WSL setup for Focus Stack.
+# WSL setup for Backpin.
 # Install go-task once, then run `task setup` from this directory:
 #   curl -sSfL https://taskfile.dev/install.sh | sh -s -- -d -b ~/.local/bin
 #   echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc && source ~/.bashrc

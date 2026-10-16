@@ -275,7 +275,7 @@ fun SettingsScreen(
             ) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(Space)) {
                     Text(
-                        "Notifications are off for Focus Stack. Home, capture, and recovery keep working.",
+                        "Notifications are off for Backpin. Home, capture, and recovery keep working.",
                         style = MaterialTheme.typography.bodyLarge,
                     )
                     QuietButton(
