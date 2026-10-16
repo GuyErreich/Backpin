@@ -19,6 +19,7 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onAllNodesWithText
@@ -297,7 +298,7 @@ class EditTaskSurfacesTest {
             await { viewModel.uiState.value.todaySlots.count { it.task != null } >= 2 }
             val before = viewModel.uiState.value.todaySlots.mapNotNull { it.task?.title }
             val first = before.first()
-            compose.onNodeWithText(first).performTouchInput { longClick() }
+            todayRow(first).performTouchInput { longClick() }
             compose.waitForIdle()
             assertNull(viewModel.uiState.value.editing)
             invokeCustomAction("Move down", first)
@@ -306,7 +307,7 @@ class EditTaskSurfacesTest {
                 after != before && after.toSet() == before.toSet()
             }
             assertNull(viewModel.uiState.value.editing)
-            compose.onNodeWithText(first).performTouchInput {
+            todayRow(first).performTouchInput {
                 down(center)
                 advanceEventTime(viewConfiguration.longPressTimeoutMillis + 200)
                 moveBy(Offset(0f, 180f))
@@ -364,13 +365,13 @@ class EditTaskSurfacesTest {
             await { viewModel.uiState.value.inboxTasks.any { it.title == "From inbox" } }
 
             tapEditNear("From inbox")
-            compose.onNode(hasSetTextAction()).performTextReplacement("Inbox kept by back")
+            titleField().performTextReplacement("Inbox kept by back")
             compose.onNodeWithContentDescription("Close").performTouchInput { click() }
             compose.waitForIdle()
             awaitSnapshot(useCases) { task(it, "Inbox kept by back").bucket == TaskBucket.INBOX }
 
             tapEditNear("Inbox kept by back")
-            compose.onNode(hasSetTextAction()).performTextReplacement("   ")
+            titleField().performTextReplacement("   ")
             tapDone()
             awaitSnapshot(useCases) { it.tasks.any { task -> task.title == "Inbox kept by back" } }
             awaitSnapshot(useCases) { it.tasks.none { task -> task.title.isBlank() } }
@@ -485,14 +486,24 @@ class EditTaskSurfacesTest {
     }
 
     private fun saveTitleAs(title: String) {
-        compose.onNode(hasSetTextAction()).performTextReplacement(title)
+        titleField().performTextReplacement(title)
         tapDone()
     }
 
+    private fun titleField() = compose.onNode(hasSetTextAction() and hasText("Task"))
+
     private fun tapDone() {
-        tap("Done")
-        await { compose.onAllNodesWithText("Done").fetchSemanticsNodes().isEmpty() }
+        val nodes = compose.onAllNodesWithText("Done")
+        val found = nodes.fetchSemanticsNodes()
+        check(found.isNotEmpty()) { "No Done button" }
+        val index = found.indices.maxBy { found[it].boundsInRoot.height }
+        nodes[index].assertIsEnabled().assertHasClickAction().performTouchInput { click() }
+        compose.waitForIdle()
+        await { compose.onAllNodes(hasSetTextAction() and hasText("Task")).fetchSemanticsNodes().isEmpty() }
     }
+
+    private fun todayRow(title: String) =
+        compose.onNode(hasContentDescription("drag to reorder", substring = true) and hasText(title))
 
     private fun tap(label: String) {
         compose.onNodeWithText(label).assertIsEnabled().assertHasClickAction()
@@ -504,7 +515,9 @@ class EditTaskSurfacesTest {
         label: String,
         nearTitle: String,
     ) {
-        val titleTop = compose.onNodeWithText(nearTitle).fetchSemanticsNode().boundsInRoot.top
+        val titles = compose.onAllNodesWithText(nearTitle).fetchSemanticsNodes()
+        check(titles.isNotEmpty()) { "No title $nearTitle" }
+        val titleTop = titles.minBy { it.boundsInRoot.top }.boundsInRoot.top
         val matcher =
             SemanticsMatcher("has $label") { node ->
                 node.config.getOrNull(SemanticsActions.CustomActions).orEmpty().any { it.label == label }
@@ -523,7 +536,9 @@ class EditTaskSurfacesTest {
         nodes: SemanticsNodeInteractionCollection,
         beside: String,
     ): SemanticsNodeInteraction {
-        val anchor = compose.onNodeWithText(beside).fetchSemanticsNode().boundsInRoot.top
+        val titles = compose.onAllNodesWithText(beside).fetchSemanticsNodes()
+        check(titles.isNotEmpty()) { "No title $beside" }
+        val anchor = titles.minBy { it.boundsInRoot.top }.boundsInRoot.top
         val found = nodes.fetchSemanticsNodes()
         val index = found.indices.minBy { kotlin.math.abs(found[it].boundsInRoot.top - anchor) }
         return nodes[index]

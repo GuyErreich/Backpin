@@ -111,6 +111,7 @@ class FocusStackViewModel(
         scheduledOnEpochDay: Long? = null,
     ) {
         val id = editingTaskId.value ?: return
+        editingTaskId.value = null
         viewModelScope.launch {
             val task = useCases.observeSnapshot().first().tasks.firstOrNull { it.id == id } ?: return@launch
             val resolved = title.trim().ifEmpty { task.title }
@@ -142,7 +143,6 @@ class FocusStackViewModel(
                 null,
                 -> Unit
             }
-            editingTaskId.value = null
         }
     }
 
