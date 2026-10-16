@@ -15,8 +15,11 @@ fun bandSummaryTitle(
     return "${band.label()} · $count $noun"
 }
 
-/** Quiet child body, matching Figma: `Morning repeat`. */
-fun bandChildText(band: RepeatBand): String = "${band.label()} repeat"
+/** Quiet child body: daily is `Every day`, otherwise `Every N days`. */
+fun bandChildText(everyNDays: Int): String {
+    val step = everyNDays.coerceAtLeast(1)
+    return if (step == 1) "Every day" else "Every $step days"
+}
 
 fun bandGroupKey(band: RepeatBand): String = "repeats_${band.name}"
 

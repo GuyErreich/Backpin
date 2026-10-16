@@ -14,10 +14,11 @@ class RepeatNotificationCopyTest {
     }
 
     @Test
-    fun childBodyMatchesTheApprovedFigmaFrames() {
-        assertEquals("Morning repeat", bandChildText(RepeatBand.MORNING))
-        assertEquals("Noon repeat", bandChildText(RepeatBand.NOON))
-        assertEquals("Night repeat", bandChildText(RepeatBand.NIGHT))
+    fun childBodyUsesCadenceNotBandName() {
+        assertEquals("Every day", bandChildText(1))
+        assertEquals("Every day", bandChildText(0))
+        assertEquals("Every 2 days", bandChildText(2))
+        assertEquals("Every 7 days", bandChildText(7))
     }
 
     @Test

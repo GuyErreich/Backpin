@@ -184,7 +184,15 @@ class RepeatNotificationCoordinator(
             nextIds += id
             notify(
                 id,
-                buildRepeatChildNotification(context, band, item.repeat.id, item.repeat.title, item.epochDay, group),
+                buildRepeatChildNotification(
+                    context,
+                    band,
+                    item.repeat.id,
+                    item.repeat.title,
+                    item.repeat.everyNDays,
+                    item.epochDay,
+                    group,
+                ),
             )
         }
         val previous = postedChildren.getOrPut(band) { mutableSetOf() }
@@ -256,13 +264,14 @@ internal fun buildRepeatChildNotification(
     band: RepeatBand,
     repeatId: String,
     title: String,
+    everyNDays: Int,
     epochDay: Long,
     group: String,
 ): android.app.Notification =
     NotificationCompat.Builder(context, NotificationContract.CHANNEL_REPEATS)
         .setSmallIcon(R.drawable.ic_stat_focus)
         .setContentTitle(title)
-        .setContentText(bandChildText(band))
+        .setContentText(bandChildText(everyNDays))
         .setGroup(group)
         .setSilent(true)
         .setOnlyAlertOnce(true)
