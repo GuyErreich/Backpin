@@ -210,8 +210,8 @@ interface FocusRepository {
     )
 
     /**
-     * Puts the snapshotted rows back. Used by the Undo snackbar for Today placement.
-     * Done and Later do not offer that snackbar.
+     * Puts the snapshotted rows back. Used by the Undo snackbar for Today placement
+     * and countdown resume. Done and Later do not offer that snackbar.
      */
     suspend fun undo(token: UndoToken)
 

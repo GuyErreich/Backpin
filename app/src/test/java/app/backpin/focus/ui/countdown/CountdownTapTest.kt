@@ -37,6 +37,7 @@ import app.backpin.focus.domain.FocusUseCases
 import app.backpin.focus.domain.FrameState
 import app.backpin.focus.domain.Task
 import app.backpin.focus.domain.TaskBucket
+import app.backpin.focus.domain.backInDaysLabel
 import app.backpin.focus.domain.scheduleMomentLabel
 import app.backpin.focus.domain.TaskStatus
 import app.backpin.focus.ui.FocusStackViewModel
@@ -232,6 +233,7 @@ class CountdownTapTest {
                     event.countdownIntervalDays == 1 &&
                     parentWaits(snapshot)
             }
+            await { viewModel.uiState.value.undo?.message == backInDaysLabel(1, today) }
             await { viewModel.uiState.value.countdowns.any { it.title == "Anniversary" && it.dayLabel == "Tomorrow" } }
 
             arriveAgain(useCases, repository, "Checkup", today)
@@ -325,6 +327,7 @@ class CountdownTapTest {
                     event.countdownIntervalDays == 12 &&
                     parentWaits(snapshot)
             }
+            await { viewModel.uiState.value.undo?.message == backInDaysLabel(12, today) }
             compose.onNodeWithText(againLabel(12, today)).assertDoesNotExist()
 
             compose.runOnIdle { screen = "focus" }
@@ -343,6 +346,7 @@ class CountdownTapTest {
                     event.countdownIntervalDays == 14 &&
                     parentWaits(snapshot)
             }
+            await { viewModel.uiState.value.undo?.message == backInDaysLabel(14, today) }
         }
     }
 
@@ -425,6 +429,7 @@ class CountdownTapTest {
                     event.countdownIntervalDays == 30 &&
                     parentWaits(snapshot)
             }
+            await { viewModel.uiState.value.undo?.message == backInDaysLabel(30, today) }
         }
     }
 
@@ -467,6 +472,7 @@ class CountdownTapTest {
                     event.countdownIntervalDays == 45 &&
                     parentWaits(snapshot)
             }
+            await { viewModel.uiState.value.undo?.message == backInDaysLabel(45, today) }
             compose.onNodeWithText("Start in 45 days").assertDoesNotExist()
         }
     }

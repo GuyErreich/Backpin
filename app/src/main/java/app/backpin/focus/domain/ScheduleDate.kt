@@ -55,6 +55,16 @@ fun scheduleMomentLabel(
     return if (minuteOfDay == null) formatted else "$formatted · ${minuteOfDayLabel(minuteOfDay)}"
 }
 
+/** Snackbar after a countdown resume: days from today and the landing date. */
+fun backInDaysLabel(
+    days: Int,
+    today: LocalDate,
+    locale: Locale = Locale.getDefault(),
+): String {
+    val landing = today.plusDays(days.toLong()).toEpochDay()
+    return "Back in $days days · ${scheduleMomentLabel(landing, null, locale)}"
+}
+
 /** Date line for the Scheduled screen, prefixed with "Due" once [isScheduledDue] holds. */
 fun scheduledWhenLabel(
     epochDay: Long,

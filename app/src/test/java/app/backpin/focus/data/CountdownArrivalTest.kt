@@ -12,6 +12,7 @@ import app.backpin.focus.domain.PromoteOutcome
 import app.backpin.focus.domain.Task
 import app.backpin.focus.domain.TaskBucket
 import app.backpin.focus.domain.TaskStatus
+import app.backpin.focus.domain.UndoToken
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -254,6 +255,43 @@ class CountdownArrivalTest {
             assertEquals(21, task(event.id).countdownIntervalDays)
             assertEquals(21, repository.preferences.first().lastCountdownDays)
             assertParentWaits(work)
+        }
+
+    @Test
+    fun undoAfterCountDownAgainRestoresTheEventParentAndInterval() =
+        runBlocking {
+            val work = startedToday()
+            val event = arrive("Dentist")
+            val row = database.taskDao().getById(event.id) ?: error("Missing dentist")
+            database.taskDao().upsert(row.copy(countdownIntervalDays = 180))
+            val before = snapshot()
+            val beforeTask = before.tasks.single { it.id == event.id }
+            val beforeFrame = before.frames.single { it.taskId == event.id && it.state == FrameState.ACTIVE }
+            val beforeParent = before.frames.single { it.taskId == work }
+            assertEquals(180, beforeTask.countdownIntervalDays)
+            assertEquals(FrameState.PAUSED, beforeParent.state)
+
+            val next = today.plusDays(45).toEpochDay()
+            assertEquals(
+                PromoteOutcome.Promoted,
+                repository.detachInterruption(event.id, DetachDestination.Countdown(next)),
+            )
+            assertEquals(45, task(event.id).countdownIntervalDays)
+            assertParentWaits(work)
+
+            repository.undo(
+                UndoToken(
+                    tasks = listOf(beforeTask),
+                    frames = listOf(beforeFrame, beforeParent),
+                ),
+            )
+            val restored = snapshot()
+            val restoredTask = restored.tasks.single { it.id == event.id }
+            assertEquals(TaskBucket.COUNTDOWN, restoredTask.bucket)
+            assertEquals(beforeTask.scheduledOnEpochDay, restoredTask.scheduledOnEpochDay)
+            assertEquals(180, restoredTask.countdownIntervalDays)
+            assertEquals(FrameState.ACTIVE, restored.frames.single { it.taskId == event.id }.state)
+            assertEquals(FrameState.PAUSED, restored.frames.single { it.taskId == work }.state)
         }
 
     @Test

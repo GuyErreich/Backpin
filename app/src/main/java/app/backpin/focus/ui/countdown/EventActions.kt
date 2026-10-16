@@ -159,6 +159,7 @@ internal fun ResumeCountdownSheet(
                     label = againInDaysLabel(suggestedDays, today),
                     onClick = { commitAgain(suggestedDays) },
                     tone = ChoiceTone.Lavender,
+                    filled = true,
                 )
                 Text(
                     "or choose",

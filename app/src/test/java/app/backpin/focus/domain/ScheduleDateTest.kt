@@ -105,6 +105,13 @@ class ScheduleDateTest {
     }
 
     @Test
+    fun backInDaysNamesTheCountAndTheLandingDay() {
+        val today = LocalDate.of(2026, 10, 16)
+        assertEquals("Back in 45 days · Mon, Nov 30", backInDaysLabel(45, today, Locale.US))
+        assertEquals("Back in 1 days · Sat, Oct 17", backInDaysLabel(1, today, Locale.US))
+    }
+
+    @Test
     fun suggestedDaysPrefersTheEventIntervalThenTheLastCount() {
         assertEquals(30, suggestedCountdownDays(30, 12))
         assertEquals(12, suggestedCountdownDays(null, 12))

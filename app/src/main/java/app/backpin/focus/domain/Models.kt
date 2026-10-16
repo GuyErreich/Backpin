@@ -96,7 +96,7 @@ data class FocusSnapshot(
 )
 
 /**
- * Prior task and frame rows for an Undo of a Today placement change.
+ * Prior task and frame rows for Undo of Today placement or a countdown resume.
  * Done and Later commit without this snackbar. Nothing is hard-deleted.
  */
 data class UndoToken(
