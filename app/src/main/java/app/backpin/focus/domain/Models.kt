@@ -74,6 +74,8 @@ data class FocusFrame(
  * [todayLimit] is how many open tasks Today can hold. Empty places are not filled on their own.
  * [savedPhrases] is the capture list, in the order it is shown. Angle brackets mark one blank.
  * [lastCountdownDays] is the last count used on this phone, when an event has none of its own.
+ * [bandTimes] are the user-set morning, noon, and night bounds for repeats.
+ * [heldBandNudge] is a band reminder waiting for an active focus frame to end.
  */
 data class UserPreferences(
     val nudgesEnabled: Boolean = false,
@@ -87,6 +89,9 @@ data class UserPreferences(
     val todayLimit: Int = DEFAULT_TODAY_LIMIT,
     val savedPhrases: List<String> = emptyList(),
     val lastCountdownDays: Int? = null,
+    val bandTimes: BandTimes = BandTimes.DEFAULT,
+    val heldBandNudge: RepeatBand? = null,
+    val heldBandEpochDay: Long? = null,
 )
 
 /** Point-in-time tasks and frames used to rebuild the screen after process death. */

@@ -8,7 +8,9 @@ import app.backpin.focus.data.FocusStackDatabase
 import app.backpin.focus.data.PreferencesDataStore
 import app.backpin.focus.domain.FocusUseCases
 import app.backpin.focus.domain.SystemAppClock
+import app.backpin.focus.notifications.BandScheduler
 import app.backpin.focus.notifications.NotificationCoordinator
+import app.backpin.focus.notifications.RepeatNotificationCoordinator
 import app.backpin.focus.notifications.ScheduleReleaseScheduler
 import app.backpin.focus.ui.FocusStackViewModelFactory
 import kotlinx.coroutines.CoroutineScope
@@ -30,12 +32,14 @@ class FocusStackApp : Application() {
         if (!WorkManager.isInitialized()) {
             WorkManager.initialize(this, Configuration.Builder().build())
         }
-        container = AppContainer(this)
+        container = AppContainer(this, appScope)
         container.notifications.start(appScope)
+        container.repeatNotifications.start(appScope)
         container.releaseScheduler.ensure()
         appScope.launch {
             container.preferences.ensureDefaultsStored()
             container.releaseDue()
+            container.bandScheduler.resyncNow()
         }
     }
 
@@ -55,14 +59,17 @@ class FocusStackApp : Application() {
 
 class AppContainer(
     app: Application,
+    scope: CoroutineScope,
 ) {
     val preferences = PreferencesDataStore(app)
     private val database = FocusStackDatabase.create(app)
     val repository = FocusRepositoryImpl(database, preferences, SystemAppClock)
     val releaseScheduler = ScheduleReleaseScheduler(WorkManager.getInstance(app))
-    val useCases = FocusUseCases(repository, releaseScheduler)
+    val bandScheduler = BandScheduler(app, repository, scope)
+    val useCases = FocusUseCases(repository, releaseScheduler, bandScheduler, bandScheduler)
     val viewModelFactory = FocusStackViewModelFactory(useCases)
     val notifications = NotificationCoordinator(app, repository)
+    val repeatNotifications = RepeatNotificationCoordinator(app, repository, bandScheduler)
 
     /** Runs both inexact release checks and posts the arrival notice when a countdown came into focus. */
     suspend fun releaseDue() {

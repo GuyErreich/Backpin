@@ -3,11 +3,15 @@ package app.backpin.focus.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import app.backpin.focus.domain.BandTimes
 import app.backpin.focus.domain.DetachDestination
 import app.backpin.focus.domain.FocusUseCases
 import app.backpin.focus.domain.FrameState
 import app.backpin.focus.domain.PromoteOutcome
+import app.backpin.focus.domain.Repeat
+import app.backpin.focus.domain.RepeatBand
 import app.backpin.focus.domain.TaskBucket
+import app.backpin.focus.domain.TodaysRepeats
 import app.backpin.focus.domain.UndoToken
 import app.backpin.focus.domain.UserPreferences
 import app.backpin.focus.domain.backInDaysLabel
@@ -73,6 +77,25 @@ class FocusStackViewModel(
             viewModelScope,
             SharingStarted.WhileSubscribed(5_000),
             FocusUiState(preferences = UserPreferences()),
+        )
+
+    /**
+     * Today's due repeats per band, with open/done/missed. The REPEAT section
+     * reads this. Repeats never appear in [uiState] Today slots.
+     */
+    val todaysRepeats: StateFlow<TodaysRepeats> =
+        useCases.observeTodaysRepeats().stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5_000),
+            TodaysRepeats(),
+        )
+
+    /** Unarchived repeats for the REPEAT section, in sort order. */
+    val repeats: StateFlow<List<Repeat>> =
+        useCases.observeRepeats().stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5_000),
+            emptyList(),
         )
 
     /**
@@ -409,6 +432,65 @@ class FocusStackViewModel(
             useCases.setTodayLimit(limit)
         }
     }
+
+    fun createRepeat(
+        title: String,
+        band: RepeatBand,
+        everyNDays: Int,
+        anchorEpochDay: Long,
+        reminderOn: Boolean = true,
+    ) {
+        viewModelScope.launch {
+            useCases.createRepeat(title, band, everyNDays, anchorEpochDay, reminderOn)
+        }
+    }
+
+    fun updateRepeat(
+        id: String,
+        title: String,
+        band: RepeatBand,
+        everyNDays: Int,
+        anchorEpochDay: Long,
+        reminderOn: Boolean,
+        sortOrder: Long,
+    ) {
+        viewModelScope.launch {
+            useCases.updateRepeat(id, title, band, everyNDays, anchorEpochDay, reminderOn, sortOrder)
+        }
+    }
+
+    fun archiveRepeat(id: String) {
+        viewModelScope.launch {
+            useCases.archiveRepeat(id)
+        }
+    }
+
+    fun markRepeatDone(
+        repeatId: String,
+        epochDay: Long,
+    ) {
+        viewModelScope.launch {
+            useCases.markRepeatDone(repeatId, epochDay)
+        }
+    }
+
+    fun undoRepeatDone(
+        repeatId: String,
+        epochDay: Long,
+    ) {
+        viewModelScope.launch {
+            useCases.undoRepeatDone(repeatId, epochDay)
+        }
+    }
+
+    fun setBandTimes(times: BandTimes) {
+        viewModelScope.launch {
+            useCases.setBandTimes(times)
+        }
+    }
+
+    /** Settings can show the one-time exact-alarm prompt when this is false. */
+    fun canScheduleExactAlarms(): Boolean = useCases.canScheduleExactAlarms()
 
     fun addSavedPhrase(text: String) {
         val phrase = text.trim()

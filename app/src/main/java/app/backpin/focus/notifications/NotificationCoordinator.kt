@@ -580,7 +580,19 @@ internal fun ensureFocusChannels(context: Context) {
     manager.createNotificationChannel(current)
     manager.createNotificationChannel(today)
     manager.createNotificationChannel(nudge)
+    val repeats =
+        NotificationChannel(
+            NotificationContract.CHANNEL_REPEATS,
+            context.getString(R.string.channel_repeats_name),
+            NotificationManager.IMPORTANCE_DEFAULT,
+        ).apply {
+            description = context.getString(R.string.channel_repeats_description)
+        }
+    manager.createNotificationChannel(current)
+    manager.createNotificationChannel(today)
+    manager.createNotificationChannel(nudge)
     manager.createNotificationChannel(countdown)
+    manager.createNotificationChannel(repeats)
     // Drop the quiet idle channel if this install already created it. Recreating
     // that same id would restore the low importance, so the new id stays.
     manager.deleteNotificationChannel(NotificationContract.CHANNEL_TODAY_IDLE)
