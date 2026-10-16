@@ -369,6 +369,7 @@ class EditTaskSurfacesTest {
             compose.onNodeWithContentDescription("Close").performTouchInput { click() }
             compose.waitForIdle()
             awaitSnapshot(useCases) { task(it, "Inbox kept by back").bucket == TaskBucket.INBOX }
+            await { compose.onAllNodesWithText("Inbox kept by back").fetchSemanticsNodes().isNotEmpty() }
 
             tapEditNear("Inbox kept by back")
             titleField().performTextReplacement("   ")
@@ -479,6 +480,7 @@ class EditTaskSurfacesTest {
     ) = snapshot.tasks.single { it.title == title }
 
     private fun tapEditNear(title: String) {
+        await { compose.onAllNodesWithText(title).fetchSemanticsNodes().isNotEmpty() }
         nearest(compose.onAllNodesWithText("Edit"), title).assertIsEnabled().assertHasClickAction()
         nearest(compose.onAllNodesWithText("Edit"), title).performTouchInput { click() }
         compose.waitForIdle()
