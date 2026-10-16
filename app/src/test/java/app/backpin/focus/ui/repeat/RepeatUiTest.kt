@@ -62,7 +62,7 @@ class RepeatUiTest {
             missedRepeatCopy(RepeatBand.NOON),
         )
         assertEquals(
-            "Water plants. Missed at noon · muted until end of day",
+            "Water plants. Missed at noon · muted until end of day. Check off.",
             repeatRowDescription(occ("Water plants", RepeatBand.NOON, RepeatDayStatus.MISSED)),
         )
         assertEquals(

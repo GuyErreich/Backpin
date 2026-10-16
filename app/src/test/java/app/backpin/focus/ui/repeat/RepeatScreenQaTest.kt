@@ -96,9 +96,31 @@ class RepeatScreenQaTest {
                 missed.viewModel.uiState.value.ready &&
                     missed.viewModel.todaysRepeats.value.noon.single().status == RepeatDayStatus.MISSED
             }
-            writePng("repeats-home-missed.png")
+            writePng("repeats-home-missed-checkable.png")
         } finally {
             missed.close()
+        }
+    }
+
+    @Test
+    fun writesHomeAfterLateDoneFrame() {
+        val env = env(hour = 20)
+        try {
+            val today = DAY.toEpochDay()
+            runOffTestThread {
+                env.useCases.createRepeat("Brush teeth", RepeatBand.NIGHT, 1, today)
+                env.useCases.createRepeat("Water plants", RepeatBand.NOON, 1, today)
+                env.useCases.markRepeatDone(idOf(env, "Water plants"), today)
+            }
+            showHome(env.viewModel)
+            await {
+                env.viewModel.uiState.value.ready &&
+                    env.viewModel.todaysRepeats.value.noon.single().status == RepeatDayStatus.DONE &&
+                    env.viewModel.todaysRepeats.value.night.single().status == RepeatDayStatus.OPEN
+            }
+            writePng("repeats-home-after-late-done.png")
+        } finally {
+            env.close()
         }
     }
 

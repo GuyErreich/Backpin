@@ -116,6 +116,7 @@ private fun RepeatRow(
     val open = occurrence.status == RepeatDayStatus.OPEN
     val done = occurrence.status == RepeatDayStatus.DONE
     val missed = occurrence.status == RepeatDayStatus.MISSED
+    val checkable = open || missed
     val targetAlpha =
         when (occurrence.status) {
             RepeatDayStatus.DONE -> 0.45f
@@ -185,7 +186,7 @@ private fun RepeatRow(
                     )
             }
             .then(
-                if (open) {
+                if (checkable) {
                     Modifier
                         .pressScale(interaction)
                         .combinedClickable(

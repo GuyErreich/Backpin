@@ -42,7 +42,7 @@ internal fun repeatRowDescription(occurrence: RepeatOccurrence): String {
     return when (occurrence.status) {
         RepeatDayStatus.OPEN -> "$title. $band$interval. Check off."
         RepeatDayStatus.DONE -> "$title. $band$interval. Done."
-        RepeatDayStatus.MISSED -> "$title. ${missedRepeatCopy(occurrence.repeat.band)}"
+        RepeatDayStatus.MISSED -> "$title. ${missedRepeatCopy(occurrence.repeat.band)}. Check off."
     }
 }
 
