@@ -102,12 +102,7 @@ fun FocusApp(
 
     LaunchedEffect(state.undo?.id) {
         val undo = state.undo ?: return@LaunchedEffect
-        val message =
-            if (undo.target is UndoTarget.RepeatCheckOff) {
-                checkedOffMessage
-            } else {
-                undo.message
-            }
+        val message = undoSnackbarMessage(undo, checkedOffMessage)
         val result =
             snackbarHostState.showSnackbar(
                 message = message,

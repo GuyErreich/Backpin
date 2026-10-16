@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStore
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
+import app.backpin.focus.R
 import app.backpin.focus.data.FocusRepositoryImpl
 import app.backpin.focus.data.FocusStackDatabase
 import app.backpin.focus.data.PreferencesDataStore
@@ -499,6 +500,10 @@ class FocusStackViewModelTest {
                     withTimeout(5_000) {
                         viewModel.uiState.first { it.undo?.target is UndoTarget.RepeatCheckOff }.undo!!
                     }
+                assertEquals("", undo.message)
+                val checkedOff = context.getString(R.string.undo_checked_off)
+                assertEquals(checkedOff, undoSnackbarMessage(undo, checkedOff))
+                assertTrue(undoSnackbarMessage(undo, checkedOff).isNotBlank())
                 withTimeout(5_000) {
                     viewModel.repeatRows.first { state ->
                         state.rows.single { it.repeat.id == id }.status == RepeatDayStatus.DONE
