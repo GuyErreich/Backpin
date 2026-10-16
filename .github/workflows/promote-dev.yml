@@ -1,0 +1,43 @@
+name: Promote dev to staging
+
+on:
+  push:
+    branches:
+      - dev
+
+concurrency:
+  group: promote-dev-to-staging
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require promotion token
+        env:
+          PROMOTE_GITHUB_TOKEN: ${{ secrets.PROMOTE_GITHUB_TOKEN }}
+        run: |
+          if [ -z "$PROMOTE_GITHUB_TOKEN" ]; then
+            echo "PROMOTE_GITHUB_TOKEN is not set."
+            exit 1
+          fi
+
+      - name: Checkout dev
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          token: ${{ secrets.PROMOTE_GITHUB_TOKEN }}
+
+      - name: Fast-forward staging
+        run: |
+          git fetch origin staging
+          if git merge-base --is-ancestor origin/staging HEAD; then
+            git push origin HEAD:staging
+          else
+            echo "staging has commits that are not on dev. Refusing to overwrite it."
+            exit 1
+          fi
