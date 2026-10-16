@@ -1,6 +1,7 @@
-version: 0.1.2-dev
+version: 0.1.3-dev
 source_branch: dev
 target_branch: dev
-target_base_sha: 73e51ea9896fb2927fc5dd2b5ecd3a30928a689f
-finalized: true
+target_base_sha: 148fdf45f9c83a991c7af18702bffcd6045d4794
+finalized: false
 managed_by: auto-semver
+branch_role: release
