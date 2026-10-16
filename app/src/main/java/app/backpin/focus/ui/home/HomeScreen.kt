@@ -225,6 +225,7 @@ private fun NowCard(
                         }
                         EventResumeHost(
                             taskId = now.taskId,
+                            title = now.title,
                             suggestedDays =
                                 suggestedCountdownDays(
                                     now.countdownIntervalDays,

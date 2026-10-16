@@ -145,6 +145,7 @@ private fun ActiveCard(
             )
             EventResumeHost(
                 taskId = now.taskId,
+                title = now.title,
                 suggestedDays =
                     suggestedCountdownDays(
                         now.countdownIntervalDays,

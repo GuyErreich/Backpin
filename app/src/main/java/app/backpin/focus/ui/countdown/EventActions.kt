@@ -26,6 +26,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import app.backpin.focus.domain.DetachDestination
 import app.backpin.focus.ui.calendar.PickDateDialog
@@ -34,6 +35,7 @@ import app.backpin.focus.ui.components.CLOSE_LABEL
 import app.backpin.focus.ui.components.CaptureChoice
 import app.backpin.focus.ui.components.ChoiceTone
 import app.backpin.focus.ui.components.QuietButton
+import app.backpin.focus.ui.theme.ButtonGap
 import app.backpin.focus.ui.theme.FocusColors
 import app.backpin.focus.ui.theme.Space
 import java.time.LocalDate
@@ -63,6 +65,7 @@ internal fun EventDetachButtons(
 @Composable
 internal fun EventResumeHost(
     taskId: String,
+    title: String,
     suggestedDays: Int?,
     onDetach: (String, DetachDestination) -> Unit,
     content: @Composable (onCountDownAgain: () -> Unit) -> Unit,
@@ -71,6 +74,7 @@ internal fun EventResumeHost(
     content { open = true }
     if (open) {
         ResumeCountdownSheet(
+            title = title,
             suggestedDays = suggestedDays,
             onDismiss = { open = false },
             onCommit = { day ->
@@ -82,12 +86,13 @@ internal fun EventResumeHost(
 }
 
 /**
- * Again in N days when a count is known, then the same days field and calendar as Add and Change.
- * Back closes without detaching.
+ * Again in N days when a count is known, then days from today with Start in N days,
+ * then the calendar. Back closes without detaching.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun ResumeCountdownSheet(
+    title: String,
     suggestedDays: Int?,
     onDismiss: () -> Unit,
     onCommit: (Long) -> Unit,
@@ -98,7 +103,8 @@ internal fun ResumeCountdownSheet(
     val sent = remember { booleanArrayOf(false) }
     val today = LocalDate.now()
     val tomorrow = today.plusDays(1)
-    val typedDay = countdownDays(daysText)?.let { today.plusDays(it.toLong()).toEpochDay() }
+    val typedDays = countdownDays(daysText)
+    val typedDay = typedDays?.let { today.plusDays(it.toLong()).toEpochDay() }
 
     fun commit(day: Long) {
         if (sent[0]) return
@@ -107,7 +113,7 @@ internal fun ResumeCountdownSheet(
     }
 
     fun commitTypedDays() {
-        val days = countdownDays(daysText) ?: return
+        val days = typedDays ?: return
         commit(today.plusDays(days.toLong()).toEpochDay())
     }
 
@@ -131,7 +137,7 @@ internal fun ResumeCountdownSheet(
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = 16.dp)
                     .padding(bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(Space),
+            verticalArrangement = Arrangement.spacedBy(ButtonGap),
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -145,11 +151,21 @@ internal fun ResumeCountdownSheet(
                     modifier = Modifier.weight(1f).semantics { heading() },
                 )
             }
+            if (title.isNotBlank()) {
+                Text(title, style = MaterialTheme.typography.bodyLarge)
+            }
             if (suggestedDays != null) {
                 CaptureChoice(
-                    label = "Again in $suggestedDays days",
+                    label = againInDaysLabel(suggestedDays, today),
                     onClick = { commitAgain(suggestedDays) },
                     tone = ChoiceTone.Lavender,
+                )
+                Text(
+                    "or choose",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = FocusColors.Muted,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth(),
                 )
             }
             CountdownDayEntry(
@@ -158,6 +174,21 @@ internal fun ResumeCountdownSheet(
                 shownDay = typedDay,
                 onDone = { commitTypedDays() },
                 onPickDate = { picking = true },
+                afterField = {
+                    CaptureChoice(
+                        label = startInDaysLabel(daysText),
+                        onClick = { commitTypedDays() },
+                        tone = ChoiceTone.Lavender,
+                        enabled = typedDays != null,
+                    )
+                },
+            )
+            Text(
+                "\"Again in N days\" uses this event's own interval, or the last count used. " +
+                    "Back leaves the event as it was.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = FocusColors.Muted,
+                modifier = Modifier.padding(top = Space),
             )
         }
     }

@@ -9,6 +9,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.hasContentDescription
@@ -314,8 +315,9 @@ class CountdownTapTest {
             }
             await { viewModel.uiState.value.now?.title == "Dentist" }
             tap("Count down again")
-            compose.onNodeWithText("Again in 12 days").assertExists()
-            tap("Again in 12 days")
+            compose.onNodeWithText("or choose").assertExists()
+            compose.onNodeWithText("Start in 0 days").assertIsNotEnabled()
+            tap(againLabel(12, today))
             awaitSnapshot(useCases) { snapshot ->
                 val event = snapshot.tasks.single { it.title == "Dentist" }
                 event.bucket == TaskBucket.COUNTDOWN &&
@@ -323,14 +325,15 @@ class CountdownTapTest {
                     event.countdownIntervalDays == 12 &&
                     parentWaits(snapshot)
             }
-            compose.onNodeWithText("Again in 12 days").assertDoesNotExist()
+            compose.onNodeWithText(againLabel(12, today)).assertDoesNotExist()
 
             compose.runOnIdle { screen = "focus" }
             arriveAgain(useCases, repository, "Checkup", today)
             await { viewModel.uiState.value.now?.title == "Checkup" }
             tap("Count down again")
-            compose.onNodeWithText("Again in 12 days").assertExists()
+            compose.onNodeWithText(againLabel(12, today)).assertExists()
             resumeDaysField().performTextInput("14")
+            compose.onNodeWithText("Start in 14 days").assertIsEnabled()
             resumeDaysField().performTouchInput { click() }
             resumeDaysField().performImeAction()
             awaitSnapshot(useCases) { snapshot ->
@@ -372,7 +375,10 @@ class CountdownTapTest {
             await { viewModel.uiState.value.now?.isEvent == true }
             tap("Count down again")
             compose.onNodeWithText("Days from today").assertExists()
-            compose.onNodeWithText("Again in", substring = true).assertDoesNotExist()
+            compose.onNodeWithText("or choose").assertDoesNotExist()
+            compose.onNodeWithText("Again in N days", substring = true).assertExists()
+            compose.onNodeWithText("Start in 0 days").assertIsNotEnabled()
+            compose.onNodeWithText("Pick a date").assertExists()
             compose.onNodeWithContentDescription("Close").performTouchInput { click() }
             compose.waitForIdle()
             compose.onNodeWithText("Days from today").assertDoesNotExist()
@@ -409,9 +415,9 @@ class CountdownTapTest {
             }
             await { viewModel.uiState.value.now?.title == "Dentist" }
             tap("Count down again")
-            compose.onNodeWithText("Again in 30 days").assertExists()
-            compose.onNodeWithText("Again in 12 days").assertDoesNotExist()
-            tap("Again in 30 days")
+            compose.onNodeWithText(againLabel(30, today)).assertExists()
+            compose.onNodeWithText(againLabel(12, today)).assertDoesNotExist()
+            tap(againLabel(30, today))
             awaitSnapshot(useCases) { snapshot ->
                 val event = snapshot.tasks.single { it.title == "Dentist" }
                 event.bucket == TaskBucket.COUNTDOWN &&
@@ -419,6 +425,49 @@ class CountdownTapTest {
                     event.countdownIntervalDays == 30 &&
                     parentWaits(snapshot)
             }
+        }
+    }
+
+    @Test
+    fun resumeStartInNDaysCommitsTheTypedNumber() {
+        withViewModel { viewModel, useCases, repository, _ ->
+            val today = LocalDate.now()
+            runBlocking {
+                useCases.capture("Write the report")
+                val work = useCases.observeSnapshot().first().tasks.single { it.title == "Write the report" }
+                useCases.promote(work.id)
+                useCases.start(work.id)
+                useCases.captureCountdown("Dentist", today.toEpochDay())
+                repository.releaseDueCountdowns()
+            }
+            compose.setContent {
+                val state by viewModel.uiState.collectAsState()
+                FocusStackTheme {
+                    HomeScreen(
+                        state = state,
+                        viewModel = viewModel,
+                        onOpenFocus = {},
+                        onOpenInbox = {},
+                        onOpenLater = {},
+                        onOpenScheduled = {},
+                        onOpenDone = {},
+                    )
+                }
+            }
+            await { viewModel.uiState.value.now?.title == "Dentist" }
+            tap("Count down again")
+            compose.onNodeWithText("Start in 0 days").assertIsNotEnabled()
+            resumeDaysField().performTextInput("45")
+            compose.onNodeWithText("Start in 45 days").assertIsEnabled()
+            tap("Start in 45 days")
+            awaitSnapshot(useCases) { snapshot ->
+                val event = snapshot.tasks.single { it.title == "Dentist" }
+                event.bucket == TaskBucket.COUNTDOWN &&
+                    event.scheduledOnEpochDay == today.plusDays(45).toEpochDay() &&
+                    event.countdownIntervalDays == 45 &&
+                    parentWaits(snapshot)
+            }
+            compose.onNodeWithText("Start in 45 days").assertDoesNotExist()
         }
     }
 
@@ -496,6 +545,11 @@ class CountdownTapTest {
 
     private fun resumeDaysField(): SemanticsNodeInteraction =
         compose.onNode(hasSetTextAction() and hasText("Days from today"))
+
+    private fun againLabel(
+        days: Int,
+        today: LocalDate,
+    ): String = againInDaysLabel(days, today)
 
     private fun taskCount(useCases: FocusUseCases): Int =
         runBlocking { useCases.observeSnapshot().first().tasks.size }
