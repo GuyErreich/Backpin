@@ -32,7 +32,7 @@ Copy
 
 - Today holds 1 to 5 tasks, 3 by default. Nothing auto-fills Today, auto-starts, or auto-resumes, except a countdown on its day.
 - Interrupt only appears while a task is active. It nests under the active task.
-- No exact alarms, no foreground service. Notifications are silent.
+- No exact alarms except AlarmManager for repeat band reminders (band start, follow-up, and band end), with the WorkManager fallback when permission is denied. No foreground service. Notifications are silent.
 
 ## Testing
 
