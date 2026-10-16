@@ -101,7 +101,7 @@ fun HomeScreen(
     modifier: Modifier = Modifier,
 ) {
     val reducedMotion = rememberReducedMotion()
-    val todaysRepeats by viewModel.todaysRepeats.collectAsState()
+    val repeatRows by viewModel.repeatRows.collectAsState()
     val todayLimit = state.preferences.todayLimit.coerceIn(MIN_TODAY_LIMIT, MAX_TODAY_LIMIT)
     val filled = state.todaySlots.mapNotNull { slot -> slot.task?.let { slot to it } }
     val hasRoom = filled.size < todayLimit
@@ -144,11 +144,11 @@ fun HomeScreen(
                 onReorder = viewModel::reorderToday,
             )
             RepeatSection(
-                todays = todaysRepeats,
+                rows = repeatRows,
                 reducedMotion = reducedMotion,
-                onCheckOff = { occurrence ->
-                    if (occurrence.status != RepeatDayStatus.DONE) {
-                        viewModel.markRepeatDone(occurrence.repeat.id, occurrence.epochDay)
+                onCheckOff = { row ->
+                    if (row.status != RepeatDayStatus.DONE) {
+                        viewModel.markRepeatDone(row.repeat.id, row.epochDay)
                     }
                 },
                 onEdit = viewModel::openRepeatEdit,

@@ -37,8 +37,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import app.backpin.focus.domain.Repeat
 import app.backpin.focus.domain.RepeatBand
+import app.backpin.focus.domain.RepeatDraft
 import app.backpin.focus.domain.label
 import app.backpin.focus.ui.capture.SpeakMic
 import app.backpin.focus.ui.capture.TitleDraft
@@ -56,50 +56,16 @@ import app.backpin.focus.ui.theme.Space
 
 private object RepeatTitleField
 
-/** Prefill for [RepeatSheet]. [id] is null when creating. */
-internal data class RepeatDraft(
-    val id: String? = null,
-    val title: String = "",
-    val band: RepeatBand = RepeatBand.MORNING,
-    val everyNDays: Int = 1,
-    val reminderOn: Boolean = true,
-    val sortOrder: Long = 0L,
-    val anchorEpochDay: Long = 0L,
-) {
-    val editing: Boolean
-        get() = id != null
-}
-
-internal fun Repeat.toDraft(): RepeatDraft =
-    RepeatDraft(
-        id = id,
-        title = title,
-        band = band,
-        everyNDays = everyNDays,
-        reminderOn = reminderOn,
-        sortOrder = sortOrder,
-        anchorEpochDay = anchorEpochDay,
-    )
-
 /**
  * Create or edit a repeat. Same sheet chrome as capture: back arrow, title, mic.
  * Band, interval, reminder, and archive stay here so CaptureSheet can rebase.
+ * Done and Back both [onCommit] so closing keeps a valid draft.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun RepeatSheet(
     draft: RepeatDraft,
-    onDismiss: () -> Unit,
-    onCreate: (title: String, band: RepeatBand, everyNDays: Int, reminderOn: Boolean) -> Unit,
-    onUpdate: (
-        id: String,
-        title: String,
-        band: RepeatBand,
-        everyNDays: Int,
-        reminderOn: Boolean,
-        sortOrder: Long,
-        anchorEpochDay: Long,
-    ) -> Unit,
+    onCommit: (RepeatDraft) -> Unit,
     onArchive: (String) -> Unit,
     recognizer: UtteranceRecognizer? = null,
     onSystemSpeech: ((Intent, (String) -> Unit) -> Unit)? = null,
@@ -123,32 +89,32 @@ internal fun RepeatSheet(
         speech.stop()
     }
 
-    fun dismiss() {
+    fun commit() {
         stopListening()
-        onDismiss()
+        onCommit(
+            draft.copy(
+                title = titleDraft.text.trim(),
+                band = band,
+                everyNDays = everyNDays.coerceAtLeast(1),
+                reminderOn = reminderOn,
+            ),
+        )
     }
 
     fun save() {
         if (!canSave) return
-        val interval = everyNDays.coerceAtLeast(1)
-        val id = draft.id
-        if (id == null) {
-            onCreate(title, band, interval, reminderOn)
-        } else {
-            onUpdate(id, title, band, interval, reminderOn, draft.sortOrder, draft.anchorEpochDay)
-        }
-        stopListening()
+        commit()
     }
 
     ModalBottomSheet(
-        onDismissRequest = { dismiss() },
+        onDismissRequest = ::commit,
         sheetState = sheetState,
         sheetGesturesEnabled = false,
         containerColor = FocusColors.Surface,
         contentWindowInsets = { WindowInsets.navigationBars },
         properties = ModalBottomSheetProperties(shouldDismissOnBackPress = false),
     ) {
-        BackHandler(onBack = ::dismiss)
+        BackHandler(onBack = ::commit)
         Column(
             modifier =
                 Modifier
@@ -165,7 +131,7 @@ internal fun RepeatSheet(
             ) {
                 BackArrow(
                     label = if (draft.editing) BACK_LABEL else CLOSE_LABEL,
-                    onClick = ::dismiss,
+                    onClick = ::commit,
                     inSheet = true,
                 )
                 Text(

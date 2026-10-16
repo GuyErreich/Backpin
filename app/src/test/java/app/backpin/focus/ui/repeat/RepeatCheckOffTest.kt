@@ -24,8 +24,10 @@ import app.backpin.focus.domain.AppClock
 import app.backpin.focus.domain.FocusUseCases
 import app.backpin.focus.domain.RepeatBand
 import app.backpin.focus.domain.RepeatDayStatus
+import app.backpin.focus.repeats.RepeatsService
 import app.backpin.focus.runOffTestThread
 import app.backpin.focus.ui.FocusStackViewModel
+import app.backpin.focus.ui.UndoTarget
 import app.backpin.focus.ui.home.HomeScreen
 import app.backpin.focus.ui.theme.FocusStackTheme
 import kotlinx.coroutines.flow.first
@@ -59,35 +61,33 @@ class RepeatCheckOffTest {
         try {
             val today = DAY.toEpochDay()
             runOffTestThread {
-                env.useCases.createRepeat("Take meds", RepeatBand.MORNING, 1, today)
-                env.useCases.createRepeat("Water plants", RepeatBand.NOON, 1, today)
-                env.useCases.createRepeat("Make bed", RepeatBand.MORNING, 1, today)
-                env.useCases.markRepeatDone(idOf(env, "Make bed"), today)
+                env.repeats.create("Take meds", RepeatBand.MORNING, 1, today)
+                env.repeats.create("Water plants", RepeatBand.NOON, 1, today)
+                env.repeats.create("Make bed", RepeatBand.MORNING, 1, today)
+                env.repeats.markDone(idOf(env, "Make bed"), today)
             }
             showHome(env.viewModel)
             await {
                 env.viewModel.uiState.value.ready &&
-                    env.viewModel.todaysRepeats.value.let { todays ->
-                        orderedRepeatRows(todays).map { it.repeat.title } ==
-                            listOf("Take meds", "Water plants", "Make bed")
-                    }
+                    env.viewModel.repeatRows.value.rows.map { it.repeat.title } ==
+                    listOf("Take meds", "Water plants", "Make bed")
             }
             compose.onNodeWithText("2 of 3 left").assertExists()
             tapDescription("Take meds. Morning. Check off.")
             await {
-                val rows = orderedRepeatRows(env.viewModel.todaysRepeats.value)
+                val rows = env.viewModel.repeatRows.value.rows
                 rows.map { it.repeat.title } == listOf("Water plants", "Take meds", "Make bed") &&
                     rows.last().status == RepeatDayStatus.DONE &&
-                    env.viewModel.uiState.value.undo?.message == "Checked off"
+                    env.viewModel.uiState.value.undo?.target is UndoTarget.RepeatCheckOff
             }
-            assertEquals("1 of 3 left", repeatsLeftLabel(orderedRepeatRows(env.viewModel.todaysRepeats.value)))
+            assertEquals("1 of 3 left", repeatsLeftLabel(env.viewModel.repeatRows.value))
             val titles = titleOrder("Water plants", "Take meds", "Make bed")
             assertEquals(listOf("Water plants", "Take meds", "Make bed"), titles)
             val undo = env.viewModel.uiState.value.undo
             assertNotNull(undo)
             env.viewModel.undo(undo!!.id)
             await {
-                orderedRepeatRows(env.viewModel.todaysRepeats.value).let { rows ->
+                env.viewModel.repeatRows.value.rows.let { rows ->
                     rows.first().repeat.title == "Take meds" &&
                         rows.first().status == RepeatDayStatus.OPEN &&
                         env.viewModel.uiState.value.undo == null
@@ -106,17 +106,17 @@ class RepeatCheckOffTest {
             val today = DAY.toEpochDay()
             val id =
                 runOffTestThread {
-                    env.useCases.createRepeat("Take meds", RepeatBand.MORNING, 1, today)!!
+                    env.repeats.create("Take meds", RepeatBand.MORNING, 1, today)!!
                 }
             showHome(env.viewModel)
             await {
                 env.viewModel.uiState.value.ready &&
-                    env.viewModel.todaysRepeats.value.morning.singleOrNull()?.status == RepeatDayStatus.OPEN
+                    env.viewModel.repeatRows.value.rows.singleOrNull()?.status == RepeatDayStatus.OPEN
             }
             env.viewModel.markRepeatDone(id, today)
             await {
-                env.viewModel.todaysRepeats.value.morning.single().status == RepeatDayStatus.DONE &&
-                    env.viewModel.uiState.value.undo?.message == "Checked off"
+                env.viewModel.repeatRows.value.rows.single().status == RepeatDayStatus.DONE &&
+                    env.viewModel.uiState.value.undo?.target is UndoTarget.RepeatCheckOff
             }
         } finally {
             env.close()
@@ -129,13 +129,15 @@ class RepeatCheckOffTest {
         try {
             val today = DAY.toEpochDay()
             runOffTestThread {
-                env.useCases.createRepeat("Water plants", RepeatBand.NOON, 1, today)
-                env.useCases.createRepeat("Take meds", RepeatBand.MORNING, 1, today)
+                env.repeats.create("Water plants", RepeatBand.NOON, 1, today)
+                env.repeats.create("Take meds", RepeatBand.MORNING, 1, today)
             }
             showHome(env.viewModel)
             await {
                 env.viewModel.uiState.value.ready &&
-                    env.viewModel.todaysRepeats.value.morning.single().status == RepeatDayStatus.MISSED
+                    env.viewModel.repeatRows.value.rows
+                        .single { it.repeat.title == "Take meds" }
+                        .status == RepeatDayStatus.MISSED
             }
             compose.onNodeWithText("1 of 2 left").assertExists()
             compose.onNodeWithText("Missed at morning · muted until end of day").assertExists()
@@ -144,20 +146,21 @@ class RepeatCheckOffTest {
                 .assertExists()
             tapDescription("Take meds. Missed at morning · muted until end of day. Check off.")
             await {
-                val rows = orderedRepeatRows(env.viewModel.todaysRepeats.value)
+                val rows = env.viewModel.repeatRows.value.rows
                 rows.map { it.repeat.title } == listOf("Water plants", "Take meds") &&
                     rows.last().status == RepeatDayStatus.DONE &&
-                    env.viewModel.uiState.value.undo?.message == "Checked off"
+                    env.viewModel.uiState.value.undo?.target is UndoTarget.RepeatCheckOff
             }
-            assertEquals("1 of 2 left", repeatsLeftLabel(orderedRepeatRows(env.viewModel.todaysRepeats.value)))
+            assertEquals("1 of 2 left", repeatsLeftLabel(env.viewModel.repeatRows.value))
             compose.onNodeWithContentDescription("Take meds. Morning. Done.").assertExists()
             compose.onNodeWithText("Missed at morning · muted until end of day").assertDoesNotExist()
             val undo = env.viewModel.uiState.value.undo
             assertNotNull(undo)
             env.viewModel.undo(undo!!.id)
             await {
-                env.viewModel.todaysRepeats.value.morning.single { it.repeat.title == "Take meds" }.status ==
-                    RepeatDayStatus.MISSED &&
+                env.viewModel.repeatRows.value.rows
+                    .single { it.repeat.title == "Take meds" }
+                    .status == RepeatDayStatus.MISSED &&
                     env.viewModel.uiState.value.undo == null
             }
             compose
@@ -211,7 +214,7 @@ class RepeatCheckOffTest {
     private suspend fun idOf(
         env: Env,
         title: String,
-    ): String = env.useCases.observeRepeats().first().single { it.title == title }.id
+    ): String = env.repeats.observeRepeats().first().single { it.title == title }.id
 
     private fun env(hour: Int): Env {
         val context: Context = ApplicationProvider.getApplicationContext()
@@ -220,14 +223,14 @@ class RepeatCheckOffTest {
                 .inMemoryDatabaseBuilder(context, FocusStackDatabase::class.java)
                 .allowMainThreadQueries()
                 .build()
-        val useCases =
-            FocusUseCases(
-                FocusRepositoryImpl(
-                    database = database,
-                    preferencesStore = PreferencesDataStore(context, "repeat-check-${UUID.randomUUID()}"),
-                    clock = clockAt(hour),
-                ),
+        val repository =
+            FocusRepositoryImpl(
+                database = database,
+                preferencesStore = PreferencesDataStore(context, "repeat-check-${UUID.randomUUID()}"),
+                clock = clockAt(hour),
             )
+        val useCases = FocusUseCases(repository)
+        val repeats = RepeatsService(repository)
         val store = ViewModelStore()
         val viewModel =
             ViewModelProvider(
@@ -235,15 +238,15 @@ class RepeatCheckOffTest {
                 object : ViewModelProvider.Factory {
                     override fun <T : ViewModel> create(modelClass: Class<T>): T {
                         @Suppress("UNCHECKED_CAST")
-                        return FocusStackViewModel(useCases) as T
+                        return FocusStackViewModel(useCases, repeats) as T
                     }
                 },
             )[FocusStackViewModel::class.java]
-        return Env(useCases, database, viewModel, store)
+        return Env(repeats, database, viewModel, store)
     }
 
     private data class Env(
-        val useCases: FocusUseCases,
+        val repeats: RepeatsService,
         val database: FocusStackDatabase,
         val viewModel: FocusStackViewModel,
         val store: ViewModelStore,

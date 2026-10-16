@@ -23,12 +23,16 @@ import app.backpin.focus.data.FocusRepositoryImpl
 import app.backpin.focus.data.FocusStackDatabase
 import app.backpin.focus.data.PreferencesDataStore
 import app.backpin.focus.domain.AppClock
+import app.backpin.focus.domain.BandTimes
 import app.backpin.focus.domain.FocusUseCases
 import app.backpin.focus.domain.RepeatBand
 import app.backpin.focus.domain.RepeatDayStatus
+import app.backpin.focus.domain.RepeatDraft
 import app.backpin.focus.domain.UserPreferences
+import app.backpin.focus.repeats.RepeatsService
 import app.backpin.focus.runOffTestThread
 import app.backpin.focus.ui.FocusStackViewModel
+import app.backpin.focus.ui.UndoTarget
 import app.backpin.focus.ui.capture.SpeechProblem
 import app.backpin.focus.ui.capture.UtteranceRecognizer
 import app.backpin.focus.ui.home.HomeScreen
@@ -64,17 +68,17 @@ class RepeatScreenQaTest {
         try {
             val today = DAY.toEpochDay()
             runOffTestThread {
-                home.useCases.createRepeat("Take meds", RepeatBand.MORNING, 1, today)
-                home.useCases.createRepeat("Water plants", RepeatBand.NOON, 1, today)
-                home.useCases.createRepeat("Make bed", RepeatBand.MORNING, 1, today)
-                home.useCases.createRepeat("Vitamins", RepeatBand.MORNING, 1, today)
-                home.useCases.markRepeatDone(idOf(home, "Make bed"), today)
-                home.useCases.markRepeatDone(idOf(home, "Vitamins"), today)
+                home.repeats.create("Take meds", RepeatBand.MORNING, 1, today)
+                home.repeats.create("Water plants", RepeatBand.NOON, 1, today)
+                home.repeats.create("Make bed", RepeatBand.MORNING, 1, today)
+                home.repeats.create("Vitamins", RepeatBand.MORNING, 1, today)
+                home.repeats.markDone(idOf(home, "Make bed"), today)
+                home.repeats.markDone(idOf(home, "Vitamins"), today)
             }
             showHome(home.viewModel)
             await {
                 home.viewModel.uiState.value.ready &&
-                    orderedRepeatRows(home.viewModel.todaysRepeats.value).size == 4
+                    home.viewModel.repeatRows.value.rows.size == 4
             }
             writePng("repeats-home-section.png")
         } finally {
@@ -88,13 +92,15 @@ class RepeatScreenQaTest {
         try {
             val today = DAY.toEpochDay()
             runOffTestThread {
-                missed.useCases.createRepeat("Brush teeth", RepeatBand.NIGHT, 1, today)
-                missed.useCases.createRepeat("Water plants", RepeatBand.NOON, 1, today)
+                missed.repeats.create("Brush teeth", RepeatBand.NIGHT, 1, today)
+                missed.repeats.create("Water plants", RepeatBand.NOON, 1, today)
             }
             showHome(missed.viewModel)
             await {
                 missed.viewModel.uiState.value.ready &&
-                    missed.viewModel.todaysRepeats.value.noon.single().status == RepeatDayStatus.MISSED
+                    missed.viewModel.repeatRows.value.rows
+                        .single { it.repeat.title == "Water plants" }
+                        .status == RepeatDayStatus.MISSED
             }
             writePng("repeats-home-missed-checkable.png")
         } finally {
@@ -108,15 +114,19 @@ class RepeatScreenQaTest {
         try {
             val today = DAY.toEpochDay()
             runOffTestThread {
-                env.useCases.createRepeat("Brush teeth", RepeatBand.NIGHT, 1, today)
-                env.useCases.createRepeat("Water plants", RepeatBand.NOON, 1, today)
-                env.useCases.markRepeatDone(idOf(env, "Water plants"), today)
+                env.repeats.create("Brush teeth", RepeatBand.NIGHT, 1, today)
+                env.repeats.create("Water plants", RepeatBand.NOON, 1, today)
+                env.repeats.markDone(idOf(env, "Water plants"), today)
             }
             showHome(env.viewModel)
             await {
                 env.viewModel.uiState.value.ready &&
-                    env.viewModel.todaysRepeats.value.noon.single().status == RepeatDayStatus.DONE &&
-                    env.viewModel.todaysRepeats.value.night.single().status == RepeatDayStatus.OPEN
+                    env.viewModel.repeatRows.value.rows
+                        .single { it.repeat.title == "Water plants" }
+                        .status == RepeatDayStatus.DONE &&
+                    env.viewModel.repeatRows.value.rows
+                        .single { it.repeat.title == "Brush teeth" }
+                        .status == RepeatDayStatus.OPEN
             }
             writePng("repeats-home-after-late-done.png")
         } finally {
@@ -131,9 +141,7 @@ class RepeatScreenQaTest {
                 Surface(modifier = Modifier.fillMaxSize(), color = FocusColors.Midnight) {
                     RepeatSheet(
                         draft = RepeatDraft(title = "Take meds"),
-                        onDismiss = {},
-                        onCreate = { _, _, _, _ -> },
-                        onUpdate = { _, _, _, _, _, _, _ -> },
+                        onCommit = {},
                         onArchive = {},
                         recognizer = SilentQaRecognizer,
                     )
@@ -146,12 +154,6 @@ class RepeatScreenQaTest {
 
     @Test
     fun writesSettingsFrame() {
-        ApplicationProvider
-            .getApplicationContext<Context>()
-            .getSharedPreferences("backpin_repeat_ui", Context.MODE_PRIVATE)
-            .edit()
-            .clear()
-            .commit()
         compose.setContent {
             FocusStackTheme {
                 Surface(modifier = Modifier.fillMaxSize(), color = FocusColors.Midnight) {
@@ -164,14 +166,47 @@ class RepeatScreenQaTest {
                         onAddPhrase = {},
                         onRenamePhrase = { _, _ -> },
                         onRemovePhrase = {},
-                        onBandTimes = {},
-                        canScheduleExactAlarms = { false },
+                        bandTimes = BandTimes.DEFAULT,
+                        onBandTime = { _, _ -> },
+                        showExactAlarmPrompt = true,
                     )
                 }
             }
         }
         compose.waitForIdle()
         writePng("repeats-settings.png")
+    }
+
+    @Test
+    fun writesCheckedAndAfterUndoFrames() {
+        val env = env(hour = 8)
+        try {
+            val today = DAY.toEpochDay()
+            val id =
+                runOffTestThread {
+                    env.repeats.create("Take meds", RepeatBand.MORNING, 1, today)!!
+                }
+            showHome(env.viewModel)
+            await {
+                env.viewModel.uiState.value.ready &&
+                    env.viewModel.repeatRows.value.rows.singleOrNull()?.status == RepeatDayStatus.OPEN
+            }
+            env.viewModel.markRepeatDone(id, today)
+            await {
+                env.viewModel.repeatRows.value.rows.single().status == RepeatDayStatus.DONE &&
+                    env.viewModel.uiState.value.undo?.target is UndoTarget.RepeatCheckOff
+            }
+            writePng("repeats-row-checked.png")
+            val undo = env.viewModel.uiState.value.undo
+            env.viewModel.undo(undo!!.id)
+            await {
+                env.viewModel.repeatRows.value.rows.single().status == RepeatDayStatus.OPEN &&
+                    env.viewModel.uiState.value.undo == null
+            }
+            writePng("repeats-row-after-undo.png")
+        } finally {
+            env.close()
+        }
     }
 
     private fun showHome(viewModel: FocusStackViewModel) {
@@ -233,7 +268,7 @@ class RepeatScreenQaTest {
     private suspend fun idOf(
         env: Env,
         title: String,
-    ): String = env.useCases.observeRepeats().first().single { it.title == title }.id
+    ): String = env.repeats.observeRepeats().first().single { it.title == title }.id
 
     private fun env(hour: Int): Env {
         val context: Context = ApplicationProvider.getApplicationContext()
@@ -242,14 +277,14 @@ class RepeatScreenQaTest {
                 .inMemoryDatabaseBuilder(context, FocusStackDatabase::class.java)
                 .allowMainThreadQueries()
                 .build()
-        val useCases =
-            FocusUseCases(
-                FocusRepositoryImpl(
-                    database = database,
-                    preferencesStore = PreferencesDataStore(context, "repeat-qa-${UUID.randomUUID()}"),
-                    clock = clockAt(hour),
-                ),
+        val repository =
+            FocusRepositoryImpl(
+                database = database,
+                preferencesStore = PreferencesDataStore(context, "repeat-qa-${UUID.randomUUID()}"),
+                clock = clockAt(hour),
             )
+        val useCases = FocusUseCases(repository)
+        val repeats = RepeatsService(repository)
         val store = ViewModelStore()
         val viewModel =
             ViewModelProvider(
@@ -257,15 +292,15 @@ class RepeatScreenQaTest {
                 object : ViewModelProvider.Factory {
                     override fun <T : ViewModel> create(modelClass: Class<T>): T {
                         @Suppress("UNCHECKED_CAST")
-                        return FocusStackViewModel(useCases) as T
+                        return FocusStackViewModel(useCases, repeats) as T
                     }
                 },
             )[FocusStackViewModel::class.java]
-        return Env(useCases, database, viewModel, store)
+        return Env(repeats, database, viewModel, store)
     }
 
     private data class Env(
-        val useCases: FocusUseCases,
+        val repeats: RepeatsService,
         val database: FocusStackDatabase,
         val viewModel: FocusStackViewModel,
         val store: ViewModelStore,

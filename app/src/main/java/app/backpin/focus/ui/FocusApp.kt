@@ -58,7 +58,6 @@ import app.backpin.focus.ui.settings.SettingsScreen
 import app.backpin.focus.ui.theme.ButtonGap
 import app.backpin.focus.ui.theme.FocusColors
 import app.backpin.focus.ui.theme.Space
-import java.time.LocalDate
 
 private object Routes {
     const val HOME = "home"
@@ -84,6 +83,8 @@ fun FocusApp(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val checkedOffMessage = stringResource(R.string.undo_checked_off)
     val repeatDraft by viewModel.editingRepeat.collectAsStateWithLifecycle()
+    val bandTimes by viewModel.bandTimes.collectAsStateWithLifecycle()
+    val showExactAlarmPrompt by viewModel.showExactAlarmPrompt.collectAsStateWithLifecycle()
     val navController = rememberNavController()
     val snackbarHostState = remember { SnackbarHostState() }
     val backStack by navController.currentBackStackEntryAsState()
@@ -289,8 +290,11 @@ fun FocusApp(
                     onAddPhrase = viewModel::addSavedPhrase,
                     onRenamePhrase = viewModel::renameSavedPhrase,
                     onRemovePhrase = viewModel::removeSavedPhrase,
-                    onBandTimes = viewModel::setBandTimes,
-                    canScheduleExactAlarms = viewModel::canScheduleExactAlarms,
+                    bandTimes = bandTimes,
+                    onBandTime = viewModel::setBandTime,
+                    showExactAlarmPrompt = showExactAlarmPrompt,
+                    onDismissExactAlarmPrompt = viewModel::dismissExactAlarmPrompt,
+                    onRefreshExactAlarmPermission = viewModel::refreshExactAlarmPermission,
                 )
             }
         }
@@ -300,13 +304,7 @@ fun FocusApp(
     if (editingRepeat != null) {
         RepeatSheet(
             draft = editingRepeat,
-            onDismiss = viewModel::dismissRepeatSheet,
-            onCreate = { title, band, everyNDays, reminderOn ->
-                viewModel.createRepeat(title, band, everyNDays, LocalDate.now().toEpochDay(), reminderOn)
-            },
-            onUpdate = { id, title, band, everyNDays, reminderOn, sortOrder, anchorEpochDay ->
-                viewModel.updateRepeat(id, title, band, everyNDays, anchorEpochDay, reminderOn, sortOrder)
-            },
+            onCommit = viewModel::commitRepeatDraft,
             onArchive = viewModel::archiveRepeat,
         )
     } else if (state.captureOpen) {

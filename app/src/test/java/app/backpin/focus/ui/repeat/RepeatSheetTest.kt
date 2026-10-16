@@ -9,6 +9,7 @@ import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
@@ -16,11 +17,14 @@ import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performTouchInput
 import app.backpin.focus.domain.Repeat
 import app.backpin.focus.domain.RepeatBand
+import app.backpin.focus.domain.RepeatDraft
+import app.backpin.focus.domain.toDraft
 import app.backpin.focus.ui.capture.CaptureSheet
 import app.backpin.focus.ui.capture.SpeechProblem
 import app.backpin.focus.ui.capture.UtteranceRecognizer
 import app.backpin.focus.ui.theme.FocusStackTheme
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -62,16 +66,12 @@ class RepeatSheetTest {
 
     @Test
     fun createSheetSavesBandIntervalAndReminder() {
-        var created: Created? = null
+        var committed: RepeatDraft? = null
         compose.setContent {
             FocusStackTheme {
                 RepeatSheet(
                     draft = RepeatDraft(title = "Take meds"),
-                    onDismiss = {},
-                    onCreate = { title, band, everyNDays, reminderOn ->
-                        created = Created(title, band, everyNDays, reminderOn)
-                    },
-                    onUpdate = { _, _, _, _, _, _, _ -> },
+                    onCommit = { committed = it },
                     onArchive = {},
                     recognizer = SilentRecognizer,
                 )
@@ -82,13 +82,38 @@ class RepeatSheetTest {
         tap("Noon")
         tap("Every 2 days")
         tap("Save")
-        assertEquals(Created("Take meds", RepeatBand.NOON, 2, true), created)
+        assertEquals(
+            RepeatDraft(title = "Take meds", band = RepeatBand.NOON, everyNDays = 2, reminderOn = true),
+            committed,
+        )
+    }
+
+    @Test
+    fun backCommitsTheDraft() {
+        var committed: RepeatDraft? = null
+        compose.setContent {
+            FocusStackTheme {
+                RepeatSheet(
+                    draft = RepeatDraft(title = "Take meds", band = RepeatBand.NOON),
+                    onCommit = { committed = it },
+                    onArchive = {},
+                    recognizer = SilentRecognizer,
+                )
+            }
+        }
+        compose.onNodeWithContentDescription("Close").assertExists()
+        compose.onNodeWithContentDescription("Close").performTouchInput { click(center) }
+        compose.waitForIdle()
+        assertEquals(
+            RepeatDraft(title = "Take meds", band = RepeatBand.NOON, everyNDays = 1, reminderOn = true),
+            committed,
+        )
     }
 
     @Test
     fun editSheetArchivesAndCanTurnTheReminderOff() {
         var archived: String? = null
-        var updated: Updated? = null
+        var committed: RepeatDraft? = null
         val existing =
             Repeat(
                 id = "r1",
@@ -105,11 +130,7 @@ class RepeatSheetTest {
             FocusStackTheme {
                 RepeatSheet(
                     draft = existing.toDraft(),
-                    onDismiss = {},
-                    onCreate = { _, _, _, _ -> },
-                    onUpdate = { id, title, band, everyNDays, reminderOn, sortOrder, anchor ->
-                        updated = Updated(id, title, band, everyNDays, reminderOn, sortOrder, anchor)
-                    },
+                    onCommit = { committed = it },
                     onArchive = { archived = it },
                     recognizer = SilentRecognizer,
                 )
@@ -121,8 +142,8 @@ class RepeatSheetTest {
         tap("Night")
         tap("Save")
         assertEquals(
-            Updated("r1", "Water the plants", RepeatBand.NIGHT, 1, true, 4, 20_000),
-            updated,
+            existing.toDraft().copy(title = "Water the plants", band = RepeatBand.NIGHT),
+            committed,
         )
         tap("Archive")
         assertEquals("r1", archived)
@@ -130,21 +151,19 @@ class RepeatSheetTest {
 
     @Test
     fun blankTitleDoesNotCreate() {
-        var created = 0
+        var committed: RepeatDraft? = null
         compose.setContent {
             FocusStackTheme {
                 RepeatSheet(
                     draft = RepeatDraft(),
-                    onDismiss = {},
-                    onCreate = { _, _, _, _ -> created += 1 },
-                    onUpdate = { _, _, _, _, _, _, _ -> },
+                    onCommit = { committed = it },
                     onArchive = {},
                     recognizer = SilentRecognizer,
                 )
             }
         }
         compose.onNodeWithText("Save").assertIsNotEnabled()
-        assertEquals(0, created)
+        assertNull(committed)
     }
 
     private fun tap(label: String) {
@@ -155,23 +174,6 @@ class RepeatSheetTest {
         compose.waitForIdle()
         shadowOf(Looper.getMainLooper()).idle()
     }
-
-    private data class Created(
-        val title: String,
-        val band: RepeatBand,
-        val everyNDays: Int,
-        val reminderOn: Boolean,
-    )
-
-    private data class Updated(
-        val id: String,
-        val title: String,
-        val band: RepeatBand,
-        val everyNDays: Int,
-        val reminderOn: Boolean,
-        val sortOrder: Long,
-        val anchorEpochDay: Long,
-    )
 }
 
 private object SilentRecognizer : UtteranceRecognizer {
