@@ -147,7 +147,7 @@ fun HomeScreen(
                 todays = todaysRepeats,
                 reducedMotion = reducedMotion,
                 onCheckOff = { occurrence ->
-                    if (occurrence.status == RepeatDayStatus.OPEN) {
+                    if (occurrence.status != RepeatDayStatus.DONE) {
                         viewModel.markRepeatDone(occurrence.repeat.id, occurrence.epochDay)
                     }
                 },

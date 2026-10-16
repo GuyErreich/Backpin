@@ -124,7 +124,7 @@ class RepeatCheckOffTest {
     }
 
     @Test
-    fun missedRowStaysMutedAndIsNotACheckOff() {
+    fun tappingAMissedRowMarksItDoneAndUndoRestoresTheMiss() {
         val env = env(hour = 13)
         try {
             val today = DAY.toEpochDay()
@@ -137,14 +137,32 @@ class RepeatCheckOffTest {
                 env.viewModel.uiState.value.ready &&
                     env.viewModel.todaysRepeats.value.morning.single().status == RepeatDayStatus.MISSED
             }
+            compose.onNodeWithText("1 of 2 left").assertExists()
             compose.onNodeWithText("Missed at morning · muted until end of day").assertExists()
-            compose.onNodeWithContentDescription("Take meds. Missed at morning · muted until end of day").assertExists()
-            tapDescription("Take meds. Missed at morning · muted until end of day")
-            assertEquals(
-                RepeatDayStatus.MISSED,
-                env.viewModel.todaysRepeats.value.morning.single { it.repeat.title == "Take meds" }.status,
-            )
-            assertEquals(null, env.viewModel.uiState.value.undo)
+            compose
+                .onNodeWithContentDescription("Take meds. Missed at morning · muted until end of day. Check off.")
+                .assertExists()
+            tapDescription("Take meds. Missed at morning · muted until end of day. Check off.")
+            await {
+                val rows = orderedRepeatRows(env.viewModel.todaysRepeats.value)
+                rows.map { it.repeat.title } == listOf("Water plants", "Take meds") &&
+                    rows.last().status == RepeatDayStatus.DONE &&
+                    env.viewModel.uiState.value.undo?.message == "Checked off"
+            }
+            assertEquals("1 of 2 left", repeatsLeftLabel(orderedRepeatRows(env.viewModel.todaysRepeats.value)))
+            compose.onNodeWithContentDescription("Take meds. Morning. Done.").assertExists()
+            compose.onNodeWithText("Missed at morning · muted until end of day").assertDoesNotExist()
+            val undo = env.viewModel.uiState.value.undo
+            assertNotNull(undo)
+            env.viewModel.undo(undo!!.id)
+            await {
+                env.viewModel.todaysRepeats.value.morning.single { it.repeat.title == "Take meds" }.status ==
+                    RepeatDayStatus.MISSED &&
+                    env.viewModel.uiState.value.undo == null
+            }
+            compose
+                .onNodeWithContentDescription("Take meds. Missed at morning · muted until end of day. Check off.")
+                .assertExists()
         } finally {
             env.close()
         }
