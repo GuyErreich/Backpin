@@ -15,10 +15,12 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performTouchInput
+import app.backpin.focus.domain.CapturePlace
 import app.backpin.focus.domain.Repeat
 import app.backpin.focus.domain.RepeatBand
 import app.backpin.focus.domain.RepeatDraft
 import app.backpin.focus.domain.toDraft
+import app.backpin.focus.ui.capture.CaptureEdit
 import app.backpin.focus.ui.capture.CaptureSheet
 import app.backpin.focus.ui.capture.SpeechProblem
 import app.backpin.focus.ui.capture.UtteranceRecognizer
@@ -62,6 +64,31 @@ class RepeatSheetTest {
         compose.onNodeWithText("Repeat").performScrollTo()
         tap("Repeat")
         assertEquals("Take meds", captured)
+    }
+
+    @Test
+    fun taskEditSheetDoesNotOfferRepeat() {
+        compose.setContent {
+            FocusStackTheme {
+                CaptureSheet(
+                    phrases = emptyList(),
+                    frameActive = false,
+                    onDismiss = {},
+                    onSaveToInbox = {},
+                    onInterruptNow = {},
+                    onPlaceToday = {},
+                    onPlaceStart = {},
+                    onPlaceLater = {},
+                    onSchedule = { _, _, _ -> },
+                    edit = CaptureEdit(title = "Water plants", place = CapturePlace.INBOX),
+                    onCommitEdit = { _, _, _ -> },
+                    recognizer = SilentRecognizer,
+                    onRepeat = {},
+                )
+            }
+        }
+        compose.onNodeWithText("Edit task").assertExists()
+        compose.onNodeWithText("Repeat").assertDoesNotExist()
     }
 
     @Test
