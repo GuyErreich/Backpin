@@ -1,7 +1,9 @@
 package app.backpin.focus.ui.settings
 
 import android.Manifest
+import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -47,9 +49,12 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import app.backpin.focus.domain.BandTimes
 import app.backpin.focus.domain.MAX_TODAY_LIMIT
 import app.backpin.focus.domain.MIN_TODAY_LIMIT
 import app.backpin.focus.domain.UserPreferences
+import app.backpin.focus.ui.repeat.minuteOfDayClock
+import app.backpin.focus.ui.repeat.parseClockToMinute
 import app.backpin.focus.notifications.notificationsAllowed
 import app.backpin.focus.ui.components.ActionRow
 import app.backpin.focus.ui.components.QuietButton
@@ -69,6 +74,8 @@ fun SettingsScreen(
     onAddPhrase: (String) -> Unit,
     onRenamePhrase: (index: Int, text: String) -> Unit,
     onRemovePhrase: (index: Int) -> Unit,
+    onBandTimes: (BandTimes) -> Unit = {},
+    canScheduleExactAlarms: () -> Boolean = { true },
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -92,8 +99,14 @@ fun SettingsScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
     var picking by remember { mutableStateOf<QuietPick?>(null) }
+    var bandPicking by remember { mutableStateOf<BandPick?>(null) }
     var renaming by remember { mutableStateOf<Int?>(null) }
     var newPhrase by remember { mutableStateOf("") }
+    val exactPrefs = remember { context.getSharedPreferences(EXACT_ALARM_PREFS, Context.MODE_PRIVATE) }
+    var exactPromptDismissed by remember {
+        mutableStateOf(exactPrefs.getBoolean(EXACT_ALARM_DISMISSED_KEY, false))
+    }
+    val exactAllowed = remember(permissionTick) { canScheduleExactAlarms() }
 
     fun enableThen(action: () -> Unit) {
         val needsRuntime =
@@ -127,7 +140,7 @@ fun SettingsScreen(
             modifier = Modifier.semantics { heading() },
         )
         Text(
-            "Tasks and the interruption stack stay on this device. There is no account. Nudges are approximate: Android may delay them, and this app does not use exact alarms.",
+            "Tasks and the interruption stack stay on this device. There is no account. Nudges are approximate: Android may delay them. Repeat reminders use exact alarms when you allow them, and otherwise land a few minutes late.",
             style = MaterialTheme.typography.bodyLarge,
         )
         Surface(
@@ -149,6 +162,66 @@ fun SettingsScreen(
                             onClick = { onTodayLimit(limit) },
                         )
                     }
+                }
+            }
+        }
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(CardRadius),
+            color = FocusColors.Surface,
+        ) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(Space)) {
+                Text("Repeats", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "Morning, noon, and night start times. A reminder uses the start of that band. Night ends when you say it does.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                val times = preferences.bandTimes
+                BandTimeRow("Morning", times.morningStartMinute) { bandPicking = BandPick.MORNING }
+                BandTimeRow("Noon", times.noonStartMinute) { bandPicking = BandPick.NOON }
+                BandTimeRow("Night", times.nightStartMinute) { bandPicking = BandPick.NIGHT }
+                BandTimeRow("Night ends", times.nightEndMinute) { bandPicking = BandPick.NIGHT_END }
+                if (!times.isValid()) {
+                    Text(
+                        "Morning has to start before noon, then night, then night end.",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+            }
+        }
+        if (!exactAllowed && !exactPromptDismissed) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(CardRadius),
+                color = FocusColors.SurfaceHigh,
+            ) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(Space)) {
+                    Text("On-time reminders", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        "Repeat reminders arrive on time when exact alarms are allowed. If you skip this, they can still land a few minutes late. Home, capture, and check-off keep working either way.",
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                    QuietButton(
+                        label = "Allow exact alarms",
+                        onClick = {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                                context.startActivity(
+                                    Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
+                                        data = Uri.parse("package:${context.packageName}")
+                                    },
+                                )
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    QuietButton(
+                        label = "Not now",
+                        onClick = {
+                            exactPrefs.edit().putBoolean(EXACT_ALARM_DISMISSED_KEY, true).apply()
+                            exactPromptDismissed = true
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
                 }
             }
         }
@@ -310,6 +383,42 @@ fun SettingsScreen(
         )
     }
 
+    bandPicking?.let { which ->
+        val times = preferences.bandTimes
+        val initialMinute =
+            when (which) {
+                BandPick.MORNING -> times.morningStartMinute
+                BandPick.NOON -> times.noonStartMinute
+                BandPick.NIGHT -> times.nightStartMinute
+                BandPick.NIGHT_END -> times.nightEndMinute
+            }
+        QuietTimeDialog(
+            title =
+                when (which) {
+                    BandPick.MORNING -> "Morning starts"
+                    BandPick.NOON -> "Noon starts"
+                    BandPick.NIGHT -> "Night starts"
+                    BandPick.NIGHT_END -> "Night ends"
+                },
+            initial = minuteOfDayClock(initialMinute),
+            onDismiss = { bandPicking = null },
+            onConfirm = { value ->
+                val minute = parseClockToMinute(value)
+                if (minute != null) {
+                    val next =
+                        when (which) {
+                            BandPick.MORNING -> times.copy(morningStartMinute = minute)
+                            BandPick.NOON -> times.copy(noonStartMinute = minute)
+                            BandPick.NIGHT -> times.copy(nightStartMinute = minute)
+                            BandPick.NIGHT_END -> times.copy(nightEndMinute = minute)
+                        }
+                    if (next.isValid()) onBandTimes(next)
+                }
+                bandPicking = null
+            },
+        )
+    }
+
     picking?.let { which ->
         val initial = if (which == QuietPick.START) preferences.quietStart else preferences.quietEnd
         QuietTimeDialog(
@@ -392,7 +501,28 @@ private fun RenamePhraseDialog(
     )
 }
 
+@Composable
+private fun BandTimeRow(
+    label: String,
+    minuteOfDay: Int,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(label, style = MaterialTheme.typography.bodyLarge)
+        QuietButton(label = minuteOfDayClock(minuteOfDay), onClick = onClick)
+    }
+}
+
 private enum class QuietPick { START, END }
+
+private enum class BandPick { MORNING, NOON, NIGHT, NIGHT_END }
+
+private const val EXACT_ALARM_PREFS: String = "backpin_repeat_ui"
+private const val EXACT_ALARM_DISMISSED_KEY: String = "exact_alarm_prompt_dismissed"
 
 private fun quietHours(preferences: UserPreferences): String {
     val start = preferences.quietStart
