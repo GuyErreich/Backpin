@@ -37,10 +37,12 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 import org.robolectric.shadows.ShadowDialog
 import java.io.File
 
 @RunWith(RobolectricTestRunner::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [36], qualifiers = "w360dp-h800dp-xhdpi")
 class EditFlowVisualTest {
     @get:Rule
@@ -171,7 +173,13 @@ class EditFlowVisualTest {
         val scaleX = width.toFloat() / view.width.coerceAtLeast(1)
         val scaleY = height.toFloat() / view.height.coerceAtLeast(1)
         canvas.scale(scaleX, scaleY)
-        view.draw(canvas)
+        view.setLayerType(View.LAYER_TYPE_SOFTWARE, null)
+        try {
+            view.draw(canvas)
+        } catch (_: NullPointerException) {
+            compose.activity.window.decorView.setLayerType(View.LAYER_TYPE_SOFTWARE, null)
+            compose.activity.window.decorView.draw(canvas)
+        }
         screenshotDir().let { dir ->
             dir.mkdirs()
             File(dir, name).outputStream().use { out ->
