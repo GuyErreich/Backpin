@@ -45,6 +45,15 @@ fun minuteOfDayLabel(minuteOfDay: Int): String {
     return LocalTime.of(clamped / 60, clamped % 60).format(DateTimeFormatter.ofPattern("HH:mm"))
 }
 
+/** Same clock string Settings already shows. */
+fun minuteOfDayClock(minute: Int): String = minuteOfDayLabel(minute)
+
+/** Parses `HH:mm`. Anything else is null. */
+fun parseClockToMinute(value: String): Int? {
+    val time = runCatching { LocalTime.parse(value) }.getOrNull() ?: return null
+    return time.hour * 60 + time.minute
+}
+
 /** "Thu, Oct 8", or "Thu, Oct 8 · 14:30" when a time is set. */
 fun scheduleMomentLabel(
     epochDay: Long,

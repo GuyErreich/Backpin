@@ -71,6 +71,71 @@ data class TodaysRepeats(
             RepeatBand.NOON -> noon
             RepeatBand.NIGHT -> night
         }
+
+    fun all(): List<RepeatOccurrence> = morning + noon + night
+}
+
+/**
+ * One Home REPEAT row. [everyNDays] is the cadence so the UI can write
+ * "every N days" without reading past the row.
+ *
+ * @property occurrence Status and the backing [Repeat] for edit.
+ * @property everyNDays Interval in days. 1 is every day. Same as [cadenceDays].
+ */
+data class RepeatRow(
+    val occurrence: RepeatOccurrence,
+    val everyNDays: Int,
+) {
+    val repeat: Repeat
+        get() = occurrence.repeat
+
+    val status: RepeatDayStatus
+        get() = occurrence.status
+
+    val epochDay: Long
+        get() = occurrence.epochDay
+
+    /** Cadence in days. 1 is every day. The UI shows "every N days" when this is 2+. */
+    val cadenceDays: Int
+        get() = everyNDays
+}
+
+/**
+ * Home REPEAT list: open rows in band order, then missed, then done.
+ * Done keeps the relative order from [TodaysRepeats.all].
+ * [leftCount] is still-open items. Copy lives in the UI.
+ * Each [RepeatRow] carries [RepeatRow.everyNDays] for cadence copy.
+ */
+data class RepeatRowsState(
+    /** Open, then missed, then done. Band order inside each group. */
+    val rows: List<RepeatRow> = emptyList(),
+    /** Still-open items. The UI writes "N of M left". */
+    val leftCount: Int = 0,
+    /** Due items today, including missed and done. */
+    val total: Int = 0,
+)
+
+/** Open, then missed, then done. Band order inside each group. */
+fun orderedRepeatRows(todays: TodaysRepeats): List<RepeatOccurrence> {
+    val all = todays.all()
+    return all.filter { it.status == RepeatDayStatus.OPEN } +
+        all.filter { it.status == RepeatDayStatus.MISSED } +
+        all.filter { it.status == RepeatDayStatus.DONE }
+}
+
+fun repeatRowsState(todays: TodaysRepeats): RepeatRowsState {
+    val rows =
+        orderedRepeatRows(todays).map { occurrence ->
+            RepeatRow(
+                occurrence = occurrence,
+                everyNDays = occurrence.repeat.everyNDays.coerceAtLeast(1),
+            )
+        }
+    return RepeatRowsState(
+        rows = rows,
+        leftCount = rows.count { it.status == RepeatDayStatus.OPEN },
+        total = rows.size,
+    )
 }
 
 /**
@@ -97,6 +162,42 @@ data class BandTimes(
         const val DEFAULT_NIGHT_END_MINUTE: Int = 23 * 60
         val DEFAULT: BandTimes = BandTimes()
     }
+}
+
+/** Which bound Settings edits. The UI passes the picked minute; order is checked here. */
+enum class BandEdge {
+    MORNING,
+    NOON,
+    NIGHT,
+    NIGHT_END,
+}
+
+sealed interface BandTimeResult {
+    /** The new minute was stored and alarms will rebuild. */
+    data object Applied : BandTimeResult
+
+    /** Out of range or out of order. Stored times were left alone. */
+    data object Rejected : BandTimeResult
+}
+
+/**
+ * One band bound. Accepts morning < noon < night < night end, with night end
+ * at or before 23:59. Out of range or out of order returns null.
+ */
+fun applyBandTime(
+    times: BandTimes,
+    which: BandEdge,
+    minuteOfDay: Int,
+): BandTimes? {
+    if (minuteOfDay !in 0 until MINUTES_PER_DAY) return null
+    val next =
+        when (which) {
+            BandEdge.MORNING -> times.copy(morningStartMinute = minuteOfDay)
+            BandEdge.NOON -> times.copy(noonStartMinute = minuteOfDay)
+            BandEdge.NIGHT -> times.copy(nightStartMinute = minuteOfDay)
+            BandEdge.NIGHT_END -> times.copy(nightEndMinute = minuteOfDay)
+        }
+    return next.takeIf { it.isValid() }
 }
 
 /** Start inclusive, end exclusive, both as local minutes of the day. */

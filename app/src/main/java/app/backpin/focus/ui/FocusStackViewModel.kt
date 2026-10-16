@@ -3,6 +3,8 @@ package app.backpin.focus.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import app.backpin.focus.domain.BandEdge
+import app.backpin.focus.domain.BandTimeResult
 import app.backpin.focus.domain.BandTimes
 import app.backpin.focus.domain.DetachDestination
 import app.backpin.focus.domain.FocusUseCases
@@ -10,17 +12,20 @@ import app.backpin.focus.domain.FrameState
 import app.backpin.focus.domain.PromoteOutcome
 import app.backpin.focus.domain.Repeat
 import app.backpin.focus.domain.RepeatBand
+import app.backpin.focus.domain.RepeatDraft
+import app.backpin.focus.domain.RepeatRowsState
 import app.backpin.focus.domain.TaskBucket
 import app.backpin.focus.domain.TodaysRepeats
 import app.backpin.focus.domain.UndoToken
 import app.backpin.focus.domain.UserPreferences
 import app.backpin.focus.domain.backInDaysLabel
 import app.backpin.focus.domain.countdownIntervalDays
-import kotlinx.coroutines.flow.first
+import app.backpin.focus.repeats.RepeatsApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -31,6 +36,7 @@ import java.time.LocalDate
  */
 class FocusStackViewModel(
     private val useCases: FocusUseCases,
+    private val repeatsApi: RepeatsApi = RepeatsApi.Empty,
 ) : ViewModel() {
     private val captureOpen = MutableStateFlow(false)
     private val captureInterrupts = MutableStateFlow(false)
@@ -56,7 +62,23 @@ class FocusStackViewModel(
                     freshSwapTitle = fresh,
                 )
             },
-            combine(switchOpen, pendingUndo) { switching, undo ->
+            combine(switchOpen, pendingUndo, repeatsApi.observePendingUndo()) { switching, taskUndo, repeatUndo ->
+                val undo =
+                    listOfNotNull(
+                        taskUndo,
+                        repeatUndo?.let { pending ->
+                            PendingUndo(
+                                id = pending.id,
+                                message = "Checked off",
+                                target =
+                                    UndoTarget.RepeatCheckOff(
+                                        repeatId = pending.repeatId,
+                                        epochDay = pending.epochDay,
+                                        restore = pending.restore,
+                                    ),
+                            )
+                        },
+                    ).maxByOrNull { it.id }
                 switching to undo
             },
         ) { snapshot, preferences, capture, switchAndUndo ->
@@ -84,18 +106,55 @@ class FocusStackViewModel(
      * reads this. Repeats never appear in [uiState] Today slots.
      */
     val todaysRepeats: StateFlow<TodaysRepeats> =
-        useCases.observeTodaysRepeats().stateIn(
+        repeatsApi.observeTodaysRepeats().stateIn(
             viewModelScope,
             SharingStarted.WhileSubscribed(5_000),
             TodaysRepeats(),
         )
 
+    /**
+     * Today's due repeats in Home order: open (band order), then missed, then done.
+     * [RepeatRowsState.leftCount] and [RepeatRowsState.total] are the "N of M left" numbers.
+     */
+    val repeatRows: StateFlow<RepeatRowsState> =
+        repeatsApi.observeRows().stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5_000),
+            RepeatRowsState(),
+        )
+
     /** Unarchived repeats for the REPEAT section, in sort order. */
     val repeats: StateFlow<List<Repeat>> =
-        useCases.observeRepeats().stateIn(
+        repeatsApi.observeRepeats().stateIn(
             viewModelScope,
             SharingStarted.WhileSubscribed(5_000),
             emptyList(),
+        )
+
+    /** Create or edit sheet for a repeat. Separate from [uiState] so task-edit chrome can land beside it. */
+    val editingRepeat: StateFlow<RepeatDraft?> =
+        repeatsApi.observeEditing().stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5_000),
+            null,
+        )
+
+    val bandTimeResult: StateFlow<BandTimeResult?> =
+        repeatsApi.observeBandTimeResult().stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5_000),
+            null,
+        )
+
+    /**
+     * Settings shows the one-time exact-alarm prompt when this is true.
+     * Call [refreshExactAlarmPermission] when Settings resumes.
+     */
+    val showExactAlarmPrompt: StateFlow<Boolean> =
+        repeatsApi.observeExactAlarmPrompt().stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5_000),
+            false,
         )
 
     /**
@@ -104,6 +163,7 @@ class FocusStackViewModel(
      * chip saves to Inbox without touching the active task.
      */
     fun openCapture(interrupts: Boolean = false) {
+        repeatsApi.dismissSheet()
         captureInterrupts.value = interrupts
         captureOpen.value = true
     }
@@ -433,6 +493,26 @@ class FocusStackViewModel(
         }
     }
 
+    fun openRepeatCreate(title: String = "") {
+        closeCapture()
+        repeatsApi.openCreate(title)
+    }
+
+    fun openRepeatEdit(repeat: Repeat) {
+        closeCapture()
+        repeatsApi.openEdit(repeat)
+    }
+
+    fun dismissRepeatSheet() {
+        repeatsApi.dismissSheet()
+    }
+
+    fun commitRepeatDraft(draft: RepeatDraft) {
+        viewModelScope.launch {
+            if (repeatsApi.commitRepeatDraft(draft)) closeCapture()
+        }
+    }
+
     fun createRepeat(
         title: String,
         band: RepeatBand,
@@ -441,7 +521,9 @@ class FocusStackViewModel(
         reminderOn: Boolean = true,
     ) {
         viewModelScope.launch {
-            useCases.createRepeat(title, band, everyNDays, anchorEpochDay, reminderOn)
+            if (repeatsApi.create(title, band, everyNDays, anchorEpochDay, reminderOn) != null) {
+                closeCapture()
+            }
         }
     }
 
@@ -455,13 +537,13 @@ class FocusStackViewModel(
         sortOrder: Long,
     ) {
         viewModelScope.launch {
-            useCases.updateRepeat(id, title, band, everyNDays, anchorEpochDay, reminderOn, sortOrder)
+            repeatsApi.update(id, title, band, everyNDays, anchorEpochDay, reminderOn, sortOrder)
         }
     }
 
     fun archiveRepeat(id: String) {
         viewModelScope.launch {
-            useCases.archiveRepeat(id)
+            repeatsApi.archive(id)
         }
     }
 
@@ -470,7 +552,7 @@ class FocusStackViewModel(
         epochDay: Long,
     ) {
         viewModelScope.launch {
-            useCases.markRepeatDone(repeatId, epochDay)
+            repeatsApi.markDone(repeatId, epochDay)
         }
     }
 
@@ -479,18 +561,37 @@ class FocusStackViewModel(
         epochDay: Long,
     ) {
         viewModelScope.launch {
-            useCases.undoRepeatDone(repeatId, epochDay)
+            repeatsApi.undoDone(repeatId, epochDay)
         }
     }
 
     fun setBandTimes(times: BandTimes) {
         viewModelScope.launch {
-            useCases.setBandTimes(times)
+            repeatsApi.setBandTimes(times)
+        }
+    }
+
+    fun setBandTime(
+        which: BandEdge,
+        minuteOfDay: Int,
+    ) {
+        viewModelScope.launch {
+            repeatsApi.setBandTime(which, minuteOfDay)
         }
     }
 
     /** Settings can show the one-time exact-alarm prompt when this is false. */
-    fun canScheduleExactAlarms(): Boolean = useCases.canScheduleExactAlarms()
+    fun canScheduleExactAlarms(): Boolean = repeatsApi.canScheduleExactAlarms()
+
+    fun refreshExactAlarmPermission() {
+        repeatsApi.refreshExactAlarmPermission()
+    }
+
+    fun dismissExactAlarmPrompt() {
+        viewModelScope.launch {
+            repeatsApi.dismissExactAlarmPrompt()
+        }
+    }
 
     fun addSavedPhrase(text: String) {
         val phrase = text.trim()
@@ -557,12 +658,16 @@ class FocusStackViewModel(
         if (pending.id != id) return
         pendingUndo.value = null
         viewModelScope.launch {
-            useCases.undo(pending.token)
+            when (val target = pending.target) {
+                is UndoTarget.Tasks -> useCases.undo(target.token)
+                is UndoTarget.RepeatCheckOff -> repeatsApi.undo(pending.id)
+            }
         }
     }
 
     fun dismissUndo(id: Long) {
         if (pendingUndo.value?.id == id) pendingUndo.value = null
+        repeatsApi.dismissUndo(id)
     }
 
     private fun closeCapture() {
@@ -580,9 +685,16 @@ class FocusStackViewModel(
 
     private fun offerUndo(
         message: String,
+        target: UndoTarget,
+    ) {
+        pendingUndo.value = PendingUndo(id = System.nanoTime(), message = message, target = target)
+    }
+
+    private fun offerUndo(
+        message: String,
         token: UndoToken,
     ) {
-        pendingUndo.value = PendingUndo(id = System.nanoTime(), message = message, token = token)
+        offerUndo(message, UndoTarget.Tasks(token))
     }
 
     private data class CaptureChrome(
@@ -595,11 +707,12 @@ class FocusStackViewModel(
 
 class FocusStackViewModelFactory(
     private val useCases: FocusUseCases,
+    private val repeatsApi: RepeatsApi = RepeatsApi.Empty,
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(FocusStackViewModel::class.java)) {
-            return FocusStackViewModel(useCases) as T
+            return FocusStackViewModel(useCases, repeatsApi) as T
         }
         error("Unknown ViewModel ${modelClass.name}")
     }

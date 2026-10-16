@@ -317,6 +317,16 @@ interface FocusRepository {
     ): Boolean
 
     /**
+     * Writes [outcome] for that due day. Used to restore MISSED after a late Done.
+     * Returns false when the repeat is missing or archived.
+     */
+    suspend fun writeRepeatOutcome(
+        repeatId: String,
+        epochDay: Long,
+        outcome: RepeatOutcome,
+    ): Boolean
+
+    /**
      * Writes [RepeatOutcome.MISSED] for still-open due repeats in [band] on [epochDay].
      * Existing log rows are left alone.
      */
@@ -327,6 +337,9 @@ interface FocusRepository {
 
     /** User-set band times. Invalid or out-of-order values write nothing and return false. */
     suspend fun setBandTimes(times: BandTimes): Boolean
+
+    /** Remembers that Settings dismissed the one-time exact-alarm prompt. */
+    suspend fun dismissExactAlarmPrompt()
 
     /** Holds a band nudge until the active focus frame ends, or clears the hold. */
     suspend fun setHeldBandNudge(
