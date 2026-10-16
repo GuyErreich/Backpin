@@ -81,7 +81,7 @@ internal object RepeatNotificationQaRender {
     ) {
         val band = RepeatBand.MORNING
         val summary = bandSummaryTitle(band, openTitles.size)
-        val body = bandChildText(band)
+        val body = bandChildText(everyNDays = 1)
         val cardTop = 360f
         val rowHeight = 148f
         val cardBottom = cardTop + 92f + openTitles.size * rowHeight + 28f
