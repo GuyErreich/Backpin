@@ -16,6 +16,7 @@ import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isHeading
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodes
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performTextInput
@@ -43,6 +44,7 @@ import app.backpin.focus.ui.theme.FocusStackTheme
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -120,6 +122,42 @@ class ResumeChipSheetQaTest {
         tap("Pick a date")
         tap("OK")
         assertEquals(LocalDate.now().plusDays(1).toEpochDay(), committed)
+    }
+
+    @Test
+    fun resumeSheetShowsTomorrowIn3DaysNextWeekAndPickADate() {
+        showResumeSheet()
+        assertEquals(RESUME_CHIPS, sheetChips(RESUME_CHIPS))
+        RESUME_CHIPS.forEach(::assertSheetChip)
+    }
+
+    @Test
+    fun resumeSheetHasNoTextFieldOrStartInNDaysInput() {
+        showResumeSheet()
+        compose.onAllNodes(hasSetTextAction()).assertCountEquals(0)
+        compose.onNodeWithText("Days from today").assertDoesNotExist()
+        compose.onNodeWithText("Start in", substring = true).assertDoesNotExist()
+        compose.onNodeWithText("Start in 0 days").assertDoesNotExist()
+        compose.onNodeWithText("Start in N days").assertDoesNotExist()
+    }
+
+    @Test
+    fun resumeSheetShowsNoDesignNote() {
+        showResumeSheet()
+        compose.onNodeWithText("or choose").assertDoesNotExist()
+        compose.onNodeWithText("uses this event's own interval", substring = true).assertDoesNotExist()
+        compose.onNodeWithText("Back leaves the event as it was.", substring = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun resumeSheetEnabledChipsStayClickableAndUnmuted() {
+        showResumeSheet()
+        RESUME_CHIPS.forEach { label ->
+            assertSheetChip(label)
+            val color = labelColor(label)
+            assertNotEquals("$label uses muted", FocusColors.Muted, color)
+            assertEquals("$label uses disabled alpha", 1f, color.alpha, 0.001f)
+        }
     }
 
     private fun seedArrivedEvent(
@@ -225,5 +263,43 @@ class ResumeChipSheetQaTest {
         predicate: (FocusSnapshot) -> Boolean,
     ) {
         await { runBlocking { predicate(useCases.observeSnapshot().first()) } }
+    }
+
+    private fun showResumeSheet(suggestedDays: Int? = 25) {
+        compose.setContent {
+            FocusStackTheme {
+                ResumeCountdownSheet(
+                    title = "Dentist checkup",
+                    suggestedDays = suggestedDays,
+                    onDismiss = {},
+                    onCommit = {},
+                )
+            }
+        }
+    }
+
+    private fun sheetChips(labels: List<String>): List<String> {
+        data class Hit(
+            val label: String,
+            val left: androidx.compose.ui.unit.Dp,
+            val top: androidx.compose.ui.unit.Dp,
+        )
+
+        val hits = mutableListOf<Hit>()
+        labels.forEach { label ->
+            val nodes = compose.onAllNodesWithText(label)
+            val found = nodes.fetchSemanticsNodes()
+            found.indices.forEach { index ->
+                val bounds = nodes[index].getBoundsInRoot()
+                if (bounds.bottom - bounds.top >= 50.dp) {
+                    hits += Hit(label, bounds.left, bounds.top)
+                }
+            }
+        }
+        return hits.sortedWith(compareBy({ it.top }, { it.left })).map { it.label }
+    }
+
+    private companion object {
+        val RESUME_CHIPS = listOf("Tomorrow", "In 3 days", "Next week", "Pick a date")
     }
 }

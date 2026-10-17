@@ -141,6 +141,28 @@ class ChipSheetThemeQaTest {
     }
 
     @Test
+    fun emberMissedTaskActionChipsDoNotUseAmberWarning() {
+        var live by mutableStateOf(LiveSheetColors.SIGNAL)
+        compose.setContent {
+            FocusStackTheme(themeId = ThemeId.EMBER) {
+                CaptureLiveColors { live = it }
+                MissedTaskSheet(
+                    state = MissedTaskSheetUi("task-1", "Call Dana"),
+                    onDismiss = {},
+                    onDoneNow = {},
+                    onTomorrow = {},
+                    onPickDay = {},
+                )
+            }
+        }
+        compose.waitForIdle()
+        val palette = liveColors(ThemeId.EMBER, live)
+        listOf("Done now", "Tomorrow", "Pick a day").forEach { label ->
+            assertNotEquals(label, palette.amber, labelColor(label))
+        }
+    }
+
+    @Test
     fun missedRepeatRowsStayMutedAmberAndNeverErrorRedInEveryTheme() {
         var themeId by mutableStateOf(ThemeId.SIGNAL)
         var live by mutableStateOf(LiveSheetColors.SIGNAL)
