@@ -21,6 +21,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.unit.dp
 import app.backpin.focus.R
 import app.backpin.focus.domain.BandPhase
@@ -200,17 +202,34 @@ private fun HomeBandHeader(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            text = summary ?: name,
+            text = colorMissedSegment(summary ?: name, group.counts.missed),
             style = if (summary != null) MaterialTheme.typography.bodyLarge else MaterialTheme.typography.titleMedium,
             color = color,
             modifier = Modifier.semantics { heading() },
         )
         if (trailing != null) {
             Text(
-                text = trailing,
+                text = colorMissedSegment(trailing, group.counts.missed),
                 style = MaterialTheme.typography.bodyMedium,
                 color = FocusColors.Live.Muted,
             )
+        }
+    }
+}
+
+@Composable
+private fun colorMissedSegment(
+    text: String,
+    missedCount: Int,
+) = if (missedCount <= 0) {
+    buildAnnotatedString { append(text) }
+} else {
+    val missed = stringResource(R.string.home_band_count_missed, missedCount)
+    buildAnnotatedString {
+        append(text)
+        val start = text.indexOf(missed)
+        if (start >= 0) {
+            addStyle(SpanStyle(color = FocusColors.Live.Amber), start, start + missed.length)
         }
     }
 }
