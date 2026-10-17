@@ -10,12 +10,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsEnabled
-import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasSetTextAction
-import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -318,8 +316,11 @@ class CountdownTapTest {
             }
             await { viewModel.uiState.value.now?.title == "Dentist" }
             tap("Count down again")
-            compose.onNodeWithText("or choose").assertExists()
-            compose.onNodeWithText("Start in 0 days").assertIsNotEnabled()
+            compose.onNodeWithText("Tomorrow").assertExists()
+            compose.onNodeWithText("In 3 days").assertExists()
+            compose.onNodeWithText("Next week").assertExists()
+            compose.onNodeWithText("Pick a date").assertExists()
+            compose.onNodeWithText("Start in 0 days").assertDoesNotExist()
             tap(againLabel(12, today))
             awaitSnapshot(useCases) { snapshot ->
                 val event = snapshot.tasks.single { it.title == "Dentist" }
@@ -336,18 +337,15 @@ class CountdownTapTest {
             await { viewModel.uiState.value.now?.title == "Checkup" }
             tap("Count down again")
             compose.onNodeWithText(againLabel(12, today)).assertExists()
-            resumeDaysField().performTextInput("14")
-            compose.onNodeWithText("Start in 14 days").assertIsEnabled()
-            resumeDaysField().performTouchInput { click() }
-            resumeDaysField().performImeAction()
+            tap("In 3 days")
             awaitSnapshot(useCases) { snapshot ->
                 val event = snapshot.tasks.single { it.title == "Checkup" }
                 event.bucket == TaskBucket.COUNTDOWN &&
-                    event.scheduledOnEpochDay == today.plusDays(14).toEpochDay() &&
-                    event.countdownIntervalDays == 14 &&
+                    event.scheduledOnEpochDay == today.plusDays(3).toEpochDay() &&
+                    event.countdownIntervalDays == 3 &&
                     parentWaits(snapshot)
             }
-            await { viewModel.uiState.value.undo?.message == backInDaysLabel(14, today) }
+            await { viewModel.uiState.value.undo?.message == backInDaysLabel(3, today) }
         }
     }
 
@@ -379,14 +377,15 @@ class CountdownTapTest {
             }
             await { viewModel.uiState.value.now?.isEvent == true }
             tap("Count down again")
-            compose.onNodeWithText("Days from today").assertExists()
-            compose.onNodeWithText("or choose").assertDoesNotExist()
-            compose.onNodeWithText("Again in N days", substring = true).assertExists()
-            compose.onNodeWithText("Start in 0 days").assertIsNotEnabled()
-            compose.onNodeWithText("Pick a date").assertExists()
-            compose.onNodeWithContentDescription("Close").performTouchInput { click() }
-            compose.waitForIdle()
             compose.onNodeWithText("Days from today").assertDoesNotExist()
+            compose.onNodeWithText("Start in 0 days").assertDoesNotExist()
+            compose.onNodeWithText("Tomorrow").assertExists()
+            compose.onNodeWithText("In 3 days").assertExists()
+            compose.onNodeWithText("Next week").assertExists()
+            compose.onNodeWithText("Pick a date").assertExists()
+            compose.onNodeWithContentDescription("Close").performTouchInput { click(center) }
+            compose.waitForIdle()
+            compose.onNodeWithText("Pick a date").assertDoesNotExist()
             await { viewModel.uiState.value.now?.title == "Dentist" && viewModel.uiState.value.now?.isEvent == true }
             awaitSnapshot(useCases) { snapshot ->
                 val event = snapshot.tasks.single { it.title == "Dentist" }
@@ -462,19 +461,17 @@ class CountdownTapTest {
             }
             await { viewModel.uiState.value.now?.title == "Dentist" }
             tap("Count down again")
-            compose.onNodeWithText("Start in 0 days").assertIsNotEnabled()
-            resumeDaysField().performTextInput("45")
-            compose.onNodeWithText("Start in 45 days").assertIsEnabled()
-            tap("Start in 45 days")
+            compose.onNodeWithText("Start in 0 days").assertDoesNotExist()
+            tap("In 3 days")
             awaitSnapshot(useCases) { snapshot ->
                 val event = snapshot.tasks.single { it.title == "Dentist" }
                 event.bucket == TaskBucket.COUNTDOWN &&
-                    event.scheduledOnEpochDay == today.plusDays(45).toEpochDay() &&
-                    event.countdownIntervalDays == 45 &&
+                    event.scheduledOnEpochDay == today.plusDays(3).toEpochDay() &&
+                    event.countdownIntervalDays == 3 &&
                     parentWaits(snapshot)
             }
-            await { viewModel.uiState.value.undo?.message == backInDaysLabel(45, today) }
-            compose.onNodeWithText("Start in 45 days").assertDoesNotExist()
+            await { viewModel.uiState.value.undo?.message == backInDaysLabel(3, today) }
+            compose.onNodeWithText("In 3 days").assertDoesNotExist()
         }
     }
 
@@ -550,9 +547,6 @@ class CountdownTapTest {
     private fun nameField(): SemanticsNodeInteraction = compose.onAllNodes(hasSetTextAction())[0]
 
     private fun daysField(): SemanticsNodeInteraction = compose.onAllNodes(hasSetTextAction())[1]
-
-    private fun resumeDaysField(): SemanticsNodeInteraction =
-        compose.onNode(hasSetTextAction() and hasText("Days from today"))
 
     private fun againLabel(
         days: Int,

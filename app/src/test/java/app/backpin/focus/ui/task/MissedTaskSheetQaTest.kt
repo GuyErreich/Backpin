@@ -72,7 +72,8 @@ class MissedTaskSheetQaTest {
             tapRow("Scheduled. Call Dana")
             await { viewModel.missedTaskSheet.value?.title == "Call Dana" }
             compose.onNodeWithText("This one was missed.").assertExists()
-            compose.onNodeWithText("It stayed off Today. Done now, or pick another day. Never an alarm.").assertExists()
+            compose.onNodeWithText("It stayed off Today. Done now, or pick another day.").assertExists()
+            compose.onNodeWithText("Never an alarm.", substring = true).assertDoesNotExist()
             assertEquals(listOf("Done now", "Tomorrow", "Pick a day"), sheetActions())
             assertEquals(
                 TaskBucket.SCHEDULED,
