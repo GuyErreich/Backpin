@@ -35,10 +35,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import java.time.Instant
@@ -49,8 +47,8 @@ import java.time.ZoneId
  * [FocusStackViewModel][app.backpin.focus.ui.FocusStackViewModel] only maps these flows.
  *
  * Today's status follows [localEpochDay]: local midnight, a system date/time/zone
- * change, or [refreshToday]. A miss stays missed through its own local day, then
- * drops off Home.
+ * change, or [refreshToday]. Equal days do not re-emit. A miss stays missed
+ * through its own local day, then drops off Home.
  *
  * @param repository Room and preference writes for repeats.
  * @param schedule Rebuilds band start, follow-up, and end alarms.
@@ -87,15 +85,14 @@ class RepeatsService(
 
     override fun observeRepeats(): Flow<List<Repeat>> = repository.observeRepeats()
 
-    override fun observeTodaysRepeats(): Flow<TodaysRepeats> =
-        combine(
-            repository.observeRepeats(),
-            repository.observeTodaysRepeats(),
-            observeBandTimes(),
-            localEpochDay.distinctUntilChanged(),
-        ) { repeats, logged, times, day ->
-            repeatsForLocalDay(repeats, logged, times, day)
-        }
+    override fun observeTodaysRepeats(): Flow<TodaysRepeats> = combine(
+        repository.observeRepeats(),
+        repository.observeTodaysRepeats(),
+        observeBandTimes(),
+        localEpochDay,
+    ) { repeats, logged, times, day ->
+        repeatsForLocalDay(repeats, logged, times, day)
+    }
 
     override fun observeRows(): Flow<RepeatRowsState> = observeTodaysRepeats().map { repeatRowsState(it) }
 
@@ -105,10 +102,11 @@ class RepeatsService(
 
     override fun observeBandTimes(): Flow<BandTimes> = repository.preferences.map { it.bandTimes }
 
-    override fun observeExactAlarmPrompt(): Flow<Boolean> {
-        return combine(repository.preferences, exactAlarmGranted) { preferences, granted ->
-            !granted && !preferences.exactAlarmPromptDismissed
-        }
+    override fun observeExactAlarmPrompt(): Flow<Boolean> = combine(
+        repository.preferences,
+        exactAlarmGranted,
+    ) { preferences, granted ->
+        !granted && !preferences.exactAlarmPromptDismissed
     }
 
     override fun observePendingUndo(): Flow<RepeatUndo?> = pendingUndo
@@ -284,13 +282,11 @@ class RepeatsService(
     private suspend fun currentStatus(
         repeatId: String,
         epochDay: Long,
-    ): RepeatDayStatus? {
-        return observeTodaysRepeats()
-            .first()
-            .all()
-            .firstOrNull { it.repeat.id == repeatId && it.epochDay == epochDay }
-            ?.status
-    }
+    ): RepeatDayStatus? = observeTodaysRepeats()
+        .first()
+        .all()
+        .firstOrNull { it.repeat.id == repeatId && it.epochDay == epochDay }
+        ?.status
 
     private fun registerDateChangeReceiver(app: Context) {
         val receiver =
@@ -313,7 +309,7 @@ class RepeatsService(
     }
 
     private suspend fun emitAtEachLocalMidnight() {
-        while (isActive) {
+        while (true) {
             val wait = millisUntilNextLocalMidnight()
             val rescheduled = withTimeoutOrNull(wait) { rescheduleMidnight.first() } != null
             if (!rescheduled) {
@@ -361,16 +357,16 @@ class RepeatsService(
     private fun statusOnLocalDay(
         loggedStatus: RepeatDayStatus?,
         bandEnded: Boolean,
-    ): RepeatDayStatus {
-        return if (loggedStatus == RepeatDayStatus.DONE || loggedStatus == RepeatDayStatus.MISSED) {
-            loggedStatus
-        } else {
-            repeatStatusOnDay(null, bandEnded)
-        }
+    ): RepeatDayStatus = if (loggedStatus == RepeatDayStatus.DONE || loggedStatus == RepeatDayStatus.MISSED) {
+        loggedStatus
+    } else {
+        repeatStatusOnDay(null, bandEnded)
     }
 
-    private fun currentLocalEpochDay(): Long =
-        Instant.ofEpochMilli(clock.nowEpochMillis()).atZone(zone()).toLocalDate().toEpochDay()
+    private fun currentLocalEpochDay(): Long = Instant.ofEpochMilli(clock.nowEpochMillis())
+        .atZone(zone())
+        .toLocalDate()
+        .toEpochDay()
 
     private fun millisUntilNextLocalMidnight(): Long {
         val zoneId = zone()
