@@ -173,7 +173,13 @@ private fun OutlinedFocusButton(
                     disabledContentColor = labelColor,
                 ),
             ) {
-                Text(label, color = labelColor, style = ButtonLabel, textAlign = TextAlign.Center)
+                Text(
+                    label,
+                    color = labelColor,
+                    style = ButtonLabel,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
+                )
             }
         }
     }

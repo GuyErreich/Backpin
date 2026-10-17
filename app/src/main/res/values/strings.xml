@@ -20,6 +20,7 @@
     <string name="action_today">Today</string>
     <string name="action_tomorrow">Tomorrow</string>
     <string name="action_in_3_days">In 3 days</string>
+    <string name="action_in_n_days">In %1$d days · %2$s</string>
     <string name="action_next_week">Next week</string>
     <string name="action_pick_a_day">Pick a day</string>
     <string name="action_pick_a_date">Pick a date</string>
