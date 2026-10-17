@@ -4,21 +4,26 @@ package app.backpin.focus.ui.countdown
 import android.content.Context
 import android.os.Looper
 import androidx.activity.ComponentActivity
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.getBoundsInRoot
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isHeading
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.dp
@@ -43,6 +48,7 @@ import app.backpin.focus.ui.theme.FocusStackTheme
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -51,6 +57,8 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 import java.util.UUID
 
 @RunWith(RobolectricTestRunner::class)
@@ -62,7 +70,92 @@ class ResumeChipSheetQaTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
 
     @Test
-    fun resumeSheetUsesSharedChipsAndStillStartsInTypedDays() {
+    fun resumeSheetShowsTomorrowIn3DaysNextWeekAndPickADate() {
+        var liveText by mutableStateOf(Color.Unspecified)
+        showResumeSheet(onLive = { text, _, _ -> liveText = text })
+        assertEquals(RESUME_CHIPS, sheetChips(RESUME_CHIPS))
+        RESUME_CHIPS.forEach { label ->
+            assertSheetChip(label)
+            assertEquals(label, liveText, labelColor(label))
+        }
+    }
+
+    @Test
+    fun resumeSheetHasNoTextFieldOrStartInNDaysInput() {
+        showResumeSheet()
+        compose.onAllNodes(hasSetTextAction()).assertCountEquals(0)
+        compose.onNodeWithText("Days from today").assertDoesNotExist()
+        compose.onNodeWithText("Start in", substring = true).assertDoesNotExist()
+        compose.onNodeWithText("Start in 0 days").assertDoesNotExist()
+    }
+
+    @Test
+    fun resumeSheetShowsNoDesignNote() {
+        showResumeSheet()
+        compose.onNodeWithText("or choose").assertDoesNotExist()
+        compose.onNodeWithText("uses this event's own interval", substring = true).assertDoesNotExist()
+        compose.onNodeWithText("Back leaves the event as it was.", substring = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun resumeSheetLeadsWithAgainInNDaysWhenSuggestedIsNot1Or3Or7() {
+        var liveText by mutableStateOf(Color.Unspecified)
+        var liveMuted by mutableStateOf(Color.Unspecified)
+        var liveMint by mutableStateOf(Color.Unspecified)
+        showResumeSheet(
+            suggestedDays = 5,
+            onLive = { text, muted, mint ->
+                liveText = text
+                liveMuted = muted
+                liveMint = mint
+            },
+        )
+        val chips = listOf("Again in 5 days") + RESUME_CHIPS
+        assertEquals(chips, sheetChips(chips, substring = true))
+        assertSheetChip("Again in 5 days", substring = true)
+        val color = labelColor("Again in 5 days", substring = true)
+        assertEquals("Again in 5 days", liveText, color)
+        assertNotEquals("Again in 5 days", liveMuted, color)
+        assertNotEquals("Again in 5 days", liveMint, color)
+        compose.onNodeWithText("or choose").assertDoesNotExist()
+    }
+
+    @Test
+    fun resumeSheetOmitsSuggestedChipWhenItWouldDuplicateAStandardChip() {
+        listOf(1, 3, 7).forEach { days ->
+            showResumeSheet(suggestedDays = days)
+            assertEquals(days.toString(), RESUME_CHIPS, sheetChips(RESUME_CHIPS))
+            assertEquals("In 3 days", 1, sheetChips(listOf("In 3 days")).size)
+            compose.onNodeWithText("In 1 day").assertDoesNotExist()
+            compose.onNodeWithText("In 1 days").assertDoesNotExist()
+            compose.onNodeWithText("In 7 days").assertDoesNotExist()
+            compose.onNodeWithText("or choose").assertDoesNotExist()
+            compose.onNodeWithText("Again in $days days", substring = true).assertDoesNotExist()
+        }
+    }
+
+    @Test
+    fun resumeSheetEnabledChipsUseLiveTextNotMintOrMuted() {
+        var liveText by mutableStateOf(Color.Unspecified)
+        var liveMuted by mutableStateOf(Color.Unspecified)
+        var liveMint by mutableStateOf(Color.Unspecified)
+        showResumeSheet(onLive = { text, muted, mint ->
+            liveText = text
+            liveMuted = muted
+            liveMint = mint
+        })
+        RESUME_CHIPS.forEach { label ->
+            assertSheetChip(label)
+            val color = labelColor(label)
+            assertEquals(label, liveText, color)
+            assertNotEquals(label, liveMuted, color)
+            assertNotEquals(label, liveMint, color)
+            assertEquals("$label uses disabled alpha", 1f, color.alpha, 0.001f)
+        }
+    }
+
+    @Test
+    fun resumeSheetIn3DaysCommitsThreeDaysAndStaysOnHome() {
         withViewModel { viewModel, useCases, repository, database ->
             val today = LocalDate.now()
             seedArrivedEvent(useCases, repository, database, intervalDays = 180)
@@ -75,23 +168,15 @@ class ResumeChipSheetQaTest {
             tap("Count down again")
             compose.onNode(hasText("Count down again") and isHeading()).assertExists()
             compose.onAllNodesWithText("Dentist checkup").assertCountEquals(2)
-            compose.onNodeWithText("or choose").assertExists()
-            compose.onNodeWithText("Pick a date").assertExists()
-            assertSheetChip("Pick a date")
-            assertEquals(FocusColors.Lavender, labelColor("Again in 180 days", substring = true))
-            resumeDaysField().performTextInput("45")
-            assertSheetChip("Start in 45 days")
-            assertEquals(FocusColors.Lavender, labelColor("Start in 45 days"))
-            assertEquals(FocusColors.Text, labelColor("Pick a date"))
-            tap("Start in 45 days")
-
-            val expected = backInDaysLabel(45, today)
+            assertEquals(RESUME_CHIPS, sheetChips(RESUME_CHIPS))
+            tap("In 3 days")
+            val expected = backInDaysLabel(3, today)
             await { viewModel.uiState.value.undo?.message == expected }
             awaitSnapshot(useCases) { snapshot ->
                 val event = snapshot.tasks.single { it.title == "Dentist checkup" }
                 event.bucket == TaskBucket.COUNTDOWN &&
-                    event.scheduledOnEpochDay == today.plusDays(45).toEpochDay() &&
-                    event.countdownIntervalDays == 45 &&
+                    event.scheduledOnEpochDay == today.plusDays(3).toEpochDay() &&
+                    event.countdownIntervalDays == 3 &&
                     parentWaits(snapshot)
             }
             compose.onNodeWithText("Count down again").assertDoesNotExist()
@@ -101,23 +186,12 @@ class ResumeChipSheetQaTest {
     }
 
     @Test
-    fun resumeSheetPickADateSitsInTheChipRow() {
+    fun resumeSheetPickADateOpensCalendarEarliestTomorrow() {
         var committed: Long? = null
-        compose.setContent {
-            FocusStackTheme {
-                ResumeCountdownSheet(
-                    title = "Dentist checkup",
-                    suggestedDays = 25,
-                    onDismiss = {},
-                    onCommit = { committed = it },
-                )
-            }
-        }
-        compose.onNodeWithText("Count down again").assertExists()
-        compose.onNodeWithText("Again in 25 days", substring = true).assertExists()
+        showResumeSheet(onCommit = { committed = it })
         assertSheetChip("Pick a date")
-        compose.onNodeWithText("Start in 0 days").assertExists()
         tap("Pick a date")
+        assertTodayCellDisabled(LocalDate.now())
         tap("OK")
         assertEquals(LocalDate.now().plusDays(1).toEpochDay(), committed)
     }
@@ -181,10 +255,71 @@ class ResumeChipSheetQaTest {
         }
     }
 
-    private fun resumeDaysField() = compose.onNode(hasSetTextAction() and hasText("Days from today"))
+    private fun showResumeSheet(
+        suggestedDays: Int? = 25,
+        onCommit: (Long) -> Unit = {},
+        onLive: (Color, Color, Color) -> Unit = { _, _, _ -> },
+    ) {
+        compose.setContent {
+            FocusStackTheme {
+                val text = FocusColors.Live.Text
+                val muted = FocusColors.Live.Muted
+                val mint = FocusColors.Live.Mint
+                SideEffect { onLive(text, muted, mint) }
+                ResumeCountdownSheet(
+                    title = "Dentist checkup",
+                    suggestedDays = suggestedDays,
+                    onDismiss = {},
+                    onCommit = onCommit,
+                )
+            }
+        }
+    }
 
-    private fun assertSheetChip(label: String) {
-        val node = compose.onNodeWithText(label)
+    private fun sheetChips(
+        labels: List<String>,
+        substring: Boolean = false,
+    ): List<String> {
+        data class Hit(
+            val label: String,
+            val left: androidx.compose.ui.unit.Dp,
+            val top: androidx.compose.ui.unit.Dp,
+        )
+
+        val hits = mutableListOf<Hit>()
+        labels.forEach { label ->
+            val nodes = compose.onAllNodesWithText(label, substring = substring)
+            val found = nodes.fetchSemanticsNodes()
+            found.indices.forEach { index ->
+                val bounds = nodes[index].getBoundsInRoot()
+                if (bounds.bottom - bounds.top >= 50.dp) {
+                    hits += Hit(label, bounds.left, bounds.top)
+                }
+            }
+        }
+        return hits.sortedWith(compareBy({ it.top }, { it.left })).map { it.label }
+    }
+
+    private fun assertTodayCellDisabled(today: LocalDate) {
+        val spoken = DateTimeFormatter.ofPattern("EEEE, MMMM d, yyyy", Locale.getDefault()).format(today)
+        val short = DateTimeFormatter.ofPattern("MMMM d, yyyy", Locale.getDefault()).format(today)
+        listOf(
+            hasContentDescription(spoken, substring = true),
+            hasContentDescription(short, substring = true),
+        ).forEach { matcher ->
+            val count = compose.onAllNodes(matcher).fetchSemanticsNodes().size
+            if (count > 0) {
+                compose.onNode(matcher).assertIsNotEnabled()
+            }
+        }
+        compose.onNodeWithText("OK").assertIsEnabled()
+    }
+
+    private fun assertSheetChip(
+        label: String,
+        substring: Boolean = false,
+    ) {
+        val node = compose.onNodeWithText(label, substring = substring)
         val bounds = node.getBoundsInRoot()
         assertTrue("$label is $bounds tall", bounds.bottom - bounds.top >= 50.dp)
         node.assertIsEnabled().assertHasClickAction()
@@ -225,5 +360,9 @@ class ResumeChipSheetQaTest {
         predicate: (FocusSnapshot) -> Boolean,
     ) {
         await { runBlocking { predicate(useCases.observeSnapshot().first()) } }
+    }
+
+    private companion object {
+        val RESUME_CHIPS = listOf("Tomorrow", "In 3 days", "Next week", "Pick a date")
     }
 }

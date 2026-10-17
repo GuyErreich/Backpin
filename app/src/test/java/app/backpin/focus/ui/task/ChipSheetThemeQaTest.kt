@@ -119,14 +119,17 @@ class ChipSheetThemeQaTest {
             compose.waitForIdle()
             val palette = liveColors(id, live)
             assertEquals(id.name, palette.mint, labelColor("Done now"))
-            assertEquals(id.name, palette.amber, labelColor("Tomorrow"))
-            assertEquals(id.name, palette.amber, labelColor("Pick a day"))
+            assertEquals(id.name, palette.text, labelColor("Tomorrow"))
+            assertEquals(id.name, palette.text, labelColor("Pick a day"))
+            assertNotEquals(id.name, palette.amber, labelColor("Tomorrow"))
+            assertNotEquals(id.name, palette.amber, labelColor("Pick a day"))
+            assertNotEquals(id.name, palette.mint, labelColor("Tomorrow"))
             assertNotEquals(id.name, palette.danger, labelColor("Done now"))
             assertNotEquals(id.name, palette.danger, labelColor("Tomorrow"))
             assertNotEquals(id.name, Color.Red, labelColor("Tomorrow"))
             if (id != ThemeId.SIGNAL) {
                 assertNotEquals(id.name, FocusColors.Mint, labelColor("Done now"))
-                assertNotEquals(id.name, FocusColors.Amber, labelColor("Tomorrow"))
+                assertNotEquals(id.name, FocusColors.Text, labelColor("Tomorrow"))
             }
             showRepeat = true
             compose.waitForIdle()
@@ -137,6 +140,31 @@ class ChipSheetThemeQaTest {
             if (id != ThemeId.SIGNAL) {
                 assertNotEquals(id.name, FocusColors.Text, labelColor("Skip today"))
             }
+        }
+    }
+
+    @Test
+    fun emberMissedTaskActionChipsDoNotUseAmberWarning() {
+        var live by mutableStateOf(LiveSheetColors.SIGNAL)
+        compose.setContent {
+            FocusStackTheme(themeId = ThemeId.EMBER) {
+                CaptureLiveColors { live = it }
+                MissedTaskSheet(
+                    state = MissedTaskSheetUi("task-1", "Call Dana"),
+                    onDismiss = {},
+                    onDoneNow = {},
+                    onTomorrow = {},
+                    onPickDay = {},
+                )
+            }
+        }
+        compose.waitForIdle()
+        val palette = liveColors(ThemeId.EMBER, live)
+        assertEquals("Done now", palette.mint, labelColor("Done now"))
+        listOf("Tomorrow", "Pick a day").forEach { label ->
+            assertEquals(label, palette.text, labelColor(label))
+            assertNotEquals(label, palette.amber, labelColor(label))
+            assertNotEquals(label, palette.mint, labelColor(label))
         }
     }
 
