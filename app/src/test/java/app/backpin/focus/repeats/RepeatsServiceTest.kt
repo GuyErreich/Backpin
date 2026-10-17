@@ -78,7 +78,7 @@ class RepeatsServiceTest {
     }
 
     @Test
-    fun rowsOrderOpenThenMissedThenDoneAndCounts() =
+    fun rowsOrderOpenThenMissedThenDoneAndCounts() {
         runBlocking {
             val makeBed = create("Make bed", RepeatBand.MORNING)
             val takeMeds = create("Take meds", RepeatBand.MORNING)
@@ -101,9 +101,10 @@ class RepeatsServiceTest {
             assertEquals(3, laundry.everyNDays)
             assertEquals(3, laundry.cadenceDays)
         }
+    }
 
     @Test
-    fun sheetOpensAndClosesOnSuccessfulWrite() =
+    fun sheetOpensAndClosesOnSuccessfulWrite() {
         runBlocking {
             service.openCreate("Take meds")
             val draft = service.observeEditing().first()
@@ -134,9 +135,10 @@ class RepeatsServiceTest {
             assertNull(service.observeEditing().first())
             assertTrue(service.observeRepeats().first().isEmpty())
         }
+    }
 
     @Test
-    fun commitRepeatDraftSavesOnCreateAndEdit() =
+    fun commitRepeatDraftSavesOnCreateAndEdit() {
         runBlocking {
             val created =
                 RepeatDraft(
@@ -169,9 +171,10 @@ class RepeatsServiceTest {
             assertEquals(3, updated.everyNDays)
             assertNull(service.observeEditing().first())
         }
+    }
 
     @Test
-    fun markDoneOffersUndoThatRestoresOpen() =
+    fun markDoneOffersUndoThatRestoresOpen() {
         runBlocking {
             val id = create("Take meds", RepeatBand.MORNING)
             assertTrue(service.markDone(id, today.toEpochDay()))
@@ -185,9 +188,10 @@ class RepeatsServiceTest {
             assertNull(service.observePendingUndo().first())
             assertNull(database.repeatLogDao().get(id, today.toEpochDay()))
         }
+    }
 
     @Test
-    fun lateDoneOnMissedRestoresMissedOnUndo() =
+    fun lateDoneOnMissedRestoresMissedOnUndo() {
         runBlocking {
             val id = create("Water plants", RepeatBand.NOON)
             repository.markOpenRepeatsMissed(RepeatBand.NOON, today.toEpochDay())
@@ -201,9 +205,10 @@ class RepeatsServiceTest {
             assertEquals(RepeatDayStatus.MISSED, statusOf(id))
             assertEquals(RepeatOutcome.MISSED.name, database.repeatLogDao().get(id, today.toEpochDay())?.outcome)
         }
+    }
 
     @Test
-    fun setBandTimeValidatesOrderAndExposesResult() =
+    fun setBandTimeValidatesOrderAndExposesResult() {
         runBlocking {
             assertEquals(BandTimeResult.Applied, service.setBandTime(BandEdge.MORNING, 8 * 60))
             assertEquals(BandTimeResult.Applied, service.observeBandTimeResult().first())
@@ -215,9 +220,10 @@ class RepeatsServiceTest {
             assertEquals(23 * 60 + 59, service.observeBandTimes().first().nightEndMinute)
             assertTrue(resyncs >= 2)
         }
+    }
 
     @Test
-    fun exactAlarmPromptShowsUntilDismissedOrGranted() =
+    fun exactAlarmPromptShowsUntilDismissedOrGranted() {
         runBlocking {
             assertFalse(service.canScheduleExactAlarms())
             assertTrue(service.observeExactAlarmPrompt().first())
@@ -228,26 +234,27 @@ class RepeatsServiceTest {
             assertTrue(service.canScheduleExactAlarms())
             assertFalse(service.observeExactAlarmPrompt().first())
         }
+    }
 
     @Test
-    fun createResyncsAlarms() =
+    fun createResyncsAlarms() {
         runBlocking {
             create("Take meds", RepeatBand.MORNING)
             assertEquals(1, resyncs)
         }
+    }
 
     private suspend fun create(
         title: String,
         band: RepeatBand,
     ): String = service.create(title, band, 1, today.toEpochDay())!!
 
-    private suspend fun statusOf(id: String): RepeatDayStatus =
-        service
-            .observeTodaysRepeats()
-            .first()
-            .all()
-            .single { it.repeat.id == id }
-            .status
+    private suspend fun statusOf(id: String): RepeatDayStatus = service
+        .observeTodaysRepeats()
+        .first()
+        .all()
+        .single { it.repeat.id == id }
+        .status
 
     private fun at(
         hour: Int,
