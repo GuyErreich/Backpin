@@ -550,8 +550,7 @@ class CountdownTapTest {
 
     private fun againLabel(days: Int, today: LocalDate): String = againInDaysLabel(days, today)
 
-    private fun taskCount(useCases: FocusUseCases): Int =
-        runBlocking { useCases.observeSnapshot().first().tasks.size }
+    private fun taskCount(useCases: FocusUseCases): Int = runBlocking { useCases.observeSnapshot().first().tasks.size }
 
     private fun awaitCountdown(
         useCases: FocusUseCases,
