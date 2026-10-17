@@ -14,11 +14,12 @@ import app.backpin.focus.ui.components.AccentButton
 import app.backpin.focus.ui.components.AccentTone
 import app.backpin.focus.ui.components.ActionRow
 import app.backpin.focus.ui.components.ChipSheet
+import app.backpin.focus.ui.components.QuietButton
 import java.time.LocalDate
 
 /**
  * A due scheduled task that never made Today. Three chips: Done now, Tomorrow,
- * and Pick a day. Amber is the schedule pair. Never red.
+ * and Pick a day. Tomorrow and Pick a day stay quiet. Never red.
  */
 @Composable
 internal fun MissedTaskSheet(
@@ -43,14 +44,12 @@ internal fun MissedTaskSheet(
                 tone = AccentTone.Mint,
                 onClick = onDoneNow,
             )
-            AccentButton(
+            QuietButton(
                 label = stringResource(R.string.action_tomorrow),
-                tone = AccentTone.Amber,
                 onClick = onTomorrow,
             )
-            AccentButton(
+            QuietButton(
                 label = stringResource(R.string.action_pick_a_day),
-                tone = AccentTone.Amber,
                 onClick = { picking = true },
             )
         }

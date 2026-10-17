@@ -71,8 +71,9 @@ internal fun EventResumeHost(
 }
 
 /**
- * Again in N days when a count is known, then days from today with Start in N days,
- * then the calendar. Back closes without detaching.
+ * Again in N days when a count is known, then chips for Tomorrow, In 3 days,
+ * Next week, and Pick a date. No typed days and no zero-day default.
+ * Back closes without detaching.
  */
 @Composable
 internal fun ResumeCountdownSheet(
@@ -81,13 +82,10 @@ internal fun ResumeCountdownSheet(
     onDismiss: () -> Unit,
     onCommit: (Long) -> Unit,
 ) {
-    var daysText by rememberSaveable { mutableStateOf("") }
     var picking by remember { mutableStateOf(false) }
     val sent = remember { booleanArrayOf(false) }
     val today = LocalDate.now()
     val tomorrow = today.plusDays(1)
-    val typedDays = countdownDays(daysText)
-    val typedDay = typedDays?.let { today.plusDays(it.toLong()).toEpochDay() }
 
     fun commit(day: Long) {
         if (sent[0]) return
@@ -95,12 +93,7 @@ internal fun ResumeCountdownSheet(
         onCommit(day)
     }
 
-    fun commitTypedDays() {
-        val days = typedDays ?: return
-        commit(today.plusDays(days.toLong()).toEpochDay())
-    }
-
-    fun commitAgain(days: Int) {
+    fun commitInDays(days: Int) {
         commit(today.plusDays(days.toLong()).toEpochDay())
     }
 
@@ -119,7 +112,7 @@ internal fun ResumeCountdownSheet(
                         scheduleMomentLabel(today.plusDays(suggestedDays.toLong()).toEpochDay(), null),
                     ),
                     tone = AccentTone.Lavender,
-                    onClick = { commitAgain(suggestedDays) },
+                    onClick = { commitInDays(suggestedDays) },
                 )
             }
             Text(
@@ -130,31 +123,24 @@ internal fun ResumeCountdownSheet(
                 modifier = Modifier.fillMaxWidth(),
             )
         }
-        CountdownDayEntry(
-            daysText = daysText,
-            onDaysChange = { daysText = sanitizeCountdownDays(it) },
-            shownDay = typedDay,
-            onDone = { commitTypedDays() },
-            onPickDate = { picking = true },
-            showPickDate = false,
-        )
         ActionRow {
-            AccentButton(
-                label = stringResource(R.string.resume_start_in_days, typedDays ?: 0),
-                tone = AccentTone.Lavender,
-                onClick = { commitTypedDays() },
-                enabled = typedDays != null,
+            QuietButton(
+                label = stringResource(R.string.action_tomorrow),
+                onClick = { commitInDays(1) },
+            )
+            QuietButton(
+                label = stringResource(R.string.action_in_3_days),
+                onClick = { commitInDays(3) },
+            )
+            QuietButton(
+                label = stringResource(R.string.action_next_week),
+                onClick = { commitInDays(7) },
             )
             QuietButton(
                 label = stringResource(R.string.action_pick_a_date),
                 onClick = { picking = true },
             )
         }
-        Text(
-            stringResource(R.string.resume_sheet_help),
-            style = MaterialTheme.typography.bodyMedium,
-            color = FocusColors.Live.Muted,
-        )
     }
     if (picking) {
         PickDateDialog(

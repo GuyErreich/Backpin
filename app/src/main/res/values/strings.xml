@@ -19,6 +19,8 @@
     <string name="action_edit">Edit</string>
     <string name="action_today">Today</string>
     <string name="action_tomorrow">Tomorrow</string>
+    <string name="action_in_3_days">In 3 days</string>
+    <string name="action_next_week">Next week</string>
     <string name="action_pick_a_day">Pick a day</string>
     <string name="action_pick_a_date">Pick a date</string>
     <string name="action_count_down_again">Count down again</string>
@@ -30,12 +32,11 @@
     <string name="resume_sheet_days_placeholder">25</string>
     <string name="resume_again_in_days">Again in %1$d days · %2$s</string>
     <string name="resume_start_in_days">Start in %1$d days</string>
-    <string name="resume_sheet_help">\"Again in N days\" uses this event\'s own interval, or the last count used. Back leaves the event as it was.</string>
     <string name="missed_repeat_sheet_title">This one was missed.</string>
     <string name="missed_repeat_sheet_lede">Muted until the end of the day. You can still check it off.</string>
     <string name="missed_repeat_sheet_open">Choose what to do with this missed repeat</string>
     <string name="missed_task_sheet_title">This one was missed.</string>
-    <string name="missed_task_sheet_lede">It stayed off Today. Done now, or pick another day. Never an alarm.</string>
+    <string name="missed_task_sheet_lede">It stayed off Today. Done now, or pick another day.</string>
     <string name="missed_task_sheet_open">Choose what to do with this missed task</string>
     <string name="undo_checked_off">Checked off</string>
     <string name="channel_current_name">Current task</string>
