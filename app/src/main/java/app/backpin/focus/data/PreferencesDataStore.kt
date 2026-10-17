@@ -68,7 +68,8 @@ class PreferencesDataStore(
      */
     val themeId: Flow<ThemeId> =
         dataStore.data.map { prefs ->
-            storedEnum(prefs[Keys.THEME_ID], ThemeId.SIGNAL)
+            prefs[Keys.THEME_ID]?.let { runCatching { ThemeId.valueOf(it) }.getOrNull() }
+                ?: ThemeId.SIGNAL
         }
 
     /**
@@ -77,7 +78,8 @@ class PreferencesDataStore(
      */
     val homeLayout: Flow<HomeLayout> =
         dataStore.data.map { prefs ->
-            storedEnum(prefs[Keys.HOME_LAYOUT], HomeLayout.FLAT)
+            prefs[Keys.HOME_LAYOUT]?.let { runCatching { HomeLayout.valueOf(it) }.getOrNull() }
+                ?: HomeLayout.FLAT
         }
 
     /** Writes the default shape so the keys exist even before a later settings pass. */
@@ -270,11 +272,6 @@ class PreferencesDataStore(
         val THEME_ID = stringPreferencesKey("theme_id")
         val HOME_LAYOUT = stringPreferencesKey("home_layout")
     }
-
-    private inline fun <reified T : Enum<T>> storedEnum(
-        raw: String?,
-        default: T,
-    ): T = raw?.let { runCatching { enumValueOf<T>(it) }.getOrNull() } ?: default
 
     private fun followUpKey(band: RepeatBand) =
         when (band) {
