@@ -110,7 +110,7 @@ internal fun RepeatSection(
 }
 
 @Composable
-private fun RepeatRow(
+internal fun RepeatRow(
     row: RepeatRowModel,
     reducedMotion: Boolean,
     onCheckOff: () -> Unit,

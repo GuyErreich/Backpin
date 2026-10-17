@@ -1,5 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
 <baseline version="1.0">
     <file name="src/main/java/app/backpin/focus/data/FocusRepositoryImpl.kt">
         <error line="56" column="58" source="standard:function-signature" />
@@ -447,89 +446,89 @@
     </file>
     <file name="src/main/java/app/backpin/focus/ui/home/HomeScreen.kt">
         <error line="4" column="1" source="standard:import-ordering" />
-        <error line="199" column="1" source="standard:indent" />
-        <error line="200" column="1" source="standard:indent" />
-        <error line="201" column="1" source="standard:indent" />
-        <error line="202" column="1" source="standard:indent" />
-        <error line="203" column="1" source="standard:indent" />
-        <error line="204" column="1" source="standard:indent" />
-        <error line="205" column="1" source="standard:indent" />
-        <error line="208" column="1" source="standard:indent" />
-        <error line="209" column="1" source="standard:indent" />
-        <error line="210" column="1" source="standard:indent" />
-        <error line="211" column="1" source="standard:indent" />
-        <error line="212" column="1" source="standard:indent" />
-        <error line="213" column="1" source="standard:indent" />
-        <error line="218" column="1" source="standard:indent" />
-        <error line="219" column="1" source="standard:indent" />
-        <error line="220" column="1" source="standard:indent" />
-        <error line="221" column="1" source="standard:indent" />
-        <error line="222" column="1" source="standard:indent" />
-        <error line="223" column="1" source="standard:indent" />
-        <error line="224" column="1" source="standard:indent" />
-        <error line="225" column="1" source="standard:indent" />
         <error line="226" column="1" source="standard:indent" />
         <error line="227" column="1" source="standard:indent" />
+        <error line="228" column="1" source="standard:indent" />
+        <error line="229" column="1" source="standard:indent" />
+        <error line="230" column="1" source="standard:indent" />
+        <error line="231" column="1" source="standard:indent" />
+        <error line="232" column="1" source="standard:indent" />
+        <error line="235" column="1" source="standard:indent" />
+        <error line="236" column="1" source="standard:indent" />
+        <error line="237" column="1" source="standard:indent" />
+        <error line="238" column="1" source="standard:indent" />
+        <error line="239" column="1" source="standard:indent" />
+        <error line="240" column="1" source="standard:indent" />
+        <error line="245" column="1" source="standard:indent" />
+        <error line="246" column="1" source="standard:indent" />
+        <error line="247" column="1" source="standard:indent" />
+        <error line="248" column="1" source="standard:indent" />
+        <error line="249" column="1" source="standard:indent" />
+        <error line="250" column="1" source="standard:indent" />
+        <error line="251" column="1" source="standard:indent" />
+        <error line="252" column="1" source="standard:indent" />
         <error line="253" column="1" source="standard:indent" />
         <error line="254" column="1" source="standard:indent" />
-        <error line="255" column="1" source="standard:indent" />
-        <error line="256" column="1" source="standard:indent" />
-        <error line="309" column="44" source="standard:function-signature" />
-        <error line="582" column="1" source="standard:indent" />
-        <error line="583" column="1" source="standard:indent" />
-        <error line="584" column="1" source="standard:indent" />
-        <error line="585" column="1" source="standard:indent" />
-        <error line="586" column="1" source="standard:indent" />
-        <error line="594" column="1" source="standard:indent" />
-        <error line="595" column="1" source="standard:indent" />
-        <error line="596" column="1" source="standard:indent" />
-        <error line="597" column="1" source="standard:indent" />
-        <error line="598" column="1" source="standard:indent" />
-        <error line="603" column="1" source="standard:indent" />
-        <error line="604" column="1" source="standard:indent" />
-        <error line="605" column="1" source="standard:indent" />
-        <error line="606" column="1" source="standard:indent" />
-        <error line="607" column="1" source="standard:indent" />
-        <error line="608" column="1" source="standard:indent" />
-        <error line="609" column="1" source="standard:indent" />
-        <error line="610" column="1" source="standard:indent" />
-        <error line="611" column="1" source="standard:indent" />
+        <error line="280" column="1" source="standard:indent" />
+        <error line="281" column="1" source="standard:indent" />
+        <error line="282" column="1" source="standard:indent" />
+        <error line="283" column="1" source="standard:indent" />
+        <error line="336" column="44" source="standard:function-signature" />
         <error line="612" column="1" source="standard:indent" />
         <error line="613" column="1" source="standard:indent" />
         <error line="614" column="1" source="standard:indent" />
         <error line="615" column="1" source="standard:indent" />
         <error line="616" column="1" source="standard:indent" />
-        <error line="617" column="1" source="standard:indent" />
-        <error line="618" column="1" source="standard:indent" />
-        <error line="619" column="1" source="standard:indent" />
-        <error line="620" column="1" source="standard:indent" />
-        <error line="657" column="1" source="standard:indent" />
-        <error line="658" column="1" source="standard:indent" />
-        <error line="659" column="1" source="standard:indent" />
-        <error line="660" column="1" source="standard:indent" />
-        <error line="661" column="1" source="standard:indent" />
-        <error line="673" column="59" source="standard:function-signature" />
-        <error line="682" column="1" source="standard:indent" />
-        <error line="683" column="1" source="standard:indent" />
-        <error line="684" column="1" source="standard:indent" />
-        <error line="685" column="1" source="standard:indent" />
-        <error line="744" column="1" source="standard:indent" />
-        <error line="745" column="1" source="standard:indent" />
-        <error line="746" column="1" source="standard:indent" />
-        <error line="747" column="1" source="standard:indent" />
-        <error line="748" column="1" source="standard:indent" />
-        <error line="749" column="1" source="standard:indent" />
-        <error line="750" column="1" source="standard:indent" />
-        <error line="751" column="1" source="standard:indent" />
-        <error line="752" column="1" source="standard:indent" />
-        <error line="753" column="1" source="standard:indent" />
-        <error line="754" column="1" source="standard:indent" />
-        <error line="761" column="1" source="standard:indent" />
-        <error line="762" column="1" source="standard:indent" />
-        <error line="763" column="1" source="standard:indent" />
-        <error line="813" column="1" source="standard:indent" />
-        <error line="814" column="1" source="standard:indent" />
-        <error line="815" column="1" source="standard:indent" />
+        <error line="624" column="1" source="standard:indent" />
+        <error line="625" column="1" source="standard:indent" />
+        <error line="626" column="1" source="standard:indent" />
+        <error line="627" column="1" source="standard:indent" />
+        <error line="628" column="1" source="standard:indent" />
+        <error line="633" column="1" source="standard:indent" />
+        <error line="634" column="1" source="standard:indent" />
+        <error line="635" column="1" source="standard:indent" />
+        <error line="636" column="1" source="standard:indent" />
+        <error line="637" column="1" source="standard:indent" />
+        <error line="638" column="1" source="standard:indent" />
+        <error line="639" column="1" source="standard:indent" />
+        <error line="640" column="1" source="standard:indent" />
+        <error line="641" column="1" source="standard:indent" />
+        <error line="642" column="1" source="standard:indent" />
+        <error line="643" column="1" source="standard:indent" />
+        <error line="644" column="1" source="standard:indent" />
+        <error line="645" column="1" source="standard:indent" />
+        <error line="646" column="1" source="standard:indent" />
+        <error line="647" column="1" source="standard:indent" />
+        <error line="648" column="1" source="standard:indent" />
+        <error line="649" column="1" source="standard:indent" />
+        <error line="650" column="1" source="standard:indent" />
+        <error line="687" column="1" source="standard:indent" />
+        <error line="688" column="1" source="standard:indent" />
+        <error line="689" column="1" source="standard:indent" />
+        <error line="690" column="1" source="standard:indent" />
+        <error line="691" column="1" source="standard:indent" />
+        <error line="703" column="59" source="standard:function-signature" />
+        <error line="712" column="1" source="standard:indent" />
+        <error line="713" column="1" source="standard:indent" />
+        <error line="714" column="1" source="standard:indent" />
+        <error line="715" column="1" source="standard:indent" />
+        <error line="774" column="1" source="standard:indent" />
+        <error line="775" column="1" source="standard:indent" />
+        <error line="776" column="1" source="standard:indent" />
+        <error line="777" column="1" source="standard:indent" />
+        <error line="778" column="1" source="standard:indent" />
+        <error line="779" column="1" source="standard:indent" />
+        <error line="780" column="1" source="standard:indent" />
+        <error line="781" column="1" source="standard:indent" />
+        <error line="782" column="1" source="standard:indent" />
+        <error line="783" column="1" source="standard:indent" />
+        <error line="784" column="1" source="standard:indent" />
+        <error line="791" column="1" source="standard:indent" />
+        <error line="792" column="1" source="standard:indent" />
+        <error line="793" column="1" source="standard:indent" />
+        <error line="843" column="1" source="standard:indent" />
+        <error line="844" column="1" source="standard:indent" />
+        <error line="845" column="1" source="standard:indent" />
     </file>
     <file name="src/main/java/app/backpin/focus/ui/home/PileScreens.kt">
         <error line="4" column="1" source="standard:import-ordering" />

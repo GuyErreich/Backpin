@@ -100,9 +100,12 @@ fun HomeScreen(
     onOpenScheduled: () -> Unit,
     onOpenDone: () -> Unit,
     modifier: Modifier = Modifier,
+    // TODO(#29): drive from homeLayout
+    grouped: Boolean = true,
 ) {
     val reducedMotion = rememberReducedMotion()
     val repeatRows by viewModel.repeatRows.collectAsState()
+    val homeBands by viewModel.homeBands.collectAsState()
     val todayLimit = state.preferences.todayLimit.coerceIn(MIN_TODAY_LIMIT, MAX_TODAY_LIMIT)
     val filled = state.todaySlots.mapNotNull { slot -> slot.task?.let { slot to it } }
     val hasRoom = filled.size < todayLimit
@@ -131,31 +134,55 @@ fun HomeScreen(
             Text("Loading your place…", style = MaterialTheme.typography.bodyLarge)
         } else {
             NowCard(state, viewModel, onOpenFocus, reducedMotion)
-            TodaySection(
-                filled = filled,
-                hasRoom = hasRoom,
-                todayLimit = todayLimit,
-                reducedMotion = reducedMotion,
-                onOpenFocus = onOpenFocus,
-                somethingCurrent = state.now != null,
-                onStart = viewModel::start,
-                onDone = viewModel::markDone,
-                onLater = viewModel::demote,
-                onInterrupt = viewModel::interruptWith,
-                onReorder = viewModel::reorderToday,
-                onEdit = viewModel::openEdit,
-            )
-            RepeatSection(
-                rows = repeatRows,
-                reducedMotion = reducedMotion,
-                onCheckOff = { row ->
-                    if (row.status != RepeatDayStatus.DONE) {
-                        viewModel.markRepeatDone(row.repeat.id, row.epochDay)
-                    }
-                },
-                onEdit = viewModel::openRepeatEdit,
-                onCreate = { viewModel.openRepeatCreate() },
-            )
+            if (grouped) {
+                HomeBandsSection(
+                    bands = homeBands,
+                    filled = filled,
+                    hasRoom = hasRoom,
+                    todayLimit = todayLimit,
+                    reducedMotion = reducedMotion,
+                    somethingCurrent = state.now != null,
+                    onOpenFocus = onOpenFocus,
+                    onStart = viewModel::start,
+                    onDone = viewModel::markDone,
+                    onLater = viewModel::demote,
+                    onInterrupt = viewModel::interruptWith,
+                    onReorder = viewModel::reorderToday,
+                    onEditTask = viewModel::openEdit,
+                    onCheckOffRepeat = { row ->
+                        if (row.status != RepeatDayStatus.DONE) {
+                            viewModel.markRepeatDone(row.repeat.id, row.epochDay)
+                        }
+                    },
+                    onEditRepeat = viewModel::openRepeatEdit,
+                )
+            } else {
+                TodaySection(
+                    filled = filled,
+                    hasRoom = hasRoom,
+                    todayLimit = todayLimit,
+                    reducedMotion = reducedMotion,
+                    onOpenFocus = onOpenFocus,
+                    somethingCurrent = state.now != null,
+                    onStart = viewModel::start,
+                    onDone = viewModel::markDone,
+                    onLater = viewModel::demote,
+                    onInterrupt = viewModel::interruptWith,
+                    onReorder = viewModel::reorderToday,
+                    onEdit = viewModel::openEdit,
+                )
+                RepeatSection(
+                    rows = repeatRows,
+                    reducedMotion = reducedMotion,
+                    onCheckOff = { row ->
+                        if (row.status != RepeatDayStatus.DONE) {
+                            viewModel.markRepeatDone(row.repeat.id, row.epochDay)
+                        }
+                    },
+                    onEdit = viewModel::openRepeatEdit,
+                    onCreate = { viewModel.openRepeatCreate() },
+                )
+            }
             HorizontalDivider(color = FocusColors.Outline)
             Column(verticalArrangement = Arrangement.spacedBy(Space)) {
                 PileCountRow(title = "Inbox", count = state.inboxCount, onClick = onOpenInbox)
@@ -314,7 +341,7 @@ internal fun nowLabel(now: NowUi): String =
     }
 
 @Composable
-private fun TodaySection(
+internal fun TodaySection(
     filled: List<Pair<SlotUi, TaskUi>>,
     hasRoom: Boolean,
     todayLimit: Int,
@@ -327,6 +354,7 @@ private fun TodaySection(
     onInterrupt: (String) -> Unit,
     onReorder: (List<String>) -> Unit,
     onEdit: (String) -> Unit,
+    showHeader: Boolean = true,
 ) {
     val drag = remember { TodayDragState() }
     var rows by remember { mutableStateOf(filled) }
@@ -367,7 +395,9 @@ private fun TodaySection(
     }
     val slotLabel = if (todayLimit == 1) "1 slot" else "$todayLimit slots"
     Column(verticalArrangement = Arrangement.spacedBy(Space)) {
-        SectionLabel("TODAY", slotLabel)
+        if (showHeader) {
+            SectionLabel("TODAY", slotLabel)
+        }
         rows.forEachIndexed { index, (slot, task) ->
             key(task.id) {
                 val targetShift =
