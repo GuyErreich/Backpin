@@ -127,10 +127,22 @@ private val typography =
     )
 
 @Composable
-fun FocusStackTheme(content: @Composable () -> Unit) {
+fun FocusStackTheme(
+    themeId: app.backpin.focus.domain.ThemeId = app.backpin.focus.domain.ThemeId.SIGNAL,
+    content: @Composable () -> Unit,
+) {
     MaterialTheme(
-        colorScheme = scheme,
+        colorScheme = colorsFor(themeId),
         typography = typography,
         content = content,
     )
+}
+
+/** Palette for [themeId]. Every id uses the current colours until the per-theme palettes land. */
+fun colorsFor(themeId: app.backpin.focus.domain.ThemeId) = when (themeId) {
+    app.backpin.focus.domain.ThemeId.SIGNAL,
+    app.backpin.focus.domain.ThemeId.STILL_WATER,
+    app.backpin.focus.domain.ThemeId.EMBER,
+    app.backpin.focus.domain.ThemeId.CLEAR_LINE,
+    -> scheme
 }

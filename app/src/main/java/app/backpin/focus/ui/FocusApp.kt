@@ -39,6 +39,8 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import app.backpin.focus.domain.HomeLayout
+import app.backpin.focus.domain.ThemeId
 import app.backpin.focus.notifications.NotificationContract
 import app.backpin.focus.ui.capture.CaptureEdit
 import app.backpin.focus.ui.capture.CaptureSheet
@@ -81,6 +83,11 @@ fun FocusApp(
     viewModel: FocusStackViewModel,
     launchDestination: String? = null,
     onLaunchDestinationConsumed: () -> Unit = {},
+    themeId: ThemeId = ThemeId.SIGNAL,
+    onThemeId: (ThemeId) -> Unit = {},
+    homeLayout: HomeLayout = HomeLayout.FLAT,
+    onHomeLayout: (HomeLayout) -> Unit = {},
+    showHomeLayout: Boolean = false,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val checkedOffMessage = stringResource(R.string.undo_checked_off)
@@ -142,9 +149,9 @@ fun FocusApp(
                         tone = AccentTone.Mint,
                         onClick = { viewModel.openCapture(interrupts = false) },
                         modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = Space),
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = Space),
                     )
                 }
                 NavigationBar(containerColor = FocusColors.Surface) {
@@ -301,6 +308,11 @@ fun FocusApp(
                     showExactAlarmPrompt = showExactAlarmPrompt,
                     onDismissExactAlarmPrompt = viewModel::dismissExactAlarmPrompt,
                     onRefreshExactAlarmPermission = viewModel::refreshExactAlarmPermission,
+                    themeId = themeId,
+                    onThemeId = onThemeId,
+                    homeLayout = homeLayout,
+                    onHomeLayout = onHomeLayout,
+                    showHomeLayout = showHomeLayout,
                 )
             }
         }
@@ -327,11 +339,11 @@ fun FocusApp(
             onPlaceLater = {},
             onSchedule = { _, _, _ -> },
             edit =
-                CaptureEdit(
-                    title = editing.title,
-                    place = editing.place,
-                    scheduledEpochDay = editing.scheduledOnEpochDay,
-                ),
+            CaptureEdit(
+                title = editing.title,
+                place = editing.place,
+                scheduledEpochDay = editing.scheduledOnEpochDay,
+            ),
             onCommitEdit = viewModel::saveEdit,
         )
     } else if (state.captureOpen) {
@@ -432,13 +444,11 @@ private fun androidx.navigation.NavController.navigateTab(route: String) {
 
 private fun AnimatedContentTransitionScope<NavBackStackEntry>.homePileEnter(
     reducedMotion: Boolean,
-): EnterTransition? =
-    if (initialState.destination.route == Routes.HOME) pileEnter(forward = true, reducedMotion) else null
+): EnterTransition? = if (initialState.destination.route == Routes.HOME) pileEnter(forward = true, reducedMotion) else null
 
 private fun AnimatedContentTransitionScope<NavBackStackEntry>.homePileExit(
     reducedMotion: Boolean,
-): ExitTransition? =
-    if (targetState.destination.route == Routes.HOME) pileExit(forward = false, reducedMotion) else null
+): ExitTransition? = if (targetState.destination.route == Routes.HOME) pileExit(forward = false, reducedMotion) else null
 
 /** Push a pile above Today. Task actions on that screen do not call this. */
 private fun androidx.navigation.NavController.openPile(route: String) {
