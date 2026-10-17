@@ -27,6 +27,8 @@ interface RepeatsApi {
     /**
      * Today's due items per band, with open / done / missed.
      * Repeats never enter Today and never become focus work.
+     * Recomputes when the local day changes: local midnight, a system
+     * date/time/zone change, or [refreshToday].
      */
     fun observeTodaysRepeats(): Flow<TodaysRepeats>
 
@@ -37,6 +39,7 @@ interface RepeatsApi {
      * Each [app.backpin.focus.domain.RepeatRow] includes [app.backpin.focus.domain.RepeatRow.everyNDays]
      * (also [app.backpin.focus.domain.RepeatRow.cadenceDays]) so the UI can show "every N days"
      * when the interval is not daily.
+     * Recomputes from the same local-day signal as [observeTodaysRepeats].
      */
     fun observeRows(): Flow<RepeatRowsState>
 
@@ -85,6 +88,8 @@ interface RepeatsApi {
      * Saves a valid [draft] and closes the sheet. Done and Back both call this
      * so closing keeps the changes. A blank title writes nothing and leaves
      * the sheet open. Create when [RepeatDraft.id] is null; otherwise update.
+     * A zero [RepeatDraft.anchorEpochDay] stores the current local day from the
+     * injected clock and system zone.
      */
     suspend fun commitRepeatDraft(draft: RepeatDraft): Boolean
 
@@ -173,6 +178,14 @@ interface RepeatsApi {
      * Re-reads [canScheduleExactAlarms] after Settings returns from the system prompt.
      */
     fun refreshExactAlarmPermission()
+
+    /**
+     * Re-reads the current local day from the clock and system zone.
+     * Call when the app returns to foreground so Home drops yesterday's
+     * missed repeats if the date changed while the UI was stopped.
+     * No-op when the local day has not changed.
+     */
+    fun refreshToday()
 
     /**
      * Persists that the user chose "Not now" on the exact-alarm prompt.
@@ -271,6 +284,8 @@ private object EmptyRepeatsApi : RepeatsApi {
     override fun canScheduleExactAlarms(): Boolean = false
 
     override fun refreshExactAlarmPermission() = Unit
+
+    override fun refreshToday() = Unit
 
     override suspend fun dismissExactAlarmPrompt() = Unit
 }

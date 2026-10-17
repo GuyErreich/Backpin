@@ -222,13 +222,14 @@ class RepeatSheetPersistTest {
                 .inMemoryDatabaseBuilder(context, FocusStackDatabase::class.java)
                 .allowMainThreadQueries()
                 .build()
+        val clock = clockAt(8)
         val repository =
             FocusRepositoryImpl(
                 database = database,
                 preferencesStore = PreferencesDataStore(context, "repeat-sheet-persist-${UUID.randomUUID()}"),
-                clock = clockAt(8),
+                clock = clock,
             )
-        val repeats = RepeatsService(repository)
+        val repeats = RepeatsService(repository, clock = clock)
         val store = ViewModelStore()
         val viewModel =
             ViewModelProvider(
