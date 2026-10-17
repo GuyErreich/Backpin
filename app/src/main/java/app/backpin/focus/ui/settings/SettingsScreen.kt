@@ -144,7 +144,7 @@ fun SettingsScreen(
         Text(
             "SETTINGS",
             style = MaterialTheme.typography.labelLarge,
-            color = FocusColors.Muted,
+            color = FocusColors.Live.Muted,
         )
         Text(
             "Kept on this phone.",
@@ -158,7 +158,7 @@ fun SettingsScreen(
         Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(CardRadius),
-            color = FocusColors.Surface,
+            color = FocusColors.Live.Surface,
         ) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(Space)) {
                 Text(stringResource(R.string.settings_theme), style = MaterialTheme.typography.titleMedium)
@@ -177,7 +177,7 @@ fun SettingsScreen(
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(CardRadius),
-                color = FocusColors.Surface,
+                color = FocusColors.Live.Surface,
             ) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(Space)) {
                     Text(stringResource(R.string.settings_home_layout), style = MaterialTheme.typography.titleMedium)
@@ -196,7 +196,7 @@ fun SettingsScreen(
         Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(CardRadius),
-            color = FocusColors.Surface,
+            color = FocusColors.Live.Surface,
         ) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(Space)) {
                 Text("Today", style = MaterialTheme.typography.titleMedium)
@@ -218,7 +218,7 @@ fun SettingsScreen(
         Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(CardRadius),
-            color = FocusColors.Surface,
+            color = FocusColors.Live.Surface,
         ) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(Space)) {
                 Text("Repeats", style = MaterialTheme.typography.titleMedium)
@@ -236,7 +236,7 @@ fun SettingsScreen(
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(CardRadius),
-                color = FocusColors.SurfaceHigh,
+                color = FocusColors.Live.SurfaceHigh,
             ) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(Space)) {
                     Text("On-time reminders", style = MaterialTheme.typography.titleMedium)
@@ -268,7 +268,7 @@ fun SettingsScreen(
         Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(CardRadius),
-            color = FocusColors.Surface,
+            color = FocusColors.Live.Surface,
         ) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(Space)) {
                 Text("Phrases", style = MaterialTheme.typography.titleMedium)
@@ -281,7 +281,7 @@ fun SettingsScreen(
                         Text(
                             phrase,
                             style = MaterialTheme.typography.bodyLarge,
-                            color = FocusColors.Text,
+                            color = FocusColors.Live.Text,
                         )
                         ActionRow {
                             QuietButton("Rename", onClick = { renaming = index })
@@ -319,7 +319,7 @@ fun SettingsScreen(
         Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(CardRadius),
-            color = FocusColors.Surface,
+            color = FocusColors.Live.Surface,
         ) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(Space)) {
                 Text("Nudges", style = MaterialTheme.typography.titleMedium)
@@ -353,7 +353,7 @@ fun SettingsScreen(
         Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(CardRadius),
-            color = FocusColors.Surface,
+            color = FocusColors.Live.Surface,
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
@@ -384,7 +384,7 @@ fun SettingsScreen(
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(CardRadius),
-                color = FocusColors.SurfaceHigh,
+                color = FocusColors.Live.SurfaceHigh,
             ) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(Space)) {
                     Text(
@@ -497,8 +497,8 @@ private fun QuietTimeDialog(
         )
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = FocusColors.Surface,
-        titleContentColor = FocusColors.Text,
+        containerColor = FocusColors.Live.Surface,
+        titleContentColor = FocusColors.Live.Text,
         title = { Text(title) },
         text = { TimePicker(state = state) },
         confirmButton = {
@@ -519,8 +519,8 @@ private fun RenamePhraseDialog(
     var draft by remember(initial) { mutableStateOf(initial) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = FocusColors.Surface,
-        titleContentColor = FocusColors.Text,
+        containerColor = FocusColors.Live.Surface,
+        titleContentColor = FocusColors.Live.Text,
         title = { Text("Rename phrase") },
         text = {
             OutlinedTextField(

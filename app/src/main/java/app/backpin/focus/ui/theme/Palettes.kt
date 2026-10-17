@@ -8,7 +8,7 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.ReadOnlyComposable
-import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.graphics.Color
 import app.backpin.focus.domain.ThemeId
 
@@ -179,12 +179,9 @@ fun paletteFor(themeId: ThemeId): ThemePalette = when (themeId) {
     ThemeId.CLEAR_LINE -> ClearLinePalette
 }
 
-/** Live palette for non-composable helpers. [FocusStackTheme] updates this before children draw. */
-internal var activePalette: ThemePalette = SignalPalette
+val LocalFocusPalette = compositionLocalOf { paletteFor(ThemeId.SIGNAL) }
 
-val LocalFocusPalette = staticCompositionLocalOf { paletteFor(ThemeId.SIGNAL) }
-
-val LocalFocusExtraColors = staticCompositionLocalOf { paletteFor(ThemeId.SIGNAL).extras }
+val LocalFocusExtraColors = compositionLocalOf { paletteFor(ThemeId.SIGNAL).extras }
 
 val MaterialTheme.extras: FocusExtraColors
     @Composable

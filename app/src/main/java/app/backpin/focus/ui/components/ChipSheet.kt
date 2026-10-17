@@ -46,7 +46,7 @@ internal fun ChipSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         sheetGesturesEnabled = false,
-        containerColor = FocusColors.Surface,
+        containerColor = FocusColors.Live.Surface,
         contentWindowInsets = { WindowInsets.navigationBars },
         properties = ModalBottomSheetProperties(shouldDismissOnBackPress = false),
     ) {
@@ -76,7 +76,7 @@ internal fun ChipSheet(
                 Text(subtitle, style = MaterialTheme.typography.bodyLarge)
             }
             if (!lede.isNullOrBlank()) {
-                Text(lede, style = MaterialTheme.typography.bodyMedium, color = FocusColors.Muted)
+                Text(lede, style = MaterialTheme.typography.bodyMedium, color = FocusColors.Live.Muted)
             }
             content()
         }

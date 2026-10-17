@@ -113,11 +113,11 @@ internal fun ResumeCountdownSheet(
             ActionRow {
                 AccentButton(
                     label =
-                    stringResource(
-                        R.string.resume_again_in_days,
-                        suggestedDays,
-                        scheduleMomentLabel(today.plusDays(suggestedDays.toLong()).toEpochDay(), null),
-                    ),
+                        stringResource(
+                            R.string.resume_again_in_days,
+                            suggestedDays,
+                            scheduleMomentLabel(today.plusDays(suggestedDays.toLong()).toEpochDay(), null),
+                        ),
                     tone = AccentTone.Lavender,
                     onClick = { commitAgain(suggestedDays) },
                 )
@@ -125,7 +125,7 @@ internal fun ResumeCountdownSheet(
             Text(
                 stringResource(R.string.resume_sheet_or_choose),
                 style = MaterialTheme.typography.bodyMedium,
-                color = FocusColors.Muted,
+                color = FocusColors.Live.Muted,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -153,7 +153,7 @@ internal fun ResumeCountdownSheet(
         Text(
             stringResource(R.string.resume_sheet_help),
             style = MaterialTheme.typography.bodyMedium,
-            color = FocusColors.Muted,
+            color = FocusColors.Live.Muted,
         )
     }
     if (picking) {
