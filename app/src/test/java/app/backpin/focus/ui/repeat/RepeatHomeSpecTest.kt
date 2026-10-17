@@ -124,6 +124,12 @@ class RepeatHomeSpecTest {
             assertEquals(FocusColors.Muted, missedColor)
             tapDescription("Water plants. Missed at noon · muted until end of day. Check off.")
             await {
+                env.viewModel.missedRepeatSheet.value?.title == "Water plants" &&
+                    env.viewModel.repeatRows.value.rows.single().status == RepeatDayStatus.MISSED
+            }
+            compose.onNodeWithText("This one was missed.").assertExists()
+            compose.onNodeWithText("Done now").performTouchInput { click(center) }
+            await {
                 env.viewModel.repeatRows.value.rows.single().status == RepeatDayStatus.DONE &&
                     env.viewModel.uiState.value.undo?.target is UndoTarget.RepeatCheckOff
             }
@@ -336,6 +342,7 @@ class RepeatHomeSpecTest {
         compose.setContent {
             val viewModel = env.shown.value
             val state by viewModel.uiState.collectAsState()
+            val missed by viewModel.missedRepeatSheet.collectAsState()
             FocusStackTheme {
                 HomeScreen(
                     state = state,
@@ -346,6 +353,14 @@ class RepeatHomeSpecTest {
                     onOpenScheduled = {},
                     onOpenDone = {},
                 )
+                missed?.let { pending ->
+                    MissedRepeatSheet(
+                        state = pending,
+                        onDismiss = viewModel::dismissMissedRepeat,
+                        onDoneNow = viewModel::doneMissedRepeat,
+                        onSkipToday = viewModel::skipMissedRepeat,
+                    )
+                }
             }
         }
     }
@@ -459,16 +474,15 @@ class RepeatHomeSpecTest {
             store: ViewModelStore,
             useCases: FocusUseCases,
             repeats: RepeatsService,
-        ): FocusStackViewModel =
-            ViewModelProvider(
-                store,
-                object : ViewModelProvider.Factory {
-                    override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                        @Suppress("UNCHECKED_CAST")
-                        return FocusStackViewModel(useCases, repeats) as T
-                    }
-                },
-            )[FocusStackViewModel::class.java]
+        ): FocusStackViewModel = ViewModelProvider(
+            store,
+            object : ViewModelProvider.Factory {
+                override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                    @Suppress("UNCHECKED_CAST")
+                    return FocusStackViewModel(useCases, repeats) as T
+                }
+            },
+        )[FocusStackViewModel::class.java]
     }
 
     private class SettableClock(
