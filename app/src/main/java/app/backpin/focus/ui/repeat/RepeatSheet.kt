@@ -51,6 +51,7 @@ import app.backpin.focus.ui.components.BACK_LABEL
 import app.backpin.focus.ui.components.BackArrow
 import app.backpin.focus.ui.components.CLOSE_LABEL
 import app.backpin.focus.ui.components.CaptureChoice
+import app.backpin.focus.ui.components.ChoiceTone
 import app.backpin.focus.ui.components.QuietButton
 import app.backpin.focus.ui.motion.rememberReducedMotion
 import app.backpin.focus.ui.theme.FocusColors
@@ -260,6 +261,7 @@ internal fun RepeatSheet(
                 label = stringResource(R.string.action_done),
                 onClick = ::save,
                 enabled = canSave,
+                tone = ChoiceTone.Mint,
             )
             if (draft.editing) {
                 QuietButton(

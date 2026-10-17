@@ -13,6 +13,7 @@ internal fun repeatsLeftLabel(
     resources: Resources,
 ): String {
     if (state.total == 0) return ""
+    if (state.leftCount == 0) return resources.getString(R.string.repeat_all_done)
     return resources.getString(R.string.repeat_left_count, state.leftCount, state.total)
 }
 

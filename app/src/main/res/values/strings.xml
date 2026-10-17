@@ -27,6 +27,7 @@
     <string name="countdown_arrived_text">It\'s in focus now. Open Focus to choose where it goes.</string>
     <string name="repeat_section">REPEAT</string>
     <string name="repeat_left_count">%1$d of %2$d left</string>
+    <string name="repeat_all_done">All done</string>
     <string name="repeat_empty">Nothing due today.</string>
     <string name="repeat_new">New repeat</string>
     <string name="repeat_cadence">every %d days</string>

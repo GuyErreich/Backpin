@@ -45,11 +45,8 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.round
@@ -137,17 +134,8 @@ private fun RepeatRow(
     val resources = LocalContext.current.resources
     val description = repeatRowDescription(row, resources)
     val interval = everyNDaysLabel(row.cadenceDays, resources)
-    val titleText =
-        if (interval == null) {
-            buildAnnotatedString { append(row.repeat.title) }
-        } else {
-            buildAnnotatedString {
-                append(row.repeat.title)
-                withStyle(SpanStyle(color = FocusColors.Muted)) {
-                    append(resources.getString(R.string.repeat_title_cadence_gap, interval))
-                }
-            }
-        }
+    val cadence =
+        interval?.let { resources.getString(R.string.repeat_title_cadence_gap, it).trim() }
     val shape = RoundedCornerShape(CardRadius)
     val content: @Composable () -> Unit = {
         Row(
@@ -161,9 +149,9 @@ private fun RepeatRow(
             RepeatMark(done = done, missed = missed, color = if (done) FocusColors.Muted else FocusColors.Text)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
-                    titleText,
+                    row.repeat.title,
                     style = MaterialTheme.typography.titleLarge,
-                    maxLines = 2,
+                    maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     textDecoration = if (done) TextDecoration.LineThrough else TextDecoration.None,
                     color = if (missed) FocusColors.Muted else FocusColors.Text,
@@ -175,6 +163,16 @@ private fun RepeatRow(
                         color = FocusColors.Muted,
                     )
                 }
+            }
+            if (cadence != null) {
+                Text(
+                    cadence,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = FocusColors.Muted,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Visible,
+                )
             }
             Text(
                 repeatBandMark(row.repeat.band),
