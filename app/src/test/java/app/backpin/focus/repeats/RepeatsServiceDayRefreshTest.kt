@@ -127,10 +127,9 @@ class RepeatsServiceDayRefreshTest {
         rows.await { lastTitles(it) == setOf("Zone miss") }
         assertEquals(LocalDate.of(2026, 10, 15), crossing.atZone(losAngeles).toLocalDate())
         assertEquals(LocalDate.of(2026, 10, 16), crossing.atZone(auckland).toLocalDate())
-        val beforeZone = rows.size
         env.zoneId = auckland
         deliverToRepeatsService(Intent.ACTION_TIMEZONE_CHANGED)
-        rows.await { it.size > beforeZone }
+        rows.await { lastTitles(it) == setOf("Take meds", "Laundry") }
         assertTrue(rows.last().rows.any { it.repeat.title == "Take meds" })
         assertFalse(rows.last().rows.any { it.repeat.title == "Zone miss" })
         rows.close()
