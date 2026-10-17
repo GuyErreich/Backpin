@@ -58,6 +58,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import app.backpin.focus.domain.DetachDestination
+import app.backpin.focus.domain.HomeLayout
 import app.backpin.focus.domain.MAX_TODAY_LIMIT
 import app.backpin.focus.domain.MIN_TODAY_LIMIT
 import app.backpin.focus.domain.RepeatDayStatus
@@ -100,9 +101,9 @@ fun HomeScreen(
     onOpenScheduled: () -> Unit,
     onOpenDone: () -> Unit,
     modifier: Modifier = Modifier,
-    // TODO(#29): drive from homeLayout
-    grouped: Boolean = true,
+    homeLayout: HomeLayout = HomeLayout.FLAT,
 ) {
+    val grouped = homeLayout == HomeLayout.BANDS
     val reducedMotion = rememberReducedMotion()
     val repeatRows by viewModel.repeatRows.collectAsState()
     val homeBands by viewModel.homeBands.collectAsState()

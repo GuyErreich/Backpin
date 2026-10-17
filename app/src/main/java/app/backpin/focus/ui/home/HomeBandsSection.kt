@@ -155,7 +155,7 @@ private fun HomeBandHeader(
     val name = stringResource(group.band.titleRes())
     val counts = bandCountsLabel(group.counts)
     val muted = group.phase == BandPhase.PAST || group.phase == BandPhase.FUTURE
-    val color = if (muted) FocusColors.Muted else FocusColors.Text
+    val color = if (muted) FocusColors.Live.Muted else FocusColors.Live.Text
     val summary =
         when {
             !expanded && group.phase == BandPhase.PAST ->
@@ -209,7 +209,7 @@ private fun HomeBandHeader(
             Text(
                 text = trailing,
                 style = MaterialTheme.typography.bodyMedium,
-                color = FocusColors.Muted,
+                color = FocusColors.Live.Muted,
             )
         }
     }

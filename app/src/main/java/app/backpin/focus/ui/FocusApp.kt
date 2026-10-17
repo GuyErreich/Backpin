@@ -213,6 +213,7 @@ fun FocusApp(
                     onOpenLater = { navController.openPile(Routes.LATER) },
                     onOpenScheduled = { navController.openPile(Routes.SCHEDULED) },
                     onOpenDone = { navController.openPile(Routes.DONE) },
+                    homeLayout = homeLayout,
                 )
             }
             composable(
