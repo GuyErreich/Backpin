@@ -203,11 +203,11 @@ class HomeBandsTest {
         val rows =
             RepeatRowsState(
                 rows =
-                    listOf(
-                        repeatRow("meds", RepeatBand.MORNING, RepeatDayStatus.OPEN),
-                        repeatRow("plants", RepeatBand.NOON, RepeatDayStatus.MISSED),
-                        repeatRow("teeth", RepeatBand.NIGHT, RepeatDayStatus.DONE),
-                    ),
+                listOf(
+                    repeatRow("meds", RepeatBand.MORNING, RepeatDayStatus.OPEN),
+                    repeatRow("plants", RepeatBand.NOON, RepeatDayStatus.MISSED),
+                    repeatRow("teeth", RepeatBand.NIGHT, RepeatDayStatus.DONE),
+                ),
             )
         val outside =
             homeBands(
@@ -339,44 +339,42 @@ class HomeBandsTest {
         status: TaskStatus = TaskStatus.OPEN,
         sortOrder: Long = 0,
         scheduledAtMinuteOfDay: Int? = null,
-    ): Task =
-        Task(
-            id = id,
-            title = title,
-            bucket = bucket,
-            status = status,
-            returnCue = null,
-            sortOrder = sortOrder,
-            createdAtEpochMillis = 0,
-            completedAtEpochMillis = if (status == TaskStatus.DONE) 1 else null,
-            scheduledAtMinuteOfDay = scheduledAtMinuteOfDay,
-        )
+    ): Task = Task(
+        id = id,
+        title = title,
+        bucket = bucket,
+        status = status,
+        returnCue = null,
+        sortOrder = sortOrder,
+        createdAtEpochMillis = 0,
+        completedAtEpochMillis = if (status == TaskStatus.DONE) 1 else null,
+        scheduledAtMinuteOfDay = scheduledAtMinuteOfDay,
+    )
 
     private fun repeatRow(
         title: String,
         band: RepeatBand,
         status: RepeatDayStatus,
-    ): RepeatRow =
-        RepeatRow(
-            occurrence =
-                RepeatOccurrence(
-                    repeat =
-                        Repeat(
-                            id = title,
-                            title = title,
-                            band = band,
-                            everyNDays = 1,
-                            anchorEpochDay = 0,
-                            reminderOn = true,
-                            sortOrder = 0,
-                            createdAtEpochMillis = 0,
-                            archivedAtEpochMillis = null,
-                        ),
-                    epochDay = 0,
-                    status = status,
-                ),
-            everyNDays = 1,
-        )
+    ): RepeatRow = RepeatRow(
+        occurrence =
+        RepeatOccurrence(
+            repeat =
+            Repeat(
+                id = title,
+                title = title,
+                band = band,
+                everyNDays = 1,
+                anchorEpochDay = 0,
+                reminderOn = true,
+                sortOrder = 0,
+                createdAtEpochMillis = 0,
+                archivedAtEpochMillis = null,
+            ),
+            epochDay = 0,
+            status = status,
+        ),
+        everyNDays = 1,
+    )
 
     private companion object {
         val TIMES: BandTimes = BandTimes.DEFAULT
