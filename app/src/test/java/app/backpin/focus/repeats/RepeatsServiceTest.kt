@@ -68,6 +68,7 @@ class RepeatsServiceTest {
                 repository = repository,
                 schedule = RepeatScheduleSync { resyncs += 1 },
                 exactAlarms = ExactAlarmAccess { exactAllowed },
+                clock = clock,
             )
     }
 
@@ -90,7 +91,7 @@ class RepeatsServiceTest {
                 listOf("Make bed", "Brush teeth", "Water plants", "Take meds"),
                 rows.rows.map { it.repeat.title },
             )
-            assertEquals(2, rows.leftCount)
+            assertEquals(3, rows.leftCount)
             assertEquals(4, rows.total)
             assertEquals(RepeatDayStatus.OPEN, rows.rows.single { it.repeat.id == makeBed }.status)
             assertEquals(RepeatDayStatus.MISSED, rows.rows.single { it.repeat.id == plants }.status)

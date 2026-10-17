@@ -304,6 +304,67 @@ class RepeatHomeSpecTest {
     }
 
     @Test
+    fun headerIsNotAllDoneWhileAMissedRowRemains() {
+        val env = env(hour = 13)
+        try {
+            val today = DAY.toEpochDay()
+            runOffTestThread {
+                env.repeats.create("Take meds", RepeatBand.MORNING, 1, today)
+                env.repeats.create("Water plants", RepeatBand.NOON, 1, today)
+            }
+            showHome(env)
+            await {
+                env.viewModel.uiState.value.ready &&
+                    env.viewModel.repeatRows.value.rows.map { it.status }.toSet() ==
+                    setOf(RepeatDayStatus.MISSED, RepeatDayStatus.OPEN)
+            }
+            assertEquals(2, env.viewModel.repeatRows.value.leftCount)
+            compose.onNodeWithText("2 of 2 left").assertExists()
+            compose.onNodeWithText("All done").assertDoesNotExist()
+            tapDescription("Water plants. Noon. Check off.")
+            await {
+                env.viewModel.repeatRows.value.leftCount == 1 &&
+                    env.viewModel.repeatRows.value.rows.any { it.status == RepeatDayStatus.MISSED }
+            }
+            compose.onNodeWithText("1 of 2 left").assertExists()
+            compose.onNodeWithText("All done").assertDoesNotExist()
+            tapDescription("Take meds. Missed at morning · muted until end of day. Check off.")
+            await {
+                env.viewModel.repeatRows.value.leftCount == 0 &&
+                    env.viewModel.repeatRows.value.rows.all { it.status == RepeatDayStatus.DONE }
+            }
+            compose.onNodeWithText("All done").assertExists()
+        } finally {
+            env.close()
+        }
+    }
+
+    @Test
+    fun headerShowsAllDoneWhenEveryDueRepeatIsDone() {
+        val env = env(hour = 8)
+        try {
+            val today = DAY.toEpochDay()
+            runOffTestThread {
+                val morning = env.repeats.create("Take meds", RepeatBand.MORNING, 1, today)!!
+                val second = env.repeats.create("Make bed", RepeatBand.MORNING, 1, today)!!
+                env.repeats.markDone(morning, today)
+                env.repeats.markDone(second, today)
+            }
+            showHome(env)
+            await {
+                env.viewModel.uiState.value.ready &&
+                    env.viewModel.repeatRows.value.total == 2 &&
+                    env.viewModel.repeatRows.value.leftCount == 0 &&
+                    env.viewModel.repeatRows.value.rows.all { it.status == RepeatDayStatus.DONE }
+            }
+            compose.onNodeWithText("All done").assertExists()
+            compose.onNodeWithText("0 of 2 left").assertDoesNotExist()
+        } finally {
+            env.close()
+        }
+    }
+
+    @Test
     fun headerShowsLeftCountAndAllDoneWhenTheLastOpenRowIsCheckedOff() {
         val env = env(hour = 8)
         try {

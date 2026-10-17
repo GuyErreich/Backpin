@@ -2,11 +2,12 @@
 package app.backpin.focus.domain
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class RepeatRowsTest {
     @Test
-    fun openThenMissedThenDoneAndLeftCountIsOpen() {
+    fun openThenMissedThenDoneAndLeftCountIsUnchecked() {
         val todays =
             TodaysRepeats(
                 morning =
@@ -28,8 +29,40 @@ class RepeatRowsTest {
             listOf("Make bed", "Brush teeth", "Water plants", "Take meds"),
             state.rows.map { it.repeat.title },
         )
-        assertEquals(2, state.leftCount)
+        assertEquals(3, state.leftCount)
         assertEquals(4, state.total)
+    }
+
+    @Test
+    fun leftCountCountsMixedOpenMissedAndDone() {
+        val state =
+            repeatRowsState(
+                TodaysRepeats(
+                    morning = listOf(occ("Make bed", RepeatBand.MORNING, RepeatDayStatus.OPEN, id = "1")),
+                    noon = listOf(occ("Water plants", RepeatBand.NOON, RepeatDayStatus.MISSED, id = "2")),
+                    night = listOf(occ("Brush teeth", RepeatBand.NIGHT, RepeatDayStatus.DONE, id = "3")),
+                ),
+            )
+        assertEquals(2, state.leftCount)
+        assertEquals(3, state.total)
+        assertEquals(
+            listOf(RepeatDayStatus.OPEN, RepeatDayStatus.MISSED, RepeatDayStatus.DONE),
+            state.rows.map { it.status },
+        )
+    }
+
+    @Test
+    fun leftCountIsZeroWhenEveryDueRepeatIsDone() {
+        val state =
+            repeatRowsState(
+                TodaysRepeats(
+                    morning = listOf(occ("Take meds", RepeatBand.MORNING, RepeatDayStatus.DONE, id = "1")),
+                    noon = listOf(occ("Water plants", RepeatBand.NOON, RepeatDayStatus.DONE, id = "2")),
+                ),
+            )
+        assertEquals(0, state.leftCount)
+        assertEquals(2, state.total)
+        assertTrue(state.rows.all { it.status == RepeatDayStatus.DONE })
     }
 
     @Test
