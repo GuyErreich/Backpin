@@ -62,6 +62,7 @@ import app.backpin.focus.ui.components.ChoiceTone
 import app.backpin.focus.ui.motion.MotionSpec
 import app.backpin.focus.ui.motion.motionSpec
 import app.backpin.focus.ui.motion.rememberReducedMotion
+import app.backpin.focus.ui.repeat.RepeatCaptureChoice
 import app.backpin.focus.ui.theme.ButtonGap
 import app.backpin.focus.ui.theme.ButtonRadius
 import app.backpin.focus.ui.theme.FocusColors
@@ -96,6 +97,7 @@ internal fun CaptureSheet(
     onCommitEdit: ((String, CapturePlace?, Long?) -> Unit)? = null,
     recognizer: UtteranceRecognizer? = null,
     onSystemSpeech: ((Intent, (String) -> Unit) -> Unit)? = null,
+    onRepeat: ((String) -> Unit)? = null,
 ) {
     val reducedMotion = rememberReducedMotion()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -207,6 +209,20 @@ internal fun CaptureSheet(
 
     fun placePhrase(place: CapturePlace) {
         placeResolved(place, pendingTitle ?: return, fromPhrase = true)
+    }
+
+    fun chooseRepeat(resolved: String) {
+        val handler = onRepeat ?: return
+        val titleText = resolved.trim()
+        if (titleText.isEmpty()) return
+        handler(titleText)
+        stopListening()
+    }
+
+    fun typedRepeatTitle(): String {
+        val typed = titleDraft.text.trim()
+        val fromBlank = activeBlank?.let { fillPhraseBlank(it, fillDraft.text) }?.trim().orEmpty()
+        return typed.ifEmpty { fromBlank }
     }
 
     fun placeTyped(place: CapturePlace) {
@@ -470,10 +486,15 @@ internal fun CaptureSheet(
                     )
                 }
                 placing != null -> {
-                    PlaceChoices(
-                        places = capturePlaces(frameActive),
-                        onPlace = ::placePhrase,
-                    )
+                    Column(verticalArrangement = Arrangement.spacedBy(ButtonGap)) {
+                        PlaceChoices(
+                            places = capturePlaces(frameActive),
+                            onPlace = ::placePhrase,
+                        )
+                        if (!editing && onRepeat != null) {
+                            RepeatCaptureChoice(onClick = { chooseRepeat(pendingTitle.orEmpty()) })
+                        }
+                    }
                 }
                 editing -> {
                     PlaceChoices(
@@ -489,11 +510,16 @@ internal fun CaptureSheet(
                     )
                 }
                 else -> {
-                    PlaceChoices(
-                        places = capturePlaces(frameActive),
-                        labelFor = { it.typedLabel() },
-                        onPlace = ::placeTyped,
-                    )
+                    Column(verticalArrangement = Arrangement.spacedBy(ButtonGap)) {
+                        PlaceChoices(
+                            places = capturePlaces(frameActive),
+                            labelFor = { it.typedLabel() },
+                            onPlace = ::placeTyped,
+                        )
+                        if (!editing && onRepeat != null) {
+                            RepeatCaptureChoice(onClick = { chooseRepeat(typedRepeatTitle()) })
+                        }
+                    }
                 }
             }
             }

@@ -2,6 +2,7 @@ package app.backpin.focus.ui.settings
 
 import android.Manifest
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -47,9 +48,13 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import app.backpin.focus.domain.BandEdge
+import app.backpin.focus.domain.BandTimes
 import app.backpin.focus.domain.MAX_TODAY_LIMIT
 import app.backpin.focus.domain.MIN_TODAY_LIMIT
 import app.backpin.focus.domain.UserPreferences
+import app.backpin.focus.domain.minuteOfDayClock
+import app.backpin.focus.domain.parseClockToMinute
 import app.backpin.focus.notifications.notificationsAllowed
 import app.backpin.focus.ui.components.ActionRow
 import app.backpin.focus.ui.components.QuietButton
@@ -69,6 +74,11 @@ fun SettingsScreen(
     onAddPhrase: (String) -> Unit,
     onRenamePhrase: (index: Int, text: String) -> Unit,
     onRemovePhrase: (index: Int) -> Unit,
+    bandTimes: BandTimes = BandTimes.DEFAULT,
+    onBandTime: (BandEdge, Int) -> Unit = { _, _ -> },
+    showExactAlarmPrompt: Boolean = false,
+    onDismissExactAlarmPrompt: () -> Unit = {},
+    onRefreshExactAlarmPermission: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -77,6 +87,7 @@ fun SettingsScreen(
     val allowed = remember(permissionTick, preferences) { notificationsAllowed(context) }
     var pending by remember { mutableStateOf<(() -> Unit)?>(null) }
     val pendingState = rememberUpdatedState(pending)
+    val refreshExactAlarm = rememberUpdatedState(onRefreshExactAlarmPermission)
     val launcher =
         rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
             permissionTick += 1
@@ -86,12 +97,16 @@ fun SettingsScreen(
     DisposableEffect(lifecycleOwner) {
         val observer =
             LifecycleEventObserver { _, event ->
-                if (event == Lifecycle.Event.ON_RESUME) permissionTick += 1
+                if (event == Lifecycle.Event.ON_RESUME) {
+                    permissionTick += 1
+                    refreshExactAlarm.value()
+                }
             }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
     var picking by remember { mutableStateOf<QuietPick?>(null) }
+    var bandPicking by remember { mutableStateOf<BandPick?>(null) }
     var renaming by remember { mutableStateOf<Int?>(null) }
     var newPhrase by remember { mutableStateOf("") }
 
@@ -127,7 +142,7 @@ fun SettingsScreen(
             modifier = Modifier.semantics { heading() },
         )
         Text(
-            "Tasks and the interruption stack stay on this device. There is no account. Nudges are approximate: Android may delay them, and this app does not use exact alarms.",
+            "Tasks and the interruption stack stay on this device. There is no account. Nudges are approximate: Android may delay them. Repeat reminders use exact alarms when you allow them, and otherwise land a few minutes late.",
             style = MaterialTheme.typography.bodyLarge,
         )
         Surface(
@@ -149,6 +164,56 @@ fun SettingsScreen(
                             onClick = { onTodayLimit(limit) },
                         )
                     }
+                }
+            }
+        }
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(CardRadius),
+            color = FocusColors.Surface,
+        ) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(Space)) {
+                Text("Repeats", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "Morning, noon, and night start times. A reminder uses the start of that band. Night ends when you say it does.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                BandTimeRow("Morning", bandTimes.morningStartMinute) { bandPicking = BandPick.MORNING }
+                BandTimeRow("Noon", bandTimes.noonStartMinute) { bandPicking = BandPick.NOON }
+                BandTimeRow("Night", bandTimes.nightStartMinute) { bandPicking = BandPick.NIGHT }
+                BandTimeRow("Night ends", bandTimes.nightEndMinute) { bandPicking = BandPick.NIGHT_END }
+            }
+        }
+        if (showExactAlarmPrompt) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(CardRadius),
+                color = FocusColors.SurfaceHigh,
+            ) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(Space)) {
+                    Text("On-time reminders", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        "Repeat reminders arrive on time when exact alarms are allowed. If you skip this, they can still land a few minutes late. Home, capture, and check-off keep working either way.",
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                    QuietButton(
+                        label = "Allow exact alarms",
+                        onClick = {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                                context.startActivity(
+                                    Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
+                                        data = Uri.parse("package:${context.packageName}")
+                                    },
+                                )
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    QuietButton(
+                        label = "Not now",
+                        onClick = onDismissExactAlarmPrompt,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
                 }
             }
         }
@@ -310,6 +375,41 @@ fun SettingsScreen(
         )
     }
 
+    bandPicking?.let { which ->
+        val initialMinute =
+            when (which) {
+                BandPick.MORNING -> bandTimes.morningStartMinute
+                BandPick.NOON -> bandTimes.noonStartMinute
+                BandPick.NIGHT -> bandTimes.nightStartMinute
+                BandPick.NIGHT_END -> bandTimes.nightEndMinute
+            }
+        QuietTimeDialog(
+            title =
+                when (which) {
+                    BandPick.MORNING -> "Morning starts"
+                    BandPick.NOON -> "Noon starts"
+                    BandPick.NIGHT -> "Night starts"
+                    BandPick.NIGHT_END -> "Night ends"
+                },
+            initial = minuteOfDayClock(initialMinute),
+            onDismiss = { bandPicking = null },
+            onConfirm = { value ->
+                val minute = parseClockToMinute(value)
+                if (minute != null) {
+                    val edge =
+                        when (which) {
+                            BandPick.MORNING -> BandEdge.MORNING
+                            BandPick.NOON -> BandEdge.NOON
+                            BandPick.NIGHT -> BandEdge.NIGHT
+                            BandPick.NIGHT_END -> BandEdge.NIGHT_END
+                        }
+                    onBandTime(edge, minute)
+                }
+                bandPicking = null
+            },
+        )
+    }
+
     picking?.let { which ->
         val initial = if (which == QuietPick.START) preferences.quietStart else preferences.quietEnd
         QuietTimeDialog(
@@ -392,7 +492,25 @@ private fun RenamePhraseDialog(
     )
 }
 
+@Composable
+private fun BandTimeRow(
+    label: String,
+    minuteOfDay: Int,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(label, style = MaterialTheme.typography.bodyLarge)
+        QuietButton(label = minuteOfDayClock(minuteOfDay), onClick = onClick)
+    }
+}
+
 private enum class QuietPick { START, END }
+
+private enum class BandPick { MORNING, NOON, NIGHT, NIGHT_END }
 
 private fun quietHours(preferences: UserPreferences): String {
     val start = preferences.quietStart

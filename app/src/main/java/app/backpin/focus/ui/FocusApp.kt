@@ -42,6 +42,7 @@ import app.backpin.focus.notifications.NotificationContract
 import app.backpin.focus.ui.capture.CaptureEdit
 import app.backpin.focus.ui.capture.CaptureSheet
 import app.backpin.focus.ui.countdown.CountdownScreen
+import app.backpin.focus.ui.repeat.RepeatSheet
 import app.backpin.focus.ui.focus.FocusScreen
 import app.backpin.focus.ui.home.DoneScreen
 import app.backpin.focus.ui.home.HomeScreen
@@ -82,6 +83,9 @@ fun FocusApp(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val checkedOffMessage = stringResource(R.string.undo_checked_off)
+    val repeatDraft by viewModel.editingRepeat.collectAsStateWithLifecycle()
+    val bandTimes by viewModel.bandTimes.collectAsStateWithLifecycle()
+    val showExactAlarmPrompt by viewModel.showExactAlarmPrompt.collectAsStateWithLifecycle()
     val navController = rememberNavController()
     val snackbarHostState = remember { SnackbarHostState() }
     val backStack by navController.currentBackStackEntryAsState()
@@ -291,13 +295,26 @@ fun FocusApp(
                     onAddPhrase = viewModel::addSavedPhrase,
                     onRenamePhrase = viewModel::renameSavedPhrase,
                     onRemovePhrase = viewModel::removeSavedPhrase,
+                    bandTimes = bandTimes,
+                    onBandTime = viewModel::setBandTime,
+                    showExactAlarmPrompt = showExactAlarmPrompt,
+                    onDismissExactAlarmPrompt = viewModel::dismissExactAlarmPrompt,
+                    onRefreshExactAlarmPermission = viewModel::refreshExactAlarmPermission,
                 )
             }
         }
     }
 
+    val editingRepeat = repeatDraft
     val editing = state.editing
-    if (editing != null) {
+    if (editingRepeat != null) {
+        RepeatSheet(
+            draft = editingRepeat,
+            onCommit = viewModel::commitRepeatDraft,
+            onDismiss = viewModel::dismissRepeatSheet,
+            onArchive = viewModel::archiveRepeat,
+        )
+    } else if (editing != null) {
         CaptureSheet(
             phrases = emptyList(),
             frameActive = state.now != null,
@@ -327,6 +344,7 @@ fun FocusApp(
             onPlaceStart = viewModel::placeAndStart,
             onPlaceLater = viewModel::placeLater,
             onSchedule = viewModel::placeScheduled,
+            onRepeat = viewModel::openRepeatCreate,
         )
     }
 
