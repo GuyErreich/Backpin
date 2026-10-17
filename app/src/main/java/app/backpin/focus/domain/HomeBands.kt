@@ -33,23 +33,21 @@ enum class HomeBand {
 /**
  * Display name for a Home band header. Morning, Noon, Night, Anytime.
  */
-fun HomeBand.label(): String =
-    when (this) {
-        HomeBand.MORNING -> "Morning"
-        HomeBand.NOON -> "Noon"
-        HomeBand.NIGHT -> "Night"
-        HomeBand.ANYTIME -> "Anytime"
-    }
+fun HomeBand.label(): String = when (this) {
+    HomeBand.MORNING -> "Morning"
+    HomeBand.NOON -> "Noon"
+    HomeBand.NIGHT -> "Night"
+    HomeBand.ANYTIME -> "Anytime"
+}
 
 /**
  * Maps a repeat band onto the matching Home band. Repeats have no Anytime.
  */
-fun RepeatBand.toHomeBand(): HomeBand =
-    when (this) {
-        RepeatBand.MORNING -> HomeBand.MORNING
-        RepeatBand.NOON -> HomeBand.NOON
-        RepeatBand.NIGHT -> HomeBand.NIGHT
-    }
+fun RepeatBand.toHomeBand(): HomeBand = when (this) {
+    RepeatBand.MORNING -> HomeBand.MORNING
+    RepeatBand.NOON -> HomeBand.NOON
+    RepeatBand.NIGHT -> HomeBand.NIGHT
+}
 
 /**
  * Which Home band contains [scheduledAtMinuteOfDay] for [times].
@@ -144,13 +142,12 @@ data class HomeBands(
     val current: HomeBand = HomeBand.ANYTIME,
 ) {
     /** The group for [band]. */
-    fun inBand(band: HomeBand): HomeBandGroup =
-        when (band) {
-            HomeBand.MORNING -> morning
-            HomeBand.NOON -> noon
-            HomeBand.NIGHT -> night
-            HomeBand.ANYTIME -> anytime
-        }
+    fun inBand(band: HomeBand): HomeBandGroup = when (band) {
+        HomeBand.MORNING -> morning
+        HomeBand.NOON -> noon
+        HomeBand.NIGHT -> night
+        HomeBand.ANYTIME -> anytime
+    }
 
     /** Morning, Noon, Night, Anytime. */
     fun inOrder(): List<HomeBandGroup> = listOf(morning, noon, night, anytime)
@@ -234,9 +231,8 @@ fun homeBandsForToday(
 fun homeBandCounts(
     tasks: List<Task>,
     repeats: List<RepeatRow>,
-): HomeBandCounts =
-    HomeBandCounts(
-        done = tasks.count { it.status == TaskStatus.DONE } + repeats.count { it.status == RepeatDayStatus.DONE },
-        missed = repeats.count { it.status == RepeatDayStatus.MISSED },
-        left = tasks.count { it.status == TaskStatus.OPEN } + repeats.count { it.status == RepeatDayStatus.OPEN },
-    )
+): HomeBandCounts = HomeBandCounts(
+    done = tasks.count { it.status == TaskStatus.DONE } + repeats.count { it.status == RepeatDayStatus.DONE },
+    missed = repeats.count { it.status == RepeatDayStatus.MISSED },
+    left = tasks.count { it.status == TaskStatus.OPEN } + repeats.count { it.status == RepeatDayStatus.OPEN },
+)
