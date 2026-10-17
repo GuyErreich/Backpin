@@ -25,6 +25,7 @@ import app.backpin.focus.domain.TodaysRepeats
 import app.backpin.focus.domain.applyBandTime
 import app.backpin.focus.domain.bandWindow
 import app.backpin.focus.domain.isRepeatDue
+import app.backpin.focus.domain.millisUntilNextBandBoundary
 import app.backpin.focus.domain.repeatRowsState
 import app.backpin.focus.domain.repeatStatusOnDay
 import app.backpin.focus.domain.toDraft
@@ -35,8 +36,10 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import java.time.Instant
@@ -50,6 +53,10 @@ import java.time.ZoneId
  * change, or [refreshToday]. Equal days do not re-emit. A miss stays missed
  * through its own local day, then drops off Home.
  *
+ * [observeBandBoundaryTick] fires at morning, noon, night, and night-end
+ * bounds, and restarts that wait on band-time edits, [refreshToday], or
+ * a date/time/zone change.
+ *
  * @param repository Room and preference writes for repeats.
  * @param schedule Rebuilds band start, follow-up, and end alarms.
  * @param exactAlarms Whether the OS will honor exact alarms.
@@ -57,7 +64,8 @@ import java.time.ZoneId
  * @param context When set, registers for [Intent.ACTION_DATE_CHANGED],
  * [Intent.ACTION_TIME_CHANGED], and [Intent.ACTION_TIMEZONE_CHANGED].
  * @param zone System zone used with [clock] to read the local date.
- * @param scope Runs the delay until the next local midnight.
+ * @param scope Runs the delay until the next local midnight and the next
+ * band bound.
  */
 class RepeatsService(
     private val repository: FocusRepository,
@@ -73,13 +81,16 @@ class RepeatsService(
     private val lastBandTimeResult = MutableStateFlow<BandTimeResult?>(null)
     private val exactAlarmGranted = MutableStateFlow(exactAlarms.canScheduleExactAlarms())
     private val localEpochDay = MutableStateFlow(currentLocalEpochDay())
+    private val bandBoundaryTick = MutableStateFlow(clock.nowEpochMillis())
     private val rescheduleMidnight = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    private val rescheduleBandBoundary = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
     init {
         val app = context?.applicationContext
         if (app != null) {
             registerDateChangeReceiver(app)
             scope.launch { emitAtEachLocalMidnight() }
+            scope.launch { emitAtEachBandBoundary() }
         }
     }
 
@@ -103,6 +114,8 @@ class RepeatsService(
     override fun observeBandTimeResult(): Flow<BandTimeResult?> = lastBandTimeResult
 
     override fun observeBandTimes(): Flow<BandTimes> = repository.preferences.map { it.bandTimes }
+
+    override fun observeBandBoundaryTick(): Flow<Long> = bandBoundaryTick
 
     override fun observeExactAlarmPrompt(): Flow<Boolean> = combine(
         repository.preferences,
@@ -275,6 +288,8 @@ class RepeatsService(
 
     override fun refreshToday() {
         localEpochDay.value = currentLocalEpochDay()
+        rescheduleBandBoundary.tryEmit(Unit)
+        tickBandBoundary()
     }
 
     override suspend fun dismissExactAlarmPrompt() {
@@ -318,6 +333,27 @@ class RepeatsService(
                 refreshToday()
             }
         }
+    }
+
+    private suspend fun emitAtEachBandBoundary() {
+        while (true) {
+            val times = observeBandTimes().first()
+            val wait = millisUntilNextBandBoundary(clock.nowEpochMillis(), times, zone())
+            val rescheduled =
+                withTimeoutOrNull(wait) {
+                    merge(
+                        rescheduleBandBoundary,
+                        observeBandTimes().drop(1).map { Unit },
+                    ).first()
+                } != null
+            if (!rescheduled) {
+                tickBandBoundary()
+            }
+        }
+    }
+
+    private fun tickBandBoundary() {
+        bandBoundaryTick.value = clock.nowEpochMillis()
     }
 
     private fun repeatsForLocalDay(

@@ -177,10 +177,11 @@ class FocusStackViewModel(
 
     /**
      * Home Today tasks and today's repeats grouped by band.
-     * Open Today tasks pin to the top of the current band, or Anytime
-     * when no timed window contains now.
+     * Open Today tasks pin to the top of [HomeBands.openBand]. When no
+     * timed window contains now that is Morning, never Anytime.
      *
      * Recomputes on the local-day signal from [RepeatsApi.observeLocalEpochDay],
+     * on [RepeatsApi.observeBandBoundaryTick] at morning/noon/night/night-end,
      * on [RepeatsApi.observeBandTimes], on the snapshot, and on today's
      * repeat rows. Flat [uiState] Today slots and [repeatRows] stay as they are.
      *
@@ -195,7 +196,8 @@ class FocusStackViewModel(
             repeatsApi.observeRows(),
             repeatsApi.observeBandTimes(),
             repeatsApi.observeLocalEpochDay(),
-        ) { snapshot, rows, times, _ ->
+            repeatsApi.observeBandBoundaryTick(),
+        ) { snapshot, rows, times, _, _ ->
             homeBandsForToday(
                 tasks = snapshot.tasks,
                 rows = rows,

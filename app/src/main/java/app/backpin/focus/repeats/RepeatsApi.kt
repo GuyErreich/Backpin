@@ -66,6 +66,16 @@ interface RepeatsApi {
     fun observeBandTimes(): Flow<BandTimes>
 
     /**
+     * Fires at each band bound (morning start, noon start, night start,
+     * night end) and when [refreshToday] or a date/time/zone change
+     * restarts the wait. Values are the clock's epoch millis at the emit.
+     * Home combines this so the open band and Today pin move at the
+     * bound without waiting for a task or day change. Band-time edits
+     * restart the delay from the new [BandTimes].
+     */
+    fun observeBandBoundaryTick(): Flow<Long>
+
+    /**
      * True when Settings should show the one-time exact-alarm prompt.
      * That is: the OS denies exact alarms and the user has not dismissed the prompt.
      */
@@ -190,7 +200,9 @@ interface RepeatsApi {
      * Re-reads the current local day from the clock and system zone.
      * Call when the app returns to foreground so Home drops yesterday's
      * missed repeats if the date changed while the UI was stopped.
-     * No-op when the local day has not changed.
+     * Equal days do not re-emit [observeLocalEpochDay]. Restarts the
+     * band-boundary wait and emits [observeBandBoundaryTick] so Home
+     * can re-read the current minute after a clock or zone change.
      */
     fun refreshToday()
 
@@ -236,6 +248,8 @@ private object EmptyRepeatsApi : RepeatsApi {
     override fun observeBandTimeResult(): Flow<BandTimeResult?> = flowOf(null)
 
     override fun observeBandTimes(): Flow<BandTimes> = flowOf(BandTimes.DEFAULT)
+
+    override fun observeBandBoundaryTick(): Flow<Long> = flowOf(0L)
 
     override fun observeExactAlarmPrompt(): Flow<Boolean> = flowOf(false)
 
