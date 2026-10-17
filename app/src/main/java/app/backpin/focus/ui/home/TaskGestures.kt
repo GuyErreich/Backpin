@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 package app.backpin.focus.ui.home
 
 import androidx.compose.animation.core.animate

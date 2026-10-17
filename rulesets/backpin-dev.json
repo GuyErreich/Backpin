@@ -1,0 +1,73 @@
+{
+  "name": "protect-dev",
+  "target": "branch",
+  "enforcement": "active",
+  "conditions": {
+    "ref_name": {
+      "include": [
+        "refs/heads/dev"
+      ],
+      "exclude": []
+    }
+  },
+  "bypass_actors": [
+    {
+      "actor_type": "Integration",
+      "actor_id": "SEMVER_APP_ID",
+      "bypass_mode": "always",
+      "_note": "REPLACE actor_id with the semver GitHub App id"
+    }
+  ],
+  "rules": [
+    {
+      "type": "deletion"
+    },
+    {
+      "type": "non_fast_forward"
+    },
+    {
+      "type": "pull_request",
+      "parameters": {
+        "required_approving_review_count": 1,
+        "require_code_owner_review": true,
+        "dismiss_stale_reviews_on_push": true,
+        "require_last_push_approval": false,
+        "required_review_thread_resolution": true
+      }
+    },
+    {
+      "type": "required_status_checks",
+      "parameters": {
+        "strict_required_status_checks_policy": false,
+        "required_status_checks": [
+          {
+            "context": "license / license"
+          },
+          {
+            "context": "lint / lint"
+          },
+          {
+            "context": "ktlint / ktlint"
+          },
+          {
+            "context": "test / Unit tests (Robolectric)"
+          },
+          {
+            "context": "secret-scan / gitleaks"
+          },
+          {
+            "context": "codeql / analyze (java-kotlin)"
+          },
+          {
+            "context": "codeql / analyze (actions)"
+          }
+        ]
+      }
+    }
+  ],
+  "_notes": [
+    "DRAFT, not applied. Guy is the only approver via CODEOWNERS (* @GuyErreich).",
+    "PR title check is deliberately NOT required until #16 is resolved.",
+    "Check names follow 'caller job / called job name'; confirm all seven on the first real CI run before applying."
+  ]
+}

@@ -1,7 +1,9 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
+    alias(libs.plugins.ktlint)
 }
 
 val commitCount = providers.exec {
@@ -67,6 +69,11 @@ android {
         unitTests.isReturnDefaultValues = true
     }
 
+    lint {
+        baseline = file("lint-baseline.xml")
+        abortOnError = true
+    }
+
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
@@ -83,6 +90,13 @@ kotlin {
 ksp {
     arg("room.schemaLocation", "$projectDir/schemas")
     arg("room.generateKotlin", "true")
+}
+
+ktlint {
+    baseline.set(file("ktlint-baseline.xml"))
+    filter {
+        exclude("**/generated/**")
+    }
 }
 
 tasks.withType<org.gradle.api.tasks.testing.Test>().configureEach {

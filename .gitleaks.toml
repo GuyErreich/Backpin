@@ -1,0 +1,9 @@
+# Shared gitleaks config: default rules plus a narrow allowlist.
+title = "Backpin gitleaks config"
+[extend]
+useDefault = true
+[allowlist]
+description = "Known non-secret fixtures only. Add paths with a reason in the PR."
+paths = [
+  '''(^|/)src/test/resources/fixtures/''',
+]

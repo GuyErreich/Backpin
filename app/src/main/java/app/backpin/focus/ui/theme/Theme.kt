@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 package app.backpin.focus.ui.theme
 
 import androidx.compose.material3.MaterialTheme
