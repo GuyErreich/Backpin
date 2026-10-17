@@ -31,6 +31,25 @@ enum class HomeBand {
 }
 
 /**
+ * Where a Home band sits relative to now. The UI collapses [PAST],
+ * expands [OPEN], shows a header-and-count on [FUTURE], and never
+ * collapses [ALWAYS_OPEN] (Anytime).
+ */
+enum class BandPhase {
+    /** Timed band that has already ended. Collapsed summary line. */
+    PAST,
+
+    /** The open timed band. Today tasks pin here. */
+    OPEN,
+
+    /** Timed band that has not started. Header with count. */
+    FUTURE,
+
+    /** Anytime. Always expanded. Never past or collapsed. */
+    ALWAYS_OPEN,
+}
+
+/**
  * Display name for a Home band header. Morning, Noon, Night, Anytime.
  */
 fun HomeBand.label(): String = when (this) {
@@ -82,6 +101,38 @@ fun currentHomeBand(
 }
 
 /**
+ * Open timed band for Home. Same as [currentHomeBand] when a window
+ * contains now. When no window contains now (before morning or at or
+ * after night end) this is [HomeBand.MORNING] — the next band, which
+ * after night end is tomorrow's morning. Never [HomeBand.ANYTIME].
+ */
+fun openHomeBand(
+    minuteOfDay: Int,
+    times: BandTimes,
+): HomeBand = currentHomeBand(minuteOfDay, times) ?: HomeBand.MORNING
+
+/**
+ * Position of [band] relative to now. Anytime is always [BandPhase.ALWAYS_OPEN].
+ * When no timed window contains now, Morning is [BandPhase.OPEN] and
+ * Noon and Night are [BandPhase.FUTURE].
+ */
+fun homeBandPhase(
+    band: HomeBand,
+    openBand: HomeBand,
+    timedCurrent: HomeBand?,
+): BandPhase {
+    if (band == HomeBand.ANYTIME) return BandPhase.ALWAYS_OPEN
+    if (timedCurrent == null) {
+        return if (band == HomeBand.MORNING) BandPhase.OPEN else BandPhase.FUTURE
+    }
+    return when {
+        band == openBand -> BandPhase.OPEN
+        band.ordinal < openBand.ordinal -> BandPhase.PAST
+        else -> BandPhase.FUTURE
+    }
+}
+
+/**
  * Local minute-of-day from [clock] and [zone].
  */
 fun currentMinuteOfDay(
@@ -90,6 +141,38 @@ fun currentMinuteOfDay(
 ): Int {
     val now = Instant.ofEpochMilli(clock.nowEpochMillis()).atZone(zone)
     return now.hour * 60 + now.minute
+}
+
+/**
+ * Millis until the next band bound: morning start, noon start, night
+ * start, or night end. Wraps to tomorrow's morning start when every
+ * bound today has passed. Always at least 1.
+ */
+fun millisUntilNextBandBoundary(
+    nowEpochMillis: Long,
+    times: BandTimes,
+    zone: ZoneId = ZoneId.systemDefault(),
+): Long {
+    val now = Instant.ofEpochMilli(nowEpochMillis).atZone(zone)
+    val today = now.toLocalDate()
+    val nextToday =
+        listOf(
+            times.morningStartMinute,
+            times.noonStartMinute,
+            times.nightStartMinute,
+            times.nightEndMinute,
+        ).map { minute ->
+            today.atTime(minute / 60, minute % 60).atZone(zone).toInstant().toEpochMilli()
+        }.firstOrNull { it > nowEpochMillis }
+    val nextMillis =
+        nextToday
+            ?: today
+                .plusDays(1)
+                .atTime(times.morningStartMinute / 60, times.morningStartMinute % 60)
+                .atZone(zone)
+                .toInstant()
+                .toEpochMilli()
+    return (nextMillis - nowEpochMillis).coerceAtLeast(1L)
 }
 
 /**
@@ -107,21 +190,24 @@ data class HomeBandCounts(
 )
 
 /**
- * One Home band: its tasks, that band's repeat rows, and collapsed counts.
+ * One Home band: its tasks, that band's repeat rows, collapsed counts,
+ * and position relative to now.
  *
  * @property band Which Home band this group is.
- * @property tasks Tasks assigned here. The current band lists pinned Today
+ * @property tasks Tasks assigned here. The open band lists pinned Today
  * tasks first, then any other tasks whose time lands in this window.
  * @property repeats Today's [RepeatRow] values for this band, in the same
  * relative order as [RepeatRowsState.rows] (open, then missed, then done).
  * [HomeBand.ANYTIME] is always empty.
  * @property counts Done, missed, and left for the collapsed line.
+ * @property phase Past, open, future, or always-open (Anytime).
  */
 data class HomeBandGroup(
     val band: HomeBand,
     val tasks: List<Task> = emptyList(),
     val repeats: List<RepeatRow> = emptyList(),
     val counts: HomeBandCounts = HomeBandCounts(),
+    val phase: BandPhase = BandPhase.FUTURE,
 )
 
 /**
@@ -131,16 +217,22 @@ data class HomeBandGroup(
  * @property noon Tasks and repeats in the noon window.
  * @property night Tasks and repeats in the night window.
  * @property anytime Untimed tasks and times outside every window.
- * @property current Timed band that contains now, or [HomeBand.ANYTIME]
- * when no window is current.
+ * @property openBand Timed band that is open now. Never [HomeBand.ANYTIME].
+ * When no window contains now this is [HomeBand.MORNING].
  */
 data class HomeBands(
-    val morning: HomeBandGroup = HomeBandGroup(HomeBand.MORNING),
-    val noon: HomeBandGroup = HomeBandGroup(HomeBand.NOON),
-    val night: HomeBandGroup = HomeBandGroup(HomeBand.NIGHT),
-    val anytime: HomeBandGroup = HomeBandGroup(HomeBand.ANYTIME),
-    val current: HomeBand = HomeBand.ANYTIME,
+    val morning: HomeBandGroup = HomeBandGroup(HomeBand.MORNING, phase = BandPhase.OPEN),
+    val noon: HomeBandGroup = HomeBandGroup(HomeBand.NOON, phase = BandPhase.FUTURE),
+    val night: HomeBandGroup = HomeBandGroup(HomeBand.NIGHT, phase = BandPhase.FUTURE),
+    val anytime: HomeBandGroup = HomeBandGroup(HomeBand.ANYTIME, phase = BandPhase.ALWAYS_OPEN),
+    val openBand: HomeBand = HomeBand.MORNING,
 ) {
+    /**
+     * Same as [openBand]. Never [HomeBand.ANYTIME].
+     */
+    val current: HomeBand
+        get() = openBand
+
     /** The group for [band]. */
     fun inBand(band: HomeBand): HomeBandGroup = when (band) {
         HomeBand.MORNING -> morning
@@ -157,9 +249,10 @@ data class HomeBands(
  * Groups [tasks] and [rows] into Home bands.
  *
  * Each task lands in [homeBandFor] of its [Task.scheduledAtMinuteOfDay].
- * Tasks whose ids are in [pinnedTaskIds] are moved to the top of the
- * current band, in the order they appear in [tasks], regardless of their
- * own time. When no timed band is current they pin to [HomeBand.ANYTIME].
+ * Tasks whose ids are in [pinnedTaskIds] are moved to the top of
+ * [HomeBands.openBand], in the order they appear in [tasks], regardless
+ * of their own time. When no timed band contains now they pin to
+ * [HomeBand.MORNING], never Anytime.
  *
  * Repeat rows are split by [Repeat.band]. Order inside a band matches
  * [RepeatRowsState.rows].
@@ -171,7 +264,8 @@ fun homeBands(
     minuteOfDay: Int,
     pinnedTaskIds: Collection<String> = emptyList(),
 ): HomeBands {
-    val current = currentHomeBand(minuteOfDay, times) ?: HomeBand.ANYTIME
+    val timedCurrent = currentHomeBand(minuteOfDay, times)
+    val openBand = timedCurrent ?: HomeBand.MORNING
     val pinnedIds = pinnedTaskIds.toSet()
     val pinned = tasks.filter { it.id in pinnedIds }
     val restByBand =
@@ -182,13 +276,14 @@ fun homeBands(
 
     fun group(band: HomeBand): HomeBandGroup {
         val natural = restByBand[band].orEmpty()
-        val bandTasks = if (band == current) pinned + natural else natural
+        val bandTasks = if (band == openBand) pinned + natural else natural
         val bandRepeats = repeatsByBand[band].orEmpty()
         return HomeBandGroup(
             band = band,
             tasks = bandTasks,
             repeats = bandRepeats,
             counts = homeBandCounts(bandTasks, bandRepeats),
+            phase = homeBandPhase(band, openBand, timedCurrent),
         )
     }
 
@@ -197,14 +292,14 @@ fun homeBands(
         noon = group(HomeBand.NOON),
         night = group(HomeBand.NIGHT),
         anytime = group(HomeBand.ANYTIME),
-        current = current,
+        openBand = openBand,
     )
 }
 
 /**
- * Home grouping for the Today pile: open Today tasks, pinned to the
- * current band (or Anytime when no band is current), plus today's
- * repeat rows split by band.
+ * Home grouping for the Today pile: open Today tasks, pinned to
+ * [HomeBands.openBand] (Morning when no timed window contains now),
+ * plus today's repeat rows split by band.
  */
 fun homeBandsForToday(
     tasks: List<Task>,
