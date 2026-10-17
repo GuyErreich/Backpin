@@ -1,6 +1,7 @@
 package app.backpin.focus.ui
 
 import app.backpin.focus.domain.CapturePlace
+import app.backpin.focus.domain.RepeatDayStatus
 import app.backpin.focus.domain.UndoToken
 import app.backpin.focus.domain.UserPreferences
 
@@ -76,11 +77,36 @@ data class SlotUi(
     val task: TaskUi?,
 )
 
+sealed interface UndoTarget {
+    data class Tasks(
+        val token: UndoToken,
+    ) : UndoTarget
+
+    data class RepeatCheckOff(
+        val repeatId: String,
+        val epochDay: Long,
+        val restore: RepeatDayStatus = RepeatDayStatus.OPEN,
+    ) : UndoTarget
+}
+
 data class PendingUndo(
     val id: Long,
     val message: String,
-    val token: UndoToken,
+    val target: UndoTarget,
 )
+
+/**
+ * Snackbar text for [undo]. Repeat check-off always uses [checkedOffLabel]
+ * (`R.string.undo_checked_off`) so an empty ViewModel message cannot go blank.
+ */
+fun undoSnackbarMessage(
+    undo: PendingUndo,
+    checkedOffLabel: String,
+): String {
+    val preferred =
+        if (undo.target is UndoTarget.RepeatCheckOff) checkedOffLabel else undo.message
+    return preferred.ifBlank { checkedOffLabel }.ifBlank { undo.message }
+}
 
 data class FocusUiState(
     val ready: Boolean = false,

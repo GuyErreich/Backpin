@@ -11,6 +11,8 @@
     <string name="action_resume">Resume</string>
     <string name="action_later">Later</string>
     <string name="action_interrupt">Interrupt</string>
+    <string name="action_done">Done</string>
+    <string name="undo_checked_off">Checked off</string>
     <string name="channel_current_name">Current task</string>
     <string name="channel_current_description">Ongoing notice of the task to return to. It stays until you leave it. Elapsed time stays in the app.</string>
     <string name="channel_today_name">Today</string>
@@ -19,6 +21,8 @@
     <string name="channel_nudge_description">Approximate reminders. Android may delay them. Backpin does not use exact alarms.</string>
     <string name="channel_countdown_name">Countdowns</string>
     <string name="channel_countdown_description">One silent notice when a countdown reaches its day and comes into focus. Never during quiet hours.</string>
+    <string name="channel_repeats_name">Repeats</string>
+    <string name="channel_repeats_description">Morning, noon, and night reminders. The band summary can alert. Each item stays silent.</string>
     <string name="countdown_arrived_title">Today: %1$s</string>
     <string name="countdown_arrived_text">It\'s in focus now. Open Focus to choose where it goes.</string>
 </resources>

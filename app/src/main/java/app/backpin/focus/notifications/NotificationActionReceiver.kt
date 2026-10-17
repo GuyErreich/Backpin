@@ -8,22 +8,34 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
-/** Later from a nudge, and Switch from the expanded current-task notice. */
+/** Later from a nudge, Switch from the Today notice, and Done from a repeat child. */
 class NotificationActionReceiver : BroadcastReceiver() {
     override fun onReceive(
         context: Context,
         intent: Intent,
     ) {
         val action = intent.action
-        if (action != NotificationContract.ACTION_LATER && action != NotificationContract.ACTION_SWITCH) return
+        if (action != NotificationContract.ACTION_LATER &&
+            action != NotificationContract.ACTION_SWITCH &&
+            action != NotificationContract.ACTION_REPEAT_DONE
+        ) {
+            return
+        }
         val pending = goAsync()
         val app = context.applicationContext as FocusStackApp
         val taskId = intent.getStringExtra(NotificationContract.EXTRA_TASK_ID)
+        val repeatId = intent.getStringExtra(NotificationContract.EXTRA_REPEAT_ID)
+        val epochDay = intent.getLongExtra(NotificationContract.EXTRA_EPOCH_DAY, Long.MIN_VALUE)
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 when (action) {
                     NotificationContract.ACTION_LATER -> app.container.notifications.handleLater(taskId)
                     NotificationContract.ACTION_SWITCH -> app.container.notifications.handleSwitch(taskId)
+                    NotificationContract.ACTION_REPEAT_DONE -> {
+                        if (epochDay != Long.MIN_VALUE) {
+                            app.container.repeatNotifications.handleRepeatDone(repeatId, epochDay)
+                        }
+                    }
                 }
             } finally {
                 pending.finish()

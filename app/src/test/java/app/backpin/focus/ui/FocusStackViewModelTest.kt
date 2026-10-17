@@ -1,8 +1,12 @@
 package app.backpin.focus.ui
 
 import android.content.Context
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelStore
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
+import app.backpin.focus.R
 import app.backpin.focus.data.FocusRepositoryImpl
 import app.backpin.focus.data.FocusStackDatabase
 import app.backpin.focus.data.PreferencesDataStore
@@ -10,8 +14,11 @@ import app.backpin.focus.domain.AppClock
 import app.backpin.focus.domain.CapturePlace
 import app.backpin.focus.domain.FocusUseCases
 import app.backpin.focus.domain.FrameState
+import app.backpin.focus.domain.RepeatBand
+import app.backpin.focus.domain.RepeatDayStatus
 import app.backpin.focus.domain.TaskBucket
 import app.backpin.focus.domain.TaskStatus
+import app.backpin.focus.repeats.RepeatsService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
@@ -32,6 +39,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import java.time.LocalDate
+import java.time.ZoneId
 import java.util.UUID
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -244,6 +252,9 @@ class FocusStackViewModelTest {
             val viewModel = FocusStackViewModel(useCases)
             val collect = launch { viewModel.uiState.collect {} }
             repeat(3) { index -> seedToday("Today $index") }
+            withTimeout(5_000) {
+                viewModel.uiState.first { state -> state.todaySlots.count { it.task != null } == 3 }
+            }
             viewModel.placeOnToday("Call the school")
             val waiting =
                 withTimeout(5_000) {
@@ -448,6 +459,73 @@ class FocusStackViewModelTest {
                 }
             assertEquals("Park me later", moved.laterTasks.single { it.id == id }.title)
             collect.cancel()
+        }
+
+    @Test
+    fun checkOffUndoRestoresTheRepeat() =
+        runBlocking {
+            val today = LocalDate.of(2026, 10, 16)
+            val morning =
+                today.atTime(8, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+            val repository =
+                FocusRepositoryImpl(
+                    database = database,
+                    preferencesStore = PreferencesDataStore(context, "vm-repeat-${UUID.randomUUID()}"),
+                    clock = AppClock { morning },
+                )
+            val repeats = RepeatsService(repository)
+            val useCases = FocusUseCases(repository)
+            val store = ViewModelStore()
+            val viewModel =
+                ViewModelProvider(
+                    store,
+                    object : ViewModelProvider.Factory {
+                        override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                            @Suppress("UNCHECKED_CAST")
+                            return FocusStackViewModel(useCases, repeats) as T
+                        }
+                    },
+                )[FocusStackViewModel::class.java]
+            val collect = launch { viewModel.uiState.collect {} }
+            val rows = launch { viewModel.repeatRows.collect {} }
+            try {
+                val id = repeats.create("Take meds", RepeatBand.MORNING, 1, today.toEpochDay())!!
+                withTimeout(5_000) {
+                    viewModel.repeatRows.first { state ->
+                        state.rows.any { it.repeat.id == id && it.status == RepeatDayStatus.OPEN }
+                    }
+                }
+                viewModel.markRepeatDone(id, today.toEpochDay())
+                val undo =
+                    withTimeout(5_000) {
+                        viewModel.uiState.first { it.undo?.target is UndoTarget.RepeatCheckOff }.undo!!
+                    }
+                assertEquals("", undo.message)
+                val checkedOff = context.getString(R.string.undo_checked_off)
+                assertEquals(checkedOff, undoSnackbarMessage(undo, checkedOff))
+                assertTrue(undoSnackbarMessage(undo, checkedOff).isNotBlank())
+                withTimeout(5_000) {
+                    viewModel.repeatRows.first { state ->
+                        state.rows.single { it.repeat.id == id }.status == RepeatDayStatus.DONE
+                    }
+                }
+                viewModel.undo(undo.id)
+                val restored =
+                    withTimeout(5_000) {
+                        viewModel.repeatRows.first { state ->
+                            state.rows.single { it.repeat.id == id }.status == RepeatDayStatus.OPEN
+                        }
+                    }
+                assertEquals(RepeatDayStatus.OPEN, restored.rows.single { it.repeat.id == id }.status)
+                withTimeout(5_000) {
+                    viewModel.uiState.first { it.undo == null }
+                }
+                assertNull(viewModel.uiState.value.undo)
+            } finally {
+                collect.cancel()
+                rows.cancel()
+                store.clear()
+            }
         }
 
     private suspend fun seedToday(title: String): String {
