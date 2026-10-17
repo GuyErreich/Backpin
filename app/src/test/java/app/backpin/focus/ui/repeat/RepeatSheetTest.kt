@@ -185,17 +185,22 @@ class RepeatSheetTest {
 
     @Test
     fun daysFieldShowsOnlyForOtherAndMapsToCadence() {
-        var committed: RepeatDraft? = null
+        val commits = mutableListOf<RepeatDraft>()
         compose.setContent {
             FocusStackTheme {
                 RepeatSheet(
                     draft = RepeatDraft(title = "Water plants"),
-                    onCommit = { committed = it },
+                    onCommit = { commits += it },
                     onArchive = {},
                     recognizer = SilentRecognizer,
                 )
             }
         }
+        compose.onNodeWithText("Every day").assertExists()
+        compose.onNodeWithText("Every 2 days").assertExists()
+        compose.onNodeWithText("Every 3 days").assertExists()
+        compose.onNodeWithText("Every 7 days").assertExists()
+        compose.onNodeWithText("Other").assertExists()
         compose.onNodeWithText("Days").assertDoesNotExist()
         tap("Other")
         compose.onNodeWithText("Other").assertIsSelected()
@@ -204,9 +209,11 @@ class RepeatSheetTest {
         compose.onNode(hasSetTextAction() and hasText("1")).performTextReplacement("5")
         tap("Done")
         assertEquals(
-            RepeatDraft(title = "Water plants", everyNDays = 5, reminderOn = true),
-            committed,
+            listOf(RepeatDraft(title = "Water plants", everyNDays = 5, reminderOn = true)),
+            commits,
         )
+        tap("Every day")
+        compose.onNodeWithText("Days").assertDoesNotExist()
     }
 
     @Test
@@ -250,12 +257,14 @@ class RepeatSheetTest {
 
     @Test
     fun backAfterEditingAFieldSavesTheChange() {
-        var committed: RepeatDraft? = null
+        val commits = mutableListOf<RepeatDraft>()
+        var dismissed = false
         compose.setContent {
             FocusStackTheme {
                 RepeatSheet(
                     draft = RepeatDraft(title = "Take meds"),
-                    onCommit = { committed = it },
+                    onCommit = { commits += it },
+                    onDismiss = { dismissed = true },
                     onArchive = {},
                     recognizer = SilentRecognizer,
                 )
@@ -263,23 +272,32 @@ class RepeatSheetTest {
         }
         compose.onNode(hasSetTextAction() and hasText("Take meds")).performTextReplacement("Take vitamins")
         tap("Noon")
+        tap("Every 2 days")
         compose.onNodeWithContentDescription("Close").performTouchInput { click(center) }
         compose.waitForIdle()
         assertEquals(
-            RepeatDraft(title = "Take vitamins", band = RepeatBand.NOON, everyNDays = 1, reminderOn = true),
-            committed,
+            listOf(
+                RepeatDraft(
+                    title = "Take vitamins",
+                    band = RepeatBand.NOON,
+                    everyNDays = 2,
+                    reminderOn = true,
+                ),
+            ),
+            commits,
         )
+        assertFalse("Back with a titled draft commits instead of dismissing", dismissed)
     }
 
     @Test
     fun backWithEmptyTitleWritesNothingAndCloses() {
-        var committed: RepeatDraft? = null
+        val commits = mutableListOf<RepeatDraft>()
         var dismissed = false
         compose.setContent {
             FocusStackTheme {
                 RepeatSheet(
                     draft = RepeatDraft(),
-                    onCommit = { committed = it },
+                    onCommit = { commits += it },
                     onDismiss = { dismissed = true },
                     onArchive = {},
                     recognizer = SilentRecognizer,
@@ -288,19 +306,41 @@ class RepeatSheetTest {
         }
         compose.onNodeWithContentDescription("Close").performTouchInput { click(center) }
         compose.waitForIdle()
-        assertNull(committed)
+        assertEquals("Back must not call onCommit for a blank title", emptyList<RepeatDraft>(), commits)
+        assertTrue("UI must dismissRepeatSheet when commit returns false", dismissed)
+    }
+
+    @Test
+    fun backAfterClearingTheTitleWritesNothingAndCloses() {
+        val commits = mutableListOf<RepeatDraft>()
+        var dismissed = false
+        compose.setContent {
+            FocusStackTheme {
+                RepeatSheet(
+                    draft = RepeatDraft(title = "Take meds", band = RepeatBand.NOON),
+                    onCommit = { commits += it },
+                    onDismiss = { dismissed = true },
+                    onArchive = {},
+                    recognizer = SilentRecognizer,
+                )
+            }
+        }
+        compose.onNode(hasSetTextAction() and hasText("Take meds")).performTextReplacement("   ")
+        compose.onNodeWithContentDescription("Close").performTouchInput { click(center) }
+        compose.waitForIdle()
+        assertEquals("Clearing the title must not persist a blank draft", emptyList<RepeatDraft>(), commits)
         assertTrue(dismissed)
     }
 
     @Test
     fun doneWithEmptyTitleKeepsTheSheetOpen() {
-        var committed: RepeatDraft? = null
+        val commits = mutableListOf<RepeatDraft>()
         var dismissed = false
         compose.setContent {
             FocusStackTheme {
                 RepeatSheet(
                     draft = RepeatDraft(),
-                    onCommit = { committed = it },
+                    onCommit = { commits += it },
                     onDismiss = { dismissed = true },
                     onArchive = {},
                     recognizer = SilentRecognizer,
@@ -311,7 +351,33 @@ class RepeatSheetTest {
         compose.onNodeWithText("Done").performScrollTo()
         compose.onNodeWithText("Done").performTouchInput { click(center) }
         compose.waitForIdle()
-        assertNull(committed)
+        assertEquals(emptyList<RepeatDraft>(), commits)
+        assertFalse(dismissed)
+        compose.onNodeWithText("A small repeating thing.").assertExists()
+        compose.onNodeWithText("Done").assertIsNotEnabled()
+    }
+
+    @Test
+    fun doneAfterClearingTheTitleKeepsTheSheetOpenAndWritesNothing() {
+        val commits = mutableListOf<RepeatDraft>()
+        var dismissed = false
+        compose.setContent {
+            FocusStackTheme {
+                RepeatSheet(
+                    draft = RepeatDraft(title = "Take meds"),
+                    onCommit = { commits += it },
+                    onDismiss = { dismissed = true },
+                    onArchive = {},
+                    recognizer = SilentRecognizer,
+                )
+            }
+        }
+        compose.onNode(hasSetTextAction() and hasText("Take meds")).performTextReplacement("")
+        compose.onNodeWithText("Done").assertIsNotEnabled()
+        compose.onNodeWithText("Done").performScrollTo()
+        compose.onNodeWithText("Done").performTouchInput { click(center) }
+        compose.waitForIdle()
+        assertEquals(emptyList<RepeatDraft>(), commits)
         assertFalse(dismissed)
         compose.onNodeWithText("A small repeating thing.").assertExists()
     }
