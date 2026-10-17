@@ -64,7 +64,7 @@
         errorLine2="                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/java/app/backpin/focus/ui/home/RepeatSection.kt"
-            line="82"
+            line="83"
             column="21"/>
     </issue>
 
@@ -75,7 +75,7 @@
         errorLine2="                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/java/app/backpin/focus/ui/home/RepeatSection.kt"
-            line="134"
+            line="135"
             column="21"/>
     </issue>
 
@@ -86,7 +86,7 @@
         errorLine2="    ~~~~~~~~">
         <location
             file="src/main/java/app/backpin/focus/ui/settings/SettingsScreen.kt"
-            line="82"
+            line="83"
             column="5"/>
     </issue>
 
@@ -97,7 +97,7 @@
         errorLine2="    ~~~~~~~~">
         <location
             file="src/main/java/app/backpin/focus/ui/home/TaskGestures.kt"
-            line="136"
+            line="137"
             column="5"/>
     </issue>
 
@@ -108,7 +108,7 @@
         errorLine2="    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/res/values/strings.xml"
-            line="29"
+            line="30"
             column="5"/>
     </issue>
 
@@ -119,7 +119,7 @@
         errorLine2="    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/res/values/strings.xml"
-            line="33"
+            line="34"
             column="5"/>
     </issue>
 
@@ -130,7 +130,7 @@
         errorLine2="    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/res/values/strings.xml"
-            line="53"
+            line="54"
             column="5"/>
     </issue>
 
@@ -148,7 +148,7 @@
         errorLine2="^">
         <location
             file="src/main/res/mipmap-anydpi-v26/ic_launcher.xml"
-            line="2"
+            line="3"
             column="1"/>
     </issue>
 
@@ -159,7 +159,7 @@
         errorLine2="                       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/java/app/backpin/focus/notifications/BandScheduler.kt"
-            line="116"
+            line="117"
             column="24"/>
     </issue>
 
@@ -170,7 +170,7 @@
         errorLine2="                       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/java/app/backpin/focus/notifications/BandScheduler.kt"
-            line="116"
+            line="117"
             column="24"/>
     </issue>
 
@@ -181,7 +181,7 @@
         errorLine2="               ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/java/app/backpin/focus/notifications/NotificationCoordinator.kt"
-            line="505"
+            line="506"
             column="16"/>
     </issue>
 
@@ -192,7 +192,7 @@
         errorLine2="               ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/java/app/backpin/focus/notifications/NotificationCoordinator.kt"
-            line="505"
+            line="506"
             column="16"/>
     </issue>
 
@@ -203,7 +203,7 @@
         errorLine2="                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/java/app/backpin/focus/notifications/RepeatNotificationCoordinator.kt"
-            line="295"
+            line="296"
             column="20"/>
     </issue>
 
@@ -214,7 +214,7 @@
         errorLine2="                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/java/app/backpin/focus/notifications/RepeatNotificationCoordinator.kt"
-            line="295"
+            line="296"
             column="20"/>
     </issue>
 
@@ -225,7 +225,7 @@
         errorLine2="                                               ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/java/app/backpin/focus/ui/settings/SettingsScreen.kt"
-            line="205"
+            line="206"
             column="48"/>
     </issue>
 
@@ -236,7 +236,7 @@
         errorLine2="                                               ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/java/app/backpin/focus/ui/settings/SettingsScreen.kt"
-            line="205"
+            line="206"
             column="48"/>
     </issue>
 
