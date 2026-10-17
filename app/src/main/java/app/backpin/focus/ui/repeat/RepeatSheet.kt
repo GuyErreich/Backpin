@@ -125,7 +125,7 @@ internal fun RepeatSheet(
         onDismissRequest = ::back,
         sheetState = sheetState,
         sheetGesturesEnabled = false,
-        containerColor = FocusColors.Surface,
+        containerColor = FocusColors.Live.Surface,
         contentWindowInsets = { WindowInsets.navigationBars },
         properties = ModalBottomSheetProperties(shouldDismissOnBackPress = false),
     ) {
@@ -195,7 +195,7 @@ internal fun RepeatSheet(
                 focusRequester.requestFocus()
             }
             speech.note?.let { note ->
-                Text(note, style = MaterialTheme.typography.bodyMedium, color = FocusColors.Muted)
+                Text(note, style = MaterialTheme.typography.bodyMedium, color = FocusColors.Live.Muted)
             }
             Text(stringResource(R.string.repeat_sheet_band), style = MaterialTheme.typography.titleMedium)
             ActionRow {

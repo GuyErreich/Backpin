@@ -69,4 +69,12 @@
     <string name="home_band_summary">%1$s · %2$s</string>
     <string name="home_band_expand">Expand %1$s</string>
     <string name="home_band_collapse">Collapse %1$s</string>
+    <string name="settings_theme">Theme</string>
+    <string name="theme_signal">Signal</string>
+    <string name="theme_still_water">Still Water</string>
+    <string name="theme_ember">Ember</string>
+    <string name="theme_clear_line">Clear Line</string>
+    <string name="settings_home_layout">Home layout</string>
+    <string name="home_layout_flat">Flat</string>
+    <string name="home_layout_bands">Bands</string>
 </resources>

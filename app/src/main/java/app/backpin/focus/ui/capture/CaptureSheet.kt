@@ -282,7 +282,7 @@ internal fun CaptureSheet(
         onDismissRequest = { leaveSheet() },
         sheetState = sheetState,
         sheetGesturesEnabled = false,
-        containerColor = FocusColors.Surface,
+        containerColor = FocusColors.Live.Surface,
         // Navigation bars only. The sheet's own ime padding already lifts it. A
         // second ime inset here would shrink the actions twice.
         contentWindowInsets = { WindowInsets.navigationBars },
@@ -411,7 +411,7 @@ internal fun CaptureSheet(
                             fillFocusRequester.requestFocus()
                         }
                         fillPhraseBlank(template, fillWord)?.let { preview ->
-                            Text(preview, style = MaterialTheme.typography.bodyLarge, color = FocusColors.Text)
+                            Text(preview, style = MaterialTheme.typography.bodyLarge, color = FocusColors.Live.Text)
                         }
                         CaptureChoice(
                             label = "Next",
@@ -423,7 +423,7 @@ internal fun CaptureSheet(
                         Text(
                             "One line. Choose where it goes. Speaking only fills the title.",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = FocusColors.Text,
+                            color = FocusColors.Live.Text,
                         )
                     }
                 }
@@ -475,7 +475,7 @@ internal fun CaptureSheet(
                     if (activeBlank == null) focusRequester.requestFocus()
                 }
                 speech.note?.let { note ->
-                    Text(note, style = MaterialTheme.typography.bodyMedium, color = FocusColors.Muted)
+                    Text(note, style = MaterialTheme.typography.bodyMedium, color = FocusColors.Live.Muted)
                 }
             }
             when {
@@ -571,7 +571,7 @@ private fun ScheduleFields(title: String) {
     Text(
         "Without a time, it lands on Today any time that day.",
         style = MaterialTheme.typography.bodyMedium,
-        color = FocusColors.Muted,
+        color = FocusColors.Live.Muted,
     )
 }
 
@@ -623,15 +623,15 @@ private fun CapturePlace.typedLabel(): String =
 @Composable
 private fun titleFieldColors() =
     OutlinedTextFieldDefaults.colors(
-        focusedTextColor = FocusColors.Text,
-        unfocusedTextColor = FocusColors.Text,
-        cursorColor = FocusColors.Mint,
-        focusedBorderColor = FocusColors.Outline,
-        unfocusedBorderColor = FocusColors.Outline,
-        focusedLabelColor = FocusColors.Muted,
-        unfocusedLabelColor = FocusColors.Muted,
-        focusedPlaceholderColor = FocusColors.Muted,
-        unfocusedPlaceholderColor = FocusColors.Muted,
+        focusedTextColor = FocusColors.Live.Text,
+        unfocusedTextColor = FocusColors.Live.Text,
+        cursorColor = FocusColors.Live.Mint,
+        focusedBorderColor = FocusColors.Live.Outline,
+        unfocusedBorderColor = FocusColors.Live.Outline,
+        focusedLabelColor = FocusColors.Live.Muted,
+        unfocusedLabelColor = FocusColors.Live.Muted,
+        focusedPlaceholderColor = FocusColors.Live.Muted,
+        unfocusedPlaceholderColor = FocusColors.Live.Muted,
         focusedContainerColor = Color.Transparent,
         unfocusedContainerColor = Color.Transparent,
     )
@@ -662,7 +662,7 @@ internal fun SpeakMic(
         Icon(
             painter = painterResource(R.drawable.ic_mic),
             contentDescription = contentDescription,
-            tint = if (listening) FocusColors.Mint else FocusColors.Muted,
+            tint = if (listening) FocusColors.Live.Mint else FocusColors.Live.Muted,
         )
     }
 }

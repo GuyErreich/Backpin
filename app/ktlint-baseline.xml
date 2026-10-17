@@ -29,9 +29,9 @@
     </file>
     <file name="src/main/java/app/backpin/focus/data/PreferencesDataStore.kt">
         <error line="4" column="1" source="standard:import-ordering" />
-        <error line="54" column="1" source="standard:indent" />
-        <error line="235" column="48" source="standard:function-signature" />
-        <error line="266" column="65" source="standard:function-signature" />
+        <error line="57" column="1" source="standard:indent" />
+        <error line="276" column="48" source="standard:function-signature" />
+        <error line="307" column="65" source="standard:function-signature" />
     </file>
     <file name="src/main/java/app/backpin/focus/domain/CapturePlace.kt">
         <error line="21" column="62" source="standard:function-signature" />
@@ -82,16 +82,6 @@
     </file>
     <file name="src/main/java/app/backpin/focus/ui/FocusApp.kt">
         <error line="4" column="1" source="standard:import-ordering" />
-        <error line="145" column="1" source="standard:indent" />
-        <error line="146" column="1" source="standard:indent" />
-        <error line="147" column="1" source="standard:indent" />
-        <error line="330" column="1" source="standard:indent" />
-        <error line="331" column="1" source="standard:indent" />
-        <error line="332" column="1" source="standard:indent" />
-        <error line="333" column="1" source="standard:indent" />
-        <error line="334" column="1" source="standard:indent" />
-        <error line="435" column="22" source="standard:function-signature" />
-        <error line="440" column="21" source="standard:function-signature" />
     </file>
     <file name="src/main/java/app/backpin/focus/ui/FocusStackViewModel.kt">
         <error line="84" column="1" source="standard:indent" />
@@ -343,7 +333,6 @@
         <error line="49" column="1" source="standard:indent" />
     </file>
     <file name="src/main/java/app/backpin/focus/ui/components/Buttons.kt">
-        <error line="83" column="40" source="standard:function-signature" />
         <error line="100" column="11" source="standard:function-signature" />
         <error line="170" column="1" source="standard:indent" />
         <error line="171" column="1" source="standard:indent" />
@@ -446,20 +435,19 @@
     </file>
     <file name="src/main/java/app/backpin/focus/ui/home/HomeScreen.kt">
         <error line="4" column="1" source="standard:import-ordering" />
-        <error line="226" column="1" source="standard:indent" />
         <error line="227" column="1" source="standard:indent" />
         <error line="228" column="1" source="standard:indent" />
         <error line="229" column="1" source="standard:indent" />
         <error line="230" column="1" source="standard:indent" />
         <error line="231" column="1" source="standard:indent" />
         <error line="232" column="1" source="standard:indent" />
-        <error line="235" column="1" source="standard:indent" />
+        <error line="233" column="1" source="standard:indent" />
         <error line="236" column="1" source="standard:indent" />
         <error line="237" column="1" source="standard:indent" />
         <error line="238" column="1" source="standard:indent" />
         <error line="239" column="1" source="standard:indent" />
         <error line="240" column="1" source="standard:indent" />
-        <error line="245" column="1" source="standard:indent" />
+        <error line="241" column="1" source="standard:indent" />
         <error line="246" column="1" source="standard:indent" />
         <error line="247" column="1" source="standard:indent" />
         <error line="248" column="1" source="standard:indent" />
@@ -469,22 +457,22 @@
         <error line="252" column="1" source="standard:indent" />
         <error line="253" column="1" source="standard:indent" />
         <error line="254" column="1" source="standard:indent" />
-        <error line="280" column="1" source="standard:indent" />
+        <error line="255" column="1" source="standard:indent" />
         <error line="281" column="1" source="standard:indent" />
         <error line="282" column="1" source="standard:indent" />
         <error line="283" column="1" source="standard:indent" />
-        <error line="336" column="44" source="standard:function-signature" />
-        <error line="612" column="1" source="standard:indent" />
+        <error line="284" column="1" source="standard:indent" />
+        <error line="337" column="44" source="standard:function-signature" />
         <error line="613" column="1" source="standard:indent" />
         <error line="614" column="1" source="standard:indent" />
         <error line="615" column="1" source="standard:indent" />
         <error line="616" column="1" source="standard:indent" />
-        <error line="624" column="1" source="standard:indent" />
+        <error line="617" column="1" source="standard:indent" />
         <error line="625" column="1" source="standard:indent" />
         <error line="626" column="1" source="standard:indent" />
         <error line="627" column="1" source="standard:indent" />
         <error line="628" column="1" source="standard:indent" />
-        <error line="633" column="1" source="standard:indent" />
+        <error line="629" column="1" source="standard:indent" />
         <error line="634" column="1" source="standard:indent" />
         <error line="635" column="1" source="standard:indent" />
         <error line="636" column="1" source="standard:indent" />
@@ -502,17 +490,17 @@
         <error line="648" column="1" source="standard:indent" />
         <error line="649" column="1" source="standard:indent" />
         <error line="650" column="1" source="standard:indent" />
-        <error line="687" column="1" source="standard:indent" />
+        <error line="651" column="1" source="standard:indent" />
         <error line="688" column="1" source="standard:indent" />
         <error line="689" column="1" source="standard:indent" />
         <error line="690" column="1" source="standard:indent" />
         <error line="691" column="1" source="standard:indent" />
-        <error line="703" column="59" source="standard:function-signature" />
-        <error line="712" column="1" source="standard:indent" />
+        <error line="692" column="1" source="standard:indent" />
+        <error line="704" column="59" source="standard:function-signature" />
         <error line="713" column="1" source="standard:indent" />
         <error line="714" column="1" source="standard:indent" />
         <error line="715" column="1" source="standard:indent" />
-        <error line="774" column="1" source="standard:indent" />
+        <error line="716" column="1" source="standard:indent" />
         <error line="775" column="1" source="standard:indent" />
         <error line="776" column="1" source="standard:indent" />
         <error line="777" column="1" source="standard:indent" />
@@ -523,12 +511,13 @@
         <error line="782" column="1" source="standard:indent" />
         <error line="783" column="1" source="standard:indent" />
         <error line="784" column="1" source="standard:indent" />
-        <error line="791" column="1" source="standard:indent" />
+        <error line="785" column="1" source="standard:indent" />
         <error line="792" column="1" source="standard:indent" />
         <error line="793" column="1" source="standard:indent" />
-        <error line="843" column="1" source="standard:indent" />
+        <error line="794" column="1" source="standard:indent" />
         <error line="844" column="1" source="standard:indent" />
         <error line="845" column="1" source="standard:indent" />
+        <error line="846" column="1" source="standard:indent" />
     </file>
     <file name="src/main/java/app/backpin/focus/ui/home/PileScreens.kt">
         <error line="4" column="1" source="standard:import-ordering" />
@@ -571,11 +560,6 @@
     </file>
     <file name="src/main/java/app/backpin/focus/ui/home/TaskGestures.kt">
         <error line="4" column="1" source="standard:import-ordering" />
-        <error line="71" column="56" source="standard:function-signature" />
-        <error line="80" column="58" source="standard:function-signature" />
-        <error line="89" column="58" source="standard:function-signature" />
-        <error line="98" column="58" source="standard:function-signature" />
-        <error line="107" column="66" source="standard:function-signature" />
         <error line="163" column="86" source="standard:statement-wrapping" />
         <error line="163" column="102" source="standard:statement-wrapping" />
         <error line="163" column="108" source="standard:statement-wrapping" />
@@ -754,64 +738,6 @@
     </file>
     <file name="src/main/java/app/backpin/focus/ui/settings/SettingsScreen.kt">
         <error line="4" column="1" source="standard:import-ordering" />
-        <error line="129" column="1" source="standard:indent" />
-        <error line="130" column="1" source="standard:indent" />
-        <error line="131" column="1" source="standard:indent" />
-        <error line="132" column="1" source="standard:indent" />
-        <error line="254" column="1" source="standard:indent" />
-        <error line="255" column="1" source="standard:indent" />
-        <error line="256" column="1" source="standard:indent" />
-        <error line="257" column="1" source="standard:indent" />
-        <error line="258" column="1" source="standard:indent" />
-        <error line="259" column="1" source="standard:indent" />
-        <error line="389" column="1" source="standard:indent" />
-        <error line="390" column="1" source="standard:indent" />
-        <error line="391" column="1" source="standard:indent" />
-        <error line="392" column="1" source="standard:indent" />
-        <error line="393" column="1" source="standard:indent" />
-        <error line="394" column="1" source="standard:indent" />
-    </file>
-    <file name="src/main/java/app/backpin/focus/ui/theme/Theme.kt">
-        <error line="26" column="5" source="standard:spacing-between-declarations-with-comments" />
-        <error line="82" column="1" source="standard:indent" />
-        <error line="83" column="1" source="standard:indent" />
-        <error line="84" column="1" source="standard:indent" />
-        <error line="85" column="1" source="standard:indent" />
-        <error line="86" column="1" source="standard:indent" />
-        <error line="87" column="1" source="standard:indent" />
-        <error line="89" column="1" source="standard:indent" />
-        <error line="90" column="1" source="standard:indent" />
-        <error line="91" column="1" source="standard:indent" />
-        <error line="92" column="1" source="standard:indent" />
-        <error line="93" column="1" source="standard:indent" />
-        <error line="94" column="1" source="standard:indent" />
-        <error line="96" column="1" source="standard:indent" />
-        <error line="97" column="1" source="standard:indent" />
-        <error line="98" column="1" source="standard:indent" />
-        <error line="99" column="1" source="standard:indent" />
-        <error line="100" column="1" source="standard:indent" />
-        <error line="101" column="1" source="standard:indent" />
-        <error line="103" column="1" source="standard:indent" />
-        <error line="104" column="1" source="standard:indent" />
-        <error line="105" column="1" source="standard:indent" />
-        <error line="106" column="1" source="standard:indent" />
-        <error line="107" column="1" source="standard:indent" />
-        <error line="108" column="1" source="standard:indent" />
-        <error line="110" column="1" source="standard:indent" />
-        <error line="111" column="1" source="standard:indent" />
-        <error line="112" column="1" source="standard:indent" />
-        <error line="113" column="1" source="standard:indent" />
-        <error line="114" column="1" source="standard:indent" />
-        <error line="116" column="1" source="standard:indent" />
-        <error line="117" column="1" source="standard:indent" />
-        <error line="118" column="1" source="standard:indent" />
-        <error line="119" column="1" source="standard:indent" />
-        <error line="120" column="1" source="standard:indent" />
-        <error line="122" column="1" source="standard:indent" />
-        <error line="123" column="1" source="standard:indent" />
-        <error line="124" column="1" source="standard:indent" />
-        <error line="125" column="1" source="standard:indent" />
-        <error line="126" column="1" source="standard:indent" />
     </file>
     <file name="src/test/java/app/backpin/focus/data/CaptureDestinationTest.kt">
         <error line="57" column="42" source="standard:function-signature" />
@@ -1112,15 +1038,6 @@
         <error line="71" column="1" source="standard:indent" />
         <error line="72" column="1" source="standard:indent" />
         <error line="73" column="1" source="standard:indent" />
-    </file>
-    <file name="src/test/java/app/backpin/focus/ui/repeat/RepeatCheckOffTest.kt">
-        <error line="202" column="66" source="standard:function-signature" />
-    </file>
-    <file name="src/test/java/app/backpin/focus/ui/repeat/RepeatHomeSpecTest.kt">
-        <error line="462" column="33" source="standard:function-signature" />
-    </file>
-    <file name="src/test/java/app/backpin/focus/ui/repeat/RepeatScreenQaTest.kt">
-        <error line="4" column="1" source="standard:import-ordering" />
     </file>
     <file name="src/test/java/app/backpin/focus/ui/repeat/RepeatUiTest.kt">
         <error line="79" column="19" source="standard:function-signature" />
