@@ -147,8 +147,10 @@ class HomeLayoutBandsHeaderTest {
     fun bandHeaderColorsFollowSelectedThemeViaLivePalette() {
         assertEquals(FocusColors.Text, paletteFor(ThemeId.SIGNAL).textPrimary)
         assertEquals(FocusColors.Muted, paletteFor(ThemeId.SIGNAL).textSecondary)
+        assertEquals(FocusColors.Amber, paletteFor(ThemeId.SIGNAL).missed)
         assertNotEquals(FocusColors.Text, paletteFor(ThemeId.EMBER).textPrimary)
         assertNotEquals(FocusColors.Muted, paletteFor(ThemeId.EMBER).textSecondary)
+        assertNotEquals(FocusColors.Amber, paletteFor(ThemeId.EMBER).missed)
         assertNotEquals(
             paletteFor(ThemeId.STILL_WATER).textPrimary,
             paletteFor(ThemeId.CLEAR_LINE).textPrimary,
@@ -181,7 +183,11 @@ class HomeLayoutBandsHeaderTest {
             compose.runOnIdle { themeId = id }
             compose.waitForIdle()
             val palette = paletteFor(id)
-            assertEquals(id.name, palette.textSecondary, labelColor(morningPastSummary()))
+            val summary = morningPastSummary()
+            val missed = missedCount(1)
+            assertEquals(id.name, palette.textSecondary, labelColor(summary))
+            assertEquals(id.name, palette.missed, spanColor(summary, missed))
+            assertNotEquals(id.name, palette.textSecondary, spanColor(summary, missed))
             assertEquals(id.name, palette.textPrimary, labelColor("Noon"))
             assertEquals(id.name, palette.textSecondary, labelColor("Night"))
             assertEquals(id.name, palette.textPrimary, labelColor("Anytime"))
@@ -259,6 +265,23 @@ class HomeLayoutBandsHeaderTest {
         return layouts.single().layoutInput.style.color
     }
 
+    private fun spanColor(
+        text: String,
+        segment: String,
+    ): Color {
+        val node = compose.onNodeWithText(text, useUnmergedTree = true).fetchSemanticsNode()
+        val layouts = mutableListOf<TextLayoutResult>()
+        node.config[SemanticsActions.GetTextLayoutResult].action?.invoke(layouts)
+        val annotated = layouts.single().layoutInput.text
+        val start = annotated.text.indexOf(segment)
+        check(start >= 0) { "$segment missing from $annotated" }
+        val end = start + segment.length
+        return annotated.spanStyles
+            .single { range ->
+                range.start <= start && range.end >= end && range.item.color != Color.Unspecified
+            }.item.color
+    }
+
     private fun morningPastSummary(): String = compose.activity.getString(
         R.string.home_band_summary,
         compose.activity.getString(R.string.home_band_morning),
@@ -269,6 +292,8 @@ class HomeLayoutBandsHeaderTest {
     )
 
     private fun leftCount(left: Int): String = compose.activity.getString(R.string.home_band_count_left, left)
+
+    private fun missedCount(missed: Int): String = compose.activity.getString(R.string.home_band_count_missed, missed)
 
     private fun noonBands(): HomeBands = HomeBands(
         morning =
