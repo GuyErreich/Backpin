@@ -5,6 +5,8 @@ import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsNotSelected
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
@@ -106,9 +108,12 @@ class RepeatSheetTest {
         }
         compose.onNodeWithText("A small repeating thing.").assertExists()
         compose.onNodeWithText("Repeats stay off Today. Checking them off is enough.").assertExists()
+        compose.onNodeWithText("How often").assertExists()
+        compose.onNodeWithText("A gentle reminder at the start of that band.").assertExists()
+        compose.onNodeWithText("Days").assertDoesNotExist()
         tap("Noon")
         tap("Every 2 days")
-        tap("Save")
+        tap("Done")
         assertEquals(
             RepeatDraft(title = "Take meds", band = RepeatBand.NOON, everyNDays = 2, reminderOn = true),
             committed,
@@ -167,13 +172,61 @@ class RepeatSheetTest {
         compose.onNodeWithText("Archive").assertExists()
         compose.onNode(hasSetTextAction() and hasText("Water plants")).performTextReplacement("Water the plants")
         tap("Night")
-        tap("Save")
+        tap("Done")
         assertEquals(
             existing.toDraft().copy(title = "Water the plants", band = RepeatBand.NIGHT),
             committed,
         )
         tap("Archive")
         assertEquals("r1", archived)
+    }
+
+    @Test
+    fun daysFieldShowsOnlyForOtherAndMapsToCadence() {
+        var committed: RepeatDraft? = null
+        compose.setContent {
+            FocusStackTheme {
+                RepeatSheet(
+                    draft = RepeatDraft(title = "Water plants"),
+                    onCommit = { committed = it },
+                    onArchive = {},
+                    recognizer = SilentRecognizer,
+                )
+            }
+        }
+        compose.onNodeWithText("Days").assertDoesNotExist()
+        tap("Other")
+        compose.onNodeWithText("Other").assertIsSelected()
+        compose.onNodeWithText("Every day").assertIsNotSelected()
+        compose.onNodeWithText("Days").assertExists()
+        compose.onNode(hasSetTextAction() and hasText("1")).performTextReplacement("5")
+        tap("Done")
+        assertEquals(
+            RepeatDraft(title = "Water plants", everyNDays = 5, reminderOn = true),
+            committed,
+        )
+    }
+
+    @Test
+    fun customCadenceOpensOnOther() {
+        compose.setContent {
+            FocusStackTheme {
+                RepeatSheet(
+                    draft = RepeatDraft(title = "Water plants", everyNDays = 5),
+                    onCommit = {},
+                    onArchive = {},
+                    recognizer = SilentRecognizer,
+                )
+            }
+        }
+        compose.onNodeWithText("Other").assertIsSelected()
+        compose.onNodeWithText("Every day").assertIsNotSelected()
+        compose.onNodeWithText("Days").assertExists()
+        compose.onNode(hasSetTextAction() and hasText("5")).assertExists()
+        tap("Every 2 days")
+        compose.onNodeWithText("Days").assertDoesNotExist()
+        compose.onNodeWithText("Other").assertIsNotSelected()
+        compose.onNodeWithText("Every 2 days").assertIsSelected()
     }
 
     @Test
@@ -189,13 +242,14 @@ class RepeatSheetTest {
                 )
             }
         }
-        compose.onNodeWithText("Save").assertIsNotEnabled()
+        compose.onNodeWithText("Done").assertIsNotEnabled()
         assertNull(committed)
     }
 
     private fun tap(label: String) {
         compose.waitForIdle()
         val node = compose.onNodeWithText(label)
+        node.performScrollTo()
         node.assertIsEnabled().assertHasClickAction()
         node.performTouchInput { click(center) }
         compose.waitForIdle()

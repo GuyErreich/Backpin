@@ -32,11 +32,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import app.backpin.focus.R
 import app.backpin.focus.domain.RepeatBand
 import app.backpin.focus.domain.RepeatDraft
 import app.backpin.focus.domain.label
@@ -55,6 +57,8 @@ import app.backpin.focus.ui.theme.FocusColors
 import app.backpin.focus.ui.theme.Space
 
 private object RepeatTitleField
+
+private val CadencePresets = listOf(1, 2, 3, 7)
 
 /**
  * Create or edit a repeat. Same sheet chrome as capture: back arrow, title, mic.
@@ -79,6 +83,7 @@ internal fun RepeatSheet(
     var band by remember(draft.id) { mutableStateOf(draft.band) }
     var everyNDays by remember(draft.id) { mutableIntStateOf(draft.everyNDays.coerceAtLeast(1)) }
     var everyText by remember(draft.id) { mutableStateOf(everyNDays.toString()) }
+    var otherSelected by remember(draft.id) { mutableStateOf(everyNDays !in CadencePresets) }
     var reminderOn by remember(draft.id) { mutableStateOf(draft.reminderOn) }
     val focusRequester = remember { FocusRequester() }
     val speech = rememberSpeechInput<RepeatTitleField>(recognizer, onSystemSpeech) { titleDraft }
@@ -135,13 +140,17 @@ internal fun RepeatSheet(
                     inSheet = true,
                 )
                 Text(
-                    if (draft.editing) "This repeat." else "A small repeating thing.",
+                    if (draft.editing) {
+                        stringResource(R.string.repeat_sheet_edit_title)
+                    } else {
+                        stringResource(R.string.repeat_sheet_create_title)
+                    },
                     style = MaterialTheme.typography.headlineMedium,
                     modifier = Modifier.weight(1f).semantics { heading() },
                 )
             }
             Text(
-                "Repeats stay off Today. Checking them off is enough.",
+                stringResource(R.string.repeat_sheet_lede),
                 style = MaterialTheme.typography.bodyMedium,
             )
             OutlinedTextField(
@@ -154,8 +163,8 @@ internal fun RepeatSheet(
                     Modifier
                         .fillMaxWidth()
                         .focusRequester(focusRequester),
-                label = { Text("Title") },
-                placeholder = { Text("Take meds") },
+                label = { Text(stringResource(R.string.repeat_sheet_title_label)) },
+                placeholder = { Text(stringResource(R.string.repeat_sheet_title_placeholder)) },
                 singleLine = true,
                 trailingIcon = {
                     SpeakMic(
@@ -163,9 +172,9 @@ internal fun RepeatSheet(
                         reducedMotion = reducedMotion,
                         contentDescription =
                             if (speech.isListening(RepeatTitleField)) {
-                                "Stop listening"
+                                stringResource(R.string.repeat_sheet_stop_listening)
                             } else {
-                                "Speak the title"
+                                stringResource(R.string.repeat_sheet_speak_title)
                             },
                         onClick = { speech.toggle(RepeatTitleField) },
                     )
@@ -178,7 +187,7 @@ internal fun RepeatSheet(
             speech.note?.let { note ->
                 Text(note, style = MaterialTheme.typography.bodyMedium, color = FocusColors.Muted)
             }
-            Text("Band", style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.repeat_sheet_band), style = MaterialTheme.typography.titleMedium)
             ActionRow {
                 listOf(RepeatBand.MORNING, RepeatBand.NOON, RepeatBand.NIGHT).forEach { option ->
                     QuietButton(
@@ -188,44 +197,48 @@ internal fun RepeatSheet(
                     )
                 }
             }
-            Text("Every N days", style = MaterialTheme.typography.titleMedium)
-            Text(
-                "1 is every day.",
-                style = MaterialTheme.typography.bodyMedium,
-            )
+            Text(stringResource(R.string.repeat_sheet_how_often), style = MaterialTheme.typography.titleMedium)
             ActionRow {
-                listOf(1, 2, 3, 7).forEach { n ->
+                CadencePresets.forEach { n ->
                     QuietButton(
-                        label = if (n == 1) "Every day" else "Every $n days",
-                        selected = everyNDays == n,
+                        label = cadencePresetLabel(n),
+                        selected = !otherSelected && everyNDays == n,
                         onClick = {
+                            otherSelected = false
                             everyNDays = n
                             everyText = n.toString()
                         },
                     )
                 }
+                QuietButton(
+                    label = stringResource(R.string.repeat_sheet_other),
+                    selected = otherSelected,
+                    onClick = { otherSelected = true },
+                )
             }
-            OutlinedTextField(
-                value = everyText,
-                onValueChange = { incoming ->
-                    val digits = incoming.filter { it.isDigit() }.take(3)
-                    everyText = digits
-                    everyNDays = digits.toIntOrNull()?.coerceAtLeast(1) ?: 1
-                },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("Days") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
-            )
+            if (otherSelected) {
+                OutlinedTextField(
+                    value = everyText,
+                    onValueChange = { incoming ->
+                        val digits = incoming.filter { it.isDigit() }.take(3)
+                        everyText = digits
+                        everyNDays = digits.toIntOrNull()?.coerceAtLeast(1) ?: 1
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text(stringResource(R.string.repeat_sheet_days)) },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
+                )
+            }
             Row(
                 modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(Modifier.weight(1f).padding(end = 12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("Reminder", style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.repeat_sheet_reminder), style = MaterialTheme.typography.titleMedium)
                     Text(
-                        "A silent reminder at the start of that band.",
+                        stringResource(R.string.repeat_sheet_reminder_copy),
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 }
@@ -236,13 +249,13 @@ internal fun RepeatSheet(
                 )
             }
             CaptureChoice(
-                label = "Save",
+                label = stringResource(R.string.action_done),
                 onClick = ::save,
                 enabled = canSave,
             )
             if (draft.editing) {
                 QuietButton(
-                    label = "Archive",
+                    label = stringResource(R.string.repeat_sheet_archive),
                     onClick = {
                         val id = draft.id
                         if (id != null) {
@@ -256,3 +269,11 @@ internal fun RepeatSheet(
         }
     }
 }
+
+@Composable
+private fun cadencePresetLabel(days: Int): String =
+    if (days == 1) {
+        stringResource(R.string.repeat_sheet_every_day)
+    } else {
+        stringResource(R.string.repeat_sheet_every_n_days, days)
+    }

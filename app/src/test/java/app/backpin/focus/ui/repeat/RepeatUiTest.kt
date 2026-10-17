@@ -1,5 +1,8 @@
 package app.backpin.focus.ui.repeat
 
+import android.content.Context
+import android.content.res.Resources
+import androidx.test.core.app.ApplicationProvider
 import app.backpin.focus.domain.Repeat
 import app.backpin.focus.domain.RepeatBand
 import app.backpin.focus.domain.RepeatDayStatus
@@ -8,15 +11,24 @@ import app.backpin.focus.domain.RepeatRow
 import app.backpin.focus.domain.RepeatRowsState
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [36])
 class RepeatUiTest {
+    private val resources: Resources
+        get() = ApplicationProvider.getApplicationContext<Context>().resources
+
     @Test
     fun leftLabelFormatsCountsFromTheRowState() {
-        assertEquals("", repeatsLeftLabel(RepeatRowsState()))
+        assertEquals("", repeatsLeftLabel(RepeatRowsState(), resources))
         assertEquals(
             "2 of 4 left",
-            repeatsLeftLabel(RepeatRowsState(leftCount = 2, total = 4)),
+            repeatsLeftLabel(RepeatRowsState(leftCount = 2, total = 4), resources),
         )
     }
 
@@ -24,25 +36,28 @@ class RepeatUiTest {
     fun missedCopyIsQuietAndUsesTheBandName() {
         assertEquals(
             "Missed at noon · muted until end of day",
-            missedRepeatCopy(RepeatBand.NOON),
+            missedRepeatCopy(RepeatBand.NOON, resources),
         )
+        val missed = repeatRowDescription(row("Water plants", RepeatBand.NOON, RepeatDayStatus.MISSED), resources)
+        assertTrue(missed.contains("Missed"))
         assertEquals(
             "Water plants. Missed at noon · muted until end of day. Check off.",
-            repeatRowDescription(row("Water plants", RepeatBand.NOON, RepeatDayStatus.MISSED)),
+            missed,
         )
         assertEquals(
             "Take meds. Morning. Check off.",
-            repeatRowDescription(row("Take meds", RepeatBand.MORNING, RepeatDayStatus.OPEN)),
+            repeatRowDescription(row("Take meds", RepeatBand.MORNING, RepeatDayStatus.OPEN), resources),
         )
         assertEquals(
             "Take meds. Morning. every 2 days. Check off.",
             repeatRowDescription(
                 row("Take meds", RepeatBand.MORNING, RepeatDayStatus.OPEN, cadenceDays = 2),
+                resources,
             ),
         )
         assertEquals("MORNING", repeatBandMark(RepeatBand.MORNING))
-        assertNull(everyNDaysLabel(1))
-        assertEquals("every 3 days", everyNDaysLabel(3))
+        assertNull(everyNDaysLabel(1, resources))
+        assertEquals("every 3 days", everyNDaysLabel(3, resources))
     }
 
     private fun row(

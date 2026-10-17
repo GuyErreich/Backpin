@@ -13,7 +13,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.performScrollTo
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStore
@@ -132,6 +134,72 @@ class RepeatScreenQaTest {
         } finally {
             env.close()
         }
+    }
+
+    @Test
+    fun writesHomeDailyAndEveryTwoDaysFrame() {
+        val home = env(hour = 8)
+        try {
+            val today = DAY.toEpochDay()
+            runOffTestThread {
+                home.repeats.create("Take meds", RepeatBand.MORNING, 1, today)
+                home.repeats.create("Water plants", RepeatBand.NOON, 2, today)
+            }
+            showHome(home.viewModel)
+            await {
+                home.viewModel.uiState.value.ready &&
+                    home.viewModel.repeatRows.value.rows.size == 2
+            }
+            compose.onNodeWithText("Take meds", substring = true).assertExists()
+            compose.onNodeWithText("Water plants · every 2 days", substring = true).assertExists()
+            writePng("repeats-home-daily-and-every-2-days.png")
+        } finally {
+            home.close()
+        }
+    }
+
+    @Test
+    fun writesSheetPresetFrame() {
+        compose.setContent {
+            FocusStackTheme {
+                Surface(modifier = Modifier.fillMaxSize(), color = FocusColors.Midnight) {
+                    RepeatSheet(
+                        draft = RepeatDraft(title = "Take meds", everyNDays = 2),
+                        onCommit = {},
+                        onArchive = {},
+                        recognizer = SilentQaRecognizer,
+                    )
+                }
+            }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithText("How often").performScrollTo().assertExists()
+        compose.onNodeWithText("Every 2 days").assertExists()
+        compose.onNodeWithText("Days").assertDoesNotExist()
+        compose.onNodeWithText("Done").assertExists()
+        compose.onNodeWithText("A gentle reminder at the start of that band.").assertExists()
+        writePng("repeats-sheet-preset.png")
+    }
+
+    @Test
+    fun writesSheetOtherFrame() {
+        compose.setContent {
+            FocusStackTheme {
+                Surface(modifier = Modifier.fillMaxSize(), color = FocusColors.Midnight) {
+                    RepeatSheet(
+                        draft = RepeatDraft(title = "Water plants", everyNDays = 5),
+                        onCommit = {},
+                        onArchive = {},
+                        recognizer = SilentQaRecognizer,
+                    )
+                }
+            }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithText("Other").assertExists()
+        compose.onNodeWithText("Days").performScrollTo().assertExists()
+        compose.onNodeWithText("Done").assertExists()
+        writePng("repeats-sheet-other.png")
     }
 
     @Test

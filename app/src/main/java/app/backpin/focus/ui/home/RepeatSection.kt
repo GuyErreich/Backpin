@@ -38,17 +38,23 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.layout.positionInParent
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.round
 import androidx.compose.ui.unit.sp
+import app.backpin.focus.R
 import app.backpin.focus.domain.Repeat
 import app.backpin.focus.domain.RepeatDayStatus
 import app.backpin.focus.domain.RepeatRow as RepeatRowModel
@@ -76,16 +82,17 @@ internal fun RepeatSection(
     onEdit: (Repeat) -> Unit,
     onCreate: () -> Unit,
 ) {
+    val resources = LocalContext.current.resources
     Column(verticalArrangement = Arrangement.spacedBy(Space)) {
-        SectionLabel("REPEAT", repeatsLeftLabel(rows))
+        SectionLabel(stringResource(R.string.repeat_section), repeatsLeftLabel(rows, resources))
         if (rows.rows.isEmpty()) {
             Text(
-                "Nothing due today.",
+                stringResource(R.string.repeat_empty),
                 style = MaterialTheme.typography.bodyLarge,
                 color = FocusColors.Muted,
             )
             QuietButton(
-                label = "New repeat",
+                label = stringResource(R.string.repeat_new),
                 onClick = onCreate,
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -127,8 +134,20 @@ private fun RepeatRow(
         label = "repeatFade",
     )
     val interaction = rememberPressSource()
-    val description = repeatRowDescription(row)
-    val interval = everyNDaysLabel(row.cadenceDays)
+    val resources = LocalContext.current.resources
+    val description = repeatRowDescription(row, resources)
+    val interval = everyNDaysLabel(row.cadenceDays, resources)
+    val titleText =
+        if (interval == null) {
+            buildAnnotatedString { append(row.repeat.title) }
+        } else {
+            buildAnnotatedString {
+                append(row.repeat.title)
+                withStyle(SpanStyle(color = FocusColors.Muted)) {
+                    append(resources.getString(R.string.repeat_title_cadence_gap, interval))
+                }
+            }
+        }
     val shape = RoundedCornerShape(CardRadius)
     val content: @Composable () -> Unit = {
         Row(
@@ -142,7 +161,7 @@ private fun RepeatRow(
             RepeatMark(done = done, missed = missed, color = if (done) FocusColors.Muted else FocusColors.Text)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
-                    row.repeat.title,
+                    titleText,
                     style = MaterialTheme.typography.titleLarge,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
@@ -151,12 +170,10 @@ private fun RepeatRow(
                 )
                 if (missed) {
                     Text(
-                        missedRepeatCopy(row.repeat.band),
+                        missedRepeatCopy(row.repeat.band, resources),
                         style = MaterialTheme.typography.bodyMedium,
                         color = FocusColors.Muted,
                     )
-                } else if (interval != null) {
-                    Text(interval, style = MaterialTheme.typography.bodyMedium, color = FocusColors.Muted)
                 }
             }
             Text(
@@ -177,7 +194,7 @@ private fun RepeatRow(
                 contentDescription = description
                 customActions =
                     listOf(
-                        CustomAccessibilityAction("Edit") {
+                        CustomAccessibilityAction(resources.getString(R.string.repeat_row_edit)) {
                             onEdit()
                             true
                         },
@@ -191,8 +208,8 @@ private fun RepeatRow(
                             interactionSource = interaction,
                             indication = null,
                             role = Role.Button,
-                            onClickLabel = "Check off",
-                            onLongClickLabel = "Edit",
+                            onClickLabel = resources.getString(R.string.repeat_row_check_off),
+                            onLongClickLabel = resources.getString(R.string.repeat_row_edit),
                             onClick = onCheckOff,
                             onLongClick = onEdit,
                         )
@@ -202,7 +219,7 @@ private fun RepeatRow(
                         indication = null,
                         onClick = {},
                         onLongClick = onEdit,
-                        onLongClickLabel = "Edit",
+                        onLongClickLabel = resources.getString(R.string.repeat_row_edit),
                     )
                 },
             )

@@ -80,7 +80,7 @@ class RepeatCheckOffTest {
                     rows.last().status == RepeatDayStatus.DONE &&
                     env.viewModel.uiState.value.undo?.target is UndoTarget.RepeatCheckOff
             }
-            assertEquals("1 of 3 left", repeatsLeftLabel(env.viewModel.repeatRows.value))
+            assertEquals("1 of 3 left", repeatsLeftLabel(env.viewModel.repeatRows.value, compose.activity.resources))
             val titles = titleOrder("Water plants", "Take meds", "Make bed")
             assertEquals(listOf("Water plants", "Take meds", "Make bed"), titles)
             val undo = env.viewModel.uiState.value.undo
@@ -151,7 +151,7 @@ class RepeatCheckOffTest {
                     rows.last().status == RepeatDayStatus.DONE &&
                     env.viewModel.uiState.value.undo?.target is UndoTarget.RepeatCheckOff
             }
-            assertEquals("1 of 2 left", repeatsLeftLabel(env.viewModel.repeatRows.value))
+            assertEquals("1 of 2 left", repeatsLeftLabel(env.viewModel.repeatRows.value, compose.activity.resources))
             compose.onNodeWithContentDescription("Take meds. Morning. Done.").assertExists()
             compose.onNodeWithText("Missed at morning · muted until end of day").assertDoesNotExist()
             val undo = env.viewModel.uiState.value.undo
