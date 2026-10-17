@@ -311,6 +311,7 @@ fun FocusApp(
         RepeatSheet(
             draft = editingRepeat,
             onCommit = viewModel::commitRepeatDraft,
+            onDismiss = viewModel::dismissRepeatSheet,
             onArchive = viewModel::archiveRepeat,
         )
     } else if (editing != null) {

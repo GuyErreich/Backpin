@@ -63,13 +63,15 @@ private val CadencePresets = listOf(1, 2, 3, 7)
 /**
  * Create or edit a repeat. Same sheet chrome as capture: back arrow, title, mic.
  * Band, interval, reminder, and archive stay here so CaptureSheet can rebase.
- * Done and Back both [onCommit] so closing keeps a valid draft.
+ * Done and Back both [onCommit] a titled draft. Back with a blank title
+ * [onDismiss] so the sheet never looks stuck.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun RepeatSheet(
     draft: RepeatDraft,
     onCommit: (RepeatDraft) -> Unit,
+    onDismiss: () -> Unit = {},
     onArchive: (String) -> Unit,
     recognizer: UtteranceRecognizer? = null,
     onSystemSpeech: ((Intent, (String) -> Unit) -> Unit)? = null,
@@ -94,8 +96,9 @@ internal fun RepeatSheet(
         speech.stop()
     }
 
-    fun commit() {
+    fun commit(): Boolean {
         stopListening()
+        if (!canSave) return false
         onCommit(
             draft.copy(
                 title = titleDraft.text.trim(),
@@ -104,6 +107,7 @@ internal fun RepeatSheet(
                 reminderOn = reminderOn,
             ),
         )
+        return true
     }
 
     fun save() {
@@ -111,15 +115,19 @@ internal fun RepeatSheet(
         commit()
     }
 
+    fun back() {
+        if (!commit()) onDismiss()
+    }
+
     ModalBottomSheet(
-        onDismissRequest = ::commit,
+        onDismissRequest = ::back,
         sheetState = sheetState,
         sheetGesturesEnabled = false,
         containerColor = FocusColors.Surface,
         contentWindowInsets = { WindowInsets.navigationBars },
         properties = ModalBottomSheetProperties(shouldDismissOnBackPress = false),
     ) {
-        BackHandler(onBack = ::commit)
+        BackHandler(onBack = ::back)
         Column(
             modifier =
                 Modifier
@@ -136,7 +144,7 @@ internal fun RepeatSheet(
             ) {
                 BackArrow(
                     label = if (draft.editing) BACK_LABEL else CLOSE_LABEL,
-                    onClick = ::commit,
+                    onClick = ::back,
                     inSheet = true,
                 )
                 Text(

@@ -28,7 +28,9 @@ import app.backpin.focus.ui.capture.SpeechProblem
 import app.backpin.focus.ui.capture.UtteranceRecognizer
 import app.backpin.focus.ui.theme.FocusStackTheme
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -244,6 +246,74 @@ class RepeatSheetTest {
         }
         compose.onNodeWithText("Done").assertIsNotEnabled()
         assertNull(committed)
+    }
+
+    @Test
+    fun backAfterEditingAFieldSavesTheChange() {
+        var committed: RepeatDraft? = null
+        compose.setContent {
+            FocusStackTheme {
+                RepeatSheet(
+                    draft = RepeatDraft(title = "Take meds"),
+                    onCommit = { committed = it },
+                    onArchive = {},
+                    recognizer = SilentRecognizer,
+                )
+            }
+        }
+        compose.onNode(hasSetTextAction() and hasText("Take meds")).performTextReplacement("Take vitamins")
+        tap("Noon")
+        compose.onNodeWithContentDescription("Close").performTouchInput { click(center) }
+        compose.waitForIdle()
+        assertEquals(
+            RepeatDraft(title = "Take vitamins", band = RepeatBand.NOON, everyNDays = 1, reminderOn = true),
+            committed,
+        )
+    }
+
+    @Test
+    fun backWithEmptyTitleWritesNothingAndCloses() {
+        var committed: RepeatDraft? = null
+        var dismissed = false
+        compose.setContent {
+            FocusStackTheme {
+                RepeatSheet(
+                    draft = RepeatDraft(),
+                    onCommit = { committed = it },
+                    onDismiss = { dismissed = true },
+                    onArchive = {},
+                    recognizer = SilentRecognizer,
+                )
+            }
+        }
+        compose.onNodeWithContentDescription("Close").performTouchInput { click(center) }
+        compose.waitForIdle()
+        assertNull(committed)
+        assertTrue(dismissed)
+    }
+
+    @Test
+    fun doneWithEmptyTitleKeepsTheSheetOpen() {
+        var committed: RepeatDraft? = null
+        var dismissed = false
+        compose.setContent {
+            FocusStackTheme {
+                RepeatSheet(
+                    draft = RepeatDraft(),
+                    onCommit = { committed = it },
+                    onDismiss = { dismissed = true },
+                    onArchive = {},
+                    recognizer = SilentRecognizer,
+                )
+            }
+        }
+        compose.onNodeWithText("Done").assertIsNotEnabled()
+        compose.onNodeWithText("Done").performScrollTo()
+        compose.onNodeWithText("Done").performTouchInput { click(center) }
+        compose.waitForIdle()
+        assertNull(committed)
+        assertFalse(dismissed)
+        compose.onNodeWithText("A small repeating thing.").assertExists()
     }
 
     private fun tap(label: String) {
