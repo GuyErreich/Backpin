@@ -4,6 +4,7 @@ package app.backpin.focus.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import app.backpin.focus.domain.AppClock
 import app.backpin.focus.domain.BandEdge
 import app.backpin.focus.domain.BandTimeResult
 import app.backpin.focus.domain.BandTimes
@@ -11,18 +12,22 @@ import app.backpin.focus.domain.CapturePlace
 import app.backpin.focus.domain.DetachDestination
 import app.backpin.focus.domain.FocusUseCases
 import app.backpin.focus.domain.FrameState
+import app.backpin.focus.domain.HomeBands
 import app.backpin.focus.domain.PromoteOutcome
 import app.backpin.focus.domain.Repeat
 import app.backpin.focus.domain.RepeatBand
 import app.backpin.focus.domain.RepeatDraft
 import app.backpin.focus.domain.RepeatRowsState
+import app.backpin.focus.domain.SystemAppClock
 import app.backpin.focus.domain.TaskBucket
 import app.backpin.focus.domain.TodaysRepeats
 import app.backpin.focus.domain.UndoToken
 import app.backpin.focus.domain.UserPreferences
 import app.backpin.focus.domain.backInDaysLabel
 import app.backpin.focus.domain.countdownIntervalDays
+import app.backpin.focus.domain.currentMinuteOfDay
 import app.backpin.focus.domain.editPlace
+import app.backpin.focus.domain.homeBandsForToday
 import app.backpin.focus.repeats.RepeatsApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -40,6 +45,7 @@ import java.time.LocalDate
 class FocusStackViewModel(
     private val useCases: FocusUseCases,
     private val repeatsApi: RepeatsApi = RepeatsApi.Empty,
+    private val clock: AppClock = SystemAppClock,
 ) : ViewModel() {
     private val captureOpen = MutableStateFlow(false)
     private val captureInterrupts = MutableStateFlow(false)
@@ -180,6 +186,41 @@ class FocusStackViewModel(
 
     /** Chip-row missed-task sheet, or null when it is closed. */
     val missedTaskSheet: StateFlow<MissedTaskSheetUi?> = missedTaskSheetState
+
+    /**
+     * Home Today tasks and today's repeats grouped by band.
+     * Open Today tasks pin to the top of [HomeBands.openBand]. When no
+     * timed window contains now that is Morning, never Anytime.
+     *
+     * Recomputes on the local-day signal from [RepeatsApi.observeLocalEpochDay],
+     * on [RepeatsApi.observeBandBoundaryTick] at morning/noon/night/night-end,
+     * on [RepeatsApi.observeBandTimes], on the snapshot, and on today's
+     * repeat rows. Flat [uiState] Today slots and [repeatRows] stay as they are.
+     *
+     * Lory switches Home between this grouping and the flat lists using
+     * `HomeLayout` from `PreferencesDataStore.homeLayout` once PR #29
+     * (`cursor/theme-setting`) merges. Until then this flow is always
+     * produced. Jenny owns header visuals on this branch later.
+     */
+    val homeBands: StateFlow<HomeBands> =
+        combine(
+            useCases.observeSnapshot(),
+            repeatsApi.observeRows(),
+            repeatsApi.observeBandTimes(),
+            repeatsApi.observeLocalEpochDay(),
+            repeatsApi.observeBandBoundaryTick(),
+        ) { snapshot, rows, times, _, _ ->
+            homeBandsForToday(
+                tasks = snapshot.tasks,
+                rows = rows,
+                times = times,
+                minuteOfDay = currentMinuteOfDay(clock),
+            )
+        }.stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5_000),
+            HomeBands(),
+        )
 
     /**
      * Opens capture. [interrupts] is true from Interrupt, including the notification
@@ -989,11 +1030,12 @@ class FocusStackViewModel(
 class FocusStackViewModelFactory(
     private val useCases: FocusUseCases,
     private val repeatsApi: RepeatsApi = RepeatsApi.Empty,
+    private val clock: AppClock = SystemAppClock,
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(FocusStackViewModel::class.java)) {
-            return FocusStackViewModel(useCases, repeatsApi) as T
+            return FocusStackViewModel(useCases, repeatsApi, clock) as T
         }
         error("Unknown ViewModel ${modelClass.name}")
     }

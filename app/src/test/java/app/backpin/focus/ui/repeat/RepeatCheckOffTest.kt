@@ -137,8 +137,8 @@ class RepeatCheckOffTest {
             await {
                 env.viewModel.uiState.value.ready &&
                     env.viewModel.repeatRows.value.rows
-                        .single { it.repeat.title == "Take meds" }
-                        .status == RepeatDayStatus.MISSED
+                        .singleOrNull { it.repeat.title == "Take meds" }
+                        ?.status == RepeatDayStatus.MISSED
             }
             compose.onNodeWithText("2 of 2 left").assertExists()
             compose.onNodeWithText("Missed at morning · muted until end of day").assertExists()
