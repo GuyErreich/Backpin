@@ -1,28 +1,20 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package app.backpin.focus.ui.countdown
 
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextAlign
 import app.backpin.focus.R
 import app.backpin.focus.domain.DetachDestination
 import app.backpin.focus.domain.scheduleMomentLabel
 import app.backpin.focus.ui.calendar.PickDateDialog
-import app.backpin.focus.ui.components.AccentButton
-import app.backpin.focus.ui.components.AccentTone
 import app.backpin.focus.ui.components.ActionRow
 import app.backpin.focus.ui.components.ChipSheet
 import app.backpin.focus.ui.components.QuietButton
-import app.backpin.focus.ui.theme.FocusColors
 import java.time.LocalDate
 
 /**
@@ -70,10 +62,12 @@ internal fun EventResumeHost(
     }
 }
 
+private val resumePresetDays = setOf(1, 3, 7)
+
 /**
- * Again in N days when a count is known, then chips for Tomorrow, In 3 days,
- * Next week, and Pick a date. No typed days and no zero-day default.
- * Back closes without detaching.
+ * Task name and chips only: optional Again in N days when that count is
+ * not Tomorrow, In 3 days, or Next week, then those three and Pick a date.
+ * No typed days, no zero-day default, no extra labels. Back closes without detaching.
  */
 @Composable
 internal fun ResumeCountdownSheet(
@@ -86,6 +80,7 @@ internal fun ResumeCountdownSheet(
     val sent = remember { booleanArrayOf(false) }
     val today = LocalDate.now()
     val tomorrow = today.plusDays(1)
+    val extraDays = suggestedDays?.takeIf { it !in resumePresetDays }
 
     fun commit(day: Long) {
         if (sent[0]) return
@@ -98,32 +93,21 @@ internal fun ResumeCountdownSheet(
     }
 
     ChipSheet(
-        title = stringResource(R.string.resume_sheet_title),
-        subtitle = title.takeIf { it.isNotBlank() },
+        title = title.takeIf { it.isNotBlank() } ?: stringResource(R.string.resume_sheet_title),
         onDismiss = onDismiss,
     ) {
-        if (suggestedDays != null) {
-            ActionRow {
-                AccentButton(
+        ActionRow {
+            if (extraDays != null) {
+                QuietButton(
                     label =
                     stringResource(
                         R.string.resume_again_in_days,
-                        suggestedDays,
-                        scheduleMomentLabel(today.plusDays(suggestedDays.toLong()).toEpochDay(), null),
+                        extraDays,
+                        scheduleMomentLabel(today.plusDays(extraDays.toLong()).toEpochDay(), null),
                     ),
-                    tone = AccentTone.Lavender,
-                    onClick = { commitInDays(suggestedDays) },
+                    onClick = { commitInDays(extraDays) },
                 )
             }
-            Text(
-                stringResource(R.string.resume_sheet_or_choose),
-                style = MaterialTheme.typography.bodyMedium,
-                color = FocusColors.Live.Muted,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
-        ActionRow {
             QuietButton(
                 label = stringResource(R.string.action_tomorrow),
                 onClick = { commitInDays(1) },
