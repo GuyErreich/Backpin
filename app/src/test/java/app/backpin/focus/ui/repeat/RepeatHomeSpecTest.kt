@@ -336,6 +336,15 @@ class RepeatHomeSpecTest {
             compose.onNodeWithText("All done").assertDoesNotExist()
             tapDescription("Take meds. Missed at morning · muted until end of day. Check off.")
             await {
+                env.viewModel.missedRepeatSheet.value?.title == "Take meds" &&
+                    env.viewModel.repeatRows.value.leftCount == 1 &&
+                    env.viewModel.repeatRows.value.rows.any { it.status == RepeatDayStatus.MISSED }
+            }
+            compose.onNodeWithText("This one was missed.").assertExists()
+            compose.onNodeWithText("1 of 2 left").assertExists()
+            compose.onNodeWithText("All done").assertDoesNotExist()
+            compose.onNodeWithText("Done now").performTouchInput { click(center) }
+            await {
                 env.viewModel.repeatRows.value.leftCount == 0 &&
                     env.viewModel.repeatRows.value.rows.all { it.status == RepeatDayStatus.DONE }
             }
