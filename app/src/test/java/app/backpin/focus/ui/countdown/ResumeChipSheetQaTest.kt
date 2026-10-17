@@ -225,9 +225,10 @@ class ResumeChipSheetQaTest {
     ) {
         compose.setContent {
             FocusStackTheme {
-                SideEffect {
-                    onLive(FocusColors.Live.Text, FocusColors.Live.Muted, FocusColors.Live.Mint)
-                }
+                val text = FocusColors.Live.Text
+                val muted = FocusColors.Live.Muted
+                val mint = FocusColors.Live.Mint
+                SideEffect { onLive(text, muted, mint) }
                 ResumeCountdownSheet(
                     title = "Dentist checkup",
                     suggestedDays = suggestedDays,

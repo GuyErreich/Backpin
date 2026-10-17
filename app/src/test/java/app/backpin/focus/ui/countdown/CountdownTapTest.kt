@@ -548,10 +548,7 @@ class CountdownTapTest {
 
     private fun daysField(): SemanticsNodeInteraction = compose.onAllNodes(hasSetTextAction())[1]
 
-    private fun againLabel(
-        days: Int,
-        today: LocalDate,
-    ): String = againInDaysLabel(days, today)
+    private fun againLabel(days: Int, today: LocalDate): String = againInDaysLabel(days, today)
 
     private fun taskCount(useCases: FocusUseCases): Int =
         runBlocking { useCases.observeSnapshot().first().tasks.size }
