@@ -321,6 +321,7 @@ class CountdownTapTest {
             compose.onNodeWithText("Next week").assertExists()
             compose.onNodeWithText("Pick a date").assertExists()
             compose.onNodeWithText("Start in 0 days").assertDoesNotExist()
+            compose.onNodeWithText("Again in", substring = true).assertDoesNotExist()
             tap(againLabel(12, today))
             awaitSnapshot(useCases) { snapshot ->
                 val event = snapshot.tasks.single { it.title == "Dentist" }
@@ -337,6 +338,7 @@ class CountdownTapTest {
             await { viewModel.uiState.value.now?.title == "Checkup" }
             tap("Count down again")
             compose.onNodeWithText(againLabel(12, today)).assertExists()
+            compose.onNodeWithText("Again in", substring = true).assertDoesNotExist()
             tap("In 3 days")
             awaitSnapshot(useCases) { snapshot ->
                 val event = snapshot.tasks.single { it.title == "Checkup" }
@@ -421,6 +423,7 @@ class CountdownTapTest {
             tap("Count down again")
             compose.onNodeWithText(againLabel(30, today)).assertExists()
             compose.onNodeWithText(againLabel(12, today)).assertDoesNotExist()
+            compose.onNodeWithText("Again in", substring = true).assertDoesNotExist()
             tap(againLabel(30, today))
             awaitSnapshot(useCases) { snapshot ->
                 val event = snapshot.tasks.single { it.title == "Dentist" }
@@ -548,7 +551,13 @@ class CountdownTapTest {
 
     private fun daysField(): SemanticsNodeInteraction = compose.onAllNodes(hasSetTextAction())[1]
 
-    private fun againLabel(days: Int, today: LocalDate): String = againInDaysLabel(days, today)
+    private fun againLabel(
+        days: Int,
+        today: LocalDate,
+    ): String {
+        val landing = today.plusDays(days.toLong()).toEpochDay()
+        return "In $days days · ${scheduleMomentLabel(landing, null)}"
+    }
 
     private fun taskCount(useCases: FocusUseCases): Int = runBlocking { useCases.observeSnapshot().first().tasks.size }
 

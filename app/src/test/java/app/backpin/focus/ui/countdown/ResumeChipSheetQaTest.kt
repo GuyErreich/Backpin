@@ -41,6 +41,7 @@ import app.backpin.focus.domain.FocusUseCases
 import app.backpin.focus.domain.FrameState
 import app.backpin.focus.domain.TaskBucket
 import app.backpin.focus.domain.backInDaysLabel
+import app.backpin.focus.domain.scheduleMomentLabel
 import app.backpin.focus.ui.FocusApp
 import app.backpin.focus.ui.FocusStackViewModel
 import app.backpin.focus.ui.theme.FocusColors
@@ -60,6 +61,7 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import java.util.UUID
+import kotlin.math.abs
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36], qualifiers = "w411dp-h891dp")
@@ -98,10 +100,12 @@ class ResumeChipSheetQaTest {
     }
 
     @Test
-    fun resumeSheetLeadsWithAgainInNDaysWhenSuggestedIsNot1Or3Or7() {
+    fun resumeSheetLeadsWithInNDaysWhenSuggestedIsNot1Or3Or7() {
         var liveText by mutableStateOf(Color.Unspecified)
         var liveMuted by mutableStateOf(Color.Unspecified)
         var liveMint by mutableStateOf(Color.Unspecified)
+        val today = LocalDate.now()
+        val suggested = inNDaysLabel(5, today)
         showResumeSheet(
             suggestedDays = 5,
             onLive = { text, muted, mint ->
@@ -110,19 +114,23 @@ class ResumeChipSheetQaTest {
                 liveMint = mint
             },
         )
-        val chips = listOf("Again in 5 days") + RESUME_CHIPS
-        assertEquals(chips, sheetChips(chips, substring = true))
-        assertSheetChip("Again in 5 days", substring = true)
-        val color = labelColor("Again in 5 days", substring = true)
-        assertEquals("Again in 5 days", liveText, color)
-        assertNotEquals("Again in 5 days", liveMuted, color)
-        assertNotEquals("Again in 5 days", liveMint, color)
+        val chips = listOf(suggested) + RESUME_CHIPS
+        assertEquals(chips, sheetChips(chips))
+        assertSheetChip(suggested)
+        assertSuggestedChipLeadsFullWidthOnOwnRow(suggested)
+        assertEquals("$suggested is one line", 1, textLayout(suggested).lineCount)
+        val color = labelColor(suggested)
+        assertEquals(suggested, liveText, color)
+        assertNotEquals(suggested, liveMuted, color)
+        assertNotEquals(suggested, liveMint, color)
         compose.onNodeWithText("or choose").assertDoesNotExist()
+        compose.onNodeWithText("Again in", substring = true).assertDoesNotExist()
     }
 
     @Test
-    fun resumeSheetOmitsSuggestedChipWhenItWouldDuplicateAStandardChip() {
-        listOf(1, 3, 7).forEach { days ->
+    fun resumeSheetOmitsSuggestedChipWhenDaysAre0Or1Or3Or7() {
+        val today = LocalDate.now()
+        listOf(0, 1, 3, 7).forEach { days ->
             showResumeSheet(suggestedDays = days)
             assertEquals(days.toString(), RESUME_CHIPS, sheetChips(RESUME_CHIPS))
             assertEquals("In 3 days", 1, sheetChips(listOf("In 3 days")).size)
@@ -130,7 +138,9 @@ class ResumeChipSheetQaTest {
             compose.onNodeWithText("In 1 days").assertDoesNotExist()
             compose.onNodeWithText("In 7 days").assertDoesNotExist()
             compose.onNodeWithText("or choose").assertDoesNotExist()
-            compose.onNodeWithText("Again in $days days", substring = true).assertDoesNotExist()
+            compose.onNodeWithText("Again in", substring = true).assertDoesNotExist()
+            compose.onNodeWithText(inNDaysLabel(days, today)).assertDoesNotExist()
+            compose.onNodeWithText("In $days days ·", substring = true).assertDoesNotExist()
         }
     }
 
@@ -166,7 +176,7 @@ class ResumeChipSheetQaTest {
             }
             await { viewModel.uiState.value.now?.title == "Dentist checkup" }
             tap("Count down again")
-            compose.onNode(hasText("Count down again") and isHeading()).assertExists()
+            compose.onNode(hasText("Dentist checkup") and isHeading()).assertExists()
             compose.onAllNodesWithText("Dentist checkup").assertCountEquals(2)
             assertEquals(RESUME_CHIPS, sheetChips(RESUME_CHIPS))
             tap("In 3 days")
@@ -325,10 +335,39 @@ class ResumeChipSheetQaTest {
         node.assertIsEnabled().assertHasClickAction()
     }
 
-    private fun labelColor(
+    private fun assertSuggestedChipLeadsFullWidthOnOwnRow(label: String) {
+        val suggested = compose.onNodeWithText(label).getBoundsInRoot()
+        val tomorrow = compose.onNodeWithText("Tomorrow").getBoundsInRoot()
+        val in3 = compose.onNodeWithText("In 3 days").getBoundsInRoot()
+        val nextWeek = compose.onNodeWithText("Next week").getBoundsInRoot()
+        val pick = compose.onNodeWithText("Pick a date").getBoundsInRoot()
+        assertTrue("$label is first", suggested.top < tomorrow.top - 2.dp)
+        assertTrue(
+            "Tomorrow and In 3 days share a row: tomorrow=$tomorrow in3=$in3",
+            abs((tomorrow.top - in3.top).value) < 2f,
+        )
+        assertTrue(
+            "Next week and Pick a date share a row: nextWeek=$nextWeek pick=$pick",
+            abs((nextWeek.top - pick.top).value) < 2f,
+        )
+        assertTrue("standard chips sit below $label", tomorrow.top < nextWeek.top - 2.dp)
+        val gridLeft = minOf(tomorrow.left, nextWeek.left)
+        val gridRight = maxOf(in3.right, pick.right)
+        assertTrue(
+            "$label is full-width: suggested=$suggested grid=$gridLeft..$gridRight",
+            abs((suggested.left - gridLeft).value) < 2f &&
+                abs((suggested.right - gridRight).value) < 2f,
+        )
+        assertTrue(
+            "$label is wider than a half chip",
+            suggested.right - suggested.left > tomorrow.right - tomorrow.left + 8.dp,
+        )
+    }
+
+    private fun textLayout(
         text: String,
         substring: Boolean = false,
-    ): Color {
+    ): TextLayoutResult {
         val layouts = mutableListOf<TextLayoutResult>()
         compose
             .onNodeWithText(text, substring = substring, useUnmergedTree = true)
@@ -336,7 +375,20 @@ class ResumeChipSheetQaTest {
             .config[SemanticsActions.GetTextLayoutResult]
             .action
             ?.invoke(layouts)
-        return layouts.single().layoutInput.style.color
+        return layouts.single()
+    }
+
+    private fun labelColor(
+        text: String,
+        substring: Boolean = false,
+    ): Color = textLayout(text, substring).layoutInput.style.color
+
+    private fun inNDaysLabel(
+        days: Int,
+        today: LocalDate,
+    ): String {
+        val landing = today.plusDays(days.toLong()).toEpochDay()
+        return "In $days days · ${scheduleMomentLabel(landing, null)}"
     }
 
     private fun tap(label: String) {
