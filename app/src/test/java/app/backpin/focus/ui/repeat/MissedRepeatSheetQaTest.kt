@@ -231,8 +231,7 @@ class MissedRepeatSheetQaTest {
                     env.viewModel.repeatRows.value.rows.singleOrNull()?.status == RepeatDayStatus.MISSED
             }
 
-            env.clock.now = at(hour = 23, minute = 59, day = DAY)
-            env.reopenHome()
+            env.advanceTo(hour = 23, minute = 59, day = DAY)
             awaitMissed(env, "Water plants")
             compose.onNodeWithText("Missed at noon · muted until end of day").assertExists()
             assertEquals(FocusColors.Muted, textColor("Water plants"))
@@ -240,15 +239,13 @@ class MissedRepeatSheetQaTest {
                 .onNodeWithContentDescription("Water plants. Missed at noon · muted until end of day. Check off.")
                 .assertHasClickAction()
 
-            env.clock.now = at(hour = 0, minute = 0, day = DAY.plusDays(1))
-            env.reopenHome()
+            env.advanceTo(hour = 0, minute = 0, day = DAY.plusDays(1))
             await { env.viewModel.uiState.value.ready }
             assertTrue(env.viewModel.repeatRows.value.rows.none { it.repeat.title == "Water plants" })
             compose.onNodeWithText("Water plants").assertDoesNotExist()
             compose.onNodeWithText("Nothing due today.").assertExists()
 
-            env.clock.now = at(hour = 8, minute = 0, day = DAY.plusDays(2))
-            env.reopenHome()
+            env.advanceTo(hour = 8, minute = 0, day = DAY.plusDays(2))
             await {
                 env.viewModel.uiState.value.ready &&
                     env.viewModel.repeatRows.value.rows.singleOrNull()?.repeat?.title == "Water plants" &&
@@ -398,7 +395,7 @@ class MissedRepeatSheetQaTest {
                 clock = clock,
             )
         val useCases = FocusUseCases(repository)
-        val repeats = RepeatsService(repository)
+        val repeats = RepeatsService(repository, clock = clock)
         val store = ViewModelStore()
         return Env(
             clock = clock,
@@ -421,6 +418,16 @@ class MissedRepeatSheetQaTest {
         var viewModel: FocusStackViewModel,
     ) {
         val shown = mutableStateOf(viewModel)
+
+        fun advanceTo(
+            hour: Int,
+            minute: Int,
+            day: LocalDate,
+        ) {
+            clock.now = at(hour, minute, day)
+            repeats.refreshToday()
+            reopenHome()
+        }
 
         fun reopenHome() {
             store.clear()
