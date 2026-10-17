@@ -104,13 +104,13 @@ data class RepeatRow(
 /**
  * Home REPEAT list: open rows in band order, then missed, then done.
  * Done keeps the relative order from [TodaysRepeats.all].
- * [leftCount] is still-open items. Copy lives in the UI.
+ * [leftCount] is still-unchecked items, open or missed. Copy lives in the UI.
  * Each [RepeatRow] carries [RepeatRow.everyNDays] for cadence copy.
  */
 data class RepeatRowsState(
     /** Open, then missed, then done. Band order inside each group. */
     val rows: List<RepeatRow> = emptyList(),
-    /** Still-open items. The UI writes "N of M left". */
+    /** Still-unchecked items, open or missed. The UI writes "N of M left". */
     val leftCount: Int = 0,
     /** Due items today, including missed and done. */
     val total: Int = 0,
@@ -134,7 +134,7 @@ fun repeatRowsState(todays: TodaysRepeats): RepeatRowsState {
         }
     return RepeatRowsState(
         rows = rows,
-        leftCount = rows.count { it.status == RepeatDayStatus.OPEN },
+        leftCount = rows.count { it.status != RepeatDayStatus.DONE },
         total = rows.size,
     )
 }

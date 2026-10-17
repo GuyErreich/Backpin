@@ -94,7 +94,7 @@ internal fun CountdownScreen(
             Text(
                 countdowns.size.toString(),
                 style = MaterialTheme.typography.headlineMedium,
-                color = FocusColors.Amber,
+                color = FocusColors.Live.Amber,
             )
         }
         AccentButton(
@@ -109,7 +109,7 @@ internal fun CountdownScreen(
                 Text(
                     "Nothing to count down to. Add an event and it will interrupt you on the day.",
                     style = MaterialTheme.typography.bodyLarge,
-                    color = FocusColors.Muted,
+                    color = FocusColors.Live.Muted,
                 )
             else ->
                 countdowns.forEach { countdown ->
@@ -169,7 +169,7 @@ private fun CountdownRow(
                         )
                 },
         shape = RoundedCornerShape(CardRadius),
-        color = FocusColors.Surface,
+        color = FocusColors.Live.Surface,
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(Space)) {
             Text(countdown.title, style = MaterialTheme.typography.titleLarge)
@@ -253,7 +253,7 @@ private fun AddCountdownSheet(
         onDismissRequest = { dismiss() },
         sheetState = sheetState,
         sheetGesturesEnabled = false,
-        containerColor = FocusColors.Surface,
+        containerColor = FocusColors.Live.Surface,
         contentWindowInsets = { WindowInsets.navigationBars },
         properties = ModalBottomSheetProperties(shouldDismissOnBackPress = false),
     ) {
@@ -301,10 +301,10 @@ private fun AddCountdownSheet(
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
             )
             if (askForName && title.isEmpty()) {
-                Text("Name the event.", style = MaterialTheme.typography.bodyMedium, color = FocusColors.Muted)
+                Text("Name the event.", style = MaterialTheme.typography.bodyMedium, color = FocusColors.Live.Muted)
             }
             speech.note?.let { note ->
-                Text(note, style = MaterialTheme.typography.bodyMedium, color = FocusColors.Muted)
+                Text(note, style = MaterialTheme.typography.bodyMedium, color = FocusColors.Live.Muted)
             }
             CountdownDayEntry(
                 daysText = daysText,
@@ -362,7 +362,7 @@ private fun ChangeCountdownSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         sheetGesturesEnabled = false,
-        containerColor = FocusColors.Surface,
+        containerColor = FocusColors.Live.Surface,
         contentWindowInsets = { WindowInsets.navigationBars },
         properties = ModalBottomSheetProperties(shouldDismissOnBackPress = false),
     ) {

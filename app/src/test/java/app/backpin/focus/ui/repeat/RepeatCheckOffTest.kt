@@ -140,7 +140,7 @@ class RepeatCheckOffTest {
                         .single { it.repeat.title == "Take meds" }
                         .status == RepeatDayStatus.MISSED
             }
-            compose.onNodeWithText("1 of 2 left").assertExists()
+            compose.onNodeWithText("2 of 2 left").assertExists()
             compose.onNodeWithText("Missed at morning · muted until end of day").assertExists()
             compose
                 .onNodeWithContentDescription("Take meds. Missed at morning · muted until end of day. Check off.")
@@ -240,14 +240,15 @@ class RepeatCheckOffTest {
                 .inMemoryDatabaseBuilder(context, FocusStackDatabase::class.java)
                 .allowMainThreadQueries()
                 .build()
+        val clock = clockAt(hour)
         val repository =
             FocusRepositoryImpl(
                 database = database,
                 preferencesStore = PreferencesDataStore(context, "repeat-check-${UUID.randomUUID()}"),
-                clock = clockAt(hour),
+                clock = clock,
             )
         val useCases = FocusUseCases(repository)
-        val repeats = RepeatsService(repository)
+        val repeats = RepeatsService(repository, clock = clock)
         val store = ViewModelStore()
         val viewModel =
             ViewModelProvider(

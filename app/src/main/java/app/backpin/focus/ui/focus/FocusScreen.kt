@@ -82,7 +82,7 @@ private fun EmptyFocus(
 ) {
     Text(
         "FOCUS",
-        color = FocusColors.Muted,
+        color = FocusColors.Live.Muted,
         style = MaterialTheme.typography.labelLarge,
         letterSpacing = 1.2.sp,
     )
@@ -94,7 +94,7 @@ private fun EmptyFocus(
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(CardRadius),
-        color = FocusColors.Surface,
+        color = FocusColors.Live.Surface,
     ) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(Space)) {
             Text(
@@ -122,7 +122,7 @@ private fun ActiveCard(
 ) {
     val now = state.now ?: return
     val label = nowLabel(now)
-    val accent = FocusColors.Lavender
+    val accent = FocusColors.Live.Lavender
     Surface(
         modifier =
             Modifier
@@ -137,7 +137,7 @@ private fun ActiveCard(
                         )
                 },
         shape = RoundedCornerShape(CardRadius),
-        color = FocusColors.Surface,
+        color = FocusColors.Live.Surface,
         border = BorderStroke(2.dp, accent),
     ) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(Space * 2)) {
@@ -200,13 +200,13 @@ internal fun RecoveryCard(
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(CardRadius),
-        color = FocusColors.Surface,
-        border = BorderStroke(2.dp, FocusColors.Lavender),
+        color = FocusColors.Live.Surface,
+        border = BorderStroke(2.dp, FocusColors.Live.Lavender),
     ) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(Space * 2)) {
             Text(
                 "BEFORE THIS",
-                color = FocusColors.Lavender,
+                color = FocusColors.Live.Lavender,
                 style = MaterialTheme.typography.labelLarge,
                 letterSpacing = 1.2.sp,
             )
@@ -263,7 +263,7 @@ private fun TimeInFocus(
     Text(
         label,
         style = MaterialTheme.typography.bodyLarge,
-        color = FocusColors.Muted,
+        color = FocusColors.Live.Muted,
         modifier = Modifier.semantics { contentDescription = label },
     )
 }

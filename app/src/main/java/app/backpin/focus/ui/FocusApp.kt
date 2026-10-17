@@ -135,15 +135,15 @@ fun FocusApp(
     }
 
     Scaffold(
-        containerColor = FocusColors.Midnight,
+        containerColor = FocusColors.Live.Midnight,
         snackbarHost = {
             SnackbarHost(snackbarHostState) { data ->
                 Snackbar(
                     snackbarData = data,
-                    containerColor = FocusColors.SurfaceHigh,
-                    contentColor = FocusColors.Text,
-                    actionColor = FocusColors.Mint,
-                    dismissActionContentColor = FocusColors.Muted,
+                    containerColor = FocusColors.Live.SurfaceHigh,
+                    contentColor = FocusColors.Live.Text,
+                    actionColor = FocusColors.Live.Mint,
+                    dismissActionContentColor = FocusColors.Live.Muted,
                 )
             }
         },
@@ -160,7 +160,7 @@ fun FocusApp(
                             .padding(horizontal = 16.dp, vertical = Space),
                     )
                 }
-                NavigationBar(containerColor = FocusColors.Surface) {
+                NavigationBar(containerColor = FocusColors.Live.Surface) {
                     NavigationBarItem(
                         selected = route in homeRoutes,
                         onClick = { navController.showToday() },
@@ -406,9 +406,9 @@ fun FocusApp(
             state.now != null && state.todaySlots.any { it.task?.id == state.now?.taskId }
         AlertDialog(
             onDismissRequest = viewModel::cancelSwap,
-            containerColor = FocusColors.Surface,
-            titleContentColor = FocusColors.Text,
-            textContentColor = FocusColors.Muted,
+            containerColor = FocusColors.Live.Surface,
+            titleContentColor = FocusColors.Live.Text,
+            textContentColor = FocusColors.Live.Muted,
             title = { Text("Today is full") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(Space)) {
@@ -447,9 +447,9 @@ fun FocusApp(
     if (state.switchOpen) {
         AlertDialog(
             onDismissRequest = viewModel::dismissSwitch,
-            containerColor = FocusColors.Surface,
-            titleContentColor = FocusColors.Text,
-            textContentColor = FocusColors.Muted,
+            containerColor = FocusColors.Live.Surface,
+            titleContentColor = FocusColors.Live.Text,
+            textContentColor = FocusColors.Live.Muted,
             title = { Text("Switch") },
             text = {
                 Text("Pauses Now and starts another Today task. The return cue stays on the paused task. This is not an interruption.")
@@ -457,7 +457,7 @@ fun FocusApp(
             confirmButton = {
                 Column(verticalArrangement = Arrangement.spacedBy(ButtonGap)) {
                     if (state.switchTargets.isEmpty()) {
-                        Text("Nothing else is in Today.", color = FocusColors.Muted)
+                        Text("Nothing else is in Today.", color = FocusColors.Live.Muted)
                     }
                     state.switchTargets.forEach { target ->
                         QuietButton(
