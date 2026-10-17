@@ -30,6 +30,15 @@ class RepeatUiTest {
             "2 of 4 left",
             repeatsLeftLabel(RepeatRowsState(leftCount = 2, total = 4), resources),
         )
+        assertEquals(
+            "All done",
+            repeatsLeftLabel(RepeatRowsState(leftCount = 0, total = 3), resources),
+        )
+        assertEquals(
+            "",
+            repeatsLeftLabel(RepeatRowsState(leftCount = 0, total = 0), resources),
+        )
+        assertTrue(repeatsLeftLabel(RepeatRowsState(), resources) != "All done")
     }
 
     @Test
