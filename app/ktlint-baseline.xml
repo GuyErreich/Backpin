@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
 <baseline version="1.0">
     <file name="src/main/java/app/backpin/focus/data/FocusRepositoryImpl.kt">
         <error line="56" column="58" source="standard:function-signature" />
