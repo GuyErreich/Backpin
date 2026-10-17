@@ -199,10 +199,9 @@ class RepeatCheckOffTest {
         shadowOf(Looper.getMainLooper()).idle()
     }
 
-    private fun titleOrder(vararg titles: String): List<String> =
-        titles.sortedBy {
-            compose.onNodeWithText(it, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot.top
-        }
+    private fun titleOrder(vararg titles: String): List<String> = titles.sortedBy {
+        compose.onNodeWithText(it, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot.top
+    }
 
     private fun await(predicate: () -> Boolean) {
         compose.waitUntil(timeoutMillis = 5_000) {
@@ -224,14 +223,15 @@ class RepeatCheckOffTest {
                 .inMemoryDatabaseBuilder(context, FocusStackDatabase::class.java)
                 .allowMainThreadQueries()
                 .build()
+        val clock = clockAt(hour)
         val repository =
             FocusRepositoryImpl(
                 database = database,
                 preferencesStore = PreferencesDataStore(context, "repeat-check-${UUID.randomUUID()}"),
-                clock = clockAt(hour),
+                clock = clock,
             )
         val useCases = FocusUseCases(repository)
-        val repeats = RepeatsService(repository)
+        val repeats = RepeatsService(repository, clock = clock)
         val store = ViewModelStore()
         val viewModel =
             ViewModelProvider(

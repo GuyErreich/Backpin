@@ -409,7 +409,7 @@ class RepeatHomeSpecTest {
                 clock = clock,
             )
         val useCases = FocusUseCases(repository)
-        val repeats = RepeatsService(repository)
+        val repeats = RepeatsService(repository, clock = clock)
         val store = ViewModelStore()
         return Env(
             clock = clock,
@@ -432,8 +432,9 @@ class RepeatHomeSpecTest {
         val shown = mutableStateOf(viewModel)
 
         fun reopenHome() {
-            // observeTodaysRepeats only re-reads the clock when Room or prefs emit.
-            // Recreating the ViewModel is the "phone was off, reopen Home" path.
+            // Production reopens through MainActivity.onStart → FocusStackApp.onForeground
+            // → refreshToday. Recreating the ViewModel alone does not move the day signal.
+            repeats.refreshToday()
             store.clear()
             viewModel = createViewModel(store, useCases, repeats)
             shown.value = viewModel
@@ -459,16 +460,15 @@ class RepeatHomeSpecTest {
             store: ViewModelStore,
             useCases: FocusUseCases,
             repeats: RepeatsService,
-        ): FocusStackViewModel =
-            ViewModelProvider(
-                store,
-                object : ViewModelProvider.Factory {
-                    override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                        @Suppress("UNCHECKED_CAST")
-                        return FocusStackViewModel(useCases, repeats) as T
-                    }
-                },
-            )[FocusStackViewModel::class.java]
+        ): FocusStackViewModel = ViewModelProvider(
+            store,
+            object : ViewModelProvider.Factory {
+                override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                    @Suppress("UNCHECKED_CAST")
+                    return FocusStackViewModel(useCases, repeats) as T
+                }
+            },
+        )[FocusStackViewModel::class.java]
     }
 
     private class SettableClock(
