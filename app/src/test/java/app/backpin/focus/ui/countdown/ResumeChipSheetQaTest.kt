@@ -130,8 +130,20 @@ class ResumeChipSheetQaTest {
     @Test
     fun resumeSheetOmitsSuggestedChipWhenDaysAre0Or1Or3Or7() {
         val today = LocalDate.now()
+        var suggestedDays by mutableStateOf(0)
+        compose.setContent {
+            FocusStackTheme {
+                ResumeCountdownSheet(
+                    title = "Dentist checkup",
+                    suggestedDays = suggestedDays,
+                    onDismiss = {},
+                    onCommit = {},
+                )
+            }
+        }
         listOf(0, 1, 3, 7).forEach { days ->
-            showResumeSheet(suggestedDays = days)
+            suggestedDays = days
+            compose.waitForIdle()
             assertEquals(days.toString(), RESUME_CHIPS, sheetChips(RESUME_CHIPS))
             assertEquals("In 3 days", 1, sheetChips(listOf("In 3 days")).size)
             compose.onNodeWithText("In 1 day").assertDoesNotExist()
