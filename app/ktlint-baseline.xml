@@ -77,11 +77,6 @@
     <file name="src/main/java/app/backpin/focus/notifications/RepeatNotificationCopy.kt">
         <error line="27" column="57" source="standard:function-signature" />
     </file>
-    <file name="src/main/java/app/backpin/focus/repeats/RepeatsService.kt">
-        <error line="49" column="56" source="standard:function-signature" />
-        <error line="58" column="60" source="standard:function-signature" />
-        <error line="232" column="26" source="standard:function-signature" />
-    </file>
     <file name="src/main/java/app/backpin/focus/ui/DeriveFocusUi.kt">
         <error line="4" column="1" source="standard:import-ordering" />
         <error line="201" column="42" source="standard:function-signature" />
@@ -999,17 +994,6 @@
         <error line="166" column="15" source="standard:function-signature" />
         <error line="173" column="42" source="standard:function-signature" />
         <error line="182" column="15" source="standard:function-signature" />
-    </file>
-    <file name="src/test/java/app/backpin/focus/repeats/RepeatsServiceTest.kt">
-        <error line="80" column="53" source="standard:function-signature" />
-        <error line="105" column="49" source="standard:function-signature" />
-        <error line="138" column="50" source="standard:function-signature" />
-        <error line="173" column="47" source="standard:function-signature" />
-        <error line="189" column="49" source="standard:function-signature" />
-        <error line="205" column="54" source="standard:function-signature" />
-        <error line="219" column="57" source="standard:function-signature" />
-        <error line="232" column="32" source="standard:function-signature" />
-        <error line="243" column="64" source="standard:function-signature" />
     </file>
     <file name="src/test/java/app/backpin/focus/ui/DeriveFocusUiTest.kt">
         <error line="38" column="1" source="standard:indent" />

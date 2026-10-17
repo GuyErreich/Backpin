@@ -474,7 +474,7 @@ class FocusStackViewModelTest {
                     preferencesStore = PreferencesDataStore(context, "vm-repeat-${UUID.randomUUID()}"),
                     clock = AppClock { morning },
                 )
-            val repeats = RepeatsService(repository)
+            val repeats = RepeatsService(repository, clock = AppClock { morning })
             val useCases = FocusUseCases(repository)
             val store = ViewModelStore()
             val viewModel =
