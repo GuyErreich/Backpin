@@ -122,7 +122,7 @@ private fun ActiveCard(
 ) {
     val now = state.now ?: return
     val label = nowLabel(now)
-    val accent = if (now.isEvent) FocusColors.Lavender else FocusColors.Mint
+    val accent = FocusColors.Lavender
     Surface(
         modifier =
             Modifier

@@ -12,20 +12,20 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 object FocusColors {
-    val Midnight = Color(0xFF10141F)
-    val Surface = Color(0xFF1B2230)
-    val SurfaceHigh = Color(0xFF243044)
-    val Text = Color(0xFFF3F6FB)
-    val Muted = Color(0xFFA7B2C4)
-    val Mint = Color(0xFF71E2BE)
-    val OnMint = Color(0xFF10241C)
-    val Amber = Color(0xFFFFC979)
-    val OnAmber = Color(0xFF2A1C08)
-    val Lavender = Color(0xFFB7A4FF)
-    val OnLavender = Color(0xFF1B1430)
+    val Midnight: Color get() = activePalette.background
+    val Surface: Color get() = activePalette.surface
+    val SurfaceHigh: Color get() = activePalette.surfaceRaised
+    val Text: Color get() = activePalette.textPrimary
+    val Muted: Color get() = activePalette.textSecondary
+    val Mint: Color get() = activePalette.done
+    val OnMint: Color get() = activePalette.onAccent
+    val Amber: Color get() = activePalette.missed
+    val OnAmber: Color get() = activePalette.onAccent
+    val Lavender: Color get() = activePalette.now
+    val OnLavender: Color get() = activePalette.onAccent
     /** Soft fill for the default lavender choice, such as Again in N days. */
-    val LavenderContainer = Color(0x40B7A4FF)
-    val Outline = Color(0xFF3A465C)
+    val LavenderContainer: Color get() = activePalette.now.copy(alpha = CHOICE_FILL_ALPHA)
+    val Outline: Color get() = activePalette.outline
 }
 
 val CardRadius = 24.dp
@@ -131,18 +131,25 @@ fun FocusStackTheme(
     themeId: app.backpin.focus.domain.ThemeId = app.backpin.focus.domain.ThemeId.SIGNAL,
     content: @Composable () -> Unit,
 ) {
-    MaterialTheme(
-        colorScheme = colorsFor(themeId),
-        typography = typography,
-        content = content,
-    )
+    val palette = paletteFor(themeId)
+    activePalette = palette
+    androidx.compose.runtime.CompositionLocalProvider(
+        LocalFocusPalette provides palette,
+        LocalFocusExtraColors provides palette.extras,
+    ) {
+        MaterialTheme(
+            colorScheme = colorsFor(themeId),
+            typography = typography,
+            content = content,
+        )
+    }
 }
 
-/** Palette for [themeId]. Every id uses the current colours until the per-theme palettes land. */
+/** Palette for [themeId]. */
 fun colorsFor(themeId: app.backpin.focus.domain.ThemeId) = when (themeId) {
     app.backpin.focus.domain.ThemeId.SIGNAL,
     app.backpin.focus.domain.ThemeId.STILL_WATER,
     app.backpin.focus.domain.ThemeId.EMBER,
     app.backpin.focus.domain.ThemeId.CLEAR_LINE,
-    -> scheme
+    -> paletteFor(themeId).toColorScheme().also { scheme }
 }

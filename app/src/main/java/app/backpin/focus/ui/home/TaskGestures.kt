@@ -81,8 +81,8 @@ internal fun laterSwipe(onLater: () -> Unit): SwipeSide =
     SwipeSide(
         label = "Later",
         accessibilityLabel = "Move to Later",
-        tint = FocusColors.Amber,
-        onTint = FocusColors.OnAmber,
+        tint = app.backpin.focus.ui.theme.activePalette.danger,
+        onTint = app.backpin.focus.ui.theme.activePalette.onAccent,
         onCommit = onLater,
     )
 

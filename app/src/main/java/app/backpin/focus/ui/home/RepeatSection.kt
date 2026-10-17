@@ -161,7 +161,7 @@ private fun RepeatRow(
                     Text(
                         missedRepeatCopy(row.repeat.band, resources),
                         style = MaterialTheme.typography.bodyMedium,
-                        color = FocusColors.Muted,
+                        color = FocusColors.Amber,
                     )
                 }
             }

@@ -190,7 +190,7 @@ private fun NowCard(
     val recovery = state.recovery
     when {
         now != null -> {
-            val accent = if (now.isInterruption || now.isEvent) FocusColors.Lavender else FocusColors.Mint
+            val accent = FocusColors.Lavender
             val label = nowLabel(now)
             val openInteraction = rememberPressSource()
             SwipeRevealCard(
@@ -690,7 +690,7 @@ internal fun Modifier.dashedSlot(color: Color): Modifier =
 private fun RoleLabel(role: SlotRole) {
     val (text, color) =
         when (role) {
-            SlotRole.NOW -> "NOW" to FocusColors.Mint
+            SlotRole.NOW -> "NOW" to FocusColors.Lavender
             SlotRole.WAITING -> "Waiting" to FocusColors.Lavender
             SlotRole.OPEN -> "" to FocusColors.Muted
             SlotRole.EMPTY -> "" to FocusColors.Muted
