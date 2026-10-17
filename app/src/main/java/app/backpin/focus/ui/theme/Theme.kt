@@ -59,21 +59,21 @@ val ButtonLabel =
 
 private val scheme =
     darkColorScheme(
-        primary = FocusColors.Mint,
-        onPrimary = FocusColors.OnMint,
-        secondary = FocusColors.Lavender,
-        onSecondary = FocusColors.OnLavender,
-        secondaryContainer = FocusColors.LavenderContainer,
-        onSecondaryContainer = FocusColors.Lavender,
-        tertiary = FocusColors.Amber,
-        onTertiary = FocusColors.OnAmber,
-        background = FocusColors.Midnight,
-        onBackground = FocusColors.Text,
-        surface = FocusColors.Surface,
-        onSurface = FocusColors.Text,
-        surfaceVariant = FocusColors.SurfaceHigh,
-        onSurfaceVariant = FocusColors.Muted,
-        outline = FocusColors.Outline,
+        primary = Color(0xFF4FD1A5),
+        onPrimary = Color(0xFF06231A),
+        secondary = Color(0xFF5AB4FF),
+        onSecondary = Color(0xFF06231A),
+        secondaryContainer = Color(0xFF5AB4FF).copy(alpha = CHOICE_FILL_ALPHA),
+        onSecondaryContainer = Color(0xFF5AB4FF),
+        tertiary = Color(0xFFFFB020),
+        onTertiary = Color(0xFF06231A),
+        background = Color(0xFF101317),
+        onBackground = Color(0xFFF2F5F8),
+        surface = Color(0xFF191E24),
+        onSurface = Color(0xFFF2F5F8),
+        surfaceVariant = Color(0xFF222932),
+        onSurfaceVariant = Color(0xFFAEB8C2),
+        outline = Color(0xFF6C7783),
     )
 
 private val typography =

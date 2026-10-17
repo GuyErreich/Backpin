@@ -71,16 +71,6 @@ data class FocusExtraColors(
     val surfaceRaised: Color,
 )
 
-fun paletteFor(themeId: ThemeId): ThemePalette = when (themeId) {
-    ThemeId.SIGNAL -> SignalPalette
-    ThemeId.STILL_WATER -> StillWaterPalette
-    ThemeId.EMBER -> EmberPalette
-    ThemeId.CLEAR_LINE -> ClearLinePalette
-}
-
-/** Live palette for non-composable helpers. [FocusStackTheme] updates this before children draw. */
-internal var activePalette: ThemePalette = paletteFor(ThemeId.SIGNAL)
-
 private val SignalPalette =
     ThemePalette(
         background = Color(0xFF101317),
@@ -144,6 +134,16 @@ private val ClearLinePalette =
         done = Color(0xFF5CFFC8),
         danger = Color(0xFFFF8A8A),
     )
+
+fun paletteFor(themeId: ThemeId): ThemePalette = when (themeId) {
+    ThemeId.SIGNAL -> SignalPalette
+    ThemeId.STILL_WATER -> StillWaterPalette
+    ThemeId.EMBER -> EmberPalette
+    ThemeId.CLEAR_LINE -> ClearLinePalette
+}
+
+/** Live palette for non-composable helpers. [FocusStackTheme] updates this before children draw. */
+internal var activePalette: ThemePalette = SignalPalette
 
 val LocalFocusPalette = staticCompositionLocalOf { paletteFor(ThemeId.SIGNAL) }
 
