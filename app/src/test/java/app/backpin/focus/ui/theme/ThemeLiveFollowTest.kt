@@ -136,11 +136,8 @@ class ThemeLiveFollowTest {
                 "no Signal colors may remain on Home, Repeat, or Focus after a live switch: $leftovers",
                 leftovers.isEmpty(),
             )
-            assertEquals(ember.background, activePalette.background)
-            assertEquals(ember.textPrimary, activePalette.textPrimary)
         } finally {
             env.close()
-            activePalette = paletteFor(ThemeId.SIGNAL)
         }
     }
 }

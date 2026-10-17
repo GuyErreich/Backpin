@@ -12,9 +12,7 @@ import androidx.test.core.app.ApplicationProvider
 import app.backpin.focus.R
 import app.backpin.focus.domain.RepeatBand
 import app.backpin.focus.domain.ThemeId
-import app.backpin.focus.ui.theme.activePalette
 import app.backpin.focus.ui.theme.paletteFor
-import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Test
@@ -27,14 +25,8 @@ import org.robolectric.annotation.Config
 class ThemeNotificationNeutralityTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
 
-    @After
-    fun restorePalette() {
-        activePalette = paletteFor(ThemeId.SIGNAL)
-    }
-
     @Test
     fun currentAndRepeatNoticesStayOnTheNeutralXmlColorsWhenTheAppThemeIsEmber() {
-        activePalette = paletteFor(ThemeId.EMBER)
         val ember = paletteFor(ThemeId.EMBER)
         val xmlMint = context.getColor(R.color.mint)
         val xmlOnMint = context.getColor(R.color.on_mint)

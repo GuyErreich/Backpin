@@ -46,7 +46,6 @@ class ThemeUntintedTextTest {
                 compose.labelColor("Untinted"),
             )
         }
-        activePalette = paletteFor(ThemeId.SIGNAL)
     }
 
     @Test
@@ -82,7 +81,6 @@ class ThemeUntintedTextTest {
             }
         } finally {
             env.close()
-            activePalette = paletteFor(ThemeId.SIGNAL)
         }
     }
 }
