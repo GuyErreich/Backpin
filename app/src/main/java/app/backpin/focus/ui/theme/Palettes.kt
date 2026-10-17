@@ -3,6 +3,7 @@ package app.backpin.focus.ui.theme
 
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
@@ -41,21 +42,57 @@ data class ThemePalette(
     fun toColorScheme(): ColorScheme = darkColorScheme(
         primary = accent,
         onPrimary = onAccent,
+        primaryContainer = surfaceRaised,
+        onPrimaryContainer = textPrimary,
+        inversePrimary = accent,
         secondary = now,
         onSecondary = onAccent,
         secondaryContainer = now.copy(alpha = CHOICE_FILL_ALPHA),
         onSecondaryContainer = now,
         tertiary = missed,
         onTertiary = onAccent,
+        tertiaryContainer = surfaceRaised,
+        onTertiaryContainer = textPrimary,
         error = danger,
         onError = onAccent,
+        errorContainer = surfaceRaised,
+        onErrorContainer = textPrimary,
         background = background,
         onBackground = textPrimary,
         surface = surface,
         onSurface = textPrimary,
         surfaceVariant = surfaceRaised,
         onSurfaceVariant = textSecondary,
+        surfaceTint = accent,
+        inverseSurface = textPrimary,
+        inverseOnSurface = background,
         outline = outline,
+        outlineVariant = outline,
+        surfaceBright = surfaceRaised,
+        surfaceDim = background,
+        surfaceContainer = surface,
+        surfaceContainerHigh = surfaceRaised,
+        surfaceContainerHighest = surfaceRaised,
+        surfaceContainerLow = surface,
+        surfaceContainerLowest = background,
+    )
+
+    fun withTypography(base: Typography): Typography = base.copy(
+        displayLarge = base.displayLarge.copy(color = textPrimary),
+        displayMedium = base.displayMedium.copy(color = textPrimary),
+        displaySmall = base.displaySmall.copy(color = textPrimary),
+        headlineLarge = base.headlineLarge.copy(color = textPrimary),
+        headlineMedium = base.headlineMedium.copy(color = textPrimary),
+        headlineSmall = base.headlineSmall.copy(color = textPrimary),
+        titleLarge = base.titleLarge.copy(color = textPrimary),
+        titleMedium = base.titleMedium.copy(color = textPrimary),
+        titleSmall = base.titleSmall.copy(color = textPrimary),
+        bodyLarge = base.bodyLarge.copy(color = textPrimary),
+        bodyMedium = base.bodyMedium.copy(color = textSecondary),
+        bodySmall = base.bodySmall.copy(color = textSecondary),
+        labelLarge = base.labelLarge.copy(color = textPrimary),
+        labelMedium = base.labelMedium.copy(color = textSecondary),
+        labelSmall = base.labelSmall.copy(color = textSecondary),
     )
 }
 

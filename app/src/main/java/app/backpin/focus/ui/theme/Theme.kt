@@ -3,8 +3,8 @@ package app.backpin.focus.ui.theme
 
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
-import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -57,74 +57,41 @@ val ButtonLabel =
         fontWeight = FontWeight.SemiBold,
     )
 
-private val scheme =
-    darkColorScheme(
-        primary = Color(0xFF4FD1A5),
-        onPrimary = Color(0xFF06231A),
-        secondary = Color(0xFF5AB4FF),
-        onSecondary = Color(0xFF06231A),
-        secondaryContainer = Color(0xFF5AB4FF).copy(alpha = CHOICE_FILL_ALPHA),
-        onSecondaryContainer = Color(0xFF5AB4FF),
-        tertiary = Color(0xFFFFB020),
-        onTertiary = Color(0xFF06231A),
-        background = Color(0xFF101317),
-        onBackground = Color(0xFFF2F5F8),
-        surface = Color(0xFF191E24),
-        onSurface = Color(0xFFF2F5F8),
-        surfaceVariant = Color(0xFF222932),
-        onSurfaceVariant = Color(0xFFAEB8C2),
-        outline = Color(0xFF6C7783),
-    )
-
-private val typography =
-    Typography(
-        headlineLarge =
-            TextStyle(
-                fontSize = 32.sp,
-                lineHeight = 40.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = FocusColors.Text,
-            ),
-        headlineMedium =
-            TextStyle(
-                fontSize = 26.sp,
-                lineHeight = 34.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = FocusColors.Text,
-            ),
-        titleLarge =
-            TextStyle(
-                fontSize = 22.sp,
-                lineHeight = 28.sp,
-                fontWeight = FontWeight.Medium,
-                color = FocusColors.Text,
-            ),
-        titleMedium =
-            TextStyle(
-                fontSize = 16.sp,
-                lineHeight = 22.sp,
-                fontWeight = FontWeight.Medium,
-                color = FocusColors.Text,
-            ),
-        bodyLarge =
-            TextStyle(
-                fontSize = 16.sp,
-                lineHeight = 24.sp,
-                color = FocusColors.Text,
-            ),
-        bodyMedium =
-            TextStyle(
-                fontSize = 14.sp,
-                lineHeight = 20.sp,
-                color = FocusColors.Muted,
-            ),
-        labelLarge =
-            TextStyle(
-                fontSize = 14.sp,
-                lineHeight = 20.sp,
-                fontWeight = FontWeight.SemiBold,
-            ),
-    )
+private val typography = Typography(
+    headlineLarge = TextStyle(
+        fontSize = 32.sp,
+        lineHeight = 40.sp,
+        fontWeight = FontWeight.SemiBold,
+    ),
+    headlineMedium = TextStyle(
+        fontSize = 26.sp,
+        lineHeight = 34.sp,
+        fontWeight = FontWeight.SemiBold,
+    ),
+    titleLarge = TextStyle(
+        fontSize = 22.sp,
+        lineHeight = 28.sp,
+        fontWeight = FontWeight.Medium,
+    ),
+    titleMedium = TextStyle(
+        fontSize = 16.sp,
+        lineHeight = 22.sp,
+        fontWeight = FontWeight.Medium,
+    ),
+    bodyLarge = TextStyle(
+        fontSize = 16.sp,
+        lineHeight = 24.sp,
+    ),
+    bodyMedium = TextStyle(
+        fontSize = 14.sp,
+        lineHeight = 20.sp,
+    ),
+    labelLarge = TextStyle(
+        fontSize = 14.sp,
+        lineHeight = 20.sp,
+        fontWeight = FontWeight.SemiBold,
+    ),
+)
 
 @Composable
 fun FocusStackTheme(
@@ -133,15 +100,18 @@ fun FocusStackTheme(
 ) {
     val palette = paletteFor(themeId)
     activePalette = palette
-    androidx.compose.runtime.CompositionLocalProvider(
-        LocalFocusPalette provides palette,
-        LocalFocusExtraColors provides palette.extras,
-    ) {
-        MaterialTheme(
-            colorScheme = colorsFor(themeId),
-            typography = typography,
-            content = content,
-        )
+    key(themeId) {
+        androidx.compose.runtime.CompositionLocalProvider(
+            LocalFocusPalette provides palette,
+            LocalFocusExtraColors provides palette.extras,
+            androidx.compose.material3.LocalContentColor provides palette.textPrimary,
+        ) {
+            MaterialTheme(
+                colorScheme = colorsFor(themeId),
+                typography = palette.withTypography(typography),
+                content = content,
+            )
+        }
     }
 }
 
@@ -151,5 +121,5 @@ fun colorsFor(themeId: app.backpin.focus.domain.ThemeId) = when (themeId) {
     app.backpin.focus.domain.ThemeId.STILL_WATER,
     app.backpin.focus.domain.ThemeId.EMBER,
     app.backpin.focus.domain.ThemeId.CLEAR_LINE,
-    -> paletteFor(themeId).toColorScheme().also { scheme }
+    -> paletteFor(themeId).toColorScheme()
 }
