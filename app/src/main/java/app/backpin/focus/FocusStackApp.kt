@@ -70,7 +70,15 @@ class AppContainer(
     val releaseScheduler = ScheduleReleaseScheduler(WorkManager.getInstance(app))
     val bandScheduler = BandScheduler(app, repository, scope)
     val useCases = FocusUseCases(repository, releaseScheduler)
-    val repeats: RepeatsApi = RepeatsService(repository, bandScheduler, bandScheduler)
+    val repeats: RepeatsApi =
+        RepeatsService(
+            repository = repository,
+            schedule = bandScheduler,
+            exactAlarms = bandScheduler,
+            clock = SystemAppClock,
+            context = app,
+            scope = scope,
+        )
     val viewModelFactory = FocusStackViewModelFactory(useCases, repeats)
     val notifications = NotificationCoordinator(app, repository)
     val repeatNotifications = RepeatNotificationCoordinator(app, repository, bandScheduler)
