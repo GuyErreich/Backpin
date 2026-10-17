@@ -140,7 +140,7 @@ class RepeatCheckOffTest {
                         .single { it.repeat.title == "Take meds" }
                         .status == RepeatDayStatus.MISSED
             }
-            compose.onNodeWithText("1 of 2 left").assertExists()
+            compose.onNodeWithText("2 of 2 left").assertExists()
             compose.onNodeWithText("Missed at morning · muted until end of day").assertExists()
             compose
                 .onNodeWithContentDescription("Take meds. Missed at morning · muted until end of day. Check off.")
