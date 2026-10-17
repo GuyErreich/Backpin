@@ -13,7 +13,6 @@ import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTouchInput
 import app.backpin.focus.R
 import app.backpin.focus.domain.BandPhase
@@ -149,7 +148,6 @@ class HomeBandsCollapseTest {
     private fun tap(text: String) {
         compose.waitForIdle()
         val node = compose.onNode(hasText(text) and hasClickAction())
-        node.performScrollTo()
         node.assertHasClickAction()
         node.performTouchInput { click(center) }
         compose.waitForIdle()

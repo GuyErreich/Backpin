@@ -61,154 +61,164 @@ class FocusStackViewModelHomeBandsTest {
     }
 
     @Test
-    fun openTodayTasksPinToOpenBandAndRepeatsKeepTheirs() = runBlocking {
-        val env = env(at(8, 0))
-        try {
-            env.captureToday("One")
-            env.clock.now += 1
-            env.captureToday("Two")
-            env.clock.now += 1
-            env.captureToday("Three")
-            env.repeats.create("Meds", RepeatBand.NIGHT, 1, DAY.toEpochDay())
-            val bands =
-                env.awaitBands { state ->
-                    state.openBand == HomeBand.MORNING &&
-                        state.morning.tasks.map { it.title } == listOf("One", "Two", "Three") &&
-                        state.night.repeats.any { it.repeat.title == "Meds" }
-                }
-            assertEquals(HomeBand.MORNING, bands.current)
-            assertEquals(BandPhase.OPEN, bands.morning.phase)
-            assertEquals(BandPhase.FUTURE, bands.noon.phase)
-            assertEquals(BandPhase.FUTURE, bands.night.phase)
-            assertEquals(BandPhase.ALWAYS_OPEN, bands.anytime.phase)
-            assertTrue(bands.anytime.tasks.isEmpty())
-            assertTrue(bands.anytime.repeats.isEmpty())
-            assertTrue(bands.noon.tasks.isEmpty())
-            assertEquals(listOf("Meds"), bands.night.repeats.map { it.repeat.title })
-        } finally {
-            env.close()
-        }
-    }
-
-    @Test
-    fun afterNightEndTheMainThreePinToMorningNotAnytime() = runBlocking {
-        val env = env(at(23, 30))
-        try {
-            env.captureToday("One")
-            env.clock.now += 1
-            env.captureToday("Two")
-            env.clock.now += 1
-            env.captureToday("Three")
-            val bands =
-                env.awaitBands { state ->
-                    state.morning.tasks.size == 3 && state.openBand == HomeBand.MORNING
-                }
-            assertEquals(HomeBand.MORNING, bands.openBand)
-            assertEquals(listOf("One", "Two", "Three"), bands.morning.tasks.map { it.title })
-            assertTrue(bands.anytime.tasks.isEmpty())
-            assertEquals(BandPhase.OPEN, bands.morning.phase)
-            assertEquals(BandPhase.FUTURE, bands.noon.phase)
-            assertEquals(BandPhase.FUTURE, bands.night.phase)
-        } finally {
-            env.close()
-        }
-    }
-
-    @Test
-    fun leftCountIsOpenPlusMissedAndMatchesTheGroup() = runBlocking {
-        val env = env(at(8, 0))
-        try {
-            env.captureToday("Stay")
-            env.repeats.create("Plants", RepeatBand.MORNING, 1, DAY.toEpochDay())
-            val meds = env.repeats.create("Meds", RepeatBand.MORNING, 1, DAY.toEpochDay())!!
-            env.repeats.markDone(meds, DAY.toEpochDay())
-            env.repository.markOpenRepeatsMissed(RepeatBand.MORNING, DAY.toEpochDay())
-            val bands =
-                env.awaitBands { state ->
-                    state.morning.repeats.size == 2 && state.morning.tasks.size == 1
-                }
-            val morning = bands.morning
-            assertEquals(1, morning.counts.done)
-            assertEquals(1, morning.counts.missed)
-            assertEquals(2, morning.counts.left)
-        } finally {
-            env.close()
-        }
-    }
-
-    @Test
-    fun flowRecomputesOnDayRefreshBandTimeTaskAndRowAndNotWhenNothingChanged() = runBlocking {
-        val env = env(at(8, 0))
-        try {
-            env.captureToday("Stay")
-            env.awaitBands { it.morning.tasks.size == 1 }
-            val afterSeed = env.emissions.size
-
-            env.repeats.refreshToday()
-            Thread.sleep(50)
-            shadowOf(Looper.getMainLooper()).idle()
-            assertEquals(afterSeed, env.emissions.size)
-
-            env.clock.now += 1
-            env.captureToday("Next")
-            env.awaitBands { it.morning.tasks.size == 2 }
-
-            val afterTask = env.emissions.size
-            env.repeats.create("Meds", RepeatBand.NOON, 1, DAY.toEpochDay())
-            env.awaitBands { it.noon.repeats.size == 1 }
-            assertTrue(env.emissions.size > afterTask)
-
-            val afterRow = env.emissions.size
-            env.repeats.setBandTime(BandEdge.NOON, 8 * 60)
-            env.awaitBands { it.openBand == HomeBand.NOON }
-            assertTrue(env.emissions.size > afterRow)
-
-            env.clock.now = at(6, 0, DAY.plusDays(1))
-            val afterDayClock = env.emissions.size
-            env.repeats.refreshToday()
-            env.awaitBands { bands ->
-                bands.openBand == HomeBand.MORNING && env.emissions.size > afterDayClock
+    fun openTodayTasksPinToOpenBandAndRepeatsKeepTheirs() {
+        runBlocking {
+            val env = env(at(8, 0))
+            try {
+                env.captureToday("One")
+                env.clock.now += 1
+                env.captureToday("Two")
+                env.clock.now += 1
+                env.captureToday("Three")
+                env.repeats.create("Meds", RepeatBand.NIGHT, 1, DAY.toEpochDay())
+                val bands =
+                    env.awaitBands { state ->
+                        state.openBand == HomeBand.MORNING &&
+                            state.morning.tasks.map { it.title } == listOf("One", "Two", "Three") &&
+                            state.night.repeats.any { it.repeat.title == "Meds" }
+                    }
+                assertEquals(HomeBand.MORNING, bands.current)
+                assertEquals(BandPhase.OPEN, bands.morning.phase)
+                assertEquals(BandPhase.FUTURE, bands.noon.phase)
+                assertEquals(BandPhase.FUTURE, bands.night.phase)
+                assertEquals(BandPhase.ALWAYS_OPEN, bands.anytime.phase)
+                assertTrue(bands.anytime.tasks.isEmpty())
+                assertTrue(bands.anytime.repeats.isEmpty())
+                assertTrue(bands.noon.tasks.isEmpty())
+                assertEquals(listOf("Meds"), bands.night.repeats.map { it.repeat.title })
+            } finally {
+                env.close()
             }
-        } finally {
-            env.close()
         }
     }
 
     @Test
-    fun crossingABoundMovesOpenBandAndTheMainThreeWithNoExtraEmissions() = runBlocking {
-        val noon = at(12, 0)
-        val env = env(noon - 500, armBoundaryLoop = true)
-        try {
-            env.captureToday("One")
-            env.clock.now += 1
-            env.captureToday("Two")
-            env.clock.now += 1
-            env.captureToday("Three")
-            env.clock.now = noon - 500
-            val before =
-                env.awaitBands { state ->
-                    state.openBand == HomeBand.MORNING &&
-                        state.morning.tasks.map { it.title } == listOf("One", "Two", "Three")
+    fun afterNightEndTheMainThreePinToMorningNotAnytime() {
+        runBlocking {
+            val env = env(at(23, 30))
+            try {
+                env.captureToday("One")
+                env.clock.now += 1
+                env.captureToday("Two")
+                env.clock.now += 1
+                env.captureToday("Three")
+                val bands =
+                    env.awaitBands { state ->
+                        state.morning.tasks.size == 3 && state.openBand == HomeBand.MORNING
+                    }
+                assertEquals(HomeBand.MORNING, bands.openBand)
+                assertEquals(listOf("One", "Two", "Three"), bands.morning.tasks.map { it.title })
+                assertTrue(bands.anytime.tasks.isEmpty())
+                assertEquals(BandPhase.OPEN, bands.morning.phase)
+                assertEquals(BandPhase.FUTURE, bands.noon.phase)
+                assertEquals(BandPhase.FUTURE, bands.night.phase)
+            } finally {
+                env.close()
+            }
+        }
+    }
+
+    @Test
+    fun leftCountIsOpenPlusMissedAndMatchesTheGroup() {
+        runBlocking {
+            val env = env(at(8, 0))
+            try {
+                env.captureToday("Stay")
+                env.repeats.create("Plants", RepeatBand.MORNING, 1, DAY.toEpochDay())
+                val meds = env.repeats.create("Meds", RepeatBand.MORNING, 1, DAY.toEpochDay())!!
+                env.repeats.markDone(meds, DAY.toEpochDay())
+                env.repository.markOpenRepeatsMissed(RepeatBand.MORNING, DAY.toEpochDay())
+                val bands =
+                    env.awaitBands { state ->
+                        state.morning.repeats.size == 2 && state.morning.tasks.size == 1
+                    }
+                val morning = bands.morning
+                assertEquals(1, morning.counts.done)
+                assertEquals(1, morning.counts.missed)
+                assertEquals(2, morning.counts.left)
+            } finally {
+                env.close()
+            }
+        }
+    }
+
+    @Test
+    fun flowRecomputesOnDayRefreshBandTimeTaskAndRowAndNotWhenNothingChanged() {
+        runBlocking {
+            val env = env(at(8, 0))
+            try {
+                env.captureToday("Stay")
+                env.awaitBands { it.morning.tasks.size == 1 }
+                val afterSeed = env.emissions.size
+
+                env.repeats.refreshToday()
+                Thread.sleep(50)
+                shadowOf(Looper.getMainLooper()).idle()
+                assertEquals(afterSeed, env.emissions.size)
+
+                env.clock.now += 1
+                env.captureToday("Next")
+                env.awaitBands { it.morning.tasks.size == 2 }
+
+                val afterTask = env.emissions.size
+                env.repeats.create("Meds", RepeatBand.NOON, 1, DAY.toEpochDay())
+                env.awaitBands { it.noon.repeats.size == 1 }
+                assertTrue(env.emissions.size > afterTask)
+
+                val afterRow = env.emissions.size
+                env.repeats.setBandTime(BandEdge.NOON, 8 * 60)
+                env.awaitBands { it.openBand == HomeBand.NOON }
+                assertTrue(env.emissions.size > afterRow)
+
+                env.clock.now = at(6, 0, DAY.plusDays(1))
+                val afterDayClock = env.emissions.size
+                env.repeats.refreshToday()
+                env.awaitBands { bands ->
+                    bands.openBand == HomeBand.MORNING && env.emissions.size > afterDayClock
                 }
-            assertEquals(HomeBand.MORNING, before.openBand)
-            val settled = env.emissions.size
-            env.clock.now = noon
-            val after =
-                env.awaitBands { state ->
-                    state.openBand == HomeBand.NOON &&
-                        state.noon.tasks.map { it.title } == listOf("One", "Two", "Three")
-                }
-            assertEquals(HomeBand.NOON, after.openBand)
-            assertTrue(after.morning.tasks.isEmpty())
-            assertEquals(BandPhase.PAST, after.morning.phase)
-            assertEquals(BandPhase.OPEN, after.noon.phase)
-            val afterCross = env.emissions.size
-            assertTrue(afterCross > settled)
-            Thread.sleep(250)
-            shadowOf(Looper.getMainLooper()).idle()
-            assertEquals(afterCross, env.emissions.size)
-        } finally {
-            env.close()
+            } finally {
+                env.close()
+            }
+        }
+    }
+
+    @Test
+    fun crossingABoundMovesOpenBandAndTheMainThreeWithNoExtraEmissions() {
+        runBlocking {
+            val noon = at(12, 0)
+            val env = env(noon - 500, armBoundaryLoop = true)
+            try {
+                env.captureToday("One")
+                env.clock.now += 1
+                env.captureToday("Two")
+                env.clock.now += 1
+                env.captureToday("Three")
+                env.clock.now = noon - 500
+                val before =
+                    env.awaitBands { state ->
+                        state.openBand == HomeBand.MORNING &&
+                            state.morning.tasks.map { it.title } == listOf("One", "Two", "Three")
+                    }
+                assertEquals(HomeBand.MORNING, before.openBand)
+                val settled = env.emissions.size
+                env.clock.now = noon
+                val after =
+                    env.awaitBands { state ->
+                        state.openBand == HomeBand.NOON &&
+                            state.noon.tasks.map { it.title } == listOf("One", "Two", "Three")
+                    }
+                assertEquals(HomeBand.NOON, after.openBand)
+                assertTrue(after.morning.tasks.isEmpty())
+                assertEquals(BandPhase.PAST, after.morning.phase)
+                assertEquals(BandPhase.OPEN, after.noon.phase)
+                val afterCross = env.emissions.size
+                assertTrue(afterCross > settled)
+                Thread.sleep(250)
+                shadowOf(Looper.getMainLooper()).idle()
+                assertEquals(afterCross, env.emissions.size)
+            } finally {
+                env.close()
+            }
         }
     }
 

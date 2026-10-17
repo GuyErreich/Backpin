@@ -11,6 +11,7 @@ import app.backpin.focus.data.FocusStackDatabase
 import app.backpin.focus.data.PreferencesDataStore
 import app.backpin.focus.domain.AppClock
 import app.backpin.focus.domain.BandEdge
+import app.backpin.focus.notifications.BandResyncReceiver
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -47,6 +48,7 @@ class BandBoundaryTickTest {
         val env = env(millisBeforeBound(12, 0))
         try {
             val before = env.ticks.size
+            env.clock.now += 1
             env.repeats.refreshToday()
             val tick = env.awaitTick(before)
             assertEquals(env.clock.now, tick)
@@ -78,9 +80,13 @@ class BandBoundaryTickTest {
         val env = env(millisBeforeBound(18, 0))
         try {
             val before = env.ticks.size
+            env.clock.now += 1
             val app = RuntimeEnvironment.getApplication()
             val intent = Intent(Intent.ACTION_TIME_CHANGED)
-            val receivers = shadowOf(app).getReceiversForIntent(intent)
+            val receivers =
+                shadowOf(app).getReceiversForIntent(intent).filterNot { receiver ->
+                    receiver is BandResyncReceiver
+                }
             assertTrue(receivers.isNotEmpty())
             receivers.forEach { receiver ->
                 receiver.onReceive(app, intent)
