@@ -2,15 +2,17 @@
 package app.backpin.focus.ui.theme
 
 import androidx.activity.ComponentActivity
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
@@ -56,31 +58,37 @@ class ThemeLiveFollowTest {
                 val state by env.viewModel.uiState.collectAsState()
                 val onOpen = remember { {} }
                 FocusStackTheme(themeId) {
-                    Column(Modifier.verticalScroll(rememberScrollState())) {
-                        HomeScreen(
-                            state = state,
-                            viewModel = env.viewModel,
-                            onOpenFocus = onOpen,
-                            onOpenInbox = onOpen,
-                            onOpenLater = onOpen,
-                            onOpenScheduled = onOpen,
-                            onOpenDone = onOpen,
-                        )
-                        FocusScreen(state = state, viewModel = env.viewModel)
-                        SettingsScreen(
-                            preferences = UserPreferences(),
-                            onNudgeSelected = { _, _ -> },
-                            onQuietHours = { _, _ -> },
-                            onCurrentNotification = {},
-                            onTodayLimit = {},
-                            onAddPhrase = {},
-                            onRenamePhrase = { _, _ -> },
-                            onRemovePhrase = {},
-                            bandTimes = BandTimes.DEFAULT,
-                            themeId = themeId,
-                            onThemeId = { themeId = it },
-                            showHomeLayout = false,
-                        )
+                    Column {
+                        Box(Modifier.fillMaxWidth().height(360.dp)) {
+                            HomeScreen(
+                                state = state,
+                                viewModel = env.viewModel,
+                                onOpenFocus = onOpen,
+                                onOpenInbox = onOpen,
+                                onOpenLater = onOpen,
+                                onOpenScheduled = onOpen,
+                                onOpenDone = onOpen,
+                            )
+                        }
+                        Box(Modifier.fillMaxWidth().height(220.dp)) {
+                            FocusScreen(state = state, viewModel = env.viewModel)
+                        }
+                        Box(Modifier.fillMaxWidth().height(280.dp)) {
+                            SettingsScreen(
+                                preferences = UserPreferences(),
+                                onNudgeSelected = { _, _ -> },
+                                onQuietHours = { _, _ -> },
+                                onCurrentNotification = {},
+                                onTodayLimit = {},
+                                onAddPhrase = {},
+                                onRenamePhrase = { _, _ -> },
+                                onRemovePhrase = {},
+                                bandTimes = BandTimes.DEFAULT,
+                                themeId = themeId,
+                                onThemeId = { themeId = it },
+                                showHomeLayout = false,
+                            )
+                        }
                     }
                 }
             }

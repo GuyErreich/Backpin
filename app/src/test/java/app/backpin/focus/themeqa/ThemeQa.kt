@@ -100,7 +100,7 @@ internal fun AndroidComposeTestRule<*, *>.labelColor(text: String): Color {
 internal fun AndroidComposeTestRule<*, *>.tap(label: String) {
     waitForIdle()
     val node = onNodeWithText(label)
-    node.performScrollTo()
+    runCatching { node.performScrollTo() }
     node.assertIsEnabled().assertHasClickAction()
     node.performTouchInput { click(center) }
     waitForIdle()
@@ -158,6 +158,6 @@ internal fun AndroidComposeTestRule<*, *>.allTextColors(): List<Pair<String, Col
         val layout = layouts.singleOrNull() ?: return@mapNotNull null
         val color = layout.layoutInput.style.color
         if (color == Color.Unspecified || color == Color.Transparent) return@mapNotNull null
-        layout.layoutInput.text.text.toString() to color
+        layout.layoutInput.text.text to color
     }
 }

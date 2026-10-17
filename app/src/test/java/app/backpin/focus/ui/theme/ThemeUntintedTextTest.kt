@@ -5,6 +5,9 @@ import androidx.activity.ComponentActivity
 import androidx.compose.material3.Text
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import app.backpin.focus.domain.ThemeId
@@ -27,38 +30,49 @@ class ThemeUntintedTextTest {
 
     @Test
     fun textWithoutAnExplicitColorUsesTheActiveThemeTextColorInEveryTheme() {
-        ThemeId.entries.forEach { themeId ->
-            val expected = paletteFor(themeId).textPrimary
-            compose.setContent {
-                FocusStackTheme(themeId) {
-                    Text("Untinted")
-                }
+        val selected = mutableStateOf(ThemeId.SIGNAL)
+        compose.setContent {
+            var themeId by remember { selected }
+            FocusStackTheme(themeId) {
+                Text("Untinted")
             }
+        }
+        ThemeId.entries.forEach { themeId ->
+            selected.value = themeId
             compose.waitForIdle()
             assertEquals(
                 "Untinted text must use ${themeId.name} textPrimary",
-                expected,
+                paletteFor(themeId).textPrimary,
                 compose.labelColor("Untinted"),
             )
         }
+        activePalette = paletteFor(ThemeId.SIGNAL)
+    }
+
+    @Test
+    fun homeHeadlineWithoutExplicitColorUsesTheActiveThemeTextColorInEveryTheme() {
         val env = themeQaEnv()
+        val selected = mutableStateOf(ThemeId.SIGNAL)
         try {
-            ThemeId.entries.forEach { themeId ->
-                compose.setContent {
-                    val state by env.viewModel.uiState.collectAsState()
-                    FocusStackTheme(themeId) {
-                        HomeScreen(
-                            state = state,
-                            viewModel = env.viewModel,
-                            onOpenFocus = {},
-                            onOpenInbox = {},
-                            onOpenLater = {},
-                            onOpenScheduled = {},
-                            onOpenDone = {},
-                        )
-                    }
+            compose.setContent {
+                var themeId by remember { selected }
+                val state by env.viewModel.uiState.collectAsState()
+                FocusStackTheme(themeId) {
+                    HomeScreen(
+                        state = state,
+                        viewModel = env.viewModel,
+                        onOpenFocus = {},
+                        onOpenInbox = {},
+                        onOpenLater = {},
+                        onOpenScheduled = {},
+                        onOpenDone = {},
+                    )
                 }
-                compose.awaitUntil { env.viewModel.uiState.value.ready }
+            }
+            compose.awaitUntil { env.viewModel.uiState.value.ready }
+            ThemeId.entries.forEach { themeId ->
+                selected.value = themeId
+                compose.waitForIdle()
                 compose.onNodeWithText("Keep your place.").assertExists()
                 assertEquals(
                     "Home headline must use ${themeId.name} textPrimary when it has no explicit color",

@@ -96,28 +96,9 @@ class ThemeSettingsTest {
             "debug unit tests must be a debug or preview config so the Home layout switch is on",
             shownInThisBuild,
         )
+        val showLayout = mutableStateOf(false)
         compose.setContent {
-            FocusStackTheme {
-                SettingsScreen(
-                    preferences = UserPreferences(),
-                    onNudgeSelected = { _, _ -> },
-                    onQuietHours = { _, _ -> },
-                    onCurrentNotification = {},
-                    onTodayLimit = {},
-                    onAddPhrase = {},
-                    onRenamePhrase = { _, _ -> },
-                    onRemovePhrase = {},
-                    bandTimes = BandTimes.DEFAULT,
-                    showHomeLayout = false,
-                )
-            }
-        }
-        compose.onNodeWithText("Theme").assertExists()
-        compose.onNodeWithText("Home layout").assertDoesNotExist()
-        compose.onNodeWithText("Flat").assertDoesNotExist()
-        compose.onNodeWithText("Bands").assertDoesNotExist()
-
-        compose.setContent {
+            val showHomeLayout by showLayout
             FocusStackTheme {
                 SettingsScreen(
                     preferences = UserPreferences(),
@@ -130,10 +111,16 @@ class ThemeSettingsTest {
                     onRemovePhrase = {},
                     bandTimes = BandTimes.DEFAULT,
                     homeLayout = HomeLayout.FLAT,
-                    showHomeLayout = true,
+                    showHomeLayout = showHomeLayout,
                 )
             }
         }
+        compose.onNodeWithText("Theme").assertExists()
+        compose.onNodeWithText("Home layout").assertDoesNotExist()
+        compose.onNodeWithText("Flat").assertDoesNotExist()
+        compose.onNodeWithText("Bands").assertDoesNotExist()
+        showLayout.value = true
+        compose.waitForIdle()
         compose.onNodeWithText("Home layout").performScrollTo()
         compose.onNodeWithText("Home layout").assertExists()
         compose.onNodeWithText("Flat").assertExists()
