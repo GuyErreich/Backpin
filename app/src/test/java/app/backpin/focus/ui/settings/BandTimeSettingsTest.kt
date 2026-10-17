@@ -147,13 +147,14 @@ class BandTimeSettingsTest {
                 .inMemoryDatabaseBuilder(context, FocusStackDatabase::class.java)
                 .allowMainThreadQueries()
                 .build()
+        val clock = AppClock { System.currentTimeMillis() }
         val repository =
             FocusRepositoryImpl(
                 database = database,
                 preferencesStore = PreferencesDataStore(context, "band-times-${UUID.randomUUID()}"),
-                clock = AppClock { System.currentTimeMillis() },
+                clock = clock,
             )
-        val repeats = RepeatsService(repository)
+        val repeats = RepeatsService(repository, clock = clock)
         val store = ViewModelStore()
         val viewModel =
             ViewModelProvider(

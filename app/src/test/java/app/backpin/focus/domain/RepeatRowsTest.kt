@@ -6,7 +6,7 @@ import org.junit.Test
 
 class RepeatRowsTest {
     @Test
-    fun openThenMissedThenDoneAndLeftCountIsOpen() {
+    fun openThenMissedThenDoneAndLeftCountIsUnchecked() {
         val todays =
             TodaysRepeats(
                 morning =
@@ -28,7 +28,7 @@ class RepeatRowsTest {
             listOf("Make bed", "Brush teeth", "Water plants", "Take meds"),
             state.rows.map { it.repeat.title },
         )
-        assertEquals(2, state.leftCount)
+        assertEquals(3, state.leftCount)
         assertEquals(4, state.total)
     }
 
