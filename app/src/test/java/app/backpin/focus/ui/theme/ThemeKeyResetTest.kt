@@ -6,9 +6,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
-import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextReplacement
@@ -19,17 +20,15 @@ import app.backpin.focus.themeqa.tap
 import app.backpin.focus.themeqa.themeQaEnv
 import app.backpin.focus.ui.FocusApp
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
-import java.io.File
 
 /**
- * key(themeId) recreates the themed tree. Scroll and input reset is acceptable.
- * This test applies the new palette and records which ephemeral state reset.
+ * Switching theme from Settings must keep the Settings route, typed text,
+ * and scroll position, and apply Ember in place.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36], qualifiers = "w411dp-h891dp")
@@ -38,7 +37,7 @@ class ThemeKeyResetTest {
     val compose = createAndroidComposeRule<ComponentActivity>()
 
     @Test
-    fun keyThemeIdAppliesTheNewPaletteAndEphemeralStateResetIsAcceptable() {
+    fun switchingThemeKeepsSettingsScrollAndTypedTextAndAppliesEmber() {
         val env = themeQaEnv()
         val holder = ThemeChange()
         try {
@@ -55,53 +54,38 @@ class ThemeKeyResetTest {
             }
             compose.awaitUntil { env.viewModel.uiState.value.ready }
             compose.tap("Settings")
-            compose.onNodeWithText("SETTINGS").assertExists()
+            compose.onNodeWithText("SETTINGS").assertIsDisplayed()
+
             compose.onNode(hasSetTextAction()).performTextReplacement("Talk to Dana")
+            compose.waitForIdle()
+            compose.onNode(hasSetTextAction() and hasText("Talk to Dana")).assertExists()
+
             compose.onNodeWithText("Show current task").performScrollTo()
-            compose.onNodeWithText("Show current task").assertExists()
+            compose.waitForIdle()
+            compose.onNodeWithText("Show current task").assertIsDisplayed()
+            val scrollTop = compose.onNodeWithText("Show current task").fetchSemanticsNode().boundsInRoot.top
 
             holder.setTheme(ThemeId.EMBER)
             compose.waitForIdle()
 
-            val ember = paletteFor(ThemeId.EMBER)
-            assertEquals(ember.background, activePalette.background)
-            val onHome = exists("FOCUS STACK")
-            val onSettings = exists("SETTINGS")
-            val phraseKept = exists("Talk to Dana")
-            val scrolledRowKept = exists("Show current task")
-            assertTrue(
-                "a themed screen must remain after key(themeId)",
-                onHome || onSettings,
+            compose.onNodeWithText("SETTINGS").assertExists()
+            compose.onNodeWithText("FOCUS STACK").assertDoesNotExist()
+            compose.onNode(hasSetTextAction() and hasText("Talk to Dana")).assertExists()
+            compose.onNodeWithText("Show current task").assertIsDisplayed()
+            assertEquals(
+                "Settings scroll must stay put across a live theme switch",
+                scrollTop,
+                compose.onNodeWithText("Show current task").fetchSemanticsNode().boundsInRoot.top,
+                1f,
             )
-            if (onHome) {
-                assertEquals(ember.textSecondary, compose.labelColor("FOCUS STACK"))
-            }
-            if (onSettings) {
-                assertEquals(ember.textSecondary, compose.labelColor("SETTINGS"))
-            }
-            val report =
-                buildString {
-                    appendLine("key(themeId) ephemeral state after Signal -> Ember")
-                    appendLine("navigation_reset_to_home=${onHome && !onSettings}")
-                    appendLine("stayed_on_settings=$onSettings")
-                    appendLine("typed_phrase_kept=$phraseKept")
-                    appendLine("settings_scroll_row_kept=$scrolledRowKept")
-                    appendLine("active_palette=${if (activePalette.background == ember.background) "EMBER" else "OTHER"}")
-                }
-            val artifacts = File("/opt/cursor/artifacts")
-            val dest = if (artifacts.exists() || artifacts.mkdirs()) artifacts else File("app/build/outputs/theme-qa")
-            dest.mkdirs()
-            File(dest, "theme_key_resets.txt").writeText(report)
+            assertEquals(
+                paletteFor(ThemeId.EMBER).textSecondary,
+                compose.labelColor("SETTINGS"),
+            )
         } finally {
             env.close()
-            activePalette = paletteFor(ThemeId.SIGNAL)
         }
     }
-
-    private fun exists(text: String): Boolean = compose
-        .onAllNodesWithText(text, useUnmergedTree = true)
-        .fetchSemanticsNodes()
-        .isNotEmpty()
 
     private class ThemeChange {
         var setTheme: (ThemeId) -> Unit = {}
