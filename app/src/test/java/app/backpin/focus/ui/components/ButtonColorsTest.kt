@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 package app.backpin.focus.ui.components
 
 import androidx.activity.ComponentActivity
@@ -33,6 +34,12 @@ class ButtonColorsTest {
         assertEquals(FocusColors.Text, choiceLabelColor(ChoiceTone.Quiet))
         assertEquals(FocusColors.Mint.copy(alpha = 0.38f), accentLabelColor(AccentTone.Mint, enabled = false))
         assertEquals(FocusColors.Amber.copy(alpha = 0.38f), choiceLabelColor(ChoiceTone.Amber, enabled = false))
+        assertEquals(Color.Transparent, choiceContainerColor(ChoiceTone.Lavender, filled = false))
+        assertEquals(FocusColors.LavenderContainer, choiceContainerColor(ChoiceTone.Lavender, filled = true))
+        assertEquals(
+            FocusColors.LavenderContainer.copy(alpha = 0.38f),
+            choiceContainerColor(ChoiceTone.Lavender, filled = true, enabled = false),
+        )
     }
 
     @Test

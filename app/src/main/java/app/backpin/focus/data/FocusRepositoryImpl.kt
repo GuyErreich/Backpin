@@ -1,7 +1,9 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 package app.backpin.focus.data
 
 import androidx.room.withTransaction
 import app.backpin.focus.domain.AppClock
+import app.backpin.focus.domain.BandTimes
 import app.backpin.focus.domain.DetachDestination
 import app.backpin.focus.domain.FocusRepository
 import app.backpin.focus.domain.FocusSnapshot
@@ -10,19 +12,30 @@ import app.backpin.focus.domain.MAX_TODAY_LIMIT
 import app.backpin.focus.domain.MINUTES_PER_DAY
 import app.backpin.focus.domain.MIN_TODAY_LIMIT
 import app.backpin.focus.domain.PromoteOutcome
+import app.backpin.focus.domain.Repeat
+import app.backpin.focus.domain.RepeatBand
+import app.backpin.focus.domain.RepeatLog
+import app.backpin.focus.domain.RepeatOccurrence
+import app.backpin.focus.domain.RepeatOutcome
 import app.backpin.focus.domain.SystemAppClock
 import app.backpin.focus.domain.Task
 import app.backpin.focus.domain.TaskBucket
 import app.backpin.focus.domain.TaskStatus
+import app.backpin.focus.domain.TodaysRepeats
 import app.backpin.focus.domain.UNTITLED_INTERRUPTION
 import app.backpin.focus.domain.UndoToken
 import app.backpin.focus.domain.UserPreferences
+import app.backpin.focus.domain.bandWindow
+import app.backpin.focus.domain.countdownIntervalDays
 import app.backpin.focus.domain.isCountdownDue
 import app.backpin.focus.domain.isQuietNow
+import app.backpin.focus.domain.isRepeatDue
 import app.backpin.focus.domain.isScheduledDue
+import app.backpin.focus.domain.repeatStatusOnDay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -37,6 +50,8 @@ class FocusRepositoryImpl(
 ) : FocusRepository {
     private val taskDao: TaskDao = database.taskDao()
     private val frameDao: FocusFrameDao = database.focusFrameDao()
+    private val repeatDao: RepeatDao = database.repeatDao()
+    private val repeatLogDao: RepeatLogDao = database.repeatLogDao()
 
     override fun observeSnapshot(): Flow<FocusSnapshot> =
         combine(taskDao.observeAll(), frameDao.observeAll()) { tasks, frames ->
@@ -130,9 +145,11 @@ class FocusRepositoryImpl(
     ) {
         val trimmed = title.trim()
         if (trimmed.isEmpty()) return
+        val interval = intervalFor(epochDay)
         database.withTransaction {
-            taskDao.upsert(newTask(trimmed, TaskBucket.COUNTDOWN, epochDay))
+            taskDao.upsert(newTask(trimmed, TaskBucket.COUNTDOWN, epochDay, interval))
         }
+        rememberLastCountdown(interval)
         recordInteraction()
     }
 
@@ -140,13 +157,17 @@ class FocusRepositoryImpl(
         taskId: String,
         epochDay: Long,
     ) {
+        val interval = intervalFor(epochDay)
         val changed =
             database.withTransaction {
                 val task = waitingCountdown(taskId) ?: return@withTransaction false
-                taskDao.upsert(task.copy(scheduledOnEpochDay = epochDay))
+                taskDao.upsert(task.copy(scheduledOnEpochDay = epochDay, countdownIntervalDays = interval))
                 true
             }
-        if (changed) recordInteraction()
+        if (changed) {
+            rememberLastCountdown(interval)
+            recordInteraction()
+        }
     }
 
     override suspend fun removeCountdown(taskId: String) {
@@ -219,10 +240,14 @@ class FocusRepositoryImpl(
                             PromoteOutcome.Promoted
                         }
                         is DetachDestination.Countdown -> {
+                            val interval = intervalFor(destination.epochDay)
                             taskDao.upsert(
                                 task
                                     .movedTo(TaskBucket.COUNTDOWN, clock.nowEpochMillis())
-                                    .copy(scheduledOnEpochDay = destination.epochDay),
+                                    .copy(
+                                        scheduledOnEpochDay = destination.epochDay,
+                                        countdownIntervalDays = interval,
+                                    ),
                             )
                             PromoteOutcome.Promoted
                         }
@@ -242,7 +267,12 @@ class FocusRepositoryImpl(
                 requireInvariants(limit)
                 result
             }
-        if (outcome !is PromoteOutcome.Rejected) recordInteraction()
+        if (outcome !is PromoteOutcome.Rejected) {
+            if (destination is DetachDestination.Countdown) {
+                rememberLastCountdown(intervalFor(destination.epochDay))
+            }
+            recordInteraction()
+        }
         return outcome
     }
 
@@ -299,11 +329,14 @@ class FocusRepositoryImpl(
         val moved =
             database.withTransaction {
                 val task = taskDao.getById(taskId) ?: return@withTransaction false
-                if (task.bucket != TaskBucket.SCHEDULED.name || task.status != TaskStatus.OPEN.name) {
-                    return@withTransaction false
-                }
-                taskDao.upsert(task.movedTo(TaskBucket.INBOX, clock.nowEpochMillis()))
-                requireInvariants(todayLimit())
+                if (task.status != TaskStatus.OPEN.name) return@withTransaction false
+                if (task.bucket == TaskBucket.INBOX.name) return@withTransaction false
+                parkOpenFrame(taskId)
+                val current = taskDao.getById(taskId) ?: return@withTransaction false
+                val limit = todayLimit()
+                taskDao.upsert(current.movedTo(TaskBucket.INBOX, clock.nowEpochMillis()))
+                releaseDue(limit)
+                requireInvariants(limit)
                 true
             }
         if (moved) recordInteraction()
@@ -330,6 +363,32 @@ class FocusRepositoryImpl(
             database.withTransaction {
                 val task = openScheduled(taskId) ?: return@withTransaction false
                 taskDao.upsert(task.copy(scheduledOnEpochDay = epochDay))
+                true
+            }
+        if (changed) recordInteraction()
+        return changed
+    }
+
+    override suspend fun scheduleExisting(
+        taskId: String,
+        scheduledOnEpochDay: Long,
+    ): Boolean {
+        val changed =
+            database.withTransaction {
+                val task = taskDao.getById(taskId) ?: return@withTransaction false
+                if (task.status != TaskStatus.OPEN.name) return@withTransaction false
+                if (task.bucket == TaskBucket.COUNTDOWN.name) return@withTransaction false
+                if (task.bucket == TaskBucket.SCHEDULED.name) {
+                    if (task.scheduledOnEpochDay == scheduledOnEpochDay) return@withTransaction false
+                    taskDao.upsert(task.copy(scheduledOnEpochDay = scheduledOnEpochDay))
+                    return@withTransaction true
+                }
+                parkOpenFrame(taskId)
+                val current = taskDao.getById(taskId) ?: return@withTransaction false
+                val limit = todayLimit()
+                taskDao.upsert(current.movedTo(TaskBucket.SCHEDULED).copy(scheduledOnEpochDay = scheduledOnEpochDay))
+                releaseDue(limit)
+                requireInvariants(limit)
                 true
             }
         if (changed) recordInteraction()
@@ -766,6 +825,185 @@ class FocusRepositoryImpl(
         preferencesStore.setLastNudge(clock.nowEpochMillis(), taskId)
     }
 
+    override fun observeRepeats(): Flow<List<Repeat>> =
+        repeatDao.observeUnarchived().map { rows -> rows.map { it.toDomain() } }
+
+    override fun observeTodaysRepeats(): Flow<TodaysRepeats> =
+        combine(repeatDao.observeUnarchived(), repeatLogDao.observeAll(), preferencesStore.preferences) {
+            rows,
+            logs,
+            preferences,
+            ->
+            todaysRepeats(rows.map { it.toDomain() }, logs.map { it.toDomain() }, preferences.bandTimes)
+        }
+
+    override suspend fun createRepeat(
+        title: String,
+        band: RepeatBand,
+        everyNDays: Int,
+        anchorEpochDay: Long,
+        reminderOn: Boolean,
+    ): String? {
+        val trimmed = title.trim()
+        if (trimmed.isEmpty()) return null
+        val now = clock.nowEpochMillis()
+        val id = ids()
+        database.withTransaction {
+            repeatDao.upsert(
+                RepeatEntity(
+                    id = id,
+                    title = trimmed,
+                    band = band.name,
+                    everyNDays = everyNDays.coerceAtLeast(1),
+                    anchorEpochDay = anchorEpochDay,
+                    reminderOn = reminderOn,
+                    sortOrder = now,
+                    createdAtEpochMillis = now,
+                    archivedAtEpochMillis = null,
+                ),
+            )
+        }
+        return id
+    }
+
+    override suspend fun updateRepeat(
+        id: String,
+        title: String,
+        band: RepeatBand,
+        everyNDays: Int,
+        anchorEpochDay: Long,
+        reminderOn: Boolean,
+        sortOrder: Long,
+    ): Boolean {
+        val trimmed = title.trim()
+        if (trimmed.isEmpty()) return false
+        return database.withTransaction {
+            val existing = repeatDao.getById(id) ?: return@withTransaction false
+            if (existing.archivedAtEpochMillis != null) return@withTransaction false
+            repeatDao.upsert(
+                existing.copy(
+                    title = trimmed,
+                    band = band.name,
+                    everyNDays = everyNDays.coerceAtLeast(1),
+                    anchorEpochDay = anchorEpochDay,
+                    reminderOn = reminderOn,
+                    sortOrder = sortOrder,
+                ),
+            )
+            true
+        }
+    }
+
+    override suspend fun archiveRepeat(id: String): Boolean =
+        database.withTransaction {
+            val existing = repeatDao.getById(id) ?: return@withTransaction false
+            if (existing.archivedAtEpochMillis != null) return@withTransaction false
+            repeatDao.upsert(existing.copy(archivedAtEpochMillis = clock.nowEpochMillis()))
+            true
+        }
+
+    override suspend fun markRepeatDone(
+        repeatId: String,
+        epochDay: Long,
+    ): Boolean {
+        val now = clock.nowEpochMillis()
+        return database.withTransaction {
+            val repeat = repeatDao.getById(repeatId) ?: return@withTransaction false
+            if (repeat.archivedAtEpochMillis != null) return@withTransaction false
+            val existing = repeatLogDao.get(repeatId, epochDay)
+            if (existing?.outcome == RepeatOutcome.DONE.name) return@withTransaction true
+            repeatLogDao.upsert(
+                RepeatLogEntity(
+                    repeatId = repeatId,
+                    epochDay = epochDay,
+                    outcome = RepeatOutcome.DONE.name,
+                    atEpochMillis = now,
+                ),
+            )
+            true
+        }
+    }
+
+    override suspend fun undoRepeatDone(
+        repeatId: String,
+        epochDay: Long,
+    ): Boolean =
+        database.withTransaction {
+            val existing = repeatLogDao.get(repeatId, epochDay) ?: return@withTransaction false
+            if (existing.outcome != RepeatOutcome.DONE.name) return@withTransaction false
+            repeatLogDao.delete(repeatId, epochDay)
+            true
+        }
+
+    override suspend fun writeRepeatOutcome(
+        repeatId: String,
+        epochDay: Long,
+        outcome: RepeatOutcome,
+    ): Boolean {
+        val now = clock.nowEpochMillis()
+        return database.withTransaction {
+            val repeat = repeatDao.getById(repeatId) ?: return@withTransaction false
+            if (repeat.archivedAtEpochMillis != null) return@withTransaction false
+            repeatLogDao.upsert(
+                RepeatLogEntity(
+                    repeatId = repeatId,
+                    epochDay = epochDay,
+                    outcome = outcome.name,
+                    atEpochMillis = now,
+                ),
+            )
+            true
+        }
+    }
+
+    override suspend fun markOpenRepeatsMissed(
+        band: RepeatBand,
+        epochDay: Long,
+    ) {
+        val now = clock.nowEpochMillis()
+        database.withTransaction {
+            val logs = repeatLogDao.forDay(epochDay).associateBy { it.repeatId }
+            repeatDao.unarchived()
+                .filter { it.band == band.name }
+                .filter { isRepeatDue(it.anchorEpochDay, it.everyNDays, epochDay) }
+                .filter { logs[it.id] == null }
+                .forEach { repeat ->
+                    repeatLogDao.upsert(
+                        RepeatLogEntity(
+                            repeatId = repeat.id,
+                            epochDay = epochDay,
+                            outcome = RepeatOutcome.MISSED.name,
+                            atEpochMillis = now,
+                        ),
+                    )
+                }
+        }
+    }
+
+    override suspend fun setBandTimes(times: BandTimes): Boolean = preferencesStore.setBandTimes(times)
+
+    override suspend fun dismissExactAlarmPrompt() {
+        preferencesStore.setExactAlarmPromptDismissed(true)
+    }
+
+    override suspend fun setHeldBandNudge(
+        band: RepeatBand?,
+        epochDay: Long?,
+    ) {
+        preferencesStore.setHeldBandNudge(band, epochDay)
+    }
+
+    override suspend fun followUpPostedDay(band: RepeatBand): Long? = preferencesStore.followUpPostedDay(band)
+
+    override suspend fun setFollowUpPostedDay(
+        band: RepeatBand,
+        epochDay: Long,
+    ) {
+        preferencesStore.setFollowUpPostedDay(band, epochDay)
+    }
+
+    override suspend fun hasActiveFocus(): Boolean = frameDao.getActive() != null
+
     private suspend fun recordInteraction() {
         preferencesStore.setLastInteractionAt(clock.nowEpochMillis())
     }
@@ -796,12 +1034,24 @@ class FocusRepositoryImpl(
                 }
             }
         val token = UndoToken(tasks = listOf(task.toDomain()), frames = frames)
-        if (openFrame?.state == FrameState.ACTIVE.name) {
+        parkOpenFrame(taskId)
+        taskDao.upsert(task.movedTo(TaskBucket.LATER))
+        check(frameDao.countActive() <= 1) {
+            "At most one frame can be active"
+        }
+        return token
+    }
+
+    /** Parks an open frame the same way [parkInLater] does. Does not move the task. */
+    private suspend fun parkOpenFrame(taskId: String) {
+        val openFrame = frameDao.openFrameForTask(taskId) ?: return
+        val parent = openFrame.parentFrameId?.let { frameDao.getById(it) }
+        if (openFrame.state == FrameState.ACTIVE.name) {
             frameDao.upsert(pause(openFrame))
             if (parent != null) {
                 frameDao.upsert(parent.copy(state = FrameState.AWAITING_RESUME.name))
             }
-        } else if (openFrame?.state == FrameState.AWAITING_RESUME.name) {
+        } else if (openFrame.state == FrameState.AWAITING_RESUME.name) {
             frameDao.upsert(
                 openFrame.copy(
                     state = FrameState.PAUSED.name,
@@ -809,11 +1059,9 @@ class FocusRepositoryImpl(
                 ),
             )
         }
-        taskDao.upsert(task.movedTo(TaskBucket.LATER))
         check(frameDao.countActive() <= 1) {
             "At most one frame can be active"
         }
-        return token
     }
 
     private suspend fun requireInvariants(limit: Int) {
@@ -829,6 +1077,7 @@ class FocusRepositoryImpl(
         title: String,
         bucket: TaskBucket,
         scheduledOnEpochDay: Long? = null,
+        countdownIntervalDays: Int? = null,
     ): TaskEntity {
         val now = clock.nowEpochMillis()
         return TaskEntity(
@@ -841,9 +1090,14 @@ class FocusRepositoryImpl(
             createdAtEpochMillis = now,
             completedAtEpochMillis = null,
             scheduledOnEpochDay = scheduledOnEpochDay,
+            countdownIntervalDays = countdownIntervalDays,
         )
     }
 
+    /**
+     * Clears the schedule day and time except on [TaskBucket.SCHEDULED].
+     * [TaskEntity.countdownIntervalDays] stays: it is the last count, not a schedule.
+     */
     private fun TaskEntity.movedTo(
         bucket: TaskBucket,
         sortOrder: Long = this.sortOrder,
@@ -854,6 +1108,12 @@ class FocusRepositoryImpl(
             scheduledOnEpochDay = if (bucket == TaskBucket.SCHEDULED) scheduledOnEpochDay else null,
             scheduledAtMinuteOfDay = if (bucket == TaskBucket.SCHEDULED) scheduledAtMinuteOfDay else null,
         )
+
+    private fun intervalFor(epochDay: Long): Int? = countdownIntervalDays(epochDay, localToday())
+
+    private suspend fun rememberLastCountdown(interval: Int?) {
+        if (interval != null) preferencesStore.setLastCountdownDays(interval)
+    }
 
     private fun localNow(): LocalDateTime =
         Instant.ofEpochMilli(clock.nowEpochMillis()).atZone(ZoneId.systemDefault()).toLocalDateTime()
@@ -959,6 +1219,35 @@ class FocusRepositoryImpl(
             state = FrameState.PAUSED.name,
             pausedAtEpochMillis = now,
             accumulatedMillis = frame.accumulatedMillis + segment,
+        )
+    }
+
+    private fun todaysRepeats(
+        repeats: List<Repeat>,
+        logs: List<RepeatLog>,
+        times: BandTimes,
+    ): TodaysRepeats {
+        val today = localToday().toEpochDay()
+        val now = localNow()
+        val nowMinute = now.hour * 60 + now.minute
+        val byId = logs.filter { it.epochDay == today }.associateBy { it.repeatId }
+        fun occurrences(band: RepeatBand): List<RepeatOccurrence> {
+            val endMinute = bandWindow(band, times).endMinute
+            val bandEnded = nowMinute >= endMinute
+            return repeats
+                .filter { it.band == band && isRepeatDue(it.anchorEpochDay, it.everyNDays, today) }
+                .map { repeat ->
+                    RepeatOccurrence(
+                        repeat = repeat,
+                        epochDay = today,
+                        status = repeatStatusOnDay(byId[repeat.id], bandEnded),
+                    )
+                }
+        }
+        return TodaysRepeats(
+            morning = occurrences(RepeatBand.MORNING),
+            noon = occurrences(RepeatBand.NOON),
+            night = occurrences(RepeatBand.NIGHT),
         )
     }
 

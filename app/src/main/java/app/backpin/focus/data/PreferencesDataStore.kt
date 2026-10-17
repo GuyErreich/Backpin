@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 package app.backpin.focus.data
 
 import android.content.Context
@@ -6,19 +7,26 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
+import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStoreFile
+import app.backpin.focus.domain.BandTimes
 import app.backpin.focus.domain.DEFAULT_TODAY_LIMIT
+import app.backpin.focus.domain.MAX_COUNTDOWN_DAYS
 import app.backpin.focus.domain.MAX_TODAY_LIMIT
+import app.backpin.focus.domain.MIN_COUNTDOWN_DAYS
+import app.backpin.focus.domain.MINUTES_PER_DAY
 import app.backpin.focus.domain.MIN_TODAY_LIMIT
+import app.backpin.focus.domain.RepeatBand
 import app.backpin.focus.domain.UserPreferences
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 /**
  * Stores nudge timing, quiet hours, the current-task notification preference,
- * and the ordered capture phrases. Writing a value does not schedule work;
- * the notification coordinator does that.
+ * the ordered capture phrases, and the last countdown count used on this phone.
+ * Writing a value does not schedule work; the notification coordinator does that.
  */
 class PreferencesDataStore(
     context: Context,
@@ -42,6 +50,12 @@ class PreferencesDataStore(
                 lastNudgedTaskId = prefs[Keys.LAST_NUDGED_TASK],
                 todayLimit = (prefs[Keys.TODAY_LIMIT] ?: DEFAULT_TODAY_LIMIT).coerceIn(MIN_TODAY_LIMIT, MAX_TODAY_LIMIT),
                 savedPhrases = decodeSavedPhrases(prefs[Keys.SAVED_PHRASES]),
+                lastCountdownDays =
+                    prefs[Keys.LAST_COUNTDOWN_DAYS]?.takeIf { it in MIN_COUNTDOWN_DAYS..MAX_COUNTDOWN_DAYS },
+                bandTimes = readBandTimes(prefs),
+                heldBandNudge = prefs[Keys.HELD_BAND_NUDGE]?.let { runCatching { RepeatBand.valueOf(it) }.getOrNull() },
+                heldBandEpochDay = prefs[Keys.HELD_BAND_EPOCH_DAY],
+                exactAlarmPromptDismissed = prefs[Keys.EXACT_ALARM_PROMPT_DISMISSED] ?: false,
             )
         }
 
@@ -54,6 +68,18 @@ class PreferencesDataStore(
             if (Keys.TODAY_LIMIT !in prefs) prefs[Keys.TODAY_LIMIT] = DEFAULT_TODAY_LIMIT
             if (Keys.SAVED_PHRASES !in prefs) {
                 prefs[Keys.SAVED_PHRASES] = encodeSavedPhrases(DEFAULT_SAVED_PHRASES)
+            }
+            if (Keys.BAND_MORNING_START !in prefs) {
+                prefs[Keys.BAND_MORNING_START] = BandTimes.DEFAULT_MORNING_START_MINUTE
+            }
+            if (Keys.BAND_NOON_START !in prefs) {
+                prefs[Keys.BAND_NOON_START] = BandTimes.DEFAULT_NOON_START_MINUTE
+            }
+            if (Keys.BAND_NIGHT_START !in prefs) {
+                prefs[Keys.BAND_NIGHT_START] = BandTimes.DEFAULT_NIGHT_START_MINUTE
+            }
+            if (Keys.BAND_NIGHT_END !in prefs) {
+                prefs[Keys.BAND_NIGHT_END] = BandTimes.DEFAULT_NIGHT_END_MINUTE
             }
         }
     }
@@ -113,10 +139,72 @@ class PreferencesDataStore(
         }
     }
 
+    /** Remembers the last countdown count used on this phone. Out-of-range values are ignored. */
+    suspend fun setLastCountdownDays(days: Int) {
+        if (days !in MIN_COUNTDOWN_DAYS..MAX_COUNTDOWN_DAYS) return
+        dataStore.edit { prefs ->
+            prefs[Keys.LAST_COUNTDOWN_DAYS] = days
+        }
+    }
+
     /** Replaces the capture phrases. An empty list stays empty and is not seeded again. */
     suspend fun setSavedPhrases(phrases: List<String>) {
         dataStore.edit { prefs ->
             prefs[Keys.SAVED_PHRASES] = encodeSavedPhrases(phrases)
+        }
+    }
+
+    /**
+     * Writes user-set band times. Invalid or out-of-order values are ignored.
+     * Returns true when the stored times changed.
+     */
+    suspend fun setBandTimes(times: BandTimes): Boolean {
+        val stored = clampBandTimes(times) ?: return false
+        dataStore.edit { prefs ->
+            prefs[Keys.BAND_MORNING_START] = stored.morningStartMinute
+            prefs[Keys.BAND_NOON_START] = stored.noonStartMinute
+            prefs[Keys.BAND_NIGHT_START] = stored.nightStartMinute
+            prefs[Keys.BAND_NIGHT_END] = stored.nightEndMinute
+        }
+        return true
+    }
+
+    /** Remembers a band nudge that should post once the active focus frame ends. */
+    suspend fun setHeldBandNudge(
+        band: RepeatBand?,
+        epochDay: Long?,
+    ) {
+        dataStore.edit { prefs ->
+            if (band == null || epochDay == null) {
+                prefs.remove(Keys.HELD_BAND_NUDGE)
+                prefs.remove(Keys.HELD_BAND_EPOCH_DAY)
+            } else {
+                prefs[Keys.HELD_BAND_NUDGE] = band.name
+                prefs[Keys.HELD_BAND_EPOCH_DAY] = epochDay
+            }
+        }
+    }
+
+    /** Epoch day the quiet follow-up already posted for [band], or null. */
+    suspend fun followUpPostedDay(band: RepeatBand): Long? {
+        val key = followUpKey(band)
+        return dataStore.data.map { it[key] }.first()
+    }
+
+    /** Marks that today's quiet follow-up for [band] has already posted. */
+    suspend fun setFollowUpPostedDay(
+        band: RepeatBand,
+        epochDay: Long,
+    ) {
+        dataStore.edit { prefs ->
+            prefs[followUpKey(band)] = epochDay
+        }
+    }
+
+    /** One-time Settings "Not now" for the exact-alarm prompt. */
+    suspend fun setExactAlarmPromptDismissed(dismissed: Boolean) {
+        dataStore.edit { prefs ->
+            prefs[Keys.EXACT_ALARM_PROMPT_DISMISSED] = dismissed
         }
     }
 
@@ -131,6 +219,35 @@ class PreferencesDataStore(
         val LAST_NUDGED_TASK = stringPreferencesKey("last_nudged_task")
         val TODAY_LIMIT = intPreferencesKey("today_limit")
         val SAVED_PHRASES = stringPreferencesKey("saved_phrases")
+        val LAST_COUNTDOWN_DAYS = intPreferencesKey("last_countdown_days")
+        val BAND_MORNING_START = intPreferencesKey("band_morning_start")
+        val BAND_NOON_START = intPreferencesKey("band_noon_start")
+        val BAND_NIGHT_START = intPreferencesKey("band_night_start")
+        val BAND_NIGHT_END = intPreferencesKey("band_night_end")
+        val HELD_BAND_NUDGE = stringPreferencesKey("held_band_nudge")
+        val HELD_BAND_EPOCH_DAY = longPreferencesKey("held_band_epoch_day")
+        val FOLLOW_UP_MORNING = longPreferencesKey("follow_up_morning_day")
+        val FOLLOW_UP_NOON = longPreferencesKey("follow_up_noon_day")
+        val FOLLOW_UP_NIGHT = longPreferencesKey("follow_up_night_day")
+        val EXACT_ALARM_PROMPT_DISMISSED = booleanPreferencesKey("exact_alarm_prompt_dismissed")
+    }
+
+    private fun followUpKey(band: RepeatBand) =
+        when (band) {
+            RepeatBand.MORNING -> Keys.FOLLOW_UP_MORNING
+            RepeatBand.NOON -> Keys.FOLLOW_UP_NOON
+            RepeatBand.NIGHT -> Keys.FOLLOW_UP_NIGHT
+        }
+
+    private fun readBandTimes(prefs: Preferences): BandTimes {
+        val times =
+            BandTimes(
+                morningStartMinute = prefs[Keys.BAND_MORNING_START] ?: BandTimes.DEFAULT_MORNING_START_MINUTE,
+                noonStartMinute = prefs[Keys.BAND_NOON_START] ?: BandTimes.DEFAULT_NOON_START_MINUTE,
+                nightStartMinute = prefs[Keys.BAND_NIGHT_START] ?: BandTimes.DEFAULT_NIGHT_START_MINUTE,
+                nightEndMinute = prefs[Keys.BAND_NIGHT_END] ?: BandTimes.DEFAULT_NIGHT_END_MINUTE,
+            )
+        return clampBandTimes(times) ?: BandTimes.DEFAULT
     }
 
     companion object {
@@ -156,4 +273,16 @@ internal fun encodeSavedPhrases(phrases: List<String>): String =
 internal fun decodeSavedPhrases(stored: String?): List<String> {
     if (stored.isNullOrBlank()) return emptyList()
     return stored.split('\n').map { it.trim() }.filter { it.isNotEmpty() }
+}
+
+/** Clamps each minute, then accepts the set only when morning < noon < night start < night end. */
+internal fun clampBandTimes(times: BandTimes): BandTimes? {
+    val clamped =
+        BandTimes(
+            morningStartMinute = times.morningStartMinute.coerceIn(0, MINUTES_PER_DAY),
+            noonStartMinute = times.noonStartMinute.coerceIn(0, MINUTES_PER_DAY),
+            nightStartMinute = times.nightStartMinute.coerceIn(0, MINUTES_PER_DAY),
+            nightEndMinute = times.nightEndMinute.coerceIn(0, MINUTES_PER_DAY),
+        )
+    return clamped.takeIf { it.isValid() }
 }

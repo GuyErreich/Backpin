@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 package app.backpin.focus.ui.focus
 
 import androidx.compose.foundation.BorderStroke
@@ -26,14 +27,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import app.backpin.focus.domain.UNTITLED_INTERRUPTION
 import app.backpin.focus.domain.elapsedMillis
+import app.backpin.focus.domain.suggestedCountdownDays
 import app.backpin.focus.domain.timeInFocusLabel
 import app.backpin.focus.ui.FocusStackViewModel
 import app.backpin.focus.ui.FocusUiState
@@ -43,6 +46,7 @@ import app.backpin.focus.ui.components.AccentTone
 import app.backpin.focus.ui.components.CardActions
 import app.backpin.focus.ui.components.QuietButton
 import app.backpin.focus.ui.countdown.EventDetachButtons
+import app.backpin.focus.ui.countdown.EventResumeHost
 import app.backpin.focus.ui.home.nowLabel
 import app.backpin.focus.ui.theme.CardRadius
 import app.backpin.focus.ui.theme.FocusColors
@@ -120,7 +124,18 @@ private fun ActiveCard(
     val label = nowLabel(now)
     val accent = if (now.isEvent) FocusColors.Lavender else FocusColors.Mint
     Surface(
-        modifier = Modifier.fillMaxWidth(),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .semantics {
+                    customActions =
+                        listOf(
+                            CustomAccessibilityAction("Edit") {
+                                viewModel.openEdit(now.taskId)
+                                true
+                            },
+                        )
+                },
         shape = RoundedCornerShape(CardRadius),
         color = FocusColors.Surface,
         border = BorderStroke(2.dp, accent),
@@ -133,30 +148,43 @@ private fun ActiveCard(
                 modifier = Modifier.semantics { heading() },
             )
             TimeInFocus(now.accumulatedMillis, now.startedAtEpochMillis)
-            if (now.title == UNTITLED_INTERRUPTION) {
-                UntitledField(now.taskId, viewModel)
-            }
             ReturnNoteField(
                 taskId = now.taskId,
                 cue = now.returnCue.orEmpty(),
                 onSave = { viewModel.updateCue(now.taskId, it) },
             )
-            CardActions {
-                AccentButton(
-                    "Done",
-                    AccentTone.Mint,
-                    onClick = viewModel::completeActive,
-                )
-                if (now.isEvent) {
-                    EventDetachButtons(now.taskId, onDetach = viewModel::detachEvent)
-                } else {
-                    QuietButton("Pause", onClick = viewModel::pause)
+            EventResumeHost(
+                taskId = now.taskId,
+                title = now.title,
+                suggestedDays =
+                    suggestedCountdownDays(
+                        now.countdownIntervalDays,
+                        state.preferences.lastCountdownDays,
+                    ),
+                onDetach = viewModel::detachEvent,
+            ) { onCountDownAgain ->
+                CardActions {
                     AccentButton(
-                        "Interrupt",
-                        AccentTone.Lavender,
-                        onClick = { viewModel.openCapture(interrupts = true) },
+                        "Done",
+                        AccentTone.Mint,
+                        onClick = viewModel::completeActive,
                     )
-                    QuietButton("Switch", onClick = viewModel::openSwitch)
+                    if (now.isEvent) {
+                        EventDetachButtons(
+                            taskId = now.taskId,
+                            onDetach = viewModel::detachEvent,
+                            onCountDownAgain = onCountDownAgain,
+                        )
+                    } else {
+                        QuietButton("Pause", onClick = viewModel::pause)
+                        AccentButton(
+                            "Interrupt",
+                            AccentTone.Lavender,
+                            onClick = { viewModel.openCapture(interrupts = true) },
+                        )
+                        QuietButton("Switch", onClick = viewModel::openSwitch)
+                    }
+                    QuietButton("Edit", onClick = { viewModel.openEdit(now.taskId) })
                 }
             }
         }
@@ -284,20 +312,3 @@ private fun ReturnNoteField(
     )
 }
 
-@Composable
-private fun UntitledField(
-    taskId: String,
-    viewModel: FocusStackViewModel,
-) {
-    var draft by rememberSaveable(taskId) { mutableStateOf("") }
-    OutlinedTextField(
-        value = draft,
-        onValueChange = { draft = it },
-        modifier = Modifier.fillMaxWidth(),
-        label = { Text("Name this interruption") },
-        singleLine = true,
-    )
-    CardActions {
-        QuietButton("Save title", onClick = { viewModel.rename(taskId, draft) })
-    }
-}

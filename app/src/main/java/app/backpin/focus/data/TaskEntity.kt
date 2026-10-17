@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 package app.backpin.focus.data
 
 import androidx.room.Entity
@@ -15,4 +16,5 @@ data class TaskEntity(
     val completedAtEpochMillis: Long?,
     val scheduledOnEpochDay: Long? = null,
     val scheduledAtMinuteOfDay: Int? = null,
+    val countdownIntervalDays: Int? = null,
 )

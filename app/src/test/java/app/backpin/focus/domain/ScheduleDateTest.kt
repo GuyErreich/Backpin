@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 package app.backpin.focus.domain
 
 import org.junit.Assert.assertEquals
@@ -92,5 +93,31 @@ class ScheduleDateTest {
         assertTrue(isCountdownDue(today.toEpochDay(), today))
         assertTrue(isCountdownDue(today.minusDays(1).toEpochDay(), today))
         assertFalse(isCountdownDue(today.plusDays(1).toEpochDay(), today))
+    }
+
+    @Test
+    fun countdownIntervalIsDaysFromTodayInRange() {
+        assertEquals(12, countdownIntervalDays(today.plusDays(12).toEpochDay(), today))
+        assertEquals(1, countdownIntervalDays(today.plusDays(1).toEpochDay(), today))
+        assertEquals(999, countdownIntervalDays(today.plusDays(999).toEpochDay(), today))
+        assertEquals(null, countdownIntervalDays(today.toEpochDay(), today))
+        assertEquals(null, countdownIntervalDays(today.minusDays(1).toEpochDay(), today))
+        assertEquals(null, countdownIntervalDays(today.plusDays(1000).toEpochDay(), today))
+    }
+
+    @Test
+    fun backInDaysNamesTheCountAndTheLandingDay() {
+        val today = LocalDate.of(2026, 10, 16)
+        assertEquals("Back in 45 days · Mon, Nov 30", backInDaysLabel(45, today, Locale.US))
+        assertEquals("Back in 1 days · Sat, Oct 17", backInDaysLabel(1, today, Locale.US))
+    }
+
+    @Test
+    fun suggestedDaysPrefersTheEventIntervalThenTheLastCount() {
+        assertEquals(30, suggestedCountdownDays(30, 12))
+        assertEquals(12, suggestedCountdownDays(null, 12))
+        assertEquals(12, suggestedCountdownDays(0, 12))
+        assertEquals(null, suggestedCountdownDays(null, null))
+        assertEquals(null, suggestedCountdownDays(0, 0))
     }
 }

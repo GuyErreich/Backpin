@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 package app.backpin.focus.domain
 
 import kotlinx.coroutines.flow.Flow
@@ -74,6 +75,24 @@ class FocusUseCases(
 
     suspend fun moveToInbox(taskId: String) {
         repository.moveToInbox(taskId)
+    }
+
+    /**
+     * Moves [taskId] onto [epochDay]. A countdown stays a countdown.
+     * A timed scheduled task queues one inexact check for the new day.
+     */
+    suspend fun scheduleExisting(
+        taskId: String,
+        epochDay: Long,
+    ) {
+        val task = observeSnapshot().first().tasks.firstOrNull { it.id == taskId } ?: return
+        if (task.bucket == TaskBucket.COUNTDOWN) {
+            repository.rescheduleCountdown(taskId, epochDay)
+            return
+        }
+        if (!repository.scheduleExisting(taskId, epochDay)) return
+        val minute = task.scheduledAtMinuteOfDay ?: return
+        wakeUp.wakeAt(scheduledMomentEpochMillis(epochDay, minute))
     }
 
     suspend fun removeScheduled(taskId: String) {

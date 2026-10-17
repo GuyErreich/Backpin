@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 package app.backpin.focus.ui
 
 import app.backpin.focus.domain.FocusFrame
@@ -127,6 +128,28 @@ class DeriveFocusUiTest {
     }
 
     @Test
+    fun anArrivedEventCarriesItsStoredInterval() {
+        val event =
+            task(
+                "event",
+                "Dentist",
+                TaskBucket.COUNTDOWN,
+                scheduledOnEpochDay = LocalDate.of(2026, 9, 27).toEpochDay(),
+            ).copy(countdownIntervalDays = 30)
+        val state =
+            derive(
+                FocusSnapshot(
+                    tasks = listOf(event),
+                    frames = listOf(frame("f-event", "event", parent = null, FrameState.ACTIVE)),
+                ),
+            )
+        assertEquals("Dentist", state.now?.title)
+        assertTrue(state.now?.isEvent == true)
+        assertEquals(30, state.now?.countdownIntervalDays)
+        assertTrue(state.countdowns.isEmpty())
+    }
+
+    @Test
     fun aNestedInterruptionLeavesThePiles() {
         val parent = task("parent", "Review CI failure", TaskBucket.TODAY)
         val child = task("child", "Call Dana", TaskBucket.INTERRUPTION)
@@ -203,6 +226,38 @@ class DeriveFocusUiTest {
         assertEquals("Call the school", state.freshSwapTitle)
         assertNull(state.swapIncoming)
         assertEquals(listOf("Write the notes"), state.swapChoices.map { it.title })
+    }
+
+    @Test
+    fun editingNamesOnlyAnOpenTask() {
+        val open = task("open", "Buy milk", TaskBucket.INBOX)
+        val done = task("done", "Old work", TaskBucket.INBOX, status = TaskStatus.DONE)
+        val shown =
+            deriveFocusUi(
+                FocusSnapshot(tasks = listOf(open, done)),
+                ChromeState(
+                    captureOpen = false,
+                    swapIncomingId = null,
+                    switchOpen = false,
+                    undo = null,
+                    preferences = UserPreferences(),
+                    editingTaskId = "open",
+                ),
+            )
+        assertEquals("Buy milk", shown.editing?.title)
+        val hidden =
+            deriveFocusUi(
+                FocusSnapshot(tasks = listOf(open, done)),
+                ChromeState(
+                    captureOpen = false,
+                    swapIncomingId = null,
+                    switchOpen = false,
+                    undo = null,
+                    preferences = UserPreferences(),
+                    editingTaskId = "done",
+                ),
+            )
+        assertNull(hidden.editing)
     }
 
     @Test

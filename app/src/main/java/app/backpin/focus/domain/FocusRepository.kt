@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 package app.backpin.focus.domain
 
 import kotlinx.coroutines.flow.Flow
@@ -96,7 +97,10 @@ interface FocusRepository {
      */
     suspend fun interruptWithNew(title: String)
 
-    /** Moves a scheduled task to Inbox without starting it. Other buckets are left alone. */
+    /**
+     * Moves an open task to Inbox without starting it. Parks an open frame the same
+     * way Later does. A schedule is cleared. Already-Inbox tasks are left alone.
+     */
     suspend fun moveToInbox(taskId: String)
 
     /** Drops a scheduled task. Other buckets are left alone. */
@@ -110,6 +114,17 @@ interface FocusRepository {
     suspend fun rescheduleScheduled(
         taskId: String,
         epochDay: Long,
+    ): Boolean
+
+    /**
+     * Moves an open task onto [scheduledOnEpochDay] as [TaskBucket.SCHEDULED].
+     * Parks an open frame the same way Later does. Keeps a time already on a
+     * scheduled task. Countdown tasks are left alone; use [rescheduleCountdown].
+     * Returns false when nothing changed.
+     */
+    suspend fun scheduleExisting(
+        taskId: String,
+        scheduledOnEpochDay: Long,
     ): Boolean
 
     /**
@@ -210,8 +225,8 @@ interface FocusRepository {
     )
 
     /**
-     * Puts the snapshotted rows back. Used by the Undo snackbar for Today placement.
-     * Done and Later do not offer that snackbar.
+     * Puts the snapshotted rows back. Used by the Undo snackbar for Today placement
+     * and countdown resume. Done and Later do not offer that snackbar.
      */
     suspend fun undo(token: UndoToken)
 
@@ -259,4 +274,101 @@ interface FocusRepository {
     suspend fun setSavedPhrases(phrases: List<String>)
 
     suspend fun recordNudge(taskId: String)
+
+    /** Unarchived repeats, in sort order. Used by the REPEAT section to edit the list. */
+    fun observeRepeats(): Flow<List<Repeat>>
+
+    /**
+     * Due repeats for the current local day, per band, with open/done/missed.
+     * Repeats never appear in [observeSnapshot] and never count toward Today.
+     */
+    fun observeTodaysRepeats(): Flow<TodaysRepeats>
+
+    /**
+     * Adds a repeat. A blank title writes nothing and returns null.
+     * [everyNDays] below 1 is stored as 1. [reminderOn] defaults to true.
+     */
+    suspend fun createRepeat(
+        title: String,
+        band: RepeatBand,
+        everyNDays: Int,
+        anchorEpochDay: Long,
+        reminderOn: Boolean = true,
+    ): String?
+
+    /**
+     * Rewrites every field on an existing, unarchived repeat.
+     * A blank title, a missing id, or an archived row writes nothing and returns false.
+     */
+    suspend fun updateRepeat(
+        id: String,
+        title: String,
+        band: RepeatBand,
+        everyNDays: Int,
+        anchorEpochDay: Long,
+        reminderOn: Boolean,
+        sortOrder: Long,
+    ): Boolean
+
+    /** Soft-deletes a repeat. Logs stay. Returns false when the id is missing or already archived. */
+    suspend fun archiveRepeat(id: String): Boolean
+
+    /**
+     * Writes [RepeatOutcome.DONE] for that due day. Safe to call twice.
+     * A missed row becomes done. Returns false when the repeat is missing or archived.
+     */
+    suspend fun markRepeatDone(
+        repeatId: String,
+        epochDay: Long,
+    ): Boolean
+
+    /**
+     * Removes a [RepeatOutcome.DONE] log row so the item is open again.
+     * A missed row is left alone. Returns false when there was nothing to undo.
+     */
+    suspend fun undoRepeatDone(
+        repeatId: String,
+        epochDay: Long,
+    ): Boolean
+
+    /**
+     * Writes [outcome] for that due day. Used to restore MISSED after a late Done.
+     * Returns false when the repeat is missing or archived.
+     */
+    suspend fun writeRepeatOutcome(
+        repeatId: String,
+        epochDay: Long,
+        outcome: RepeatOutcome,
+    ): Boolean
+
+    /**
+     * Writes [RepeatOutcome.MISSED] for still-open due repeats in [band] on [epochDay].
+     * Existing log rows are left alone.
+     */
+    suspend fun markOpenRepeatsMissed(
+        band: RepeatBand,
+        epochDay: Long,
+    )
+
+    /** User-set band times. Invalid or out-of-order values write nothing and return false. */
+    suspend fun setBandTimes(times: BandTimes): Boolean
+
+    /** Remembers that Settings dismissed the one-time exact-alarm prompt. */
+    suspend fun dismissExactAlarmPrompt()
+
+    /** Holds a band nudge until the active focus frame ends, or clears the hold. */
+    suspend fun setHeldBandNudge(
+        band: RepeatBand?,
+        epochDay: Long?,
+    )
+
+    suspend fun followUpPostedDay(band: RepeatBand): Long?
+
+    suspend fun setFollowUpPostedDay(
+        band: RepeatBand,
+        epochDay: Long,
+    )
+
+    /** True when an [FrameState.ACTIVE] frame exists. Used by band alarms to hold a nudge. */
+    suspend fun hasActiveFocus(): Boolean
 }

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 package app.backpin.focus.ui.home
 
 import androidx.compose.foundation.layout.Arrangement
@@ -19,6 +20,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -36,12 +38,14 @@ import app.backpin.focus.ui.components.BackArrow
 import app.backpin.focus.ui.components.QuietButton
 import app.backpin.focus.ui.motion.rememberReducedMotion
 import app.backpin.focus.ui.theme.ButtonGap
+import app.backpin.focus.ui.theme.CardRadius
 import app.backpin.focus.ui.theme.FocusColors
 import app.backpin.focus.ui.theme.Space
 import java.time.LocalDate
 import java.time.LocalTime
 
 private val PileRowPadding = Modifier.padding(horizontal = 12.dp, vertical = 12.dp)
+private val ActionPileCardPadding = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
 
 /**
  * Inbox on its own screen. Today and Start move the task and leave this screen open.
@@ -55,6 +59,7 @@ fun InboxScreen(
     onToday: (String) -> Unit,
     onStart: (String) -> Unit,
     onInterrupt: (String) -> Unit,
+    onEdit: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     ActionPileScreen(
@@ -67,6 +72,7 @@ fun InboxScreen(
         onToday = onToday,
         onStart = onStart,
         onInterrupt = onInterrupt,
+        onEdit = onEdit,
         modifier = modifier,
     )
 }
@@ -83,6 +89,7 @@ fun LaterScreen(
     onToday: (String) -> Unit,
     onStart: (String) -> Unit,
     onInterrupt: (String) -> Unit,
+    onEdit: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     ActionPileScreen(
@@ -95,6 +102,7 @@ fun LaterScreen(
         onToday = onToday,
         onStart = onStart,
         onInterrupt = onInterrupt,
+        onEdit = onEdit,
         modifier = modifier,
     )
 }
@@ -117,6 +125,7 @@ fun ScheduledScreen(
     onRemove: (String) -> Unit,
     onChangeDate: (String, Long) -> Unit,
     onChangeTime: (String, Int?) -> Unit,
+    onEdit: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val reducedMotion = rememberReducedMotion()
@@ -138,6 +147,13 @@ fun ScheduledScreen(
                 towardStart = todaySwipe { onToday(task.id) },
                 towardEnd = startSwipe { onStart(task.id) },
                 reducedMotion = reducedMotion,
+                extraActions =
+                    listOf(
+                        CustomAccessibilityAction("Edit") {
+                            onEdit(task.id)
+                            true
+                        },
+                    ),
                 cornerRadius = 16.dp,
                 modifier =
                     Modifier
@@ -184,6 +200,7 @@ fun ScheduledScreen(
                             if (task.minuteOfDay != null) {
                                 QuietButton(label = "Clear time", onClick = { onChangeTime(task.id, null) })
                             }
+                            QuietButton(label = "Edit", onClick = { onEdit(task.id) })
                         }
                     }
                 }
@@ -271,6 +288,7 @@ private fun ActionPileScreen(
     onToday: (String) -> Unit,
     onStart: (String) -> Unit,
     onInterrupt: (String) -> Unit,
+    onEdit: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val reducedMotion = rememberReducedMotion()
@@ -289,7 +307,14 @@ private fun ActionPileScreen(
                 towardStart = todaySwipe { onToday(task.id) },
                 towardEnd = startSwipe { onStart(task.id) },
                 reducedMotion = reducedMotion,
-                cornerRadius = 16.dp,
+                extraActions =
+                    listOf(
+                        CustomAccessibilityAction("Edit") {
+                            onEdit(task.id)
+                            true
+                        },
+                    ),
+                cornerRadius = CardRadius,
                 modifier =
                     Modifier
                         .fillMaxWidth()
@@ -300,10 +325,10 @@ private fun ActionPileScreen(
             ) {
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(CardRadius),
                     color = FocusColors.SurfaceHigh,
                 ) {
-                    Column(PileRowPadding, verticalArrangement = Arrangement.spacedBy(Space)) {
+                    Column(ActionPileCardPadding, verticalArrangement = Arrangement.spacedBy(Space)) {
                         Text(task.title, style = MaterialTheme.typography.titleLarge)
                         CardActions {
                             QuietButton(label = "Today", onClick = { onToday(task.id) })
@@ -315,6 +340,7 @@ private fun ActionPileScreen(
                                     onClick = { onInterrupt(task.id) },
                                 )
                             }
+                            QuietButton(label = "Edit", onClick = { onEdit(task.id) })
                         }
                     }
                 }

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 package app.backpin.focus.ui.theme
 
 import androidx.compose.material3.MaterialTheme
@@ -22,6 +23,8 @@ object FocusColors {
     val OnAmber = Color(0xFF2A1C08)
     val Lavender = Color(0xFFB7A4FF)
     val OnLavender = Color(0xFF1B1430)
+    /** Soft fill for the default lavender choice, such as Again in N days. */
+    val LavenderContainer = Color(0x40B7A4FF)
     val Outline = Color(0xFF3A465C)
 }
 
@@ -60,6 +63,8 @@ private val scheme =
         onPrimary = FocusColors.OnMint,
         secondary = FocusColors.Lavender,
         onSecondary = FocusColors.OnLavender,
+        secondaryContainer = FocusColors.LavenderContainer,
+        onSecondaryContainer = FocusColors.Lavender,
         tertiary = FocusColors.Amber,
         onTertiary = FocusColors.OnAmber,
         background = FocusColors.Midnight,

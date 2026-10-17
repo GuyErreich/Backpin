@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 package app.backpin.focus.domain
 
 import java.time.LocalDate
@@ -45,6 +46,15 @@ fun minuteOfDayLabel(minuteOfDay: Int): String {
     return LocalTime.of(clamped / 60, clamped % 60).format(DateTimeFormatter.ofPattern("HH:mm"))
 }
 
+/** Same clock string Settings already shows. */
+fun minuteOfDayClock(minute: Int): String = minuteOfDayLabel(minute)
+
+/** Parses `HH:mm`. Anything else is null. */
+fun parseClockToMinute(value: String): Int? {
+    val time = runCatching { LocalTime.parse(value) }.getOrNull() ?: return null
+    return time.hour * 60 + time.minute
+}
+
 /** "Thu, Oct 8", or "Thu, Oct 8 · 14:30" when a time is set. */
 fun scheduleMomentLabel(
     epochDay: Long,
@@ -53,6 +63,16 @@ fun scheduleMomentLabel(
 ): String {
     val formatted = LocalDate.ofEpochDay(epochDay).format(DateTimeFormatter.ofPattern("EEE, MMM d", locale))
     return if (minuteOfDay == null) formatted else "$formatted · ${minuteOfDayLabel(minuteOfDay)}"
+}
+
+/** Snackbar after a countdown resume: days from today and the landing date. */
+fun backInDaysLabel(
+    days: Int,
+    today: LocalDate,
+    locale: Locale = Locale.getDefault(),
+): String {
+    val landing = today.plusDays(days.toLong()).toEpochDay()
+    return "Back in $days days · ${scheduleMomentLabel(landing, null, locale)}"
 }
 
 /** Date line for the Scheduled screen, prefixed with "Due" once [isScheduledDue] holds. */
@@ -99,5 +119,33 @@ fun isCountdownDue(
     epochDay: Long,
     today: LocalDate,
 ): Boolean = !LocalDate.ofEpochDay(epochDay).isAfter(today)
+
+/** Days from today a countdown may be set. Typed and stored counts stay in this range. */
+const val MIN_COUNTDOWN_DAYS: Int = 1
+
+const val MAX_COUNTDOWN_DAYS: Int = 999
+
+/**
+ * Days from [today] to [epochDay], when that gap is a countdown that can be reused.
+ * Today, the past, and more than [MAX_COUNTDOWN_DAYS] return null.
+ */
+fun countdownIntervalDays(
+    epochDay: Long,
+    today: LocalDate,
+): Int? {
+    val days = epochDay - today.toEpochDay()
+    return days.toInt().takeIf { it in MIN_COUNTDOWN_DAYS..MAX_COUNTDOWN_DAYS }
+}
+
+/**
+ * The count the resume sheet offers first: the event's own interval, then the last
+ * count used on this phone. Either value is ignored when it is outside the allowed range.
+ */
+fun suggestedCountdownDays(
+    taskInterval: Int?,
+    lastCountdownDays: Int?,
+): Int? =
+    taskInterval?.takeIf { it in MIN_COUNTDOWN_DAYS..MAX_COUNTDOWN_DAYS }
+        ?: lastCountdownDays?.takeIf { it in MIN_COUNTDOWN_DAYS..MAX_COUNTDOWN_DAYS }
 
 const val MINUTES_PER_DAY: Int = 24 * 60

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 package app.backpin.focus.domain
 
 /**
@@ -37,6 +38,8 @@ enum class FrameState {
  * A single task. [returnCue] is the one-line note that should still make
  * sense after an interruption. [scheduledAtMinuteOfDay] is an optional local
  * time on [scheduledOnEpochDay] for a scheduled task. Null means any time that day.
+ * [countdownIntervalDays] is the last count used for this event, so resume can
+ * offer it again. It is not a schedule field and survives a move off COUNTDOWN.
  */
 data class Task(
     val id: String,
@@ -49,6 +52,7 @@ data class Task(
     val completedAtEpochMillis: Long?,
     val scheduledOnEpochDay: Long? = null,
     val scheduledAtMinuteOfDay: Int? = null,
+    val countdownIntervalDays: Int? = null,
 )
 
 /**
@@ -70,6 +74,10 @@ data class FocusFrame(
  * from repeating during recent activity.
  * [todayLimit] is how many open tasks Today can hold. Empty places are not filled on their own.
  * [savedPhrases] is the capture list, in the order it is shown. Angle brackets mark one blank.
+ * [lastCountdownDays] is the last count used on this phone, when an event has none of its own.
+ * [bandTimes] are the user-set morning, noon, and night bounds for repeats.
+ * [heldBandNudge] is a band reminder waiting for an active focus frame to end.
+ * [exactAlarmPromptDismissed] is the one-time Settings "Not now" for exact alarms.
  */
 data class UserPreferences(
     val nudgesEnabled: Boolean = false,
@@ -82,6 +90,11 @@ data class UserPreferences(
     val lastNudgedTaskId: String? = null,
     val todayLimit: Int = DEFAULT_TODAY_LIMIT,
     val savedPhrases: List<String> = emptyList(),
+    val lastCountdownDays: Int? = null,
+    val bandTimes: BandTimes = BandTimes.DEFAULT,
+    val heldBandNudge: RepeatBand? = null,
+    val heldBandEpochDay: Long? = null,
+    val exactAlarmPromptDismissed: Boolean = false,
 )
 
 /** Point-in-time tasks and frames used to rebuild the screen after process death. */
@@ -91,7 +104,7 @@ data class FocusSnapshot(
 )
 
 /**
- * Prior task and frame rows for an Undo of a Today placement change.
+ * Prior task and frame rows for Undo of Today placement or a countdown resume.
  * Done and Later commit without this snackbar. Nothing is hard-deleted.
  */
 data class UndoToken(

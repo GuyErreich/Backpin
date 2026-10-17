@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 package app.backpin.focus.ui
 
 import app.backpin.focus.domain.FocusSnapshot
@@ -8,6 +9,7 @@ import app.backpin.focus.domain.Task
 import app.backpin.focus.domain.TaskBucket
 import app.backpin.focus.domain.TaskStatus
 import app.backpin.focus.domain.UserPreferences
+import app.backpin.focus.domain.editPlace
 import app.backpin.focus.domain.countdownDayLabel
 import app.backpin.focus.domain.countdownDaysLeft
 import app.backpin.focus.domain.isScheduledDue
@@ -24,6 +26,7 @@ internal data class ChromeState(
     val switchOpen: Boolean,
     val undo: PendingUndo?,
     val preferences: UserPreferences,
+    val editingTaskId: String? = null,
 )
 
 internal fun deriveFocusUi(
@@ -54,6 +57,7 @@ internal fun deriveFocusUi(
                 startedAtEpochMillis = frame.startedAtEpochMillis,
                 isInterruption = frame.parentFrameId != null,
                 isEvent = task.bucket == TaskBucket.COUNTDOWN,
+                countdownIntervalDays = task.countdownIntervalDays,
             )
         }
 
@@ -158,6 +162,10 @@ internal fun deriveFocusUi(
         today
             .filter { it.id != now?.taskId }
             .map { it.toUi() }
+    val editing =
+        chrome.editingTaskId?.let { id ->
+            tasksById[id]?.takeIf { it.status == TaskStatus.OPEN }?.toEditing()
+        }
 
     return FocusUiState(
         ready = true,
@@ -177,6 +185,7 @@ internal fun deriveFocusUi(
         countdowns = countdowns,
         captureOpen = chrome.captureOpen,
         captureInterrupts = chrome.captureInterrupts,
+        editing = editing,
         swapIncoming = incoming,
         freshSwapTitle = chrome.freshSwapTitle,
         swapChoices = if (!swapping) emptyList() else today.map { it.toUi() },
@@ -188,3 +197,11 @@ internal fun deriveFocusUi(
 }
 
 private fun Task.toUi(): TaskUi = TaskUi(id = id, title = title, returnCue = returnCue)
+
+private fun Task.toEditing(): EditingUi =
+    EditingUi(
+        id = id,
+        title = title,
+        place = bucket.editPlace(),
+        scheduledOnEpochDay = scheduledOnEpochDay,
+    )

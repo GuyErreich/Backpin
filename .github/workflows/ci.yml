@@ -1,0 +1,45 @@
+name: CI
+on:
+  pull_request:
+    branches: [dev, main]
+  push:
+    branches: [dev]
+  schedule:
+    - cron: "0 3 * * 0" # weekly CodeQL, Sunday 03:00 UTC
+permissions: {}
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+jobs:
+  # Pinned to GuyErreich/ci-workflows v0.1.2 (4453b10).
+  license:
+    if: github.event_name != 'schedule'
+    uses: GuyErreich/ci-workflows/.github/workflows/license.yml@4453b10a9e03199398b204358faddfdaa83e1d8b # v0.1.2
+    permissions: { contents: read }
+  lint:
+    if: github.event_name != 'schedule'
+    uses: GuyErreich/ci-workflows/.github/workflows/lint.yml@4453b10a9e03199398b204358faddfdaa83e1d8b # v0.1.2
+    with:
+      java-version: "21"
+    permissions: { contents: read }
+  ktlint:
+    if: github.event_name != 'schedule'
+    uses: GuyErreich/ci-workflows/.github/workflows/ktlint.yml@4453b10a9e03199398b204358faddfdaa83e1d8b # v0.1.2
+    with:
+      java-version: "21"
+    permissions: { contents: read }
+  secret-scan:
+    if: github.event_name != 'schedule'
+    uses: GuyErreich/ci-workflows/.github/workflows/secret-scan.yml@4453b10a9e03199398b204358faddfdaa83e1d8b # v0.1.2
+    permissions: { contents: read }
+  codeql:
+    uses: GuyErreich/ci-workflows/.github/workflows/codeql.yml@4453b10a9e03199398b204358faddfdaa83e1d8b # v0.1.2
+    with:
+      java-version: "21"
+    permissions: { contents: read, security-events: write }
+  test:
+    if: github.event_name != 'schedule'
+    uses: GuyErreich/ci-workflows/.github/workflows/test.yml@4453b10a9e03199398b204358faddfdaa83e1d8b # v0.1.2
+    with:
+      java-version: "21"
+    permissions: { contents: read }

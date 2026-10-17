@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 package app.backpin.focus.domain
 
 import org.junit.Assert.assertEquals
@@ -18,6 +19,25 @@ class CapturePlaceTest {
             capturePlaces(frameActive = false),
         )
         assertFalse(capturePlaces(frameActive = false).contains(CapturePlace.INTERRUPT))
+    }
+
+    @Test
+    fun editPlacesAreWhereATaskLives() {
+        assertEquals(
+            listOf(
+                CapturePlace.INBOX,
+                CapturePlace.TODAY,
+                CapturePlace.LATER,
+                CapturePlace.SCHEDULE,
+            ),
+            editPlaces(),
+        )
+        assertEquals(CapturePlace.INBOX, TaskBucket.INBOX.editPlace())
+        assertEquals(CapturePlace.TODAY, TaskBucket.TODAY.editPlace())
+        assertEquals(CapturePlace.LATER, TaskBucket.LATER.editPlace())
+        assertEquals(CapturePlace.SCHEDULE, TaskBucket.SCHEDULED.editPlace())
+        assertEquals(CapturePlace.SCHEDULE, TaskBucket.COUNTDOWN.editPlace())
+        assertEquals(null, TaskBucket.INTERRUPTION.editPlace())
     }
 
     @Test

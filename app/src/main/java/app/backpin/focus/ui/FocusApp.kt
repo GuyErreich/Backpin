@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 package app.backpin.focus.ui
 
 import androidx.compose.animation.AnimatedContentTransitionScope
@@ -29,7 +30,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import app.backpin.focus.R
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
@@ -37,8 +40,10 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import app.backpin.focus.notifications.NotificationContract
+import app.backpin.focus.ui.capture.CaptureEdit
 import app.backpin.focus.ui.capture.CaptureSheet
 import app.backpin.focus.ui.countdown.CountdownScreen
+import app.backpin.focus.ui.repeat.RepeatSheet
 import app.backpin.focus.ui.focus.FocusScreen
 import app.backpin.focus.ui.home.DoneScreen
 import app.backpin.focus.ui.home.HomeScreen
@@ -78,6 +83,10 @@ fun FocusApp(
     onLaunchDestinationConsumed: () -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val checkedOffMessage = stringResource(R.string.undo_checked_off)
+    val repeatDraft by viewModel.editingRepeat.collectAsStateWithLifecycle()
+    val bandTimes by viewModel.bandTimes.collectAsStateWithLifecycle()
+    val showExactAlarmPrompt by viewModel.showExactAlarmPrompt.collectAsStateWithLifecycle()
     val navController = rememberNavController()
     val snackbarHostState = remember { SnackbarHostState() }
     val backStack by navController.currentBackStackEntryAsState()
@@ -98,9 +107,10 @@ fun FocusApp(
 
     LaunchedEffect(state.undo?.id) {
         val undo = state.undo ?: return@LaunchedEffect
+        val message = undoSnackbarMessage(undo, checkedOffMessage)
         val result =
             snackbarHostState.showSnackbar(
-                message = undo.message,
+                message = message,
                 actionLabel = "Undo",
                 withDismissAction = true,
             )
@@ -211,6 +221,7 @@ fun FocusApp(
                     onToday = viewModel::promote,
                     onStart = viewModel::start,
                     onInterrupt = viewModel::interruptFromPile,
+                    onEdit = viewModel::openEdit,
                 )
             }
             composable(
@@ -226,6 +237,7 @@ fun FocusApp(
                     onToday = viewModel::promote,
                     onStart = viewModel::start,
                     onInterrupt = viewModel::interruptFromPile,
+                    onEdit = viewModel::openEdit,
                 )
             }
             composable(
@@ -246,6 +258,7 @@ fun FocusApp(
                     onRemove = viewModel::removeScheduled,
                     onChangeDate = viewModel::changeScheduledDate,
                     onChangeTime = viewModel::changeScheduledTime,
+                    onEdit = viewModel::openEdit,
                 )
             }
             composable(
@@ -270,6 +283,7 @@ fun FocusApp(
                     onAdd = viewModel::addCountdown,
                     onChangeDate = viewModel::changeCountdownDate,
                     onRemove = viewModel::removeCountdown,
+                    onEdit = viewModel::openEdit,
                 )
             }
             composable(Routes.SETTINGS) {
@@ -282,12 +296,45 @@ fun FocusApp(
                     onAddPhrase = viewModel::addSavedPhrase,
                     onRenamePhrase = viewModel::renameSavedPhrase,
                     onRemovePhrase = viewModel::removeSavedPhrase,
+                    bandTimes = bandTimes,
+                    onBandTime = viewModel::setBandTime,
+                    showExactAlarmPrompt = showExactAlarmPrompt,
+                    onDismissExactAlarmPrompt = viewModel::dismissExactAlarmPrompt,
+                    onRefreshExactAlarmPermission = viewModel::refreshExactAlarmPermission,
                 )
             }
         }
     }
 
-    if (state.captureOpen) {
+    val editingRepeat = repeatDraft
+    val editing = state.editing
+    if (editingRepeat != null) {
+        RepeatSheet(
+            draft = editingRepeat,
+            onCommit = viewModel::commitRepeatDraft,
+            onDismiss = viewModel::dismissRepeatSheet,
+            onArchive = viewModel::archiveRepeat,
+        )
+    } else if (editing != null) {
+        CaptureSheet(
+            phrases = emptyList(),
+            frameActive = state.now != null,
+            onDismiss = viewModel::dismissEdit,
+            onSaveToInbox = {},
+            onInterruptNow = {},
+            onPlaceToday = {},
+            onPlaceStart = {},
+            onPlaceLater = {},
+            onSchedule = { _, _, _ -> },
+            edit =
+                CaptureEdit(
+                    title = editing.title,
+                    place = editing.place,
+                    scheduledEpochDay = editing.scheduledOnEpochDay,
+                ),
+            onCommitEdit = viewModel::saveEdit,
+        )
+    } else if (state.captureOpen) {
         CaptureSheet(
             phrases = state.preferences.savedPhrases,
             frameActive = state.now != null,
@@ -298,6 +345,7 @@ fun FocusApp(
             onPlaceStart = viewModel::placeAndStart,
             onPlaceLater = viewModel::placeLater,
             onSchedule = viewModel::placeScheduled,
+            onRepeat = viewModel::openRepeatCreate,
         )
     }
 

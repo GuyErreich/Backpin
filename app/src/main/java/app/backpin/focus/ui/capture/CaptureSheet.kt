@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 package app.backpin.focus.ui.capture
 
 import android.content.Intent
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -23,6 +25,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ModalBottomSheetProperties
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -37,6 +40,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.heading
@@ -47,6 +51,7 @@ import app.backpin.focus.R
 import app.backpin.focus.domain.CapturePlace
 import app.backpin.focus.domain.ScheduleOffset
 import app.backpin.focus.domain.capturePlaces
+import app.backpin.focus.domain.editPlaces
 import app.backpin.focus.domain.scheduleDate
 import app.backpin.focus.ui.calendar.PickDateDialog
 import app.backpin.focus.ui.components.ActionRow
@@ -58,7 +63,9 @@ import app.backpin.focus.ui.components.ChoiceTone
 import app.backpin.focus.ui.motion.MotionSpec
 import app.backpin.focus.ui.motion.motionSpec
 import app.backpin.focus.ui.motion.rememberReducedMotion
+import app.backpin.focus.ui.repeat.RepeatCaptureChoice
 import app.backpin.focus.ui.theme.ButtonGap
+import app.backpin.focus.ui.theme.ButtonRadius
 import app.backpin.focus.ui.theme.FocusColors
 import app.backpin.focus.ui.theme.Space
 import java.time.LocalDate
@@ -67,6 +74,13 @@ private enum class ListenField {
     Title,
     Fill,
 }
+
+/** Prefill for the same sheet in edit mode. [place] is null for a nested interruption. */
+internal data class CaptureEdit(
+    val title: String,
+    val place: CapturePlace?,
+    val scheduledEpochDay: Long? = null,
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -80,12 +94,18 @@ internal fun CaptureSheet(
     onPlaceStart: (String) -> Unit,
     onPlaceLater: (String) -> Unit,
     onSchedule: (String, Long, Int?) -> Unit,
+    edit: CaptureEdit? = null,
+    onCommitEdit: ((String, CapturePlace?, Long?) -> Unit)? = null,
     recognizer: UtteranceRecognizer? = null,
     onSystemSpeech: ((Intent, (String) -> Unit) -> Unit)? = null,
+    onRepeat: ((String) -> Unit)? = null,
 ) {
     val reducedMotion = rememberReducedMotion()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val titleDraft = remember { TitleDraft() }
+    val titleDraft =
+        remember(edit?.title) {
+            TitleDraft().apply { if (edit != null) edit(edit.title) }
+        }
     val fillDraft = remember { TitleDraft() }
     val title = titleDraft.text
     val fillWord = fillDraft.text
@@ -94,6 +114,10 @@ internal fun CaptureSheet(
     var schedulingTitle by remember { mutableStateOf<String?>(null) }
     var scheduleFromPhrase by remember { mutableStateOf(false) }
     var datePickerOpen by remember { mutableStateOf(false) }
+    var selectedPlace by remember(edit) { mutableStateOf(edit?.place) }
+    var selectedDay by remember(edit) { mutableStateOf(edit?.scheduledEpochDay) }
+    var editCommitted by remember { mutableStateOf(false) }
+    val editing = edit != null
     val focusRequester = remember { FocusRequester() }
     val fillFocusRequester = remember { FocusRequester() }
     val speech =
@@ -114,6 +138,22 @@ internal fun CaptureSheet(
         onDismiss()
     }
 
+    fun commitEditAndClose() {
+        val current = edit ?: return
+        if (editCommitted) return
+        editCommitted = true
+        stopListening()
+        val resolved = titleDraft.text.trim().ifEmpty { current.title }
+        val place = selectedPlace ?: current.place
+        val day = if (place == CapturePlace.SCHEDULE) selectedDay ?: current.scheduledEpochDay else null
+        onCommitEdit?.invoke(resolved, place, day)
+        onDismiss()
+    }
+
+    fun leaveSheet() {
+        if (editing) commitEditAndClose() else dismiss()
+    }
+
     fun commitFill() {
         val template = activeBlank ?: return
         val filled = fillPhraseBlank(template, fillDraft.text) ?: return
@@ -131,12 +171,13 @@ internal fun CaptureSheet(
         resolved: String,
         fromPhrase: Boolean,
     ) {
-        val trimmed = resolved.trim()
+        val trimmed = resolved.trim().ifEmpty { edit?.title.orEmpty() }
         if (trimmed.isEmpty()) return
         scheduleFromPhrase = fromPhrase
         schedulingTitle = trimmed
         pendingTitle = null
         activeBlank = null
+        if (editing) selectedPlace = CapturePlace.SCHEDULE
         clearSchedulePick()
         stopListening()
     }
@@ -171,7 +212,29 @@ internal fun CaptureSheet(
         placeResolved(place, pendingTitle ?: return, fromPhrase = true)
     }
 
+    fun chooseRepeat(resolved: String) {
+        val handler = onRepeat ?: return
+        val titleText = resolved.trim()
+        if (titleText.isEmpty()) return
+        handler(titleText)
+        stopListening()
+    }
+
+    fun typedRepeatTitle(): String {
+        val typed = titleDraft.text.trim()
+        val fromBlank = activeBlank?.let { fillPhraseBlank(it, fillDraft.text) }?.trim().orEmpty()
+        return typed.ifEmpty { fromBlank }
+    }
+
     fun placeTyped(place: CapturePlace) {
+        if (editing) {
+            if (place == CapturePlace.SCHEDULE) {
+                beginSchedule(titleDraft.text, fromPhrase = false)
+                return
+            }
+            selectedPlace = place
+            return
+        }
         // The blank and the destination buttons are on screen together. The words
         // live in the blank; the title field is still empty. Read the blank before
         // giving up, or every destination returns without writing.
@@ -183,6 +246,12 @@ internal fun CaptureSheet(
 
     fun chooseDate(date: LocalDate) {
         val resolved = schedulingTitle ?: return
+        if (editing) {
+            selectedPlace = CapturePlace.SCHEDULE
+            selectedDay = date.toEpochDay()
+            commitEditAndClose()
+            return
+        }
         onSchedule(resolved, date.toEpochDay(), null)
         dismiss()
     }
@@ -205,12 +274,12 @@ internal fun CaptureSheet(
                 activeBlank = null
                 fillDraft.edit("")
             }
-            else -> dismiss()
+            else -> leaveSheet()
         }
     }
 
     ModalBottomSheet(
-        onDismissRequest = { dismiss() },
+        onDismissRequest = { leaveSheet() },
         sheetState = sheetState,
         sheetGesturesEnabled = false,
         containerColor = FocusColors.Surface,
@@ -223,27 +292,37 @@ internal fun CaptureSheet(
         BackHandler(onBack = ::stepBack)
         val scheduling = schedulingTitle
         val placing = pendingTitle
+        val sheetGap = if (editing) ButtonGap else Space
         Column(
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    .fillMaxHeight()
+                    .then(if (editing) Modifier else Modifier.fillMaxHeight())
                     .padding(horizontal = 16.dp)
                     .padding(bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(Space),
+            verticalArrangement = Arrangement.spacedBy(sheetGap),
         ) {
             // One scrolling column, not a fixed stack under the title. A finite-height
             // column measures buttons in order and gives every button after Save to
             // Inbox a zero-height hit target once the keyboard has taken the room.
             // Those taps never reach onClick. Inside the scroll each button keeps
             // its height, so the visible center is a real click.
+            // Edit wraps the sheet to its fields, like the Figma frame, instead of
+            // stretching to the full window.
             Column(
                 modifier =
                     Modifier
                         .fillMaxWidth()
-                        .weight(1f)
-                        .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(Space),
+                        .then(
+                            if (editing) {
+                                Modifier
+                            } else {
+                                Modifier
+                                    .weight(1f)
+                                    .verticalScroll(rememberScrollState())
+                            },
+                        ),
+                verticalArrangement = Arrangement.spacedBy(sheetGap),
             ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -256,7 +335,7 @@ internal fun CaptureSheet(
                     inSheet = true,
                 )
                 Text(
-                    "Get it out of your head.",
+                    if (editing) "Edit task" else "Get it out of your head.",
                     style = MaterialTheme.typography.headlineMedium,
                     modifier = Modifier.weight(1f).semantics { heading() },
                 )
@@ -274,7 +353,7 @@ internal fun CaptureSheet(
                     )
                 }
                 else -> {
-                    if (phrases.isNotEmpty()) {
+                    if (!editing && phrases.isNotEmpty()) {
                         ActionRow {
                             phrases.forEach { phrase ->
                                 key(phrase) {
@@ -340,10 +419,13 @@ internal fun CaptureSheet(
                             enabled = fillPhraseBlank(template, fillWord) != null,
                         )
                     }
-                    Text(
-                        "One line. Choose where it goes. Speaking only fills the title.",
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
+                    if (!editing) {
+                        Text(
+                            "One line. Choose where it goes. Speaking only fills the title.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = FocusColors.Text,
+                        )
+                    }
                 }
             }
             if (scheduling == null && placing == null) {
@@ -357,7 +439,9 @@ internal fun CaptureSheet(
                         Modifier
                             .fillMaxWidth()
                             .focusRequester(focusRequester),
-                    label = { Text("Title") },
+                    shape = RoundedCornerShape(ButtonRadius),
+                    colors = titleFieldColors(),
+                    label = { Text(if (editing) "Task" else "Title") },
                     placeholder = { Text("A stray thought") },
                     singleLine = true,
                     trailingIcon = {
@@ -377,9 +461,13 @@ internal fun CaptureSheet(
                     keyboardActions =
                         KeyboardActions(
                             onDone = {
-                                val resolved = titleDraft.text.trim()
-                                if (resolved.isNotEmpty()) onSaveToInbox(resolved)
-                                stopListening()
+                                if (editing) {
+                                    commitEditAndClose()
+                                } else {
+                                    val resolved = titleDraft.text.trim()
+                                    if (resolved.isNotEmpty()) onSaveToInbox(resolved)
+                                    stopListening()
+                                }
                             },
                         ),
                 )
@@ -399,17 +487,40 @@ internal fun CaptureSheet(
                     )
                 }
                 placing != null -> {
+                    Column(verticalArrangement = Arrangement.spacedBy(ButtonGap)) {
+                        PlaceChoices(
+                            places = capturePlaces(frameActive),
+                            onPlace = ::placePhrase,
+                        )
+                        if (!editing && onRepeat != null) {
+                            RepeatCaptureChoice(onClick = { chooseRepeat(pendingTitle.orEmpty()) })
+                        }
+                    }
+                }
+                editing -> {
                     PlaceChoices(
-                        places = capturePlaces(frameActive),
-                        onPlace = ::placePhrase,
+                        places = editPlaces(),
+                        labelFor = { it.label() },
+                        selected = selectedPlace,
+                        onPlace = ::placeTyped,
+                    )
+                    CaptureChoice(
+                        label = "Done",
+                        tone = ChoiceTone.Mint,
+                        onClick = ::commitEditAndClose,
                     )
                 }
                 else -> {
-                    PlaceChoices(
-                        places = capturePlaces(frameActive),
-                        labelFor = { it.typedLabel() },
-                        onPlace = ::placeTyped,
-                    )
+                    Column(verticalArrangement = Arrangement.spacedBy(ButtonGap)) {
+                        PlaceChoices(
+                            places = capturePlaces(frameActive),
+                            labelFor = { it.typedLabel() },
+                            onPlace = ::placeTyped,
+                        )
+                        if (!editing && onRepeat != null) {
+                            RepeatCaptureChoice(onClick = { chooseRepeat(typedRepeatTitle()) })
+                        }
+                    }
                 }
             }
             }
@@ -433,6 +544,7 @@ private fun PlaceChoices(
     places: List<CapturePlace>,
     onPlace: (CapturePlace) -> Unit,
     labelFor: (CapturePlace) -> String = { it.label() },
+    selected: CapturePlace? = null,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(ButtonGap)) {
         places.forEach { place ->
@@ -440,6 +552,7 @@ private fun PlaceChoices(
                 CaptureChoice(
                     label = labelFor(place),
                     tone = place.tone(),
+                    selected = place == selected,
                     onClick = { onPlace(place) },
                 )
             }
@@ -506,6 +619,22 @@ private fun CapturePlace.typedLabel(): String =
         CapturePlace.INTERRUPT -> "Interrupt now"
         else -> label()
     }
+
+@Composable
+private fun titleFieldColors() =
+    OutlinedTextFieldDefaults.colors(
+        focusedTextColor = FocusColors.Text,
+        unfocusedTextColor = FocusColors.Text,
+        cursorColor = FocusColors.Mint,
+        focusedBorderColor = FocusColors.Outline,
+        unfocusedBorderColor = FocusColors.Outline,
+        focusedLabelColor = FocusColors.Muted,
+        unfocusedLabelColor = FocusColors.Muted,
+        focusedPlaceholderColor = FocusColors.Muted,
+        unfocusedPlaceholderColor = FocusColors.Muted,
+        focusedContainerColor = Color.Transparent,
+        unfocusedContainerColor = Color.Transparent,
+    )
 
 @Composable
 internal fun SpeakMic(

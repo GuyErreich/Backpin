@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 package app.backpin.focus.ui.home
 
 import androidx.compose.animation.animateColorAsState
@@ -24,6 +25,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
@@ -58,8 +60,10 @@ import androidx.compose.ui.zIndex
 import app.backpin.focus.domain.DetachDestination
 import app.backpin.focus.domain.MAX_TODAY_LIMIT
 import app.backpin.focus.domain.MIN_TODAY_LIMIT
+import app.backpin.focus.domain.RepeatDayStatus
 import app.backpin.focus.domain.elapsedMillis
 import app.backpin.focus.domain.formatElapsed
+import app.backpin.focus.domain.suggestedCountdownDays
 import app.backpin.focus.ui.FocusStackViewModel
 import app.backpin.focus.ui.FocusUiState
 import app.backpin.focus.ui.NowUi
@@ -71,6 +75,7 @@ import app.backpin.focus.ui.components.AccentTone
 import app.backpin.focus.ui.components.CardActions
 import app.backpin.focus.ui.components.QuietButton
 import app.backpin.focus.ui.countdown.EventDetachButtons
+import app.backpin.focus.ui.countdown.EventResumeHost
 import app.backpin.focus.ui.focus.RecoveryCard
 import app.backpin.focus.ui.motion.MotionSpec
 import app.backpin.focus.ui.motion.motionSpec
@@ -97,6 +102,7 @@ fun HomeScreen(
     modifier: Modifier = Modifier,
 ) {
     val reducedMotion = rememberReducedMotion()
+    val repeatRows by viewModel.repeatRows.collectAsState()
     val todayLimit = state.preferences.todayLimit.coerceIn(MIN_TODAY_LIMIT, MAX_TODAY_LIMIT)
     val filled = state.todaySlots.mapNotNull { slot -> slot.task?.let { slot to it } }
     val hasRoom = filled.size < todayLimit
@@ -137,6 +143,18 @@ fun HomeScreen(
                 onLater = viewModel::demote,
                 onInterrupt = viewModel::interruptWith,
                 onReorder = viewModel::reorderToday,
+                onEdit = viewModel::openEdit,
+            )
+            RepeatSection(
+                rows = repeatRows,
+                reducedMotion = reducedMotion,
+                onCheckOff = { row ->
+                    if (row.status != RepeatDayStatus.DONE) {
+                        viewModel.markRepeatDone(row.repeat.id, row.epochDay)
+                    }
+                },
+                onEdit = viewModel::openRepeatEdit,
+                onCreate = { viewModel.openRepeatCreate() },
             )
             HorizontalDivider(color = FocusColors.Outline)
             Column(verticalArrangement = Arrangement.spacedBy(Space)) {
@@ -186,6 +204,13 @@ private fun NowCard(
                         }
                     },
                 reducedMotion = reducedMotion,
+                extraActions =
+                    listOf(
+                        CustomAccessibilityAction("Edit") {
+                            viewModel.openEdit(now.taskId)
+                            true
+                        },
+                    ),
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Surface(
@@ -221,17 +246,33 @@ private fun NowCard(
                             )
                             Text(now.returnCue, style = MaterialTheme.typography.bodyLarge)
                         }
-                        CardActions {
-                            AccentButton("Done", AccentTone.Mint, onClick = viewModel::completeActive)
-                            if (now.isEvent) {
-                                EventDetachButtons(now.taskId, onDetach = viewModel::detachEvent)
-                            } else {
-                                AccentButton(
-                                    "Interrupt",
-                                    AccentTone.Lavender,
-                                    onClick = { viewModel.openCapture(interrupts = true) },
-                                )
-                                QuietButton("Later", onClick = { viewModel.demote(now.taskId) })
+                        EventResumeHost(
+                            taskId = now.taskId,
+                            title = now.title,
+                            suggestedDays =
+                                suggestedCountdownDays(
+                                    now.countdownIntervalDays,
+                                    state.preferences.lastCountdownDays,
+                                ),
+                            onDetach = viewModel::detachEvent,
+                        ) { onCountDownAgain ->
+                            CardActions {
+                                AccentButton("Done", AccentTone.Mint, onClick = viewModel::completeActive)
+                                if (now.isEvent) {
+                                    EventDetachButtons(
+                                        taskId = now.taskId,
+                                        onDetach = viewModel::detachEvent,
+                                        onCountDownAgain = onCountDownAgain,
+                                    )
+                                } else {
+                                    AccentButton(
+                                        "Interrupt",
+                                        AccentTone.Lavender,
+                                        onClick = { viewModel.openCapture(interrupts = true) },
+                                    )
+                                    QuietButton("Later", onClick = { viewModel.demote(now.taskId) })
+                                }
+                                QuietButton("Edit", onClick = { viewModel.openEdit(now.taskId) })
                             }
                         }
                     }
@@ -285,6 +326,7 @@ private fun TodaySection(
     onLater: (String) -> Unit,
     onInterrupt: (String) -> Unit,
     onReorder: (List<String>) -> Unit,
+    onEdit: (String) -> Unit,
 ) {
     val drag = remember { TodayDragState() }
     var rows by remember { mutableStateOf(filled) }
@@ -396,6 +438,7 @@ private fun TodaySection(
                         onDone = { onDone(task.id) },
                         onLater = { onLater(task.id) },
                         onInterrupt = { onInterrupt(task.id) },
+                        onEdit = { onEdit(task.id) },
                         onDragStart = { drag.begin(task.id) },
                         onDragBy = drag::dragBy,
                         onDragEnd = { settle(commitNearest = true) },
@@ -518,6 +561,7 @@ private fun TodayRow(
     onDone: () -> Unit,
     onLater: () -> Unit,
     onInterrupt: () -> Unit,
+    onEdit: () -> Unit,
     onDragStart: () -> Unit,
     onDragBy: (Float) -> Unit,
     onDragEnd: () -> Unit,
@@ -546,7 +590,12 @@ private fun TodayRow(
         onReorderDrag = onDragBy,
         onReorderDragEnd = onDragEnd,
         onReorderDragCancel = onDragCancel,
-        extraActions = reorderActions,
+        extraActions =
+            reorderActions +
+                CustomAccessibilityAction("Edit") {
+                    onEdit()
+                    true
+                },
         modifier = Modifier.fillMaxWidth(),
     ) {
         Surface(
@@ -594,6 +643,7 @@ private fun TodayRow(
                     }
                     AccentButton("Done", AccentTone.Mint, onClick = onDone)
                     QuietButton("Later", onClick = onLater)
+                    QuietButton("Edit", onClick = onEdit)
                 }
             }
         }
@@ -620,7 +670,7 @@ private fun EmptyTodaySlot() {
     }
 }
 
-private fun Modifier.dashedSlot(color: Color): Modifier =
+internal fun Modifier.dashedSlot(color: Color): Modifier =
     this.drawBehind {
         val stroke = 1.5.dp.toPx()
         drawRoundRect(
@@ -651,7 +701,7 @@ private fun RoleLabel(role: SlotRole) {
 }
 
 @Composable
-private fun SectionLabel(
+internal fun SectionLabel(
     title: String,
     trailing: String,
 ) {

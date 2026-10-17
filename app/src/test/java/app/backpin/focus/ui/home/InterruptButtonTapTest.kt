@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 package app.backpin.focus.ui.home
 
 import android.content.Context
@@ -118,6 +119,7 @@ class InterruptButtonTapTest {
                                 onToday = {},
                                 onStart = {},
                                 onInterrupt = viewModel::interruptFromPile,
+                                onEdit = {},
                             )
                         "later" ->
                             LaterScreen(
@@ -128,6 +130,7 @@ class InterruptButtonTapTest {
                                 onToday = {},
                                 onStart = {},
                                 onInterrupt = viewModel::interruptFromPile,
+                                onEdit = {},
                             )
                         "scheduled" ->
                             ScheduledScreen(
@@ -143,6 +146,7 @@ class InterruptButtonTapTest {
                                 onRemove = {},
                                 onChangeDate = { _, _ -> },
                                 onChangeTime = { _, _ -> },
+                                onEdit = {},
                             )
                         else ->
                             CaptureSheet(

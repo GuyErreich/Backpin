@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 package app.backpin.focus.ui.components
 
 import androidx.compose.foundation.BorderStroke
@@ -108,6 +109,23 @@ private fun choiceBorderColor(
     tone: ChoiceTone,
     enabled: Boolean,
 ): Color = if (tone == ChoiceTone.Quiet) FocusColors.Outline.shown(enabled) else choiceLabelColor(tone, enabled)
+
+/** Soft container behind a default choice. Outlined choices stay transparent. */
+internal fun choiceContainerColor(
+    tone: ChoiceTone,
+    filled: Boolean,
+    enabled: Boolean = true,
+): Color {
+    if (!filled) return Color.Transparent
+    val fill =
+        when (tone) {
+            ChoiceTone.Lavender -> FocusColors.LavenderContainer
+            ChoiceTone.Mint -> FocusColors.Mint.copy(alpha = 0.25f)
+            ChoiceTone.Amber -> FocusColors.Amber.copy(alpha = 0.25f)
+            ChoiceTone.Quiet -> FocusColors.SurfaceHigh
+        }
+    return fill.shown(enabled)
+}
 
 /**
  * The one button shape: outlined, 16dp corners, no ripple.
@@ -272,18 +290,32 @@ internal fun CaptureChoice(
     onClick: () -> Unit,
     tone: ChoiceTone = ChoiceTone.Quiet,
     enabled: Boolean = true,
+    filled: Boolean = false,
+    selected: Boolean = false,
 ) {
     OutlinedFocusButton(
         label = label,
         labelColor = choiceLabelColor(tone, enabled),
-        borderColor = choiceBorderColor(tone, enabled),
+        borderColor =
+            if (selected && tone == ChoiceTone.Quiet) {
+                FocusColors.Text.shown(enabled)
+            } else {
+                choiceBorderColor(tone, enabled)
+            },
         onClick = onClick,
         modifier =
             Modifier
                 .fillMaxWidth()
-                .focusProperties { canFocus = false },
+                .focusProperties { canFocus = false }
+                .then(if (selected) Modifier.semantics { this.selected = true } else Modifier),
         enabled = enabled,
         interactionSource = null,
+        containerColor =
+            when {
+                filled -> choiceContainerColor(tone, true, enabled)
+                selected -> FocusColors.SurfaceHigh
+                else -> Color.Transparent
+            },
     )
 }
 
