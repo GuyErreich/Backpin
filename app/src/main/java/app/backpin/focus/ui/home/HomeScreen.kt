@@ -673,11 +673,11 @@ private fun TodayRow(
 private fun EmptyTodaySlot() {
     Box(
         modifier =
-            Modifier
-                .fillMaxWidth()
-                .heightIn(min = 72.dp)
-                .semantics { contentDescription = "Empty Today slot." }
-                .dashedSlot(FocusColors.Live.Outline),
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 72.dp)
+            .semantics { contentDescription = "Empty Today slot." }
+            .dashedSlot(FocusColors.Live.Outline),
         contentAlignment = Alignment.CenterStart,
     ) {
         Text(

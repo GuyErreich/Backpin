@@ -113,11 +113,11 @@ internal fun ResumeCountdownSheet(
             ActionRow {
                 AccentButton(
                     label =
-                        stringResource(
-                            R.string.resume_again_in_days,
-                            suggestedDays,
-                            scheduleMomentLabel(today.plusDays(suggestedDays.toLong()).toEpochDay(), null),
-                        ),
+                    stringResource(
+                        R.string.resume_again_in_days,
+                        suggestedDays,
+                        scheduleMomentLabel(today.plusDays(suggestedDays.toLong()).toEpochDay(), null),
+                    ),
                     tone = AccentTone.Lavender,
                     onClick = { commitAgain(suggestedDays) },
                 )
