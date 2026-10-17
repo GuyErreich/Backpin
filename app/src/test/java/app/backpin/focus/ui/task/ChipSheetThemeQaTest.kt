@@ -2,6 +2,8 @@
 package app.backpin.focus.ui.task
 
 import androidx.activity.ComponentActivity
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -23,8 +25,9 @@ import app.backpin.focus.ui.TaskSheetRole
 import app.backpin.focus.ui.TaskSheetUi
 import app.backpin.focus.ui.home.RepeatSection
 import app.backpin.focus.ui.repeat.MissedRepeatSheet
-import app.backpin.focus.ui.theme.FocusColors
 import app.backpin.focus.ui.theme.FocusStackTheme
+import app.backpin.focus.ui.theme.LocalFocusPalette
+import app.backpin.focus.ui.theme.ThemePalette
 import app.backpin.focus.ui.theme.paletteFor
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
@@ -43,8 +46,10 @@ class ChipSheetThemeQaTest {
     @Test
     fun taskSheetChipsFollowEachThemeWithoutSignalLeftovers() {
         var themeId by mutableStateOf(ThemeId.SIGNAL)
+        var live by mutableStateOf(paletteFor(ThemeId.SIGNAL))
         compose.setContent {
             FocusStackTheme(themeId = themeId) {
+                CaptureLivePalette { live = it }
                 TaskSheet(
                     state =
                     TaskSheetUi(
@@ -67,7 +72,7 @@ class ChipSheetThemeQaTest {
         ThemeId.entries.forEach { id ->
             themeId = id
             compose.waitForIdle()
-            val palette = paletteFor(id)
+            val palette = livePalette(id, live)
             assertEquals(id.name, palette.done, labelColor("Done"))
             assertEquals(id.name, palette.now, labelColor("Interrupt"))
             assertEquals(id.name, palette.textPrimary, labelColor("Start"))
@@ -88,8 +93,10 @@ class ChipSheetThemeQaTest {
     fun missedSheetsFollowEachThemeWithoutErrorRed() {
         var themeId by mutableStateOf(ThemeId.SIGNAL)
         var showRepeat by mutableStateOf(false)
+        var live by mutableStateOf(paletteFor(ThemeId.SIGNAL))
         compose.setContent {
             FocusStackTheme(themeId = themeId) {
+                CaptureLivePalette { live = it }
                 if (showRepeat) {
                     MissedRepeatSheet(
                         state = MissedRepeatSheetUi("repeat-1", 0L, "Take meds"),
@@ -112,7 +119,7 @@ class ChipSheetThemeQaTest {
             themeId = id
             showRepeat = false
             compose.waitForIdle()
-            val palette = paletteFor(id)
+            val palette = livePalette(id, live)
             assertEquals(id.name, palette.done, labelColor("Done now"))
             assertEquals(id.name, palette.missed, labelColor("Tomorrow"))
             assertEquals(id.name, palette.missed, labelColor("Pick a day"))
@@ -126,17 +133,23 @@ class ChipSheetThemeQaTest {
             }
             showRepeat = true
             compose.waitForIdle()
-            assertEquals(id.name, palette.done, labelColor("Done now"))
-            assertEquals(id.name, palette.textPrimary, labelColor("Skip today"))
-            assertNotEquals(id.name, palette.danger, labelColor("Skip today"))
+            val skipPalette = livePalette(id, live)
+            assertEquals(id.name, skipPalette.done, labelColor("Done now"))
+            assertEquals(id.name, skipPalette.textPrimary, labelColor("Skip today"))
+            assertNotEquals(id.name, skipPalette.danger, labelColor("Skip today"))
+            if (id != ThemeId.SIGNAL) {
+                assertNotEquals(id.name, paletteFor(ThemeId.SIGNAL).textPrimary, labelColor("Skip today"))
+            }
         }
     }
 
     @Test
     fun missedRepeatRowsStayMutedAmberAndNeverErrorRedInEveryTheme() {
         var themeId by mutableStateOf(ThemeId.SIGNAL)
+        var live by mutableStateOf(paletteFor(ThemeId.SIGNAL))
         compose.setContent {
             FocusStackTheme(themeId = themeId) {
+                CaptureLivePalette { live = it }
                 RepeatSection(
                     rows =
                     RepeatRowsState(
@@ -177,8 +190,7 @@ class ChipSheetThemeQaTest {
         ThemeId.entries.forEach { id ->
             themeId = id
             compose.waitForIdle()
-            val palette = paletteFor(id)
-            assertEquals(id.name, FocusColors.Muted, labelColor("Take meds"))
+            val palette = livePalette(id, live)
             assertEquals(id.name, palette.textSecondary, labelColor("Take meds"))
             assertEquals(id.name, palette.missed, labelColor("Missed at morning · muted until end of day"))
             assertNotEquals(id.name, palette.danger, labelColor("Take meds"))
@@ -190,6 +202,25 @@ class ChipSheetThemeQaTest {
                 assertNotEquals(id.name, signal.textSecondary, labelColor("Take meds"))
             }
         }
+    }
+
+    @Composable
+    private fun CaptureLivePalette(onLive: (ThemePalette) -> Unit) {
+        val palette = LocalFocusPalette.current
+        SideEffect { onLive(palette) }
+    }
+
+    /**
+     * The palette [FocusStackTheme] published for [id]. After #29, plain
+     * [app.backpin.focus.ui.theme.FocusColors] stay Signal; sheets must follow
+     * this live local (FocusColors.Live) or these asserts fail.
+     */
+    private fun livePalette(
+        id: ThemeId,
+        live: ThemePalette,
+    ): ThemePalette {
+        assertEquals(id.name, paletteFor(id), live)
+        return live
     }
 
     private fun labelColor(text: String): Color {

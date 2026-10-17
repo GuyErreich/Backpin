@@ -33,6 +33,7 @@ import app.backpin.focus.domain.FrameState
 import app.backpin.focus.domain.TaskBucket
 import app.backpin.focus.domain.TaskStatus
 import app.backpin.focus.ui.FocusStackViewModel
+import app.backpin.focus.ui.SlotRole
 import app.backpin.focus.ui.TaskSheetRole
 import app.backpin.focus.ui.TaskSheetUi
 import app.backpin.focus.ui.home.HomeScreen
@@ -93,7 +94,7 @@ class TaskSheetTapTest {
             }
             awaitSnapshot(useCases) { snapshot ->
                 activeTitle(snapshot) == "Park me" &&
-                    snapshot.frames.any { it.taskId == idOfBlocking(useCases, "Hold this") && it.state == FrameState.AWAITING_RESUME }
+                    snapshot.frames.any { it.taskId == idOfBlocking(useCases, "Hold this") && it.state == FrameState.PAUSED }
             }
         }
     }
@@ -132,14 +133,9 @@ class TaskSheetTapTest {
     @Test
     fun waitingRowShowsResumeLaterEditAndNeverInterrupt() {
         withHarness { viewModel, useCases, _ ->
-            runBlocking {
-                todayTask(useCases, "Hold this")
-                useCases.start(idOf(useCases, "Hold this"))
-                useCases.interruptWithNew("Ping")
-                useCases.completeActive()
-            }
+            runBlocking { seedWaitingToday(useCases) }
             showHome(viewModel)
-            await { viewModel.uiState.value.now == null && viewModel.uiState.value.recovery?.title == "Hold this" }
+            awaitWaiting(viewModel)
             tapRow("waiting. Hold this. Opens the task sheet")
             await { viewModel.taskSheet.value?.role == TaskSheetRole.TODAY_WAITING }
             assertEquals(listOf("Resume", "Later", "Edit"), sheetActions())
@@ -152,14 +148,9 @@ class TaskSheetTapTest {
     @Test
     fun waitingResumeResumesTheParentAndCloses() {
         withHarness { viewModel, useCases, _ ->
-            runBlocking {
-                todayTask(useCases, "Hold this")
-                useCases.start(idOf(useCases, "Hold this"))
-                useCases.interruptWithNew("Ping")
-                useCases.completeActive()
-            }
+            runBlocking { seedWaitingToday(useCases) }
             showHome(viewModel)
-            await { viewModel.uiState.value.now == null && viewModel.uiState.value.recovery?.title == "Hold this" }
+            awaitWaiting(viewModel)
             tapRow("waiting. Hold this. Opens the task sheet")
             await { viewModel.taskSheet.value?.role == TaskSheetRole.TODAY_WAITING }
             tapSheet("Resume")
@@ -215,7 +206,7 @@ class TaskSheetTapTest {
             tapSheet("Interrupt")
             awaitSnapshot(useCases) { snapshot ->
                 activeTitle(snapshot) == "From later" &&
-                    snapshot.frames.any { it.taskId == idOfBlocking(useCases, "Hold this") && it.state == FrameState.AWAITING_RESUME }
+                    snapshot.frames.any { it.taskId == idOfBlocking(useCases, "Hold this") && it.state == FrameState.PAUSED }
             }
             assertNull(viewModel.taskSheet.value)
         }
@@ -411,6 +402,25 @@ class TaskSheetTapTest {
     ) {
         useCases.capture(title)
         useCases.promote(idOf(useCases, title))
+    }
+
+    /** Nested interrupt inside Today, then Done on the child. Parent stays a Today waiting row. */
+    private suspend fun seedWaitingToday(useCases: FocusUseCases) {
+        todayTask(useCases, "Hold this")
+        todayTask(useCases, "Ping")
+        useCases.start(idOf(useCases, "Hold this"))
+        useCases.interruptWith(idOf(useCases, "Ping"))
+        useCases.completeActive()
+    }
+
+    private fun awaitWaiting(viewModel: FocusStackViewModel) {
+        await {
+            viewModel.uiState.value.now == null &&
+                viewModel.uiState.value.recovery?.title == "Hold this" &&
+                viewModel.uiState.value.todaySlots.any { slot ->
+                    slot.role == SlotRole.WAITING && slot.task?.title == "Hold this"
+                }
+        }
     }
 
     private suspend fun idOf(
