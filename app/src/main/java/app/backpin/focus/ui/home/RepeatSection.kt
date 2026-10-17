@@ -55,7 +55,6 @@ import androidx.compose.ui.unit.sp
 import app.backpin.focus.R
 import app.backpin.focus.domain.Repeat
 import app.backpin.focus.domain.RepeatDayStatus
-import app.backpin.focus.domain.RepeatRow as RepeatRowModel
 import app.backpin.focus.domain.RepeatRowsState
 import app.backpin.focus.ui.components.QuietButton
 import app.backpin.focus.ui.motion.MotionSpec
@@ -71,12 +70,14 @@ import app.backpin.focus.ui.theme.CardRadius
 import app.backpin.focus.ui.theme.FocusColors
 import app.backpin.focus.ui.theme.Space
 import kotlinx.coroutines.launch
+import app.backpin.focus.domain.RepeatRow as RepeatRowModel
 
 @Composable
 internal fun RepeatSection(
     rows: RepeatRowsState,
     reducedMotion: Boolean,
     onCheckOff: (RepeatRowModel) -> Unit,
+    onOpenMissed: (RepeatRowModel) -> Unit = {},
     onEdit: (Repeat) -> Unit,
     onCreate: () -> Unit,
 ) {
@@ -101,6 +102,7 @@ internal fun RepeatSection(
                         row = row,
                         reducedMotion = reducedMotion,
                         onCheckOff = { onCheckOff(row) },
+                        onOpenMissed = { onOpenMissed(row) },
                         onEdit = { onEdit(row.repeat) },
                     )
                 }
@@ -114,6 +116,7 @@ private fun RepeatRow(
     row: RepeatRowModel,
     reducedMotion: Boolean,
     onCheckOff: () -> Unit,
+    onOpenMissed: () -> Unit,
     onEdit: () -> Unit,
 ) {
     val open = row.status == RepeatDayStatus.OPEN
@@ -141,9 +144,9 @@ private fun RepeatRow(
     val content: @Composable () -> Unit = {
         Row(
             modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 14.dp),
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 14.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -207,9 +210,14 @@ private fun RepeatRow(
                             interactionSource = interaction,
                             indication = null,
                             role = Role.Button,
-                            onClickLabel = resources.getString(R.string.repeat_row_check_off),
+                            onClickLabel =
+                            if (missed) {
+                                resources.getString(R.string.missed_repeat_sheet_open)
+                            } else {
+                                resources.getString(R.string.repeat_row_check_off)
+                            },
                             onLongClickLabel = resources.getString(R.string.repeat_row_edit),
-                            onClick = onCheckOff,
+                            onClick = if (missed) onOpenMissed else onCheckOff,
                             onLongClick = onEdit,
                         )
                 } else {

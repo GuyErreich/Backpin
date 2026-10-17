@@ -27,6 +27,35 @@ data class EditingUi(
     val scheduledOnEpochDay: Long? = null,
 )
 
+/** Where [TaskSheet] reads its chip set from. */
+enum class TaskSheetRole {
+    TODAY_OPEN,
+    TODAY_WAITING,
+    PILE,
+}
+
+/** One open task in the chip-row task sheet. */
+data class TaskSheetUi(
+    val taskId: String,
+    val title: String,
+    val role: TaskSheetRole,
+    val canInterrupt: Boolean,
+    val frameId: String? = null,
+)
+
+/** A missed repeat in the chip-row missed sheet. */
+data class MissedRepeatSheetUi(
+    val repeatId: String,
+    val epochDay: Long,
+    val title: String,
+)
+
+/** A due scheduled task in the chip-row missed sheet. */
+data class MissedTaskSheetUi(
+    val taskId: String,
+    val title: String,
+)
+
 /** A task waiting on a local date. [due] means that date is today or earlier and it is still scheduled. */
 data class ScheduledTaskUi(
     val id: String,
