@@ -13,9 +13,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performScrollTo
+import app.backpin.focus.R
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStore
@@ -150,8 +152,16 @@ class RepeatScreenQaTest {
                 home.viewModel.uiState.value.ready &&
                     home.viewModel.repeatRows.value.rows.size == 2
             }
+            val cadence = compose.activity.getString(R.string.repeat_cadence, 2)
+            val titled = "Water plants" + compose.activity.getString(R.string.repeat_title_cadence_gap, cadence)
+            assertTrue(
+                home.viewModel.repeatRows.value.rows
+                    .single { it.repeat.title == "Water plants" }
+                    .cadenceDays == 2,
+            )
             compose.onNodeWithText("Take meds", substring = true).assertExists()
-            compose.onNodeWithText("Water plants · every 2 days", substring = true).assertExists()
+            compose.onNodeWithText(titled, substring = true, useUnmergedTree = true).assertExists()
+            compose.onNodeWithContentDescription("Water plants. Noon. every 2 days. Check off.").assertExists()
             writePng("repeats-home-daily-and-every-2-days.png")
         } finally {
             home.close()

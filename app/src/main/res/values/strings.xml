@@ -30,7 +30,7 @@
     <string name="repeat_empty">Nothing due today.</string>
     <string name="repeat_new">New repeat</string>
     <string name="repeat_cadence">every %d days</string>
-    <string name="repeat_title_cadence_gap"> · %1$s</string>
+    <string name="repeat_title_cadence_gap">" · %1$s"</string>
     <string name="repeat_missed">Missed at %1$s · muted until end of day</string>
     <string name="repeat_row_desc_open">%1$s. %2$s. Check off.</string>
     <string name="repeat_row_desc_open_cadence">%1$s. %2$s. %3$s. Check off.</string>
