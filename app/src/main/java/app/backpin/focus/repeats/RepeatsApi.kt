@@ -25,6 +25,13 @@ interface RepeatsApi {
     fun observeRepeats(): Flow<List<Repeat>>
 
     /**
+     * Current local epoch day from the injected clock and system zone.
+     * Emits on local midnight, a system date/time/zone change, or
+     * [refreshToday]. Equal days do not re-emit.
+     */
+    fun observeLocalEpochDay(): Flow<Long>
+
+    /**
      * Today's due items per band, with open / done / missed.
      * Repeats never enter Today and never become focus work.
      * Recomputes when the local day changes: local midnight, a system
@@ -217,6 +224,8 @@ data class RepeatUndo(
 
 private object EmptyRepeatsApi : RepeatsApi {
     override fun observeRepeats(): Flow<List<Repeat>> = flowOf(emptyList())
+
+    override fun observeLocalEpochDay(): Flow<Long> = flowOf(0L)
 
     override fun observeTodaysRepeats(): Flow<TodaysRepeats> = flowOf(TodaysRepeats())
 

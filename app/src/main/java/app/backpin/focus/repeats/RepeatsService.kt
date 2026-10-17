@@ -85,6 +85,8 @@ class RepeatsService(
 
     override fun observeRepeats(): Flow<List<Repeat>> = repository.observeRepeats()
 
+    override fun observeLocalEpochDay(): Flow<Long> = localEpochDay
+
     override fun observeTodaysRepeats(): Flow<TodaysRepeats> = combine(
         repository.observeRepeats(),
         repository.observeTodaysRepeats(),
