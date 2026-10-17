@@ -98,6 +98,44 @@ class ResumeChipSheetQaTest {
     }
 
     @Test
+    fun resumeSheetLeadsWithInNDaysWhenSuggestedIsNot1Or3Or7() {
+        var liveText by mutableStateOf(Color.Unspecified)
+        var liveMuted by mutableStateOf(Color.Unspecified)
+        var liveMint by mutableStateOf(Color.Unspecified)
+        showResumeSheet(
+            suggestedDays = 5,
+            onLive = { text, muted, mint ->
+                liveText = text
+                liveMuted = muted
+                liveMint = mint
+            },
+        )
+        val chips = listOf("In 5 days") + RESUME_CHIPS
+        assertEquals(chips, sheetChips(chips))
+        assertSheetChip("In 5 days")
+        val color = labelColor("In 5 days")
+        assertEquals("In 5 days", liveText, color)
+        assertNotEquals("In 5 days", liveMuted, color)
+        assertNotEquals("In 5 days", liveMint, color)
+        compose.onNodeWithText("or choose").assertDoesNotExist()
+        compose.onNodeWithText("Again in 5 days", substring = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun resumeSheetOmitsSuggestedChipWhenItWouldDuplicateAStandardChip() {
+        listOf(1, 3, 7).forEach { days ->
+            showResumeSheet(suggestedDays = days)
+            assertEquals(days.toString(), RESUME_CHIPS, sheetChips(RESUME_CHIPS))
+            assertEquals("In 3 days", 1, sheetChips(listOf("In 3 days")).size)
+            compose.onNodeWithText("In 1 day").assertDoesNotExist()
+            compose.onNodeWithText("In 1 days").assertDoesNotExist()
+            compose.onNodeWithText("In 7 days").assertDoesNotExist()
+            compose.onNodeWithText("or choose").assertDoesNotExist()
+            compose.onNodeWithText("Again in $days days", substring = true).assertDoesNotExist()
+        }
+    }
+
+    @Test
     fun resumeSheetEnabledChipsUseLiveTextNotMintOrMuted() {
         var liveText by mutableStateOf(Color.Unspecified)
         var liveMuted by mutableStateOf(Color.Unspecified)
