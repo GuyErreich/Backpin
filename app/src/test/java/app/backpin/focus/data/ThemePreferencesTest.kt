@@ -22,7 +22,7 @@ class ThemePreferencesTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
 
     @Test
-    fun themeIdAndHomeLayoutDefaultToSignalAndFlat() =
+    fun themeIdAndHomeLayoutDefaultToSignalAndFlat() {
         runBlocking {
             val store = PreferencesDataStore(context, "theme-defaults-${UUID.randomUUID()}")
             assertEquals(ThemeId.SIGNAL, store.themeId.first())
@@ -31,9 +31,10 @@ class ThemePreferencesTest {
             assertEquals(ThemeId.SIGNAL, store.themeId.first())
             assertEquals(HomeLayout.FLAT, store.homeLayout.first())
         }
+    }
 
     @Test
-    fun themeIdAndHomeLayoutPersistOnTheStore() =
+    fun themeIdAndHomeLayoutPersistOnTheStore() {
         runBlocking {
             val store = PreferencesDataStore(context, "theme-persist-${UUID.randomUUID()}")
             store.setThemeId(ThemeId.EMBER)
@@ -45,9 +46,10 @@ class ThemePreferencesTest {
             assertEquals(ThemeId.STILL_WATER, store.themeId.first())
             assertEquals(HomeLayout.FLAT, store.homeLayout.first())
         }
+    }
 
     @Test
-    fun storedThemeIdAndHomeLayoutSurviveANewDataStoreOnTheSameFile() =
+    fun storedThemeIdAndHomeLayoutSurviveANewDataStoreOnTheSameFile() {
         runBlocking {
             val name = "theme-recreate-${UUID.randomUUID()}"
             val original = PreferencesDataStore(context, name)
@@ -63,9 +65,10 @@ class ThemePreferencesTest {
             assertEquals(ThemeId.CLEAR_LINE, recreated.themeId.first())
             assertEquals(HomeLayout.BANDS, recreated.homeLayout.first())
         }
+    }
 
     @Test
-    fun unknownStoredThemeIdFallsBackToSignal() =
+    fun unknownStoredThemeIdFallsBackToSignal() {
         runBlocking {
             val store = PreferencesDataStore(context, "theme-unknown-${UUID.randomUUID()}")
             store.ensureDefaultsStored()
@@ -74,4 +77,5 @@ class ThemePreferencesTest {
             store.writeRaw("home_layout", "GRID")
             assertEquals(HomeLayout.FLAT, store.homeLayout.first())
         }
+    }
 }

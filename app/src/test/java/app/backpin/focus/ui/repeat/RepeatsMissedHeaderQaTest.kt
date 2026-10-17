@@ -37,17 +37,14 @@ class RepeatsMissedHeaderQaTest {
 
     @Test
     fun headerDoesNotSayAllDoneWhileMissedRepeatsRemainUnchecked() {
-        val todays =
-            TodaysRepeats(
-                noon =
-                    listOf(
-                        occ("Water plants", RepeatBand.NOON, RepeatDayStatus.MISSED),
-                    ),
-                night =
-                    listOf(
-                        occ("Brush teeth", RepeatBand.NIGHT, RepeatDayStatus.DONE),
-                    ),
-            )
+        val todays = TodaysRepeats(
+            noon = listOf(
+                occ("Water plants", RepeatBand.NOON, RepeatDayStatus.MISSED),
+            ),
+            night = listOf(
+                occ("Brush teeth", RepeatBand.NIGHT, RepeatDayStatus.DONE),
+            ),
+        )
         val state = repeatRowsState(todays)
         assertTrue(state.rows.any { it.status == RepeatDayStatus.MISSED })
         assertNotEquals(
@@ -94,21 +91,19 @@ class RepeatsMissedHeaderQaTest {
         title: String,
         band: RepeatBand,
         status: RepeatDayStatus,
-    ): RepeatOccurrence =
-        RepeatOccurrence(
-            repeat =
-                Repeat(
-                    id = title,
-                    title = title,
-                    band = band,
-                    everyNDays = 1,
-                    anchorEpochDay = 0,
-                    reminderOn = true,
-                    sortOrder = 0,
-                    createdAtEpochMillis = 0,
-                    archivedAtEpochMillis = null,
-                ),
-            epochDay = 0,
-            status = status,
-        )
+    ): RepeatOccurrence = RepeatOccurrence(
+        repeat = Repeat(
+            id = title,
+            title = title,
+            band = band,
+            everyNDays = 1,
+            anchorEpochDay = 0,
+            reminderOn = true,
+            sortOrder = 0,
+            createdAtEpochMillis = 0,
+            archivedAtEpochMillis = null,
+        ),
+        epochDay = 0,
+        status = status,
+    )
 }

@@ -98,8 +98,10 @@ class ThemeKeyResetTest {
         }
     }
 
-    private fun exists(text: String): Boolean =
-        compose.onAllNodesWithText(text, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
+    private fun exists(text: String): Boolean = compose
+        .onAllNodesWithText(text, useUnmergedTree = true)
+        .fetchSemanticsNodes()
+        .isNotEmpty()
 
     private class ThemeChange {
         var setTheme: (ThemeId) -> Unit = {}

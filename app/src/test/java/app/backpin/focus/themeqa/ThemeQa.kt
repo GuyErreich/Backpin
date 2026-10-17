@@ -128,24 +128,22 @@ internal suspend fun PreferencesDataStore.writeRaw(
     }
 }
 
-internal fun ThemePalette.roleColors(): Set<Color> =
-    setOf(
-        background,
-        surface,
-        surfaceRaised,
-        outline,
-        textPrimary,
-        textSecondary,
-        accent,
-        onAccent,
-        now,
-        missed,
-        done,
-        danger,
-    )
+internal fun ThemePalette.roleColors(): Set<Color> = setOf(
+    background,
+    surface,
+    surfaceRaised,
+    outline,
+    textPrimary,
+    textSecondary,
+    accent,
+    onAccent,
+    now,
+    missed,
+    done,
+    danger,
+)
 
-internal fun Color.rgbEquals(other: Color): Boolean =
-    red == other.red && green == other.green && blue == other.blue
+internal fun Color.rgbEquals(other: Color): Boolean = red == other.red && green == other.green && blue == other.blue
 
 internal fun AndroidComposeTestRule<*, *>.allTextColors(): List<Pair<String, Color>> {
     val matcher =
