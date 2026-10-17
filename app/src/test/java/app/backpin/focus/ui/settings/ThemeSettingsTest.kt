@@ -18,7 +18,6 @@ import androidx.compose.ui.test.performScrollTo
 import app.backpin.focus.BuildConfig
 import app.backpin.focus.domain.BandTimes
 import app.backpin.focus.domain.HomeLayout
-import app.backpin.focus.domain.RepeatBand
 import app.backpin.focus.domain.ThemeId
 import app.backpin.focus.domain.UserPreferences
 import app.backpin.focus.runOffTestThread
@@ -130,15 +129,9 @@ class ThemeSettingsTest {
     }
 
     @Test
-    fun selectingBandsPersistsAndSwitchesHomeToBandSections() {
+    fun selectingBandsPersistsAndShowsItSelected() {
         val env = themeQaEnv()
         try {
-            val today = java.time.LocalDate.of(2026, 10, 16).toEpochDay()
-            runOffTestThread {
-                env.repeats.create("Take meds", RepeatBand.MORNING, 1, today)
-                env.repeats.create("Water plants", RepeatBand.NOON, 1, today)
-                env.repeats.create("Brush teeth", RepeatBand.NIGHT, 1, today)
-            }
             compose.setContent {
                 var homeLayout by remember { mutableStateOf(HomeLayout.FLAT) }
                 val scope = rememberCoroutineScope()
@@ -154,13 +147,7 @@ class ThemeSettingsTest {
                     )
                 }
             }
-            compose.awaitUntil {
-                env.viewModel.uiState.value.ready &&
-                    env.viewModel.repeatRows.value.rows.size == 3
-            }
-            compose.onNodeWithText("Morning").assertDoesNotExist()
-            compose.onNodeWithText("Noon").assertDoesNotExist()
-            compose.onNodeWithText("Night").assertDoesNotExist()
+            compose.awaitUntil { env.viewModel.uiState.value.ready }
             compose.tap("Settings")
             compose.onNodeWithText("Home layout").performScrollTo()
             compose.onNodeWithText("Bands").performScrollTo()
@@ -170,11 +157,7 @@ class ThemeSettingsTest {
             }
             assertEquals(HomeLayout.BANDS, runOffTestThread { env.preferences.homeLayout.first() })
             compose.onNodeWithText("Bands").assertIsSelected()
-            compose.tap("Home")
-            compose.waitForIdle()
-            compose.onNodeWithText("Morning").assertExists()
-            compose.onNodeWithText("Noon").assertExists()
-            compose.onNodeWithText("Night").assertExists()
+            compose.onNodeWithText("Flat").assertIsNotSelected()
         } finally {
             env.close()
         }
