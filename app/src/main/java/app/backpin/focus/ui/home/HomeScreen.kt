@@ -121,7 +121,7 @@ fun HomeScreen(
             Text(
                 text = "FOCUS STACK",
                 style = MaterialTheme.typography.labelLarge,
-                color = FocusColors.Muted,
+                color = FocusColors.Live.Muted,
                 letterSpacing = 1.4.sp,
             )
             Text(
@@ -183,7 +183,7 @@ fun HomeScreen(
                     onCreate = { viewModel.openRepeatCreate() },
                 )
             }
-            HorizontalDivider(color = FocusColors.Outline)
+            HorizontalDivider(color = FocusColors.Live.Outline)
             Column(verticalArrangement = Arrangement.spacedBy(Space)) {
                 PileCountRow(title = "Inbox", count = state.inboxCount, onClick = onOpenInbox)
                 PileCountRow(title = "Later", count = state.laterCount, onClick = onOpenLater)
@@ -217,7 +217,7 @@ private fun NowCard(
     val recovery = state.recovery
     when {
         now != null -> {
-            val accent = if (now.isInterruption || now.isEvent) FocusColors.Lavender else FocusColors.Mint
+            val accent = FocusColors.Live.Lavender
             val label = nowLabel(now)
             val openInteraction = rememberPressSource()
             SwipeRevealCard(
@@ -253,7 +253,7 @@ private fun NowCard(
                                 onClick = onOpenFocus,
                             ),
                     shape = RoundedCornerShape(CardRadius),
-                    color = FocusColors.Surface,
+                    color = FocusColors.Live.Surface,
                     border = BorderStroke(2.dp, accent),
                 ) {
                     Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(Space)) {
@@ -268,7 +268,7 @@ private fun NowCard(
                         if (!now.returnCue.isNullOrBlank()) {
                             Text(
                                 "Return note",
-                                color = FocusColors.Muted,
+                                color = FocusColors.Live.Muted,
                                 style = MaterialTheme.typography.labelLarge,
                             )
                             Text(now.returnCue, style = MaterialTheme.typography.bodyLarge)
@@ -311,10 +311,10 @@ private fun NowCard(
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(CardRadius),
-                color = FocusColors.Surface,
+                color = FocusColors.Live.Surface,
             ) {
                 Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(Space)) {
-                    Text("NOW", color = FocusColors.Muted, style = MaterialTheme.typography.labelLarge, letterSpacing = 1.2.sp)
+                    Text("NOW", color = FocusColors.Live.Muted, style = MaterialTheme.typography.labelLarge, letterSpacing = 1.2.sp)
                     Text("Nothing in focus.", style = MaterialTheme.typography.headlineMedium)
                     Text(
                         "Capture a thought, or add one to Today.",
@@ -649,7 +649,7 @@ private fun TodayRow(
                         },
                     ),
             shape = RoundedCornerShape(CardRadius),
-            color = FocusColors.Surface,
+            color = FocusColors.Live.Surface,
             shadowElevation = 8.dp * lift,
         ) {
             Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(Space)) {
@@ -688,14 +688,14 @@ private fun EmptyTodaySlot() {
                 .fillMaxWidth()
                 .heightIn(min = 72.dp)
                 .semantics { contentDescription = "Empty Today slot." }
-                .dashedSlot(FocusColors.Outline),
+                .dashedSlot(FocusColors.Live.Outline),
         contentAlignment = Alignment.CenterStart,
     ) {
         Text(
             "Empty slot",
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 22.dp),
             style = MaterialTheme.typography.bodyLarge,
-            color = FocusColors.Muted,
+            color = FocusColors.Live.Muted,
         )
     }
 }
@@ -720,10 +720,10 @@ internal fun Modifier.dashedSlot(color: Color): Modifier =
 private fun RoleLabel(role: SlotRole) {
     val (text, color) =
         when (role) {
-            SlotRole.NOW -> "NOW" to FocusColors.Mint
-            SlotRole.WAITING -> "Waiting" to FocusColors.Lavender
-            SlotRole.OPEN -> "" to FocusColors.Muted
-            SlotRole.EMPTY -> "" to FocusColors.Muted
+            SlotRole.NOW -> "NOW" to FocusColors.Live.Lavender
+            SlotRole.WAITING -> "Waiting" to FocusColors.Live.Lavender
+            SlotRole.OPEN -> "" to FocusColors.Live.Muted
+            SlotRole.EMPTY -> "" to FocusColors.Live.Muted
         }
     if (text.isNotEmpty()) {
         Text(text, color = color, style = MaterialTheme.typography.labelLarge, letterSpacing = 1.sp)
@@ -743,11 +743,11 @@ internal fun SectionLabel(
         Text(
             title,
             style = MaterialTheme.typography.labelLarge,
-            color = FocusColors.Muted,
+            color = FocusColors.Live.Muted,
             letterSpacing = 1.2.sp,
             modifier = Modifier.semantics { heading() },
         )
-        Text(trailing, style = MaterialTheme.typography.bodyMedium, color = FocusColors.Muted)
+        Text(trailing, style = MaterialTheme.typography.bodyMedium, color = FocusColors.Live.Muted)
     }
 }
 
@@ -765,7 +765,7 @@ private fun PileCountRow(
     val pressed by interaction.collectIsPressedAsState()
     val reducedMotion = rememberReducedMotion()
     val color by animateColorAsState(
-        targetValue = if (pressed) FocusColors.SurfaceHigh else FocusColors.Surface,
+        targetValue = if (pressed) FocusColors.Live.SurfaceHigh else FocusColors.Live.Surface,
         animationSpec = motionSpec(MotionSpec.PressMillis, reducedMotion),
         label = "countPress",
     )
@@ -784,7 +784,7 @@ private fun PileCountRow(
                 ),
         shape = RoundedCornerShape(CardRadius),
         color = color,
-        border = BorderStroke(1.dp, FocusColors.Outline),
+        border = BorderStroke(1.dp, FocusColors.Live.Outline),
     ) {
         Row(
             modifier =
@@ -797,13 +797,13 @@ private fun PileCountRow(
             Text(
                 title.uppercase(),
                 style = MaterialTheme.typography.labelLarge,
-                color = FocusColors.Muted,
+                color = FocusColors.Live.Muted,
                 letterSpacing = 1.2.sp,
             )
             Text(
                 count.toString(),
                 style = MaterialTheme.typography.titleMedium,
-                color = FocusColors.Mint,
+                color = FocusColors.Live.Mint,
             )
         }
     }
@@ -838,7 +838,7 @@ internal fun ElapsedText(
     Text(
         shown,
         style = MaterialTheme.typography.bodyLarge,
-        color = FocusColors.Muted,
+        color = FocusColors.Live.Muted,
         modifier =
             Modifier.semantics {
                 contentDescription = "Elapsed $hours hours $remainder minutes"
