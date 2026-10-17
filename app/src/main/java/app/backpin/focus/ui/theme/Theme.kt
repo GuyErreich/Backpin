@@ -14,65 +14,87 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.backpin.focus.domain.ThemeId
 
+private val signalPalette = paletteFor(ThemeId.SIGNAL)
+
 object FocusColors {
-    val Midnight: Color
-        @Composable
-        @ReadOnlyComposable
-        get() = LocalFocusPalette.current.background
-    val Surface: Color
-        @Composable
-        @ReadOnlyComposable
-        get() = LocalFocusPalette.current.surface
-    val SurfaceHigh: Color
-        @Composable
-        @ReadOnlyComposable
-        get() = LocalFocusPalette.current.surfaceRaised
-    val Text: Color
-        @Composable
-        @ReadOnlyComposable
-        get() = LocalFocusPalette.current.textPrimary
-    val Muted: Color
-        @Composable
-        @ReadOnlyComposable
-        get() = LocalFocusPalette.current.textSecondary
-    val Mint: Color
-        @Composable
-        @ReadOnlyComposable
-        get() = LocalFocusPalette.current.done
-    val OnMint: Color
-        @Composable
-        @ReadOnlyComposable
-        get() = LocalFocusPalette.current.onAccent
-    val Amber: Color
-        @Composable
-        @ReadOnlyComposable
-        get() = LocalFocusPalette.current.missed
-    val OnAmber: Color
-        @Composable
-        @ReadOnlyComposable
-        get() = LocalFocusPalette.current.onAccent
-    val Lavender: Color
-        @Composable
-        @ReadOnlyComposable
-        get() = LocalFocusPalette.current.now
-    val OnLavender: Color
-        @Composable
-        @ReadOnlyComposable
-        get() = LocalFocusPalette.current.onAccent
+    val Midnight: Color get() = signalPalette.background
+    val Surface: Color get() = signalPalette.surface
+    val SurfaceHigh: Color get() = signalPalette.surfaceRaised
+    val Text: Color get() = signalPalette.textPrimary
+    val Muted: Color get() = signalPalette.textSecondary
+    val Mint: Color get() = signalPalette.done
+    val OnMint: Color get() = signalPalette.onAccent
+    val Amber: Color get() = signalPalette.missed
+    val OnAmber: Color get() = signalPalette.onAccent
+    val Lavender: Color get() = signalPalette.now
+    val OnLavender: Color get() = signalPalette.onAccent
 
     /** Soft fill for the default lavender choice, such as Again in N days. */
-    val LavenderContainer: Color
-        @Composable
-        @ReadOnlyComposable
-        get() = LocalFocusPalette.current.now.copy(alpha = CHOICE_FILL_ALPHA)
-    val Outline: Color
-        @Composable
-        @ReadOnlyComposable
-        get() = LocalFocusPalette.current.outline
-    val Danger: Color
-        @Composable
-        @ReadOnlyComposable
-        get() = LocalFocusPalette.current.danger
+    val LavenderContainer: Color get() = signalPalette.now.copy(alpha = CHOICE_FILL_ALPHA)
+    val Outline: Color get() = signalPalette.outline
+    val Danger: Color get() = signalPalette.danger
+
+    /** Live colors from [LocalFocusPalette]. */
+    object Live {
+        val Midnight: Color
+            @Composable
+            @ReadOnlyComposable
+            get() = LocalFocusPalette.current.background
+        val Surface: Color
+            @Composable
+            @ReadOnlyComposable
+            get() = LocalFocusPalette.current.surface
+        val SurfaceHigh: Color
+            @Composable
+            @ReadOnlyComposable
+            get() = LocalFocusPalette.current.surfaceRaised
+        val Text: Color
+            @Composable
+            @ReadOnlyComposable
+            get() = LocalFocusPalette.current.textPrimary
+        val Muted: Color
+            @Composable
+            @ReadOnlyComposable
+            get() = LocalFocusPalette.current.textSecondary
+        val Mint: Color
+            @Composable
+            @ReadOnlyComposable
+            get() = LocalFocusPalette.current.done
+        val OnMint: Color
+            @Composable
+            @ReadOnlyComposable
+            get() = LocalFocusPalette.current.onAccent
+        val Amber: Color
+            @Composable
+            @ReadOnlyComposable
+            get() = LocalFocusPalette.current.missed
+        val OnAmber: Color
+            @Composable
+            @ReadOnlyComposable
+            get() = LocalFocusPalette.current.onAccent
+        val Lavender: Color
+            @Composable
+            @ReadOnlyComposable
+            get() = LocalFocusPalette.current.now
+        val OnLavender: Color
+            @Composable
+            @ReadOnlyComposable
+            get() = LocalFocusPalette.current.onAccent
+
+        /** Soft fill for the default lavender choice, such as Again in N days. */
+        val LavenderContainer: Color
+            @Composable
+            @ReadOnlyComposable
+            get() = LocalFocusPalette.current.now.copy(alpha = CHOICE_FILL_ALPHA)
+        val Outline: Color
+            @Composable
+            @ReadOnlyComposable
+            get() = LocalFocusPalette.current.outline
+        val Danger: Color
+            @Composable
+            @ReadOnlyComposable
+            get() = LocalFocusPalette.current.danger
+    }
 }
 
 val CardRadius = 24.dp

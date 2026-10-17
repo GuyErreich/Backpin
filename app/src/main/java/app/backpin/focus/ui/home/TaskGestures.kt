@@ -72,8 +72,8 @@ internal data class SwipeSide(
 internal fun doneSwipe(onDone: () -> Unit): SwipeSide = SwipeSide(
     label = "Done",
     accessibilityLabel = "Done",
-    tint = FocusColors.Mint,
-    onTint = FocusColors.OnMint,
+    tint = FocusColors.Live.Mint,
+    onTint = FocusColors.Live.OnMint,
     onCommit = onDone,
 )
 
@@ -81,8 +81,8 @@ internal fun doneSwipe(onDone: () -> Unit): SwipeSide = SwipeSide(
 internal fun laterSwipe(onLater: () -> Unit): SwipeSide = SwipeSide(
     label = "Later",
     accessibilityLabel = "Move to Later",
-    tint = FocusColors.Danger,
-    onTint = FocusColors.OnMint,
+    tint = FocusColors.Live.Danger,
+    onTint = FocusColors.Live.OnMint,
     onCommit = onLater,
 )
 
@@ -90,8 +90,8 @@ internal fun laterSwipe(onLater: () -> Unit): SwipeSide = SwipeSide(
 internal fun todaySwipe(onToday: () -> Unit): SwipeSide = SwipeSide(
     label = "Today",
     accessibilityLabel = "Add to Today",
-    tint = FocusColors.Mint,
-    onTint = FocusColors.OnMint,
+    tint = FocusColors.Live.Mint,
+    onTint = FocusColors.Live.OnMint,
     onCommit = onToday,
 )
 
@@ -99,8 +99,8 @@ internal fun todaySwipe(onToday: () -> Unit): SwipeSide = SwipeSide(
 internal fun startSwipe(onStart: () -> Unit): SwipeSide = SwipeSide(
     label = "Start",
     accessibilityLabel = "Start",
-    tint = FocusColors.Mint,
-    onTint = FocusColors.OnMint,
+    tint = FocusColors.Live.Mint,
+    onTint = FocusColors.Live.OnMint,
     onCommit = onStart,
 )
 
@@ -108,8 +108,8 @@ internal fun startSwipe(onStart: () -> Unit): SwipeSide = SwipeSide(
 internal fun interruptSwipe(onInterrupt: () -> Unit): SwipeSide = SwipeSide(
     label = "Interrupt",
     accessibilityLabel = "Interrupt",
-    tint = FocusColors.Lavender,
-    onTint = FocusColors.OnLavender,
+    tint = FocusColors.Live.Lavender,
+    onTint = FocusColors.Live.OnLavender,
     onCommit = onInterrupt,
 )
 

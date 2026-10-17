@@ -80,7 +80,7 @@ private val LocalLockButtonHeight = compositionLocalOf { false }
 
 private fun Color.shown(enabled: Boolean): Color = if (enabled) this else copy(alpha = DISABLED_ALPHA)
 
-@Composable
+/** Tone swatch for the Signal palette. */
 private fun AccentTone.color(): Color = when (this) {
     AccentTone.Mint -> FocusColors.Mint
     AccentTone.Lavender -> FocusColors.Lavender
@@ -88,13 +88,13 @@ private fun AccentTone.color(): Color = when (this) {
 }
 
 /** Label of an [AccentButton]: the same color as its border. */
-@Composable internal fun accentLabelColor(
+internal fun accentLabelColor(
     tone: AccentTone,
     enabled: Boolean = true,
 ): Color = tone.color().shown(enabled)
 
 /** Label of a [CaptureChoice]: the accent for Mint, Lavender, and Amber, plain text for Quiet. */
-@Composable internal fun choiceLabelColor(
+internal fun choiceLabelColor(
     tone: ChoiceTone,
     enabled: Boolean = true,
 ): Color =
@@ -105,13 +105,13 @@ private fun AccentTone.color(): Color = when (this) {
         ChoiceTone.Quiet -> FocusColors.Text.shown(enabled)
     }
 
-@Composable private fun choiceBorderColor(
+private fun choiceBorderColor(
     tone: ChoiceTone,
     enabled: Boolean,
 ): Color = if (tone == ChoiceTone.Quiet) FocusColors.Outline.shown(enabled) else choiceLabelColor(tone, enabled)
 
 /** Soft container behind a default choice. Outlined choices stay transparent. */
-@Composable internal fun choiceContainerColor(
+internal fun choiceContainerColor(
     tone: ChoiceTone,
     filled: Boolean,
     enabled: Boolean = true,
@@ -238,7 +238,7 @@ internal fun AccentButton(
     enabled: Boolean = true,
 ) {
     val interaction = rememberPressSource()
-    val color = accentLabelColor(tone, enabled)
+    val color = accentLabelColor(tone, enabled, app.backpin.focus.ui.theme.LocalFocusPalette.current)
     OutlinedFocusButton(
         label = label,
         labelColor = color,
@@ -266,8 +266,8 @@ internal fun QuietButton(
     val picked = selected == true
     OutlinedFocusButton(
         label = label,
-        labelColor = choiceLabelColor(ChoiceTone.Quiet, enabled),
-        borderColor = if (picked) FocusColors.Text.shown(enabled) else choiceBorderColor(ChoiceTone.Quiet, enabled),
+        labelColor = choiceLabelColor(ChoiceTone.Quiet, enabled, app.backpin.focus.ui.theme.LocalFocusPalette.current),
+        borderColor = if (picked) FocusColors.Live.Text.shown(enabled) else choiceBorderColor(ChoiceTone.Quiet, enabled, app.backpin.focus.ui.theme.LocalFocusPalette.current),
         onClick = onClick,
         modifier =
             modifier
@@ -275,7 +275,7 @@ internal fun QuietButton(
                 .then(if (selected != null) Modifier.semantics { this.selected = picked } else Modifier),
         enabled = enabled,
         interactionSource = interaction,
-        containerColor = if (picked) FocusColors.SurfaceHigh else Color.Transparent,
+        containerColor = if (picked) FocusColors.Live.SurfaceHigh else Color.Transparent,
     )
 }
 
@@ -295,12 +295,12 @@ internal fun CaptureChoice(
 ) {
     OutlinedFocusButton(
         label = label,
-        labelColor = choiceLabelColor(tone, enabled),
+        labelColor = choiceLabelColor(tone, enabled, app.backpin.focus.ui.theme.LocalFocusPalette.current),
         borderColor =
             if (selected && tone == ChoiceTone.Quiet) {
-                FocusColors.Text.shown(enabled)
+                FocusColors.Live.Text.shown(enabled)
             } else {
-                choiceBorderColor(tone, enabled)
+                choiceBorderColor(tone, enabled, app.backpin.focus.ui.theme.LocalFocusPalette.current)
             },
         onClick = onClick,
         modifier =
@@ -312,8 +312,8 @@ internal fun CaptureChoice(
         interactionSource = null,
         containerColor =
             when {
-                filled -> choiceContainerColor(tone, true, enabled)
-                selected -> FocusColors.SurfaceHigh
+                filled -> choiceContainerColor(tone, true, enabled, app.backpin.focus.ui.theme.LocalFocusPalette.current)
+                selected -> FocusColors.Live.SurfaceHigh
                 else -> Color.Transparent
             },
     )
@@ -382,4 +382,48 @@ internal fun CardActions(
             content()
         }
     }
+}
+
+internal fun accentLabelColor(
+    tone: AccentTone,
+    enabled: Boolean,
+    palette: app.backpin.focus.ui.theme.ThemePalette,
+): Color = when (tone) {
+    AccentTone.Mint -> palette.done
+    AccentTone.Lavender -> palette.now
+    AccentTone.Amber -> palette.missed
+}.shown(enabled)
+
+internal fun choiceLabelColor(
+    tone: ChoiceTone,
+    enabled: Boolean,
+    palette: app.backpin.focus.ui.theme.ThemePalette,
+): Color = when (tone) {
+    ChoiceTone.Mint -> accentLabelColor(AccentTone.Mint, enabled, palette)
+    ChoiceTone.Lavender -> accentLabelColor(AccentTone.Lavender, enabled, palette)
+    ChoiceTone.Amber -> accentLabelColor(AccentTone.Amber, enabled, palette)
+    ChoiceTone.Quiet -> palette.textPrimary.shown(enabled)
+}
+
+private fun choiceBorderColor(
+    tone: ChoiceTone,
+    enabled: Boolean,
+    palette: app.backpin.focus.ui.theme.ThemePalette,
+): Color = if (tone == ChoiceTone.Quiet) palette.outline.shown(enabled) else choiceLabelColor(tone, enabled, palette)
+
+internal fun choiceContainerColor(
+    tone: ChoiceTone,
+    filled: Boolean,
+    enabled: Boolean,
+    palette: app.backpin.focus.ui.theme.ThemePalette,
+): Color {
+    if (!filled) return Color.Transparent
+    val fill =
+        when (tone) {
+            ChoiceTone.Lavender -> palette.now.copy(alpha = FocusColors.LavenderContainer.alpha)
+            ChoiceTone.Mint -> palette.done.copy(alpha = 0.25f)
+            ChoiceTone.Amber -> palette.missed.copy(alpha = 0.25f)
+            ChoiceTone.Quiet -> palette.surfaceRaised
+        }
+    return fill.shown(enabled)
 }
