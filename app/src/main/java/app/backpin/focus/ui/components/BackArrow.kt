@@ -51,7 +51,7 @@ internal fun BackArrow(
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                 contentDescription = label,
-                tint = FocusColors.Text,
+                tint = FocusColors.Live.Text,
             )
         }
     }

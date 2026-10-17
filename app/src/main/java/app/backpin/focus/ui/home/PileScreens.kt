@@ -140,7 +140,7 @@ fun ScheduledScreen(
         modifier = modifier,
     ) {
         if (tasks.isEmpty()) {
-            Text("Nothing is waiting on a date.", style = MaterialTheme.typography.bodyLarge, color = FocusColors.Muted)
+            Text("Nothing is waiting on a date.", style = MaterialTheme.typography.bodyLarge, color = FocusColors.Live.Muted)
         }
         tasks.forEach { task ->
             SwipeRevealCard(
@@ -166,7 +166,7 @@ fun ScheduledScreen(
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
-                    color = FocusColors.SurfaceHigh,
+                    color = FocusColors.Live.SurfaceHigh,
                 ) {
                     Column(PileRowPadding, verticalArrangement = Arrangement.spacedBy(Space)) {
                         Column {
@@ -174,7 +174,7 @@ fun ScheduledScreen(
                             Text(
                                 task.whenLabel,
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = if (task.due) FocusColors.Amber else FocusColors.Muted,
+                                color = if (task.due) FocusColors.Live.Amber else FocusColors.Live.Muted,
                             )
                         }
                         CardActions {
@@ -255,7 +255,7 @@ fun DoneScreen(
         modifier = modifier,
     ) {
         if (tasks.isEmpty()) {
-            Text("Nothing in the archive.", style = MaterialTheme.typography.bodyLarge, color = FocusColors.Muted)
+            Text("Nothing in the archive.", style = MaterialTheme.typography.bodyLarge, color = FocusColors.Live.Muted)
         }
         tasks.forEach { task ->
             Surface(
@@ -264,7 +264,7 @@ fun DoneScreen(
                         .fillMaxWidth()
                         .semantics { contentDescription = "Done. ${task.title}. Restore returns it to Inbox." },
                 shape = RoundedCornerShape(16.dp),
-                color = FocusColors.SurfaceHigh,
+                color = FocusColors.Live.SurfaceHigh,
             ) {
                 Column(PileRowPadding, verticalArrangement = Arrangement.spacedBy(Space)) {
                     Text(task.title, style = MaterialTheme.typography.titleLarge)
@@ -300,7 +300,7 @@ private fun ActionPileScreen(
         modifier = modifier,
     ) {
         if (tasks.isEmpty()) {
-            Text(emptyLabel, style = MaterialTheme.typography.bodyLarge, color = FocusColors.Muted)
+            Text(emptyLabel, style = MaterialTheme.typography.bodyLarge, color = FocusColors.Live.Muted)
         }
         tasks.forEach { task ->
             SwipeRevealCard(
@@ -326,7 +326,7 @@ private fun ActionPileScreen(
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(CardRadius),
-                    color = FocusColors.SurfaceHigh,
+                    color = FocusColors.Live.SurfaceHigh,
                 ) {
                     Column(ActionPileCardPadding, verticalArrangement = Arrangement.spacedBy(Space)) {
                         Text(task.title, style = MaterialTheme.typography.titleLarge)
@@ -397,7 +397,7 @@ private fun PileHeader(
         Text(
             count.toString(),
             style = MaterialTheme.typography.headlineMedium,
-            color = FocusColors.Mint,
+            color = FocusColors.Live.Mint,
         )
     }
 }

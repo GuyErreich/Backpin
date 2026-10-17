@@ -41,6 +41,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -49,10 +50,13 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import app.backpin.focus.R
 import app.backpin.focus.domain.BandEdge
 import app.backpin.focus.domain.BandTimes
+import app.backpin.focus.domain.HomeLayout
 import app.backpin.focus.domain.MAX_TODAY_LIMIT
 import app.backpin.focus.domain.MIN_TODAY_LIMIT
+import app.backpin.focus.domain.ThemeId
 import app.backpin.focus.domain.UserPreferences
 import app.backpin.focus.domain.minuteOfDayClock
 import app.backpin.focus.domain.parseClockToMinute
@@ -80,6 +84,11 @@ fun SettingsScreen(
     showExactAlarmPrompt: Boolean = false,
     onDismissExactAlarmPrompt: () -> Unit = {},
     onRefreshExactAlarmPermission: () -> Unit = {},
+    themeId: ThemeId = ThemeId.SIGNAL,
+    onThemeId: (ThemeId) -> Unit = {},
+    homeLayout: HomeLayout = HomeLayout.FLAT,
+    onHomeLayout: (HomeLayout) -> Unit = {},
+    showHomeLayout: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -126,16 +135,16 @@ fun SettingsScreen(
 
     Column(
         modifier =
-            modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp, vertical = 12.dp),
+        modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 20.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(Space * 2),
     ) {
         Text(
             "SETTINGS",
             style = MaterialTheme.typography.labelLarge,
-            color = FocusColors.Muted,
+            color = FocusColors.Live.Muted,
         )
         Text(
             "Kept on this phone.",
@@ -149,7 +158,45 @@ fun SettingsScreen(
         Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(CardRadius),
-            color = FocusColors.Surface,
+            color = FocusColors.Live.Surface,
+        ) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(Space)) {
+                Text(stringResource(R.string.settings_theme), style = MaterialTheme.typography.titleMedium)
+                ActionRow {
+                    for ((id, label) in themeChoices) {
+                        QuietButton(
+                            stringResource(label),
+                            selected = themeId == id,
+                            onClick = { onThemeId(id) },
+                        )
+                    }
+                }
+            }
+        }
+        if (showHomeLayout) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(CardRadius),
+                color = FocusColors.Live.Surface,
+            ) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(Space)) {
+                    Text(stringResource(R.string.settings_home_layout), style = MaterialTheme.typography.titleMedium)
+                    ActionRow {
+                        for ((layout, label) in homeLayoutChoices) {
+                            QuietButton(
+                                stringResource(label),
+                                selected = homeLayout == layout,
+                                onClick = { onHomeLayout(layout) },
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(CardRadius),
+            color = FocusColors.Live.Surface,
         ) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(Space)) {
                 Text("Today", style = MaterialTheme.typography.titleMedium)
@@ -171,7 +218,7 @@ fun SettingsScreen(
         Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(CardRadius),
-            color = FocusColors.Surface,
+            color = FocusColors.Live.Surface,
         ) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(Space)) {
                 Text("Repeats", style = MaterialTheme.typography.titleMedium)
@@ -189,7 +236,7 @@ fun SettingsScreen(
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(CardRadius),
-                color = FocusColors.SurfaceHigh,
+                color = FocusColors.Live.SurfaceHigh,
             ) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(Space)) {
                     Text("On-time reminders", style = MaterialTheme.typography.titleMedium)
@@ -221,7 +268,7 @@ fun SettingsScreen(
         Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(CardRadius),
-            color = FocusColors.Surface,
+            color = FocusColors.Live.Surface,
         ) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(Space)) {
                 Text("Phrases", style = MaterialTheme.typography.titleMedium)
@@ -234,7 +281,7 @@ fun SettingsScreen(
                         Text(
                             phrase,
                             style = MaterialTheme.typography.bodyLarge,
-                            color = FocusColors.Text,
+                            color = FocusColors.Live.Text,
                         )
                         ActionRow {
                             QuietButton("Rename", onClick = { renaming = index })
@@ -251,12 +298,12 @@ fun SettingsScreen(
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                     keyboardActions =
-                        KeyboardActions(
-                            onDone = {
-                                onAddPhrase(newPhrase)
-                                if (newPhrase.isNotBlank()) newPhrase = ""
-                            },
-                        ),
+                    KeyboardActions(
+                        onDone = {
+                            onAddPhrase(newPhrase)
+                            if (newPhrase.isNotBlank()) newPhrase = ""
+                        },
+                    ),
                 )
                 QuietButton(
                     label = "Add",
@@ -272,7 +319,7 @@ fun SettingsScreen(
         Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(CardRadius),
-            color = FocusColors.Surface,
+            color = FocusColors.Live.Surface,
         ) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(Space)) {
                 Text("Nudges", style = MaterialTheme.typography.titleMedium)
@@ -306,7 +353,7 @@ fun SettingsScreen(
         Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(CardRadius),
-            color = FocusColors.Surface,
+            color = FocusColors.Live.Surface,
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
@@ -337,7 +384,7 @@ fun SettingsScreen(
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(CardRadius),
-                color = FocusColors.SurfaceHigh,
+                color = FocusColors.Live.SurfaceHigh,
             ) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(Space)) {
                     Text(
@@ -386,12 +433,12 @@ fun SettingsScreen(
             }
         QuietTimeDialog(
             title =
-                when (which) {
-                    BandPick.MORNING -> "Morning starts"
-                    BandPick.NOON -> "Noon starts"
-                    BandPick.NIGHT -> "Night starts"
-                    BandPick.NIGHT_END -> "Night ends"
-                },
+            when (which) {
+                BandPick.MORNING -> "Morning starts"
+                BandPick.NOON -> "Noon starts"
+                BandPick.NIGHT -> "Night starts"
+                BandPick.NIGHT_END -> "Night ends"
+            },
             initial = minuteOfDayClock(initialMinute),
             onDismiss = { bandPicking = null },
             onConfirm = { value ->
@@ -450,8 +497,8 @@ private fun QuietTimeDialog(
         )
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = FocusColors.Surface,
-        titleContentColor = FocusColors.Text,
+        containerColor = FocusColors.Live.Surface,
+        titleContentColor = FocusColors.Live.Text,
         title = { Text(title) },
         text = { TimePicker(state = state) },
         confirmButton = {
@@ -472,8 +519,8 @@ private fun RenamePhraseDialog(
     var draft by remember(initial) { mutableStateOf(initial) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = FocusColors.Surface,
-        titleContentColor = FocusColors.Text,
+        containerColor = FocusColors.Live.Surface,
+        titleContentColor = FocusColors.Live.Text,
         title = { Text("Rename phrase") },
         text = {
             OutlinedTextField(
@@ -508,6 +555,20 @@ private fun BandTimeRow(
         QuietButton(label = minuteOfDayClock(minuteOfDay), onClick = onClick)
     }
 }
+
+private val themeChoices =
+    listOf(
+        ThemeId.SIGNAL to R.string.theme_signal,
+        ThemeId.STILL_WATER to R.string.theme_still_water,
+        ThemeId.EMBER to R.string.theme_ember,
+        ThemeId.CLEAR_LINE to R.string.theme_clear_line,
+    )
+
+private val homeLayoutChoices =
+    listOf(
+        HomeLayout.FLAT to R.string.home_layout_flat,
+        HomeLayout.BANDS to R.string.home_layout_bands,
+    )
 
 private enum class QuietPick { START, END }
 

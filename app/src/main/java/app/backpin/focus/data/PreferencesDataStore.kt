@@ -12,12 +12,14 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStoreFile
 import app.backpin.focus.domain.BandTimes
 import app.backpin.focus.domain.DEFAULT_TODAY_LIMIT
+import app.backpin.focus.domain.HomeLayout
 import app.backpin.focus.domain.MAX_COUNTDOWN_DAYS
 import app.backpin.focus.domain.MAX_TODAY_LIMIT
 import app.backpin.focus.domain.MIN_COUNTDOWN_DAYS
 import app.backpin.focus.domain.MINUTES_PER_DAY
 import app.backpin.focus.domain.MIN_TODAY_LIMIT
 import app.backpin.focus.domain.RepeatBand
+import app.backpin.focus.domain.ThemeId
 import app.backpin.focus.domain.UserPreferences
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -25,7 +27,8 @@ import kotlinx.coroutines.flow.map
 
 /**
  * Stores nudge timing, quiet hours, the current-task notification preference,
- * the ordered capture phrases, and the last countdown count used on this phone.
+ * the ordered capture phrases, the last countdown count used on this phone,
+ * the named palette, and the Home list layout.
  * Writing a value does not schedule work; the notification coordinator does that.
  */
 class PreferencesDataStore(
@@ -59,6 +62,26 @@ class PreferencesDataStore(
             )
         }
 
+    /**
+     * Named palette stored on this phone.
+     * Missing or unknown names are [ThemeId.SIGNAL].
+     */
+    val themeId: Flow<ThemeId> =
+        dataStore.data.map { prefs ->
+            prefs[Keys.THEME_ID]?.let { runCatching { ThemeId.valueOf(it) }.getOrNull() }
+                ?: ThemeId.SIGNAL
+        }
+
+    /**
+     * How Home lists tasks.
+     * Missing or unknown names are [HomeLayout.FLAT].
+     */
+    val homeLayout: Flow<HomeLayout> =
+        dataStore.data.map { prefs ->
+            prefs[Keys.HOME_LAYOUT]?.let { runCatching { HomeLayout.valueOf(it) }.getOrNull() }
+                ?: HomeLayout.FLAT
+        }
+
     /** Writes the default shape so the keys exist even before a later settings pass. */
     suspend fun ensureDefaultsStored() {
         dataStore.edit { prefs ->
@@ -81,6 +104,22 @@ class PreferencesDataStore(
             if (Keys.BAND_NIGHT_END !in prefs) {
                 prefs[Keys.BAND_NIGHT_END] = BandTimes.DEFAULT_NIGHT_END_MINUTE
             }
+            if (Keys.THEME_ID !in prefs) prefs[Keys.THEME_ID] = ThemeId.SIGNAL.name
+            if (Keys.HOME_LAYOUT !in prefs) prefs[Keys.HOME_LAYOUT] = HomeLayout.FLAT.name
+        }
+    }
+
+    /** Writes [id] by enum name. */
+    suspend fun setThemeId(id: ThemeId) {
+        dataStore.edit { prefs ->
+            prefs[Keys.THEME_ID] = id.name
+        }
+    }
+
+    /** Writes [layout] by enum name. */
+    suspend fun setHomeLayout(layout: HomeLayout) {
+        dataStore.edit { prefs ->
+            prefs[Keys.HOME_LAYOUT] = layout.name
         }
     }
 
@@ -230,6 +269,8 @@ class PreferencesDataStore(
         val FOLLOW_UP_NOON = longPreferencesKey("follow_up_noon_day")
         val FOLLOW_UP_NIGHT = longPreferencesKey("follow_up_night_day")
         val EXACT_ALARM_PROMPT_DISMISSED = booleanPreferencesKey("exact_alarm_prompt_dismissed")
+        val THEME_ID = stringPreferencesKey("theme_id")
+        val HOME_LAYOUT = stringPreferencesKey("home_layout")
     }
 
     private fun followUpKey(band: RepeatBand) =
