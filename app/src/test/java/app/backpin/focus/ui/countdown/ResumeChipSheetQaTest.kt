@@ -13,6 +13,7 @@ import androidx.compose.ui.test.click
 import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isHeading
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performTextInput
@@ -70,7 +71,7 @@ class ResumeChipSheetQaTest {
             }
             await { viewModel.uiState.value.now?.title == "Dentist checkup" }
             tap("Count down again")
-            compose.onNodeWithText("Count down again").assertExists()
+            compose.onNode(hasText("Count down again") and isHeading()).assertExists()
             compose.onNodeWithText("Dentist checkup").assertExists()
             compose.onNodeWithText("or choose").assertExists()
             compose.onNodeWithText("Pick a date").assertExists()

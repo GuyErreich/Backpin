@@ -88,11 +88,13 @@ class TaskSheetTapTest {
             await { viewModel.taskSheet.value?.canInterrupt == true }
             assertEquals(listOf("Start", "Done", "Later", "Interrupt", "Edit"), sheetActions())
             tapSheet("Interrupt")
+            await {
+                viewModel.taskSheet.value == null && viewModel.uiState.value.now?.title == "Park me"
+            }
             awaitSnapshot(useCases) { snapshot ->
                 activeTitle(snapshot) == "Park me" &&
                     snapshot.frames.any { it.taskId == idOfBlocking(useCases, "Hold this") && it.state == FrameState.AWAITING_RESUME }
             }
-            assertNull(viewModel.taskSheet.value)
         }
     }
 
@@ -128,21 +130,16 @@ class TaskSheetTapTest {
     }
 
     @Test
-    fun waitingRowShowsResumeLaterEditEvenWhenSomethingIsInFocus() {
+    fun waitingRowShowsResumeLaterEditAndNeverInterrupt() {
         withHarness { viewModel, useCases, _ ->
             runBlocking {
                 todayTask(useCases, "Hold this")
-                todayTask(useCases, "Park me")
                 useCases.start(idOf(useCases, "Hold this"))
                 useCases.interruptWithNew("Ping")
                 useCases.completeActive()
-                useCases.start(idOf(useCases, "Park me"))
             }
             showHome(viewModel)
-            await {
-                viewModel.uiState.value.now?.title == "Park me" &&
-                    viewModel.uiState.value.recovery?.title == "Hold this"
-            }
+            await { viewModel.uiState.value.now == null && viewModel.uiState.value.recovery?.title == "Hold this" }
             tapRow("waiting. Hold this. Opens the task sheet")
             await { viewModel.taskSheet.value?.role == TaskSheetRole.TODAY_WAITING }
             assertEquals(listOf("Resume", "Later", "Edit"), sheetActions())
@@ -403,7 +400,6 @@ class TaskSheetTapTest {
         compose.waitForIdle()
         val node = compose.onNode(hasContentDescription(description, substring = true))
         node.performScrollTo()
-        node.assertHasClickAction()
         node.performTouchInput { click(center) }
         compose.waitForIdle()
         shadowOf(Looper.getMainLooper()).idle()

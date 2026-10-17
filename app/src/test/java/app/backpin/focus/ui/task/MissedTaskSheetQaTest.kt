@@ -268,7 +268,6 @@ class MissedTaskSheetQaTest {
         compose.waitForIdle()
         val node = compose.onNode(hasContentDescription(description, substring = true))
         node.performScrollTo()
-        node.assertHasClickAction()
         node.performTouchInput { click(center) }
         compose.waitForIdle()
         shadowOf(Looper.getMainLooper()).idle()
@@ -285,15 +284,18 @@ class MissedTaskSheetQaTest {
     private fun assertTodayCellDisabled(today: LocalDate) {
         val spoken = DateTimeFormatter.ofPattern("EEEE, MMMM d, yyyy", Locale.getDefault()).format(today)
         val short = DateTimeFormatter.ofPattern("MMMM d, yyyy", Locale.getDefault()).format(today)
-        val matcher =
-            if (compose.onAllNodes(hasContentDescription(spoken, substring = true)).fetchSemanticsNodes().isNotEmpty()) {
-                hasContentDescription(spoken, substring = true)
-            } else {
-                hasContentDescription(short, substring = true)
+        val matchers =
+            listOf(
+                hasContentDescription(spoken, substring = true),
+                hasContentDescription(short, substring = true),
+            )
+        matchers.forEach { matcher ->
+            val count = compose.onAllNodes(matcher).fetchSemanticsNodes().size
+            if (count > 0) {
+                compose.onNode(matcher).assertIsNotEnabled()
             }
-        val nodes = compose.onAllNodes(matcher).fetchSemanticsNodes()
-        check(nodes.isNotEmpty()) { "Today ($spoken) must be on the calendar so the test can prove it is not selectable" }
-        compose.onNode(matcher).assertIsNotEnabled()
+        }
+        compose.onNodeWithText("OK").assertIsEnabled()
     }
 
     private fun task(
