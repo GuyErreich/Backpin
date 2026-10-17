@@ -50,6 +50,9 @@
             "context": "ktlint / ktlint"
           },
           {
+            "context": "pr-title / title"
+          },
+          {
             "context": "test / Unit tests (Robolectric)"
           },
           {
@@ -67,7 +70,7 @@
   ],
   "_notes": [
     "DRAFT, not applied. Guy is the only approver via CODEOWNERS (* @GuyErreich).",
-    "PR title check is deliberately NOT required until #16 is resolved.",
-    "Check names follow 'caller job / called job name'; confirm all seven on the first real CI run before applying."
+    "PR title check (`pr-title / title`) is required. Exemption is both a Release x.y.z title and auto-semver-bot[bot] as author.",
+    "Check names follow 'caller job / called job name'; confirm all eight on a real CI run before applying."
   ]
 }

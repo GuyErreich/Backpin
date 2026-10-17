@@ -11,39 +11,35 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
-  # Pinned to GuyErreich/ci-workflows v0.1.0 (a757bda).
+  # Pinned to GuyErreich/ci-workflows v0.1.2 (4453b10).
   license:
     if: github.event_name != 'schedule'
-    uses: GuyErreich/ci-workflows/.github/workflows/license.yml@a757bdad94326dd850427263aa1acc8cf151a923 # v0.1.0
+    uses: GuyErreich/ci-workflows/.github/workflows/license.yml@4453b10a9e03199398b204358faddfdaa83e1d8b # v0.1.2
     permissions: { contents: read }
   lint:
     if: github.event_name != 'schedule'
-    uses: GuyErreich/ci-workflows/.github/workflows/lint.yml@a757bdad94326dd850427263aa1acc8cf151a923 # v0.1.0
+    uses: GuyErreich/ci-workflows/.github/workflows/lint.yml@4453b10a9e03199398b204358faddfdaa83e1d8b # v0.1.2
     with:
       java-version: "21"
     permissions: { contents: read }
   ktlint:
     if: github.event_name != 'schedule'
-    uses: GuyErreich/ci-workflows/.github/workflows/ktlint.yml@a757bdad94326dd850427263aa1acc8cf151a923 # v0.1.0
+    uses: GuyErreich/ci-workflows/.github/workflows/ktlint.yml@4453b10a9e03199398b204358faddfdaa83e1d8b # v0.1.2
     with:
       java-version: "21"
     permissions: { contents: read }
-  pr-title:
-    if: github.event_name == 'pull_request'
-    uses: GuyErreich/ci-workflows/.github/workflows/pr-title.yml@a757bdad94326dd850427263aa1acc8cf151a923 # v0.1.0
-    permissions: { pull-requests: read }
   secret-scan:
     if: github.event_name != 'schedule'
-    uses: GuyErreich/ci-workflows/.github/workflows/secret-scan.yml@a757bdad94326dd850427263aa1acc8cf151a923 # v0.1.0
+    uses: GuyErreich/ci-workflows/.github/workflows/secret-scan.yml@4453b10a9e03199398b204358faddfdaa83e1d8b # v0.1.2
     permissions: { contents: read }
   codeql:
-    uses: GuyErreich/ci-workflows/.github/workflows/codeql.yml@a757bdad94326dd850427263aa1acc8cf151a923 # v0.1.0
+    uses: GuyErreich/ci-workflows/.github/workflows/codeql.yml@4453b10a9e03199398b204358faddfdaa83e1d8b # v0.1.2
     with:
       java-version: "21"
     permissions: { contents: read, security-events: write }
   test:
     if: github.event_name != 'schedule'
-    uses: GuyErreich/ci-workflows/.github/workflows/test.yml@a757bdad94326dd850427263aa1acc8cf151a923 # v0.1.0
+    uses: GuyErreich/ci-workflows/.github/workflows/test.yml@4453b10a9e03199398b204358faddfdaa83e1d8b # v0.1.2
     with:
       java-version: "21"
     permissions: { contents: read }
