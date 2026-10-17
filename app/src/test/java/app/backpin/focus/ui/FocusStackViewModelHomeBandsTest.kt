@@ -130,7 +130,10 @@ class FocusStackViewModelHomeBandsTest {
                 env.repository.markOpenRepeatsMissed(RepeatBand.MORNING, DAY.toEpochDay())
                 val bands =
                     env.awaitBands { state ->
-                        state.morning.repeats.size == 2 && state.morning.tasks.size == 1
+                        state.morning.repeats.size == 2 &&
+                            state.morning.tasks.size == 1 &&
+                            state.morning.counts.done == 1 &&
+                            state.morning.counts.missed == 1
                     }
                 val morning = bands.morning
                 assertEquals(1, morning.counts.done)
