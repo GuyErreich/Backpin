@@ -15,7 +15,6 @@ import app.backpin.focus.domain.RepeatBand
 import app.backpin.focus.domain.RepeatDayStatus
 import app.backpin.focus.domain.RepeatDraft
 import app.backpin.focus.domain.RepeatRowsState
-import app.backpin.focus.notifications.BandResyncReceiver
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -265,10 +264,11 @@ class RepeatsServiceDayRefreshTest {
         val app = ApplicationProvider.getApplicationContext<Application>()
         val intent = Intent(action)
         shadowOf(app).registeredReceivers.forEach { wrapper ->
+            val receiver = wrapper.broadcastReceiver
             if (wrapper.intentFilter?.hasAction(action) == true &&
-                wrapper.broadcastReceiver !is BandResyncReceiver
+                receiver.javaClass.name.startsWith("app.backpin.focus.repeats.RepeatsService")
             ) {
-                wrapper.broadcastReceiver.onReceive(context, intent)
+                receiver.onReceive(context, intent)
             }
         }
     }
