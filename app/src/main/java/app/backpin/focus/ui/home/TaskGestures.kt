@@ -68,50 +68,50 @@ internal data class SwipeSide(
     val onCommit: () -> Unit,
 )
 
-internal fun doneSwipe(onDone: () -> Unit): SwipeSide =
-    SwipeSide(
-        label = "Done",
-        accessibilityLabel = "Done",
-        tint = FocusColors.Mint,
-        onTint = FocusColors.OnMint,
-        onCommit = onDone,
-    )
+@Composable
+internal fun doneSwipe(onDone: () -> Unit): SwipeSide = SwipeSide(
+    label = "Done",
+    accessibilityLabel = "Done",
+    tint = FocusColors.Mint,
+    onTint = FocusColors.OnMint,
+    onCommit = onDone,
+)
 
-internal fun laterSwipe(onLater: () -> Unit): SwipeSide =
-    SwipeSide(
-        label = "Later",
-        accessibilityLabel = "Move to Later",
-        tint = app.backpin.focus.ui.theme.activePalette.danger,
-        onTint = app.backpin.focus.ui.theme.activePalette.onAccent,
-        onCommit = onLater,
-    )
+@Composable
+internal fun laterSwipe(onLater: () -> Unit): SwipeSide = SwipeSide(
+    label = "Later",
+    accessibilityLabel = "Move to Later",
+    tint = FocusColors.Danger,
+    onTint = FocusColors.OnMint,
+    onCommit = onLater,
+)
 
-internal fun todaySwipe(onToday: () -> Unit): SwipeSide =
-    SwipeSide(
-        label = "Today",
-        accessibilityLabel = "Add to Today",
-        tint = FocusColors.Mint,
-        onTint = FocusColors.OnMint,
-        onCommit = onToday,
-    )
+@Composable
+internal fun todaySwipe(onToday: () -> Unit): SwipeSide = SwipeSide(
+    label = "Today",
+    accessibilityLabel = "Add to Today",
+    tint = FocusColors.Mint,
+    onTint = FocusColors.OnMint,
+    onCommit = onToday,
+)
 
-internal fun startSwipe(onStart: () -> Unit): SwipeSide =
-    SwipeSide(
-        label = "Start",
-        accessibilityLabel = "Start",
-        tint = FocusColors.Mint,
-        onTint = FocusColors.OnMint,
-        onCommit = onStart,
-    )
+@Composable
+internal fun startSwipe(onStart: () -> Unit): SwipeSide = SwipeSide(
+    label = "Start",
+    accessibilityLabel = "Start",
+    tint = FocusColors.Mint,
+    onTint = FocusColors.OnMint,
+    onCommit = onStart,
+)
 
-internal fun interruptSwipe(onInterrupt: () -> Unit): SwipeSide =
-    SwipeSide(
-        label = "Interrupt",
-        accessibilityLabel = "Interrupt",
-        tint = FocusColors.Lavender,
-        onTint = FocusColors.OnLavender,
-        onCommit = onInterrupt,
-    )
+@Composable
+internal fun interruptSwipe(onInterrupt: () -> Unit): SwipeSide = SwipeSide(
+    label = "Interrupt",
+    accessibilityLabel = "Interrupt",
+    tint = FocusColors.Lavender,
+    onTint = FocusColors.OnLavender,
+    onCommit = onInterrupt,
+)
 
 /**
  * Horizontal swipe reveals a solid color band. The card tracks the finger.

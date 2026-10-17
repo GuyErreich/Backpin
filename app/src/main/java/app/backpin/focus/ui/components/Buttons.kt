@@ -80,21 +80,21 @@ private val LocalLockButtonHeight = compositionLocalOf { false }
 
 private fun Color.shown(enabled: Boolean): Color = if (enabled) this else copy(alpha = DISABLED_ALPHA)
 
-private fun AccentTone.color(): Color =
-    when (this) {
-        AccentTone.Mint -> FocusColors.Mint
-        AccentTone.Lavender -> FocusColors.Lavender
-        AccentTone.Amber -> FocusColors.Amber
-    }
+@Composable
+private fun AccentTone.color(): Color = when (this) {
+    AccentTone.Mint -> FocusColors.Mint
+    AccentTone.Lavender -> FocusColors.Lavender
+    AccentTone.Amber -> FocusColors.Amber
+}
 
 /** Label of an [AccentButton]: the same color as its border. */
-internal fun accentLabelColor(
+@Composable internal fun accentLabelColor(
     tone: AccentTone,
     enabled: Boolean = true,
 ): Color = tone.color().shown(enabled)
 
 /** Label of a [CaptureChoice]: the accent for Mint, Lavender, and Amber, plain text for Quiet. */
-internal fun choiceLabelColor(
+@Composable internal fun choiceLabelColor(
     tone: ChoiceTone,
     enabled: Boolean = true,
 ): Color =
@@ -105,13 +105,13 @@ internal fun choiceLabelColor(
         ChoiceTone.Quiet -> FocusColors.Text.shown(enabled)
     }
 
-private fun choiceBorderColor(
+@Composable private fun choiceBorderColor(
     tone: ChoiceTone,
     enabled: Boolean,
 ): Color = if (tone == ChoiceTone.Quiet) FocusColors.Outline.shown(enabled) else choiceLabelColor(tone, enabled)
 
 /** Soft container behind a default choice. Outlined choices stay transparent. */
-internal fun choiceContainerColor(
+@Composable internal fun choiceContainerColor(
     tone: ChoiceTone,
     filled: Boolean,
     enabled: Boolean = true,

@@ -1,31 +1,78 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package app.backpin.focus.ui.theme
 
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.key
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import app.backpin.focus.domain.ThemeId
 
 object FocusColors {
-    val Midnight: Color get() = activePalette.background
-    val Surface: Color get() = activePalette.surface
-    val SurfaceHigh: Color get() = activePalette.surfaceRaised
-    val Text: Color get() = activePalette.textPrimary
-    val Muted: Color get() = activePalette.textSecondary
-    val Mint: Color get() = activePalette.done
-    val OnMint: Color get() = activePalette.onAccent
-    val Amber: Color get() = activePalette.missed
-    val OnAmber: Color get() = activePalette.onAccent
-    val Lavender: Color get() = activePalette.now
-    val OnLavender: Color get() = activePalette.onAccent
+    val Midnight: Color
+        @Composable
+        @ReadOnlyComposable
+        get() = LocalFocusPalette.current.background
+    val Surface: Color
+        @Composable
+        @ReadOnlyComposable
+        get() = LocalFocusPalette.current.surface
+    val SurfaceHigh: Color
+        @Composable
+        @ReadOnlyComposable
+        get() = LocalFocusPalette.current.surfaceRaised
+    val Text: Color
+        @Composable
+        @ReadOnlyComposable
+        get() = LocalFocusPalette.current.textPrimary
+    val Muted: Color
+        @Composable
+        @ReadOnlyComposable
+        get() = LocalFocusPalette.current.textSecondary
+    val Mint: Color
+        @Composable
+        @ReadOnlyComposable
+        get() = LocalFocusPalette.current.done
+    val OnMint: Color
+        @Composable
+        @ReadOnlyComposable
+        get() = LocalFocusPalette.current.onAccent
+    val Amber: Color
+        @Composable
+        @ReadOnlyComposable
+        get() = LocalFocusPalette.current.missed
+    val OnAmber: Color
+        @Composable
+        @ReadOnlyComposable
+        get() = LocalFocusPalette.current.onAccent
+    val Lavender: Color
+        @Composable
+        @ReadOnlyComposable
+        get() = LocalFocusPalette.current.now
+    val OnLavender: Color
+        @Composable
+        @ReadOnlyComposable
+        get() = LocalFocusPalette.current.onAccent
+
     /** Soft fill for the default lavender choice, such as Again in N days. */
-    val LavenderContainer: Color get() = activePalette.now.copy(alpha = CHOICE_FILL_ALPHA)
-    val Outline: Color get() = activePalette.outline
+    val LavenderContainer: Color
+        @Composable
+        @ReadOnlyComposable
+        get() = LocalFocusPalette.current.now.copy(alpha = CHOICE_FILL_ALPHA)
+    val Outline: Color
+        @Composable
+        @ReadOnlyComposable
+        get() = LocalFocusPalette.current.outline
+    val Danger: Color
+        @Composable
+        @ReadOnlyComposable
+        get() = LocalFocusPalette.current.danger
 }
 
 val CardRadius = 24.dp
@@ -95,31 +142,28 @@ private val typography = Typography(
 
 @Composable
 fun FocusStackTheme(
-    themeId: app.backpin.focus.domain.ThemeId = app.backpin.focus.domain.ThemeId.SIGNAL,
+    themeId: ThemeId = ThemeId.SIGNAL,
     content: @Composable () -> Unit,
 ) {
     val palette = paletteFor(themeId)
-    activePalette = palette
-    key(themeId) {
-        androidx.compose.runtime.CompositionLocalProvider(
-            LocalFocusPalette provides palette,
-            LocalFocusExtraColors provides palette.extras,
-            androidx.compose.material3.LocalContentColor provides palette.textPrimary,
-        ) {
-            MaterialTheme(
-                colorScheme = colorsFor(themeId),
-                typography = palette.withTypography(typography),
-                content = content,
-            )
-        }
+    CompositionLocalProvider(
+        LocalFocusPalette provides palette,
+        LocalFocusExtraColors provides palette.extras,
+        LocalContentColor provides palette.textPrimary,
+    ) {
+        MaterialTheme(
+            colorScheme = colorsFor(themeId),
+            typography = palette.withTypography(typography),
+            content = content,
+        )
     }
 }
 
 /** Palette for [themeId]. */
-fun colorsFor(themeId: app.backpin.focus.domain.ThemeId) = when (themeId) {
-    app.backpin.focus.domain.ThemeId.SIGNAL,
-    app.backpin.focus.domain.ThemeId.STILL_WATER,
-    app.backpin.focus.domain.ThemeId.EMBER,
-    app.backpin.focus.domain.ThemeId.CLEAR_LINE,
+fun colorsFor(themeId: ThemeId) = when (themeId) {
+    ThemeId.SIGNAL,
+    ThemeId.STILL_WATER,
+    ThemeId.EMBER,
+    ThemeId.CLEAR_LINE,
     -> paletteFor(themeId).toColorScheme()
 }
