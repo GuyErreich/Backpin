@@ -144,9 +144,10 @@ fun currentMinuteOfDay(
 }
 
 /**
- * Millis until the next band bound: morning start, noon start, night
- * start, or night end. Wraps to tomorrow's morning start when every
- * bound today has passed. Always at least 1.
+ * Millis until the next band bound by clock time: the earliest of
+ * morning start, noon start, night start, and night end that is still
+ * after now. List order does not matter. When none remain today, wraps
+ * to tomorrow's earliest bound. Always at least 1.
  */
 fun millisUntilNextBandBoundary(
     nowEpochMillis: Long,
@@ -155,23 +156,19 @@ fun millisUntilNextBandBoundary(
 ): Long {
     val now = Instant.ofEpochMilli(nowEpochMillis).atZone(zone)
     val today = now.toLocalDate()
-    val nextToday =
+    val nowMinute = now.hour * 60 + now.minute
+    val bounds =
         listOf(
             times.morningStartMinute,
             times.noonStartMinute,
             times.nightStartMinute,
             times.nightEndMinute,
-        ).map { minute ->
-            today.atTime(minute / 60, minute % 60).atZone(zone).toInstant().toEpochMilli()
-        }.firstOrNull { it > nowEpochMillis }
+        )
+    val nextMinute = bounds.filter { it > nowMinute }.minOrNull()
+    val day = if (nextMinute != null) today else today.plusDays(1)
+    val minute = nextMinute ?: bounds.min()
     val nextMillis =
-        nextToday
-            ?: today
-                .plusDays(1)
-                .atTime(times.morningStartMinute / 60, times.morningStartMinute % 60)
-                .atZone(zone)
-                .toInstant()
-                .toEpochMilli()
+        day.atTime(minute / 60, minute % 60).atZone(zone).toInstant().toEpochMilli()
     return (nextMillis - nowEpochMillis).coerceAtLeast(1L)
 }
 
