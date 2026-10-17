@@ -178,7 +178,8 @@ fun millisUntilNextBandBoundary(
  *
  * @property done Done tasks plus [RepeatDayStatus.DONE] rows.
  * @property missed [RepeatDayStatus.MISSED] rows. Tasks have no missed state.
- * @property left Open tasks plus [RepeatDayStatus.OPEN] rows.
+ * @property left Still-unchecked items: open plus missed, for tasks and
+ * repeat rows. Same rule as [RepeatRowsState.leftCount].
  */
 data class HomeBandCounts(
     val done: Int = 0,
@@ -319,6 +320,7 @@ fun homeBandsForToday(
 
 /**
  * Done, missed, and left for one band's tasks and repeat rows.
+ * [HomeBandCounts.left] is open plus missed, matching [RepeatRowsState.leftCount].
  */
 fun homeBandCounts(
     tasks: List<Task>,
@@ -326,5 +328,5 @@ fun homeBandCounts(
 ): HomeBandCounts = HomeBandCounts(
     done = tasks.count { it.status == TaskStatus.DONE } + repeats.count { it.status == RepeatDayStatus.DONE },
     missed = repeats.count { it.status == RepeatDayStatus.MISSED },
-    left = tasks.count { it.status == TaskStatus.OPEN } + repeats.count { it.status == RepeatDayStatus.OPEN },
+    left = tasks.count { it.status != TaskStatus.DONE } + repeats.count { it.status != RepeatDayStatus.DONE },
 )
