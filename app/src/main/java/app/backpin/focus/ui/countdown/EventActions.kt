@@ -126,7 +126,7 @@ internal fun ResumeCountdownSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         sheetGesturesEnabled = false,
-        containerColor = FocusColors.Surface,
+        containerColor = FocusColors.Live.Surface,
         contentWindowInsets = { WindowInsets.navigationBars },
         properties = ModalBottomSheetProperties(shouldDismissOnBackPress = false),
     ) {
@@ -165,7 +165,7 @@ internal fun ResumeCountdownSheet(
                 Text(
                     "or choose",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = FocusColors.Muted,
+                    color = FocusColors.Live.Muted,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -189,7 +189,7 @@ internal fun ResumeCountdownSheet(
                 "\"Again in N days\" uses this event's own interval, or the last count used. " +
                     "Back leaves the event as it was.",
                 style = MaterialTheme.typography.bodyMedium,
-                color = FocusColors.Muted,
+                color = FocusColors.Live.Muted,
                 modifier = Modifier.padding(top = Space),
             )
         }
