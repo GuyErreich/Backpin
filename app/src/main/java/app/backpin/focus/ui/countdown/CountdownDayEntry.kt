@@ -9,8 +9,10 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import app.backpin.focus.R
 import app.backpin.focus.domain.MAX_COUNTDOWN_DAYS
 import app.backpin.focus.domain.MIN_COUNTDOWN_DAYS
 import app.backpin.focus.domain.scheduleMomentLabel
@@ -25,8 +27,7 @@ internal fun sanitizeCountdownDays(incoming: String): String {
     return value.coerceIn(0, MAX_COUNTDOWN_DAYS).toString()
 }
 
-internal fun countdownDays(text: String): Int? =
-    text.toIntOrNull()?.takeIf { it in MIN_COUNTDOWN_DAYS..MAX_COUNTDOWN_DAYS }
+internal fun countdownDays(text: String): Int? = text.toIntOrNull()?.takeIf { it in MIN_COUNTDOWN_DAYS..MAX_COUNTDOWN_DAYS }
 
 /** Resume one-tap label: the stored count and the day that count lands on. */
 internal fun againInDaysLabel(
@@ -52,13 +53,14 @@ internal fun CountdownDayEntry(
     onDone: () -> Unit,
     onPickDate: () -> Unit,
     afterField: @Composable () -> Unit = {},
+    showPickDate: Boolean = true,
 ) {
     OutlinedTextField(
         value = daysText,
         onValueChange = onDaysChange,
         modifier = Modifier.fillMaxWidth(),
-        label = { Text("Days from today") },
-        placeholder = { Text("25") },
+        label = { Text(stringResource(R.string.resume_sheet_days_label)) },
+        placeholder = { Text(stringResource(R.string.resume_sheet_days_placeholder)) },
         singleLine = true,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
         keyboardActions = KeyboardActions(onDone = { onDone() }),
@@ -67,5 +69,7 @@ internal fun CountdownDayEntry(
         Text(scheduleMomentLabel(shownDay, null), style = MaterialTheme.typography.bodyLarge)
     }
     afterField()
-    CaptureChoice("Pick a date", onClick = onPickDate)
+    if (showPickDate) {
+        CaptureChoice(stringResource(R.string.action_pick_a_date), onClick = onPickDate)
+    }
 }

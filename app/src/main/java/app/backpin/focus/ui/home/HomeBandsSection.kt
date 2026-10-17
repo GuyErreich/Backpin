@@ -56,7 +56,9 @@ internal fun HomeBandsSection(
     onInterrupt: (String) -> Unit,
     onReorder: (List<String>) -> Unit,
     onEditTask: (String) -> Unit,
+    onOpenSheet: (String) -> Unit = {},
     onCheckOffRepeat: (RepeatRow) -> Unit,
+    onOpenMissedRepeat: (RepeatRow) -> Unit = {},
     onEditRepeat: (Repeat) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
@@ -76,7 +78,9 @@ internal fun HomeBandsSection(
                     onInterrupt = onInterrupt,
                     onReorder = onReorder,
                     onEditTask = onEditTask,
+                    onOpenSheet = onOpenSheet,
                     onCheckOffRepeat = onCheckOffRepeat,
+                    onOpenMissedRepeat = onOpenMissedRepeat,
                     onEditRepeat = onEditRepeat,
                 )
             }
@@ -99,7 +103,9 @@ private fun HomeBandBlock(
     onInterrupt: (String) -> Unit,
     onReorder: (List<String>) -> Unit,
     onEditTask: (String) -> Unit,
+    onOpenSheet: (String) -> Unit,
     onCheckOffRepeat: (RepeatRow) -> Unit,
+    onOpenMissedRepeat: (RepeatRow) -> Unit,
     onEditRepeat: (Repeat) -> Unit,
 ) {
     val toggleable = group.phase != BandPhase.ALWAYS_OPEN
@@ -131,6 +137,7 @@ private fun HomeBandBlock(
                     if (group.phase == BandPhase.OPEN) onReorder(order)
                 },
                 onEdit = onEditTask,
+                onOpenSheet = onOpenSheet,
                 showHeader = false,
             )
             group.repeats.forEach { row ->
@@ -139,6 +146,7 @@ private fun HomeBandBlock(
                         row = row,
                         reducedMotion = reducedMotion,
                         onCheckOff = { onCheckOffRepeat(row) },
+                        onOpenMissed = { onOpenMissedRepeat(row) },
                         onEdit = { onEditRepeat(row.repeat) },
                     )
                 }

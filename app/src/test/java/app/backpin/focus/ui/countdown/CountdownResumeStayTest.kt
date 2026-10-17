@@ -9,11 +9,8 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.click
-import androidx.compose.ui.test.hasSetTextAction
-import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -68,16 +65,15 @@ class CountdownResumeStayTest {
             compose.onNodeWithText("Home").assertIsSelected()
 
             tap("Count down again")
-            resumeDaysField().performTextInput("45")
-            tap("Start in 45 days")
+            tap("In 3 days")
 
-            val expected = backInDaysLabel(45, today)
+            val expected = backInDaysLabel(3, today)
             await { viewModel.uiState.value.undo?.message == expected }
             awaitSnapshot(useCases) { snapshot ->
                 val event = snapshot.tasks.single { it.title == "Dentist checkup" }
                 event.bucket == TaskBucket.COUNTDOWN &&
-                    event.scheduledOnEpochDay == today.plusDays(45).toEpochDay() &&
-                    event.countdownIntervalDays == 45 &&
+                    event.scheduledOnEpochDay == today.plusDays(3).toEpochDay() &&
+                    event.countdownIntervalDays == 3 &&
                     parentWaits(snapshot)
             }
             compose.onNodeWithText("Keep your place.").assertExists()
@@ -125,10 +121,9 @@ class CountdownResumeStayTest {
             compose.onNodeWithText("EVENT").assertExists()
 
             tap("Count down again")
-            resumeDaysField().performTextInput("45")
-            tap("Start in 45 days")
+            tap("In 3 days")
 
-            val expected = backInDaysLabel(45, today)
+            val expected = backInDaysLabel(3, today)
             await { viewModel.uiState.value.undo?.message == expected }
             await { viewModel.uiState.value.now == null && viewModel.uiState.value.recovery?.title == "Write the report" }
             compose.onNodeWithText("Focus").assertIsSelected()
@@ -200,13 +195,11 @@ class CountdownResumeStayTest {
         }
     }
 
-    private fun resumeDaysField() = compose.onNode(hasSetTextAction() and hasText("Days from today"))
-
     private fun tap(label: String) {
         compose.waitForIdle()
         val node = compose.onNodeWithText(label)
         node.assertIsEnabled().assertHasClickAction()
-        node.performTouchInput { click() }
+        node.performTouchInput { click(center) }
         compose.waitForIdle()
     }
 

@@ -37,7 +37,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -45,8 +44,10 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -57,6 +58,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import app.backpin.focus.R
 import app.backpin.focus.domain.DetachDestination
 import app.backpin.focus.domain.HomeLayout
 import app.backpin.focus.domain.MAX_TODAY_LIMIT
@@ -86,10 +88,10 @@ import app.backpin.focus.ui.motion.rememberReducedMotion
 import app.backpin.focus.ui.theme.CardRadius
 import app.backpin.focus.ui.theme.FocusColors
 import app.backpin.focus.ui.theme.Space
-import kotlin.math.abs
-import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.math.abs
+import kotlin.math.roundToInt
 
 @Composable
 fun HomeScreen(
@@ -150,10 +152,14 @@ fun HomeScreen(
                     onInterrupt = viewModel::interruptWith,
                     onReorder = viewModel::reorderToday,
                     onEditTask = viewModel::openEdit,
+                    onOpenSheet = viewModel::openTaskSheet,
                     onCheckOffRepeat = { row ->
                         if (row.status != RepeatDayStatus.DONE) {
                             viewModel.markRepeatDone(row.repeat.id, row.epochDay)
                         }
+                    },
+                    onOpenMissedRepeat = { row ->
+                        viewModel.openMissedRepeat(row.repeat.id, row.epochDay)
                     },
                     onEditRepeat = viewModel::openRepeatEdit,
                 )
@@ -171,6 +177,7 @@ fun HomeScreen(
                     onInterrupt = viewModel::interruptWith,
                     onReorder = viewModel::reorderToday,
                     onEdit = viewModel::openEdit,
+                    onOpenSheet = viewModel::openTaskSheet,
                 )
                 RepeatSection(
                     rows = repeatRows,
@@ -179,6 +186,9 @@ fun HomeScreen(
                         if (row.status != RepeatDayStatus.DONE) {
                             viewModel.markRepeatDone(row.repeat.id, row.epochDay)
                         }
+                    },
+                    onOpenMissed = { row ->
+                        viewModel.openMissedRepeat(row.repeat.id, row.epochDay)
                     },
                     onEdit = viewModel::openRepeatEdit,
                     onCreate = { viewModel.openRepeatCreate() },
@@ -224,35 +234,35 @@ private fun NowCard(
             SwipeRevealCard(
                 towardStart = doneSwipe(viewModel::completeActive),
                 towardEnd =
-                    laterSwipe {
-                        if (now.isEvent) {
-                            viewModel.detachEvent(now.taskId, DetachDestination.Later)
-                        } else {
-                            viewModel.demote(now.taskId)
-                        }
-                    },
+                laterSwipe {
+                    if (now.isEvent) {
+                        viewModel.detachEvent(now.taskId, DetachDestination.Later)
+                    } else {
+                        viewModel.demote(now.taskId)
+                    }
+                },
                 reducedMotion = reducedMotion,
                 extraActions =
-                    listOf(
-                        CustomAccessibilityAction("Edit") {
-                            viewModel.openEdit(now.taskId)
-                            true
-                        },
-                    ),
+                listOf(
+                    CustomAccessibilityAction("Edit") {
+                        viewModel.openEdit(now.taskId)
+                        true
+                    },
+                ),
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Surface(
                     modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .semantics { contentDescription = "$label. ${now.title}. Opens focus." }
-                            .pressScale(openInteraction)
-                            .clickable(
-                                interactionSource = openInteraction,
-                                indication = null,
-                                role = Role.Button,
-                                onClick = onOpenFocus,
-                            ),
+                    Modifier
+                        .fillMaxWidth()
+                        .semantics { contentDescription = "$label. ${now.title}. Opens focus." }
+                        .pressScale(openInteraction)
+                        .clickable(
+                            interactionSource = openInteraction,
+                            indication = null,
+                            role = Role.Button,
+                            onClick = onOpenFocus,
+                        ),
                     shape = RoundedCornerShape(CardRadius),
                     color = FocusColors.Live.Surface,
                     border = BorderStroke(2.dp, accent),
@@ -278,10 +288,10 @@ private fun NowCard(
                             taskId = now.taskId,
                             title = now.title,
                             suggestedDays =
-                                suggestedCountdownDays(
-                                    now.countdownIntervalDays,
-                                    state.preferences.lastCountdownDays,
-                                ),
+                            suggestedCountdownDays(
+                                now.countdownIntervalDays,
+                                state.preferences.lastCountdownDays,
+                            ),
                             onDetach = viewModel::detachEvent,
                         ) { onCountDownAgain ->
                             CardActions {
@@ -334,12 +344,11 @@ private fun NowCard(
 }
 
 /** "EVENT" for an arrived countdown, "INTERRUPTED" for a nested task, otherwise "NOW". */
-internal fun nowLabel(now: NowUi): String =
-    when {
-        now.isEvent -> "EVENT"
-        now.isInterruption -> "INTERRUPTED"
-        else -> "NOW"
-    }
+internal fun nowLabel(now: NowUi): String = when {
+    now.isEvent -> "EVENT"
+    now.isInterruption -> "INTERRUPTED"
+    else -> "NOW"
+}
 
 @Composable
 internal fun TodaySection(
@@ -355,6 +364,7 @@ internal fun TodaySection(
     onInterrupt: (String) -> Unit,
     onReorder: (List<String>) -> Unit,
     onEdit: (String) -> Unit,
+    onOpenSheet: (String) -> Unit,
     showHeader: Boolean = true,
 ) {
     val drag = remember { TodayDragState() }
@@ -470,6 +480,7 @@ internal fun TodaySection(
                         onLater = { onLater(task.id) },
                         onInterrupt = { onInterrupt(task.id) },
                         onEdit = { onEdit(task.id) },
+                        onOpenSheet = { onOpenSheet(task.id) },
                         onDragStart = { drag.begin(task.id) },
                         onDragBy = drag::dragBy,
                         onDragEnd = { settle(commitNearest = true) },
@@ -593,6 +604,7 @@ private fun TodayRow(
     onLater: () -> Unit,
     onInterrupt: () -> Unit,
     onEdit: () -> Unit,
+    onOpenSheet: () -> Unit,
     onDragStart: () -> Unit,
     onDragBy: (Float) -> Unit,
     onDragEnd: () -> Unit,
@@ -605,16 +617,21 @@ private fun TodayRow(
             TodayRightSwipe.Start -> "start"
             TodayRightSwipe.Interrupt -> "interrupt"
         }
+    val opensSheet = slot.role == SlotRole.OPEN || slot.role == SlotRole.WAITING
     val description =
-        "Today position ${index + 1}. ${slot.role.name.lowercase()}. ${task.title}. Swipe right for $rightWord, swipe left for later. Long press and drag to reorder within Today."
+        if (opensSheet) {
+            "Today position ${index + 1}. ${slot.role.name.lowercase()}. ${task.title}. Opens the task sheet. Swipe right for $rightWord, swipe left for later. Long press and drag to reorder within Today."
+        } else {
+            "Today position ${index + 1}. ${slot.role.name.lowercase()}. ${task.title}. Swipe right for $rightWord, swipe left for later. Long press and drag to reorder within Today."
+        }
     val openInteraction = rememberPressSource()
     SwipeRevealCard(
         towardStart =
-            when (rightSwipe) {
-                TodayRightSwipe.Done -> doneSwipe(onDone)
-                TodayRightSwipe.Start -> startSwipe(onStart)
-                TodayRightSwipe.Interrupt -> interruptSwipe(onInterrupt)
-            },
+        when (rightSwipe) {
+            TodayRightSwipe.Done -> doneSwipe(onDone)
+            TodayRightSwipe.Start -> startSwipe(onStart)
+            TodayRightSwipe.Interrupt -> interruptSwipe(onInterrupt)
+        },
         towardEnd = laterSwipe(onLater),
         reducedMotion = reducedMotion,
         onReorderDragStart = onDragStart,
@@ -622,33 +639,39 @@ private fun TodayRow(
         onReorderDragEnd = onDragEnd,
         onReorderDragCancel = onDragCancel,
         extraActions =
-            reorderActions +
-                CustomAccessibilityAction("Edit") {
-                    onEdit()
-                    true
-                },
+        reorderActions +
+            CustomAccessibilityAction("Edit") {
+                onEdit()
+                true
+            },
         modifier = Modifier.fillMaxWidth(),
     ) {
         Surface(
             modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .semantics { contentDescription = description }
-                    .then(
-                        if (slot.role == SlotRole.NOW) {
-                            Modifier
-                                .pressScale(openInteraction)
-                                .combinedClickable(
-                                    interactionSource = openInteraction,
-                                    indication = null,
-                                    role = Role.Button,
-                                    onClick = onOpen,
-                                    onLongClick = {},
-                                )
-                        } else {
-                            Modifier
-                        },
-                    ),
+            Modifier
+                .fillMaxWidth()
+                .semantics { contentDescription = description }
+                .then(
+                    if (slot.role == SlotRole.NOW || opensSheet) {
+                        Modifier
+                            .pressScale(openInteraction)
+                            .combinedClickable(
+                                interactionSource = openInteraction,
+                                indication = null,
+                                role = Role.Button,
+                                onClickLabel =
+                                if (opensSheet) {
+                                    stringResource(R.string.task_sheet_open)
+                                } else {
+                                    null
+                                },
+                                onClick = if (opensSheet) onOpenSheet else onOpen,
+                                onLongClick = {},
+                            )
+                    } else {
+                        Modifier
+                    },
+                ),
             shape = RoundedCornerShape(CardRadius),
             color = FocusColors.Live.Surface,
             shadowElevation = 8.dp * lift,
@@ -685,11 +708,11 @@ private fun TodayRow(
 private fun EmptyTodaySlot() {
     Box(
         modifier =
-            Modifier
-                .fillMaxWidth()
-                .heightIn(min = 72.dp)
-                .semantics { contentDescription = "Empty Today slot." }
-                .dashedSlot(FocusColors.Live.Outline),
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 72.dp)
+            .semantics { contentDescription = "Empty Today slot." }
+            .dashedSlot(FocusColors.Live.Outline),
         contentAlignment = Alignment.CenterStart,
     ) {
         Text(
@@ -701,21 +724,20 @@ private fun EmptyTodaySlot() {
     }
 }
 
-internal fun Modifier.dashedSlot(color: Color): Modifier =
-    this.drawBehind {
-        val stroke = 1.5.dp.toPx()
-        drawRoundRect(
-            color = color,
-            topLeft = Offset(stroke / 2f, stroke / 2f),
-            size = Size(size.width - stroke, size.height - stroke),
-            cornerRadius = CornerRadius(CardRadius.toPx(), CardRadius.toPx()),
-            style =
-                Stroke(
-                    width = stroke,
-                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(16f, 12f), 0f),
-                ),
-        )
-    }
+internal fun Modifier.dashedSlot(color: Color): Modifier = this.drawBehind {
+    val stroke = 1.5.dp.toPx()
+    drawRoundRect(
+        color = color,
+        topLeft = Offset(stroke / 2f, stroke / 2f),
+        size = Size(size.width - stroke, size.height - stroke),
+        cornerRadius = CornerRadius(CardRadius.toPx(), CardRadius.toPx()),
+        style =
+        Stroke(
+            width = stroke,
+            pathEffect = PathEffect.dashPathEffect(floatArrayOf(16f, 12f), 0f),
+        ),
+    )
+}
 
 @Composable
 private fun RoleLabel(role: SlotRole) {
@@ -772,26 +794,26 @@ private fun PileCountRow(
     )
     Surface(
         modifier =
-            Modifier
-                .fillMaxWidth()
-                .heightIn(min = 56.dp)
-                .pressScale(interaction)
-                .clickable(
-                    interactionSource = interaction,
-                    indication = null,
-                    role = Role.Button,
-                    onClickLabel = "Open $title",
-                    onClick = onClick,
-                ),
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 56.dp)
+            .pressScale(interaction)
+            .clickable(
+                interactionSource = interaction,
+                indication = null,
+                role = Role.Button,
+                onClickLabel = "Open $title",
+                onClick = onClick,
+            ),
         shape = RoundedCornerShape(CardRadius),
         color = color,
         border = BorderStroke(1.dp, FocusColors.Live.Outline),
     ) {
         Row(
             modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 14.dp),
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 14.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -841,8 +863,8 @@ internal fun ElapsedText(
         style = MaterialTheme.typography.bodyLarge,
         color = FocusColors.Live.Muted,
         modifier =
-            Modifier.semantics {
-                contentDescription = "Elapsed $hours hours $remainder minutes"
-            },
+        Modifier.semantics {
+            contentDescription = "Elapsed $hours hours $remainder minutes"
+        },
     )
 }

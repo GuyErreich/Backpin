@@ -54,6 +54,9 @@ class FocusStackViewModel(
     private val freshSwapTitle = MutableStateFlow<String?>(null)
     private val switchOpen = MutableStateFlow(false)
     private val pendingUndo = MutableStateFlow<PendingUndo?>(null)
+    private val taskSheetState = MutableStateFlow<TaskSheetUi?>(null)
+    private val missedRepeatSheetState = MutableStateFlow<MissedRepeatSheetUi?>(null)
+    private val missedTaskSheetState = MutableStateFlow<MissedTaskSheetUi?>(null)
 
     val uiState: StateFlow<FocusUiState> =
         combine(
@@ -81,11 +84,11 @@ class FocusStackViewModel(
                                 id = pending.id,
                                 message = "",
                                 target =
-                                    UndoTarget.RepeatCheckOff(
-                                        repeatId = pending.repeatId,
-                                        epochDay = pending.epochDay,
-                                        restore = pending.restore,
-                                    ),
+                                UndoTarget.RepeatCheckOff(
+                                    repeatId = pending.repeatId,
+                                    epochDay = pending.epochDay,
+                                    restore = pending.restore,
+                                ),
                             )
                         },
                     ).maxByOrNull { it.id }
@@ -175,6 +178,15 @@ class FocusStackViewModel(
             BandTimes.DEFAULT,
         )
 
+    /** Chip-row task sheet, or null when it is closed. */
+    val taskSheet: StateFlow<TaskSheetUi?> = taskSheetState
+
+    /** Chip-row missed-repeat sheet, or null when it is closed. */
+    val missedRepeatSheet: StateFlow<MissedRepeatSheetUi?> = missedRepeatSheetState
+
+    /** Chip-row missed-task sheet, or null when it is closed. */
+    val missedTaskSheet: StateFlow<MissedTaskSheetUi?> = missedTaskSheetState
+
     /**
      * Home Today tasks and today's repeats grouped by band.
      * Open Today tasks pin to the top of [HomeBands.openBand]. When no
@@ -217,6 +229,7 @@ class FocusStackViewModel(
      */
     fun openCapture(interrupts: Boolean = false) {
         editingTaskId.value = null
+        dismissActionSheets()
         repeatsApi.dismissSheet()
         captureInterrupts.value = interrupts
         captureOpen.value = true
@@ -225,12 +238,172 @@ class FocusStackViewModel(
     /** Opens the edit sheet for [taskId]. Closes capture so only one sheet is up. */
     fun openEdit(taskId: String) {
         closeCapture()
+        dismissActionSheets()
         repeatsApi.dismissSheet()
         editingTaskId.value = taskId
     }
 
     fun dismissEdit() {
         editingTaskId.value = null
+    }
+
+    /**
+     * Opens the chip-row task sheet for [taskId]. Today open, Today waiting,
+     * and pile rows share this sheet. Only one sheet is up.
+     */
+    fun openTaskSheet(taskId: String) {
+        closeCapture()
+        editingTaskId.value = null
+        repeatsApi.dismissSheet()
+        missedRepeatSheetState.value = null
+        missedTaskSheetState.value = null
+        val state = uiState.value
+        val title = taskTitle(taskId, state) ?: return
+        val waiting = state.recovery?.takeIf { it.taskId == taskId }
+        val role =
+            when {
+                waiting != null -> TaskSheetRole.TODAY_WAITING
+                state.todaySlots.any { it.task?.id == taskId } -> TaskSheetRole.TODAY_OPEN
+                else -> TaskSheetRole.PILE
+            }
+        taskSheetState.value =
+            TaskSheetUi(
+                taskId = taskId,
+                title = title,
+                role = role,
+                canInterrupt = state.canInterrupt && role != TaskSheetRole.TODAY_WAITING,
+                frameId = waiting?.frameId,
+            )
+    }
+
+    fun dismissTaskSheet() {
+        taskSheetState.value = null
+    }
+
+    fun startFromTaskSheet() {
+        val id = taskSheetState.value?.taskId ?: return
+        dismissTaskSheet()
+        start(id)
+    }
+
+    fun doneFromTaskSheet() {
+        val id = taskSheetState.value?.taskId ?: return
+        dismissTaskSheet()
+        markDone(id)
+    }
+
+    fun laterFromTaskSheet() {
+        val id = taskSheetState.value?.taskId ?: return
+        dismissTaskSheet()
+        demote(id)
+    }
+
+    fun editFromTaskSheet() {
+        val id = taskSheetState.value?.taskId ?: return
+        openEdit(id)
+    }
+
+    fun interruptFromTaskSheet() {
+        val sheet = taskSheetState.value ?: return
+        dismissTaskSheet()
+        if (sheet.role == TaskSheetRole.PILE) {
+            interruptFromPile(sheet.taskId)
+        } else {
+            interruptWith(sheet.taskId)
+        }
+    }
+
+    fun todayFromTaskSheet() {
+        val id = taskSheetState.value?.taskId ?: return
+        dismissTaskSheet()
+        promote(id)
+    }
+
+    fun resumeFromTaskSheet() {
+        val frameId = taskSheetState.value?.frameId ?: return
+        dismissTaskSheet()
+        resume(frameId)
+    }
+
+    /**
+     * Opens the missed-repeat sheet. The Home row stays muted and checkable
+     * until local midnight. A tap no longer writes Done on its own.
+     */
+    fun openMissedRepeat(
+        repeatId: String,
+        epochDay: Long,
+    ) {
+        closeCapture()
+        editingTaskId.value = null
+        repeatsApi.dismissSheet()
+        taskSheetState.value = null
+        missedTaskSheetState.value = null
+        val title =
+            repeatRows.value.rows
+                .firstOrNull { it.repeat.id == repeatId }
+                ?.repeat
+                ?.title
+                ?: return
+        missedRepeatSheetState.value = MissedRepeatSheetUi(repeatId, epochDay, title)
+    }
+
+    fun dismissMissedRepeat() {
+        missedRepeatSheetState.value = null
+    }
+
+    fun doneMissedRepeat() {
+        val pending = missedRepeatSheetState.value ?: return
+        dismissMissedRepeat()
+        markRepeatDone(pending.repeatId, pending.epochDay)
+    }
+
+    /**
+     * Closes the missed-repeat sheet without writing Done.
+     *
+     * TODO(Tommy): RepeatsApi has no skip-today. Add skip(repeatId, epochDay)
+     * if a skip should persist as something other than leaving the row MISSED.
+     * Until that exists, Skip today only dismisses. The row stays muted and
+     * checkable until local midnight.
+     */
+    fun skipMissedRepeat() {
+        // TODO(Tommy): stub — no RepeatsApi.skip. Dismiss only.
+        dismissMissedRepeat()
+    }
+
+    /** Opens the missed-task sheet for a due scheduled task. */
+    fun openMissedTask(taskId: String) {
+        closeCapture()
+        editingTaskId.value = null
+        repeatsApi.dismissSheet()
+        taskSheetState.value = null
+        missedRepeatSheetState.value = null
+        val title =
+            uiState.value.scheduledTasks.firstOrNull { it.id == taskId }?.title
+                ?: taskTitle(taskId, uiState.value)
+                ?: return
+        missedTaskSheetState.value = MissedTaskSheetUi(taskId, title)
+    }
+
+    fun dismissMissedTask() {
+        missedTaskSheetState.value = null
+    }
+
+    fun doneMissedTask() {
+        val id = missedTaskSheetState.value?.taskId ?: return
+        dismissMissedTask()
+        markDone(id)
+    }
+
+    fun tomorrowMissedTask() {
+        val id = missedTaskSheetState.value?.taskId ?: return
+        dismissMissedTask()
+        scheduleTaskOn(id, LocalDate.now().plusDays(1).toEpochDay())
+    }
+
+    fun pickDayMissedTask(epochDay: Long) {
+        val id = missedTaskSheetState.value?.taskId ?: return
+        dismissMissedTask()
+        scheduleTaskOn(id, epochDay)
     }
 
     /**
@@ -606,12 +779,14 @@ class FocusStackViewModel(
 
     fun openRepeatCreate(title: String = "") {
         closeCapture()
+        dismissActionSheets()
         editingTaskId.value = null
         repeatsApi.openCreate(title)
     }
 
     fun openRepeatEdit(repeat: Repeat) {
         closeCapture()
+        dismissActionSheets()
         editingTaskId.value = null
         repeatsApi.openEdit(repeat)
     }
@@ -791,6 +966,35 @@ class FocusStackViewModel(
     private fun closeCapture() {
         captureOpen.value = false
         captureInterrupts.value = false
+    }
+
+    private fun dismissActionSheets() {
+        taskSheetState.value = null
+        missedRepeatSheetState.value = null
+        missedTaskSheetState.value = null
+    }
+
+    private fun taskTitle(
+        taskId: String,
+        state: FocusUiState,
+    ): String? {
+        state.now?.takeIf { it.taskId == taskId }?.title?.let { return it }
+        state.recovery?.takeIf { it.taskId == taskId }?.title?.let { return it }
+        state.paused?.takeIf { it.taskId == taskId }?.title?.let { return it }
+        state.todaySlots.firstOrNull { it.task?.id == taskId }?.task?.title?.let { return it }
+        state.inboxTasks.firstOrNull { it.id == taskId }?.title?.let { return it }
+        state.laterTasks.firstOrNull { it.id == taskId }?.title?.let { return it }
+        state.scheduledTasks.firstOrNull { it.id == taskId }?.title?.let { return it }
+        return null
+    }
+
+    private fun scheduleTaskOn(
+        taskId: String,
+        epochDay: Long,
+    ) {
+        viewModelScope.launch {
+            useCases.scheduleExisting(taskId, epochDay)
+        }
     }
 
     private fun editSavedPhrases(transform: (List<String>) -> List<String>) {
