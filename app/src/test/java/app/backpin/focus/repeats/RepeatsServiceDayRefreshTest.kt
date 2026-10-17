@@ -265,7 +265,9 @@ class RepeatsServiceDayRefreshTest {
         val app = ApplicationProvider.getApplicationContext<Application>()
         val intent = Intent(action)
         shadowOf(app).registeredReceivers.forEach { wrapper ->
-            if (wrapper.intentFilter.hasAction(action) && wrapper.broadcastReceiver !is BandResyncReceiver) {
+            if (wrapper.intentFilter?.hasAction(action) == true &&
+                wrapper.broadcastReceiver !is BandResyncReceiver
+            ) {
                 wrapper.broadcastReceiver.onReceive(context, intent)
             }
         }
