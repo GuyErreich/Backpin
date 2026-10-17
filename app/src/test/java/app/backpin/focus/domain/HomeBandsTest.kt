@@ -244,9 +244,12 @@ class HomeBandsTest {
                 rows = RepeatRowsState(rows = repeats),
                 times = TIMES,
                 minuteOfDay = MORNING_START,
+                pinnedTaskIds = listOf(openTask.id, doneTask.id),
             )
         assertEquals(counts, grouped.morning.counts)
+        assertEquals(listOf(openTask, doneTask), grouped.morning.tasks)
         assertEquals(HomeBandCounts(), grouped.noon.counts)
+        assertTrue(grouped.anytime.tasks.isEmpty())
     }
 
     @Test
