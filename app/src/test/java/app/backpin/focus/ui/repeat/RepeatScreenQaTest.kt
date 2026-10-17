@@ -153,14 +153,14 @@ class RepeatScreenQaTest {
                     home.viewModel.repeatRows.value.rows.size == 2
             }
             val cadence = compose.activity.getString(R.string.repeat_cadence, 2)
-            val titled = "Water plants" + compose.activity.getString(R.string.repeat_title_cadence_gap, cadence)
             assertTrue(
                 home.viewModel.repeatRows.value.rows
                     .single { it.repeat.title == "Water plants" }
                     .cadenceDays == 2,
             )
             compose.onNodeWithText("Take meds", substring = true).assertExists()
-            compose.onNodeWithText(titled, substring = true, useUnmergedTree = true).assertExists()
+            compose.onNodeWithText("Water plants", useUnmergedTree = true).assertExists()
+            compose.onNodeWithText(cadence, substring = true, useUnmergedTree = true).assertExists()
             compose.onNodeWithContentDescription("Water plants. Noon. every 2 days. Check off.").assertExists()
             writePng("repeats-home-daily-and-every-2-days.png")
         } finally {
