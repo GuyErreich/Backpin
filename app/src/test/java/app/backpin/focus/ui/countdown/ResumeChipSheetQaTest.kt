@@ -98,7 +98,7 @@ class ResumeChipSheetQaTest {
     }
 
     @Test
-    fun resumeSheetLeadsWithInNDaysWhenSuggestedIsNot1Or3Or7() {
+    fun resumeSheetLeadsWithAgainInNDaysWhenSuggestedIsNot1Or3Or7() {
         var liveText by mutableStateOf(Color.Unspecified)
         var liveMuted by mutableStateOf(Color.Unspecified)
         var liveMint by mutableStateOf(Color.Unspecified)
@@ -110,15 +110,14 @@ class ResumeChipSheetQaTest {
                 liveMint = mint
             },
         )
-        val chips = listOf("In 5 days") + RESUME_CHIPS
-        assertEquals(chips, sheetChips(chips))
-        assertSheetChip("In 5 days")
-        val color = labelColor("In 5 days")
-        assertEquals("In 5 days", liveText, color)
-        assertNotEquals("In 5 days", liveMuted, color)
-        assertNotEquals("In 5 days", liveMint, color)
+        val chips = listOf("Again in 5 days") + RESUME_CHIPS
+        assertEquals(chips, sheetChips(chips, substring = true))
+        assertSheetChip("Again in 5 days", substring = true)
+        val color = labelColor("Again in 5 days", substring = true)
+        assertEquals("Again in 5 days", liveText, color)
+        assertNotEquals("Again in 5 days", liveMuted, color)
+        assertNotEquals("Again in 5 days", liveMint, color)
         compose.onNodeWithText("or choose").assertDoesNotExist()
-        compose.onNodeWithText("Again in 5 days", substring = true).assertDoesNotExist()
     }
 
     @Test
@@ -277,7 +276,10 @@ class ResumeChipSheetQaTest {
         }
     }
 
-    private fun sheetChips(labels: List<String>): List<String> {
+    private fun sheetChips(
+        labels: List<String>,
+        substring: Boolean = false,
+    ): List<String> {
         data class Hit(
             val label: String,
             val left: androidx.compose.ui.unit.Dp,
@@ -286,7 +288,7 @@ class ResumeChipSheetQaTest {
 
         val hits = mutableListOf<Hit>()
         labels.forEach { label ->
-            val nodes = compose.onAllNodesWithText(label)
+            val nodes = compose.onAllNodesWithText(label, substring = substring)
             val found = nodes.fetchSemanticsNodes()
             found.indices.forEach { index ->
                 val bounds = nodes[index].getBoundsInRoot()
@@ -313,8 +315,11 @@ class ResumeChipSheetQaTest {
         compose.onNodeWithText("OK").assertIsEnabled()
     }
 
-    private fun assertSheetChip(label: String) {
-        val node = compose.onNodeWithText(label)
+    private fun assertSheetChip(
+        label: String,
+        substring: Boolean = false,
+    ) {
+        val node = compose.onNodeWithText(label, substring = substring)
         val bounds = node.getBoundsInRoot()
         assertTrue("$label is $bounds tall", bounds.bottom - bounds.top >= 50.dp)
         node.assertIsEnabled().assertHasClickAction()
