@@ -29,7 +29,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
-import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -295,11 +294,12 @@ class FocusStackViewModelHomeBandsTest {
             assertEquals(PromoteOutcome.Promoted, outcome)
         }
 
-        suspend fun awaitBands(predicate: (HomeBands) -> Boolean): HomeBands = withTimeout(5_000) {
-            viewModel.homeBands.first { state ->
+        fun awaitBands(predicate: (HomeBands) -> Boolean): HomeBands {
+            waitUntil(5_000) {
                 shadowOf(Looper.getMainLooper()).idle()
-                predicate(state)
+                predicate(viewModel.homeBands.value)
             }
+            return viewModel.homeBands.value
         }
 
         suspend fun close() {

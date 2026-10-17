@@ -4,6 +4,10 @@ package app.backpin.focus.ui.home
 import android.content.Context
 import android.os.Looper
 import androidx.activity.ComponentActivity
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsDisplayed
@@ -39,7 +43,6 @@ import app.backpin.focus.domain.TaskStatus
 import app.backpin.focus.domain.ThemeId
 import app.backpin.focus.repeats.RepeatsService
 import app.backpin.focus.runOffTestThread
-import app.backpin.focus.ui.FocusApp
 import app.backpin.focus.ui.FocusStackViewModel
 import app.backpin.focus.ui.SlotRole
 import app.backpin.focus.ui.SlotUi
@@ -77,7 +80,10 @@ class HomeLayoutBandsHeaderTest {
 
     @Test
     fun bandsLayoutShowsMorningNoonNightHeadersAndFlatDoesNot() {
-        showHome(HomeLayout.BANDS)
+        val env = openEnv()
+        var layout by mutableStateOf(HomeLayout.BANDS)
+        showHome(env) { layout }
+        await { env.viewModel.uiState.value.ready }
         compose.onNodeWithText("Morning").assertIsDisplayed()
         compose.onNodeWithText("Noon").assertIsDisplayed()
         compose.onNodeWithText("Night").assertIsDisplayed()
@@ -85,7 +91,8 @@ class HomeLayoutBandsHeaderTest {
         compose.onNodeWithText("TODAY").assertDoesNotExist()
         compose.onNodeWithText("REPEAT").assertDoesNotExist()
 
-        showHome(HomeLayout.FLAT)
+        compose.runOnIdle { layout = HomeLayout.FLAT }
+        await { env.viewModel.uiState.value.ready }
         compose.onNodeWithText("Morning").assertDoesNotExist()
         compose.onNodeWithText("Noon").assertDoesNotExist()
         compose.onNodeWithText("Night").assertDoesNotExist()
@@ -110,8 +117,9 @@ class HomeLayoutBandsHeaderTest {
                     .id
             env.useCases.promote(taskId)
         }
-        showHome(HomeLayout.FLAT, env = env)
-        compose.waitUntil(timeoutMillis = 5_000) {
+        var layout by mutableStateOf(HomeLayout.FLAT)
+        showHome(env) { layout }
+        await {
             env.viewModel.uiState.value.ready &&
                 env.viewModel.repeatRows.value.rows.any { it.repeat.title == "Take meds" } &&
                 env.viewModel.uiState.value.todaySlots.any { it.task?.title == "Buy milk" }
@@ -124,8 +132,8 @@ class HomeLayoutBandsHeaderTest {
         compose.onNodeWithText("Noon").assertDoesNotExist()
         compose.onNodeWithText("Night").assertDoesNotExist()
 
-        showHome(HomeLayout.BANDS, env = env)
-        compose.waitUntil(timeoutMillis = 5_000) { env.viewModel.uiState.value.ready }
+        compose.runOnIdle { layout = HomeLayout.BANDS }
+        await { env.viewModel.uiState.value.ready }
         compose.onNodeWithText("TODAY").assertDoesNotExist()
         compose.onNodeWithText("REPEAT").assertDoesNotExist()
         compose.onNodeWithText("Noon").assertIsDisplayed()
@@ -145,37 +153,7 @@ class HomeLayoutBandsHeaderTest {
             paletteFor(ThemeId.STILL_WATER).textPrimary,
             paletteFor(ThemeId.CLEAR_LINE).textPrimary,
         )
-        for (themeId in THEMES) {
-            showBands(themeId)
-            val palette = paletteFor(themeId)
-            assertEquals(themeId.name, palette.textSecondary, labelColor(morningPastSummary()))
-            assertEquals(themeId.name, palette.textPrimary, labelColor("Noon"))
-            assertEquals(themeId.name, palette.textSecondary, labelColor("Night"))
-            assertEquals(themeId.name, palette.textPrimary, labelColor("Anytime"))
-            assertEquals(themeId.name, palette.textSecondary, labelColor(leftCount(1)))
-        }
-    }
-
-    private fun showHome(
-        layout: HomeLayout,
-        env: CloseableEnv? = null,
-    ): CloseableEnv {
-        val shown = env ?: openEnv()
-        compose.setContent {
-            FocusStackTheme {
-                FocusApp(
-                    viewModel = shown.viewModel,
-                    homeLayout = layout,
-                )
-            }
-        }
-        compose.waitForIdle()
-        shadowOf(Looper.getMainLooper()).idle()
-        compose.waitUntil(timeoutMillis = 5_000) { shown.viewModel.uiState.value.ready }
-        return shown
-    }
-
-    private fun showBands(themeId: ThemeId) {
+        var themeId by mutableStateOf(ThemeId.SIGNAL)
         val bands = noonBands()
         compose.setContent {
             FocusStackTheme(themeId = themeId) {
@@ -199,6 +177,47 @@ class HomeLayoutBandsHeaderTest {
             }
         }
         compose.waitForIdle()
+        for (id in THEMES) {
+            compose.runOnIdle { themeId = id }
+            compose.waitForIdle()
+            val palette = paletteFor(id)
+            assertEquals(id.name, palette.textSecondary, labelColor(morningPastSummary()))
+            assertEquals(id.name, palette.textPrimary, labelColor("Noon"))
+            assertEquals(id.name, palette.textSecondary, labelColor("Night"))
+            assertEquals(id.name, palette.textPrimary, labelColor("Anytime"))
+            assertEquals(id.name, palette.textSecondary, labelColor(leftCount(1)))
+        }
+    }
+
+    private fun showHome(
+        env: CloseableEnv,
+        layout: () -> HomeLayout,
+    ) {
+        compose.setContent {
+            val state by env.viewModel.uiState.collectAsState()
+            FocusStackTheme {
+                HomeScreen(
+                    state = state,
+                    viewModel = env.viewModel,
+                    onOpenFocus = {},
+                    onOpenInbox = {},
+                    onOpenLater = {},
+                    onOpenScheduled = {},
+                    onOpenDone = {},
+                    homeLayout = layout(),
+                )
+            }
+        }
+        compose.waitForIdle()
+        shadowOf(Looper.getMainLooper()).idle()
+    }
+
+    private fun await(predicate: () -> Boolean) {
+        compose.waitUntil(timeoutMillis = 5_000) {
+            compose.waitForIdle()
+            shadowOf(Looper.getMainLooper()).idle()
+            predicate()
+        }
     }
 
     private fun openEnv(): CloseableEnv {
