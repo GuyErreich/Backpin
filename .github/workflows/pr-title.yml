@@ -1,0 +1,9 @@
+name: pr-title
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+permissions: {}
+jobs:
+  pr-title:
+    uses: GuyErreich/ci-workflows/.github/workflows/pr-title.yml@4453b10a9e03199398b204358faddfdaa83e1d8b # v0.1.2
+    permissions: { pull-requests: read }
