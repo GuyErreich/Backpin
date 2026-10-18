@@ -8,25 +8,57 @@
         <item name="android:colorBackground">@color/midnight</item>
     </style>
 
-    <style name="TodayNoticeRow">
+    <style name="TodayNoticeItem">
         <item name="android:layout_width">match_parent</item>
         <item name="android:layout_height">wrap_content</item>
-        <item name="android:minHeight">48dp</item>
+        <item name="android:layout_marginBottom">8dp</item>
+        <item name="android:minHeight">64dp</item>
         <item name="android:gravity">center_vertical</item>
-        <item name="android:paddingTop">12dp</item>
-        <item name="android:paddingBottom">12dp</item>
+        <item name="android:orientation">horizontal</item>
+        <item name="android:paddingTop">10dp</item>
+        <item name="android:paddingBottom">10dp</item>
+        <item name="android:paddingStart">14dp</item>
+        <item name="android:paddingEnd">14dp</item>
+    </style>
+
+    <style name="TodayNoticeCopy">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:layout_marginEnd">12dp</item>
+        <item name="android:orientation">vertical</item>
+    </style>
+
+    <style name="TodayNoticeTitle">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
         <item name="android:textAppearance">@style/TextAppearance.Compat.Notification.Title</item>
         <item name="android:textSize">16sp</item>
-        <item name="android:maxLines">2</item>
+        <item name="android:lineSpacingExtra">2dp</item>
+        <item name="android:maxLines">1</item>
         <item name="android:ellipsize">end</item>
     </style>
 
-    <style name="TodayNoticeDivider">
+    <style name="TodayNoticeBand">
         <item name="android:layout_width">match_parent</item>
-        <item name="android:layout_height">1dp</item>
-        <item name="android:minHeight">1dp</item>
-        <item name="android:background">@color/notice_divider</item>
-        <item name="android:textSize">1sp</item>
-        <item name="android:includeFontPadding">false</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textAppearance">@style/TextAppearance.Compat.Notification.Info</item>
+        <item name="android:textSize">12sp</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:ellipsize">end</item>
+    </style>
+
+    <style name="TodayNoticeDone">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">36dp</item>
+        <item name="android:minWidth">63dp</item>
+        <item name="android:gravity">center</item>
+        <item name="android:paddingStart">12dp</item>
+        <item name="android:paddingEnd">12dp</item>
+        <item name="android:text">@string/action_done</item>
+        <item name="android:textColor">@color/mint</item>
+        <item name="android:textSize">16sp</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:background">@drawable/bg_notice_done</item>
     </style>
 </resources>
