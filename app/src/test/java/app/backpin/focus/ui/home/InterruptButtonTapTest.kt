@@ -45,7 +45,6 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
-import java.time.LocalDate
 import java.util.UUID
 
 @RunWith(RobolectricTestRunner::class)
@@ -67,10 +66,7 @@ class InterruptButtonTapTest {
                 FocusRepositoryImpl(
                     database = database,
                     preferencesStore = PreferencesDataStore(context, "interrupt-tap-${UUID.randomUUID()}"),
-                    clock =
-                        object : AppClock {
-                            override fun nowEpochMillis(): Long = 5_000L
-                        },
+                    clock = clock,
                 ),
             )
         val store = ViewModelStore()
@@ -80,7 +76,7 @@ class InterruptButtonTapTest {
                 object : ViewModelProvider.Factory {
                     override fun <T : ViewModel> create(modelClass: Class<T>): T {
                         @Suppress("UNCHECKED_CAST")
-                        return FocusStackViewModel(useCases) as T
+                        return FocusStackViewModel(useCases, clock = clock) as T
                     }
                 },
             )[FocusStackViewModel::class.java]
@@ -91,7 +87,7 @@ class InterruptButtonTapTest {
                 useCases.start(hold.id)
                 useCases.capture("From inbox")
                 useCases.captureLater("From later")
-                useCases.captureScheduled("From scheduled", LocalDate.now().plusDays(2).toEpochDay())
+                useCases.captureScheduled("From scheduled", clock.localDate().plusDays(2).toEpochDay())
             }
 
             var screen by mutableStateOf("capture")
@@ -152,6 +148,7 @@ class InterruptButtonTapTest {
                             CaptureSheet(
                                 phrases = emptyList(),
                                 frameActive = state.now != null,
+                                today = clock.localDate(),
                                 onDismiss = {},
                                 onSaveToInbox = viewModel::saveToInbox,
                                 onInterruptNow = viewModel::interruptNow,
@@ -259,6 +256,8 @@ class InterruptButtonTapTest {
         val active = snapshot.frames.singleOrNull { it.state == FrameState.ACTIVE } ?: return null
         return snapshot.tasks.singleOrNull { it.id == active.taskId }?.title
     }
+
+    private val clock: AppClock = app.backpin.focus.testing.FakeAppClock()
 }
 
 private object SilentRecognizer : UtteranceRecognizer {

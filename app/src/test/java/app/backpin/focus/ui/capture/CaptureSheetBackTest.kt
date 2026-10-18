@@ -156,6 +156,7 @@ class CaptureSheetBackTest {
                 CaptureSheet(
                     phrases = listOf("Talk to my wife", "Talk to <name>"),
                     frameActive = true,
+                    today = app.backpin.focus.testing.FakeAppClock().localDate(),
                     onDismiss = { dismissed += 1 },
                     onSaveToInbox = {},
                     onInterruptNow = {},

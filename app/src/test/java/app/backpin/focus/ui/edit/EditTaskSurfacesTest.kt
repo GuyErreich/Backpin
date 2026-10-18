@@ -404,7 +404,7 @@ class EditTaskSurfacesTest {
         state.editing?.let { editing ->
             CaptureSheet(
                 phrases = emptyList(),
-                frameActive = state.now != null,
+                frameActive = state.now != null, today = viewModel.localDate(),
                 onDismiss = viewModel::dismissEdit,
                 onSaveToInbox = {},
                 onInterruptNow = {},
