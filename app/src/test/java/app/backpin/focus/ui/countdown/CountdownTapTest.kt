@@ -60,7 +60,6 @@ import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeFormatterBuilder
 import java.time.format.FormatStyle
 import java.util.Locale
-import java.util.TimeZone
 
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
@@ -510,17 +509,11 @@ class CountdownTapTest {
     private fun withViewModel(
         block: (FocusStackViewModel, FocusUseCases, FocusRepositoryImpl, FocusStackDatabase) -> Unit,
     ) {
-        val previousZone = TimeZone.getDefault()
-        TimeZone.setDefault(TimeZone.getTimeZone(DEFAULT_TEST_ZONE.id))
-        try {
-            useTestFocus(context = context, clock = clock) { fixture ->
-                check(fixture.clock === clock)
-                fixture.withViewModel { viewModel ->
-                    block(viewModel, fixture.useCases, fixture.repository, fixture.database)
-                }
+        useTestFocus(context = context, clock = clock) { fixture ->
+            check(fixture.clock === clock)
+            fixture.withViewModel { viewModel ->
+                block(viewModel, fixture.useCases, fixture.repository, fixture.database)
             }
-        } finally {
-            TimeZone.setDefault(previousZone)
         }
     }
 
@@ -531,6 +524,7 @@ class CountdownTapTest {
                 CountdownScreen(
                     countdowns = state.countdowns,
                     ready = state.ready,
+                    today = clock.localDate(),
                     onAdd = viewModel::addCountdown,
                     onChangeDate = viewModel::changeCountdownDate,
                     onRemove = viewModel::removeCountdown,

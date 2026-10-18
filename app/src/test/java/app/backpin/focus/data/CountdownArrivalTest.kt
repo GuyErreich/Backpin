@@ -42,7 +42,7 @@ class CountdownArrivalTest {
 
     @Before
     fun setUp() {
-        pinArrivalZone(zone).also { clock.set(java.time.Instant.ofEpochMilli(epochAt(today, 10, 0))) }
+        clock.set(java.time.Instant.ofEpochMilli(epochAt(today, 10, 0)))
         database =
             Room
                 .inMemoryDatabaseBuilder(context, FocusStackDatabase::class.java)
@@ -58,7 +58,7 @@ class CountdownArrivalTest {
 
     @After
     fun tearDown() {
-        runCatching { database.close() }.also { restoreArrivalZone() }.getOrThrow()
+        database.close()
     }
 
     @Test
@@ -363,17 +363,4 @@ class CountdownArrivalTest {
     private suspend fun task(id: String) = snapshot().tasks.single { it.id == id }
 
     private suspend fun taskNamed(title: String) = snapshot().tasks.single { it.title == title }
-}
-
-private var savedArrivalZone: java.util.TimeZone? = null
-
-/** [FocusRepositoryImpl.localNow] uses [ZoneId.systemDefault] until it reads [FakeAppClock.zone]. */
-private fun pinArrivalZone(zone: ZoneId) {
-    if (savedArrivalZone == null) savedArrivalZone = java.util.TimeZone.getDefault()
-    java.util.TimeZone.setDefault(java.util.TimeZone.getTimeZone(zone.id))
-}
-
-private fun restoreArrivalZone() {
-    savedArrivalZone?.let(java.util.TimeZone::setDefault)
-    savedArrivalZone = null
 }

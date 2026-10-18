@@ -213,7 +213,7 @@ class DeriveFocusUiTest {
         val notes = task("notes", "Write the notes", TaskBucket.TODAY)
         val incoming = task("incoming", "Call the school", TaskBucket.INBOX)
         val state =
-            deriveFocusUi(
+            datedFocusUi(
                 FocusSnapshot(tasks = listOf(notes, incoming)),
                 ChromeState(
                     captureOpen = false,
@@ -233,7 +233,7 @@ class DeriveFocusUiTest {
         val open = task("open", "Buy milk", TaskBucket.INBOX)
         val done = task("done", "Old work", TaskBucket.INBOX, status = TaskStatus.DONE)
         val shown =
-            deriveFocusUi(
+            datedFocusUi(
                 FocusSnapshot(tasks = listOf(open, done)),
                 ChromeState(
                     captureOpen = false,
@@ -246,7 +246,7 @@ class DeriveFocusUiTest {
             )
         assertEquals("Buy milk", shown.editing?.title)
         val hidden =
-            deriveFocusUi(
+            datedFocusUi(
                 FocusSnapshot(tasks = listOf(open, done)),
                 ChromeState(
                     captureOpen = false,
@@ -263,7 +263,7 @@ class DeriveFocusUiTest {
     @Test
     fun captureReasonAndPhrasesStayOnTheSheetState() {
         val state =
-            deriveFocusUi(
+            datedFocusUi(
                 FocusSnapshot(),
                 ChromeState(
                     captureOpen = true,
@@ -286,7 +286,7 @@ class DeriveFocusUiTest {
         snapshot: FocusSnapshot,
         undo: PendingUndo? = null,
         preferences: UserPreferences = UserPreferences(),
-        localDate: LocalDate = LocalDate.of(2026, 9, 27),
+        localDate: LocalDate = app.backpin.focus.testing.FakeAppClock().localDate(),
     ): FocusUiState =
         deriveFocusUi(
             snapshot,
@@ -299,6 +299,11 @@ class DeriveFocusUiTest {
             ),
             localDate = localDate,
         )
+
+    private fun datedFocusUi(
+        snapshot: FocusSnapshot,
+        chrome: ChromeState,
+    ): FocusUiState = deriveFocusUi(snapshot, chrome, app.backpin.focus.testing.FakeAppClock().localDate())
 
     private fun task(
         id: String,
