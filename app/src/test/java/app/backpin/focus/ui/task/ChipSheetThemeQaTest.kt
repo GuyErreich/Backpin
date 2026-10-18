@@ -75,7 +75,7 @@ class ChipSheetThemeQaTest {
             assertEquals(id.name, palette.mint, labelColor("Done"))
             assertEquals(id.name, palette.lavender, labelColor("Interrupt"))
             assertEquals(id.name, palette.text, labelColor("Start"))
-            assertEquals(id.name, palette.text, labelColor("Later"))
+            assertEquals(id.name, palette.text, labelColor("Bring back…"))
             assertEquals(id.name, palette.text, labelColor("Edit"))
             assertNotEquals(id.name, palette.danger, labelColor("Done"))
             assertNotEquals(id.name, palette.danger, labelColor("Interrupt"))

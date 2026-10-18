@@ -9,23 +9,28 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.click
+import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performImeAction
+import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performTouchInput
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStore
-import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import app.backpin.focus.data.FocusRepositoryImpl
 import app.backpin.focus.data.FocusStackDatabase
 import app.backpin.focus.data.PreferencesDataStore
-import app.backpin.focus.domain.AppClock
 import app.backpin.focus.domain.FocusSnapshot
 import app.backpin.focus.domain.FocusUseCases
 import app.backpin.focus.domain.FrameState
 import app.backpin.focus.domain.TaskBucket
 import app.backpin.focus.domain.backInDaysLabel
+import app.backpin.focus.testing.FakeAppClock
+import app.backpin.focus.testing.inMemoryFocusDatabase
 import app.backpin.focus.ui.FocusApp
 import app.backpin.focus.ui.FocusStackViewModel
 import app.backpin.focus.ui.theme.FocusStackTheme
@@ -33,6 +38,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -52,9 +58,9 @@ class CountdownResumeStayTest {
 
     @Test
     fun resumeFromHomeStaysOnHomeShowsBackInAndUndoRestoresTheEvent() {
-        withViewModel { viewModel, useCases, repository, database ->
-            val today = LocalDate.now()
-            seedArrivedEvent(useCases, repository, database, intervalDays = 180)
+        withViewModel { viewModel, useCases, repository, database, clock ->
+            val today = clock.localDate()
+            seedArrivedEvent(useCases, repository, database, clock, intervalDays = 180)
             compose.setContent {
                 FocusStackTheme {
                     FocusApp(viewModel)
@@ -63,9 +69,12 @@ class CountdownResumeStayTest {
             await { viewModel.uiState.value.now?.title == "Dentist checkup" }
             compose.onNodeWithText("Keep your place.").assertExists()
             compose.onNodeWithText("Home").assertIsSelected()
+            compose.onNodeWithText("Coming up").assertIsNotSelected()
+            compose.onNodeWithText("Countdown").assertDoesNotExist()
 
-            tap("Count down again")
-            tap("In 3 days")
+            tapDetachCountDownAgain()
+            assertResumeSheet(intervalDays = 180, today = today)
+            typeDaysAndCommit(3)
 
             val expected = backInDaysLabel(3, today)
             await { viewModel.uiState.value.undo?.message == expected }
@@ -78,7 +87,8 @@ class CountdownResumeStayTest {
             }
             compose.onNodeWithText("Keep your place.").assertExists()
             compose.onNodeWithText("Home").assertIsSelected()
-            compose.onNodeWithText("Countdown").assertIsNotSelected()
+            compose.onNodeWithText("Coming up").assertIsNotSelected()
+            compose.onNodeWithText("Countdown").assertDoesNotExist()
             compose.onNodeWithText("Add countdown").assertDoesNotExist()
             compose.onNodeWithText("EVENT").assertDoesNotExist()
             compose.onNodeWithText(expected).assertExists()
@@ -107,9 +117,9 @@ class CountdownResumeStayTest {
 
     @Test
     fun resumeFromFocusStaysOnFocusAndNeverOpensCountdown() {
-        withViewModel { viewModel, useCases, repository, database ->
-            val today = LocalDate.now()
-            seedArrivedEvent(useCases, repository, database, intervalDays = 180)
+        withViewModel { viewModel, useCases, repository, database, clock ->
+            val today = clock.localDate()
+            seedArrivedEvent(useCases, repository, database, clock, intervalDays = 180)
             compose.setContent {
                 FocusStackTheme {
                     FocusApp(viewModel)
@@ -120,15 +130,17 @@ class CountdownResumeStayTest {
             compose.onNodeWithText("Focus").assertIsSelected()
             compose.onNodeWithText("EVENT").assertExists()
 
-            tap("Count down again")
-            tap("In 3 days")
+            tapDetachCountDownAgain()
+            assertResumeSheet(intervalDays = 180, today = today)
+            typeDaysAndCommit(3)
 
             val expected = backInDaysLabel(3, today)
             await { viewModel.uiState.value.undo?.message == expected }
             await { viewModel.uiState.value.now == null && viewModel.uiState.value.recovery?.title == "Write the report" }
             compose.onNodeWithText("Focus").assertIsSelected()
             compose.onNodeWithText("Home").assertIsNotSelected()
-            compose.onNodeWithText("Countdown").assertIsNotSelected()
+            compose.onNodeWithText("Coming up").assertIsNotSelected()
+            compose.onNodeWithText("Countdown").assertDoesNotExist()
             compose.onNodeWithText("Add countdown").assertDoesNotExist()
             compose.onNodeWithText("Resume").assertExists()
             compose.onNodeWithText(expected).assertExists()
@@ -136,10 +148,48 @@ class CountdownResumeStayTest {
         }
     }
 
+    private fun tapDetachCountDownAgain() {
+        await {
+            compose.onAllNodesWithText("Count down again").fetchSemanticsNodes().isNotEmpty()
+        }
+        tap("Count down again")
+    }
+
+    private fun assertResumeSheet(
+        intervalDays: Int,
+        today: LocalDate,
+    ) {
+        val again = againInDaysLabel(intervalDays, today)
+        await {
+            compose.onAllNodesWithText(again, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithText(again).assertIsEnabled().assertHasClickAction()
+        compose.onAllNodes(hasSetTextAction()).fetchSemanticsNodes().let { nodes ->
+            assertEquals("resume sheet days field", 1, nodes.size)
+        }
+        compose.onNodeWithText("Days from today").assertExists()
+        compose.onNodeWithText("Pick a date").assertIsEnabled().assertHasClickAction()
+        compose.onNodeWithContentDescription("Close").assertExists()
+        compose.onNodeWithText("Count down again").assertDoesNotExist()
+        compose.onNodeWithText("Countdown").assertDoesNotExist()
+        val againTop = compose.onNodeWithText(again).fetchSemanticsNode().boundsInRoot.top
+        val pickTop = compose.onNodeWithText("Pick a date").fetchSemanticsNode().boundsInRoot.top
+        val fieldTop = compose.onAllNodes(hasSetTextAction())[0].fetchSemanticsNode().boundsInRoot.top
+        assertTrue("Again in N days is primary", againTop < fieldTop)
+        assertTrue("days field sits above Pick a date", fieldTop < pickTop)
+    }
+
+    private fun typeDaysAndCommit(days: Int) {
+        compose.onAllNodes(hasSetTextAction())[0].performTextReplacement(days.toString())
+        compose.onAllNodes(hasSetTextAction())[0].performImeAction()
+        compose.waitForIdle()
+    }
+
     private fun seedArrivedEvent(
         useCases: FocusUseCases,
         repository: FocusRepositoryImpl,
         database: FocusStackDatabase,
+        clock: FakeAppClock,
         intervalDays: Int,
     ) {
         runBlocking {
@@ -147,7 +197,7 @@ class CountdownResumeStayTest {
             val work = useCases.observeSnapshot().first().tasks.single { it.title == "Write the report" }
             useCases.promote(work.id)
             useCases.start(work.id)
-            useCases.captureCountdown("Dentist checkup", LocalDate.now().toEpochDay())
+            useCases.captureCountdown("Dentist checkup", clock.localDate().toEpochDay())
             val dentist = useCases.observeSnapshot().first().tasks.single { it.title == "Dentist checkup" }
             val row = database.taskDao().getById(dentist.id) ?: error("Missing dentist")
             database.taskDao().upsert(row.copy(countdownIntervalDays = intervalDays))
@@ -162,18 +212,15 @@ class CountdownResumeStayTest {
     }
 
     private fun withViewModel(
-        block: (FocusStackViewModel, FocusUseCases, FocusRepositoryImpl, FocusStackDatabase) -> Unit,
+        block: (FocusStackViewModel, FocusUseCases, FocusRepositoryImpl, FocusStackDatabase, FakeAppClock) -> Unit,
     ) {
-        val database =
-            Room
-                .inMemoryDatabaseBuilder(context, FocusStackDatabase::class.java)
-                .allowMainThreadQueries()
-                .build()
+        val clock = FakeAppClock()
+        val database = inMemoryFocusDatabase(context)
         val repository =
             FocusRepositoryImpl(
                 database = database,
                 preferencesStore = PreferencesDataStore(context, "countdown-stay-${UUID.randomUUID()}"),
-                clock = AppClock { System.currentTimeMillis() },
+                clock = clock,
             )
         val useCases = FocusUseCases(repository)
         val store = ViewModelStore()
@@ -183,12 +230,12 @@ class CountdownResumeStayTest {
                 object : ViewModelProvider.Factory {
                     override fun <T : ViewModel> create(modelClass: Class<T>): T {
                         @Suppress("UNCHECKED_CAST")
-                        return FocusStackViewModel(useCases) as T
+                        return FocusStackViewModel(useCases, clock = clock) as T
                     }
                 },
             )[FocusStackViewModel::class.java]
         try {
-            block(viewModel, useCases, repository, database)
+            block(viewModel, useCases, repository, database, clock)
         } finally {
             store.clear()
             database.close()

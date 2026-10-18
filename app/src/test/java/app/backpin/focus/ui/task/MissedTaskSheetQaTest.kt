@@ -239,7 +239,7 @@ class MissedTaskSheetQaTest {
         )
 
         val hits = mutableListOf<Hit>()
-        listOf("Done now", "Tomorrow", "Pick a day", "Start", "Done", "Later", "Edit").forEach { label ->
+        listOf("Done now", "Tomorrow", "Pick a day", "Start", "Done", "Edit").forEach { label ->
             val nodes = compose.onAllNodesWithText(label)
             val found = nodes.fetchSemanticsNodes()
             found.indices.forEach { index ->
