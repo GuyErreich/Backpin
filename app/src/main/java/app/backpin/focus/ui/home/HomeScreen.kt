@@ -103,10 +103,8 @@ fun HomeScreen(
     val hasRoom = filled.size < todayLimit
     val movedComingUp = stringResource(R.string.moved_to_coming_up)
     val movedInbox = stringResource(R.string.moved_to_inbox)
-    var bringBack by remember { mutableStateOf<BringBackTarget?>(null) }
-    val openBringBack: (String, String) -> Unit = { id, title ->
-        bringBack = BringBackTarget(id, title)
-    }
+    val bringBack by viewModel.bringBack.collectAsStateWithLifecycle()
+    val openBringBack: (String, String) -> Unit = viewModel::openBringBack
 
     Column(
         modifier
@@ -215,13 +213,13 @@ fun HomeScreen(
         val today = state.today
         val isEvent = state.now?.let { it.taskId == target.taskId && it.isEvent } == true
         BringBackSheet(
-            onDismiss = { bringBack = null },
+            onDismiss = viewModel::dismissBringBack,
             onDate = { date ->
-                bringBack = null
+                viewModel.dismissBringBack()
                 viewModel.bringBackOnDate(target.taskId, date.toEpochDay(), movedComingUp)
             },
             onKeepInInbox = {
-                bringBack = null
+                viewModel.dismissBringBack()
                 viewModel.bringBackToInbox(target.taskId, movedInbox)
             },
             today = today,
@@ -229,11 +227,6 @@ fun HomeScreen(
         )
     }
 }
-
-private data class BringBackTarget(
-    val taskId: String,
-    val title: String,
-)
 
 private fun move(
     ids: List<String>,
