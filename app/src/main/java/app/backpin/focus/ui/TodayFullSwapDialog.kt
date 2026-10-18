@@ -25,6 +25,8 @@ import app.backpin.focus.domain.ThemeId
 import app.backpin.focus.ui.components.AccentButton
 import app.backpin.focus.ui.components.AccentTone
 import app.backpin.focus.ui.components.ActionRow
+import app.backpin.focus.ui.components.CaptureChoice
+import app.backpin.focus.ui.components.ChoiceTone
 import app.backpin.focus.ui.components.QuietButton
 import app.backpin.focus.ui.theme.ButtonGap
 import app.backpin.focus.ui.theme.FocusColors
@@ -77,10 +79,11 @@ fun TodayFullSwapDialog(
         },
         confirmButton = {
             if (pickingSwap) {
-                QuietButton(
+                CaptureChoice(
                     label = stringResource(R.string.action_keep_in_inbox),
+                    tone = ChoiceTone.Mint,
+                    filled = true,
                     onClick = onKeepInInbox,
-                    modifier = Modifier.fillMaxWidth(),
                 )
             } else {
                 ActionRow {
@@ -88,8 +91,10 @@ fun TodayFullSwapDialog(
                         label = stringResource(R.string.action_swap_one_out),
                         onClick = { pickingSwap = true },
                     )
-                    QuietButton(
+                    CaptureChoice(
                         label = stringResource(R.string.action_keep_in_inbox),
+                        tone = ChoiceTone.Mint,
+                        filled = true,
                         onClick = onKeepInInbox,
                     )
                 }
