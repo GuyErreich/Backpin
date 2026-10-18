@@ -510,13 +510,17 @@ class CountdownTapTest {
     private fun withViewModel(
         block: (FocusStackViewModel, FocusUseCases, FocusRepositoryImpl, FocusStackDatabase) -> Unit,
     ) {
+        val previousZone = TimeZone.getDefault()
         TimeZone.setDefault(TimeZone.getTimeZone(DEFAULT_TEST_ZONE.id))
-        clock.set(LocalDate.now(DEFAULT_TEST_ZONE).atTime(12, 0).atZone(DEFAULT_TEST_ZONE).toInstant())
-        useTestFocus(context = context, clock = clock) { fixture ->
-            check(fixture.clock === clock)
-            fixture.withViewModel { viewModel ->
-                block(viewModel, fixture.useCases, fixture.repository, fixture.database)
+        try {
+            useTestFocus(context = context, clock = clock) { fixture ->
+                check(fixture.clock === clock)
+                fixture.withViewModel { viewModel ->
+                    block(viewModel, fixture.useCases, fixture.repository, fixture.database)
+                }
             }
+        } finally {
+            TimeZone.setDefault(previousZone)
         }
     }
 

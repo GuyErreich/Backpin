@@ -35,14 +35,14 @@ import java.util.UUID
 class CountdownArrivalTest {
     private val zone: ZoneId = app.backpin.focus.testing.DEFAULT_TEST_ZONE
     private val today: LocalDate = LocalDate.of(2026, 9, 28)
-    private val clock = FakeAppClock(java.time.Instant.EPOCH, pinArrivalZone(zone))
+    private val clock = FakeAppClock(java.time.Instant.EPOCH, zone)
     private val context: Context = ApplicationProvider.getApplicationContext()
     private lateinit var database: FocusStackDatabase
     private lateinit var repository: FocusRepository
 
     @Before
     fun setUp() {
-        clock.set(java.time.Instant.ofEpochMilli(epochAt(today, 10, 0)))
+        pinArrivalZone(zone).also { clock.set(java.time.Instant.ofEpochMilli(epochAt(today, 10, 0))) }
         database =
             Room
                 .inMemoryDatabaseBuilder(context, FocusStackDatabase::class.java)
@@ -58,7 +58,7 @@ class CountdownArrivalTest {
 
     @After
     fun tearDown() {
-        database.close()
+        runCatching { database.close() }.also { restoreArrivalZone() }.getOrThrow()
     }
 
     @Test
@@ -344,7 +344,7 @@ class CountdownArrivalTest {
         date: LocalDate,
         hour: Int,
         minute: Int,
-    ): Long = date.atTime(hour, minute).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+    ): Long = date.atTime(hour, minute).atZone(zone).toInstant().toEpochMilli()
 
     private suspend fun fillToday(count: Int): List<String> =
         (1..count).map { index ->
@@ -365,8 +365,15 @@ class CountdownArrivalTest {
     private suspend fun taskNamed(title: String) = snapshot().tasks.single { it.title == title }
 }
 
-/** [FocusRepositoryImpl.localNow] uses [ZoneId.systemDefault], not [FakeAppClock.zone]. */
-private fun pinArrivalZone(zone: ZoneId): ZoneId {
+private var savedArrivalZone: java.util.TimeZone? = null
+
+/** [FocusRepositoryImpl.localNow] uses [ZoneId.systemDefault] until it reads [FakeAppClock.zone]. */
+private fun pinArrivalZone(zone: ZoneId) {
+    if (savedArrivalZone == null) savedArrivalZone = java.util.TimeZone.getDefault()
     java.util.TimeZone.setDefault(java.util.TimeZone.getTimeZone(zone.id))
-    return zone
+}
+
+private fun restoreArrivalZone() {
+    savedArrivalZone?.let(java.util.TimeZone::setDefault)
+    savedArrivalZone = null
 }
