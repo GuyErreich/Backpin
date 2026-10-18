@@ -76,7 +76,7 @@ class MissedRepeatSheetQaTest {
             showHome(env)
             awaitMissed(env, "Take meds")
             val before = runOffTestThread { env.database.repeatLogDao().forDay(today) }
-            tapDescription("Take meds. Missed at morning · muted until end of day. Check off.")
+            tapDescription("Take meds. Missed this morning. Check off.")
             await { env.viewModel.missedRepeatSheet.value?.title == "Take meds" }
             compose.onNodeWithText("This one was missed.").assertExists()
             compose.onNodeWithText("Muted until the end of the day. You can still check it off.").assertExists()
@@ -105,7 +105,7 @@ class MissedRepeatSheetQaTest {
                 }
             showHome(env)
             awaitMissed(env, "Take meds")
-            tapDescription("Take meds. Missed at morning · muted until end of day. Check off.")
+            tapDescription("Take meds. Missed this morning. Check off.")
             await { env.viewModel.missedRepeatSheet.value != null }
             tapSheet("Done now")
             await {
@@ -115,7 +115,7 @@ class MissedRepeatSheetQaTest {
                     env.viewModel.uiState.value.undo?.target is UndoTarget.RepeatCheckOff
             }
             compose.onNodeWithText("This one was missed.").assertDoesNotExist()
-            compose.onNodeWithContentDescription("Take meds. Morning. Done.").assertExists()
+            compose.onNodeWithContentDescription("Take meds. Morning. daily. Done.").assertExists()
             assertEquals(
                 RepeatOutcome.DONE.name,
                 runOffTestThread { env.database.repeatLogDao().get(id, today)?.outcome },
@@ -138,7 +138,7 @@ class MissedRepeatSheetQaTest {
                 }
             showHome(env)
             awaitMissed(env, "Take meds")
-            val missed = "Take meds. Missed at morning · muted until end of day. Check off."
+            val missed = "Take meds. Missed this morning. Check off."
             val before = runOffTestThread { env.database.repeatLogDao().get(id, today) }
             val logsBefore = runOffTestThread { env.database.repeatLogDao().forDay(today) }
             val allBefore = runOffTestThread { env.database.repeatLogDao().observeAll().first() }
@@ -161,9 +161,9 @@ class MissedRepeatSheetQaTest {
             assertTrue(allAfter.none { it.outcome == RepeatOutcome.DONE.name })
             assertNull(env.viewModel.uiState.value.undo)
             assertNull(runOffTestThread { env.repeats.observePendingUndo().first() })
-            compose.onNodeWithText("Missed at morning · muted until end of day").assertExists()
-            assertEquals(FocusColors.Muted, textColor("Take meds"))
-            assertEquals(FocusColors.Amber, textColor("Missed at morning · muted until end of day"))
+            compose.onNodeWithText("Missed this morning").assertExists()
+            assertEquals(FocusColors.Text, textColor("Take meds"))
+            assertEquals(FocusColors.Amber, textColor("Missed this morning"))
             compose.onNodeWithContentDescription(missed).assertHasClickAction()
             tapDescription(missed)
             await { env.viewModel.missedRepeatSheet.value?.title == "Take meds" }
@@ -188,7 +188,7 @@ class MissedRepeatSheetQaTest {
                 }
             showHome(env)
             awaitMissed(env, "Take meds")
-            val missed = "Take meds. Missed at morning · muted until end of day. Check off."
+            val missed = "Take meds. Missed this morning. Check off."
             tapDescription(missed)
             await { env.viewModel.missedRepeatSheet.value != null }
             tapSheet("Skip today")
@@ -202,7 +202,7 @@ class MissedRepeatSheetQaTest {
                     RepeatDayStatus.DONE &&
                     env.viewModel.uiState.value.undo?.target is UndoTarget.RepeatCheckOff
             }
-            compose.onNodeWithContentDescription("Take meds. Morning. Done.").assertExists()
+            compose.onNodeWithContentDescription("Take meds. Morning. daily. Done.").assertExists()
             assertEquals(
                 RepeatOutcome.DONE.name,
                 runOffTestThread { env.database.repeatLogDao().get(id, today)?.outcome },
@@ -223,7 +223,7 @@ class MissedRepeatSheetQaTest {
             }
             showHome(env)
             awaitMissed(env, "Water plants")
-            tapDescription("Water plants. Missed at noon · muted until end of day. Check off.")
+            tapDescription("Water plants. Missed at noon. Check off.")
             await { env.viewModel.missedRepeatSheet.value != null }
             tapSheet("Skip today")
             await {
@@ -233,10 +233,10 @@ class MissedRepeatSheetQaTest {
 
             env.advanceTo(hour = 23, minute = 59, day = DAY)
             awaitMissed(env, "Water plants")
-            compose.onNodeWithText("Missed at noon · muted until end of day").assertExists()
-            assertEquals(FocusColors.Muted, textColor("Water plants"))
+            compose.onNodeWithText("Missed at noon").assertExists()
+            assertEquals(FocusColors.Text, textColor("Water plants"))
             compose
-                .onNodeWithContentDescription("Water plants. Missed at noon · muted until end of day. Check off.")
+                .onNodeWithContentDescription("Water plants. Missed at noon. Check off.")
                 .assertHasClickAction()
 
             env.advanceTo(hour = 0, minute = 0, day = DAY.plusDays(1))
@@ -252,7 +252,7 @@ class MissedRepeatSheetQaTest {
                     env.viewModel.repeatRows.value.rows.single().status == RepeatDayStatus.OPEN
             }
             compose.onNodeWithContentDescription("Water plants. Noon. every 2 days. Check off.").assertExists()
-            compose.onNodeWithText("Missed at noon · muted until end of day").assertDoesNotExist()
+            compose.onNodeWithText("Missed at noon").assertDoesNotExist()
         } finally {
             env.close()
         }
@@ -268,13 +268,13 @@ class MissedRepeatSheetQaTest {
             }
             showHome(env)
             awaitMissed(env, "Take meds")
-            assertEquals(FocusColors.Muted, textColor("Take meds"))
-            assertEquals(FocusColors.Amber, textColor("Missed at morning · muted until end of day"))
+            assertEquals(FocusColors.Text, textColor("Take meds"))
+            assertEquals(FocusColors.Amber, textColor("Missed this morning"))
             val danger = paletteFor(ThemeId.SIGNAL).danger
             assertNotEquals(danger, textColor("Take meds"))
-            assertNotEquals(danger, textColor("Missed at morning · muted until end of day"))
+            assertNotEquals(danger, textColor("Missed this morning"))
             compose
-                .onNodeWithContentDescription("Take meds. Missed at morning · muted until end of day. Check off.")
+                .onNodeWithContentDescription("Take meds. Missed this morning. Check off.")
                 .assertHasClickAction()
         } finally {
             env.close()

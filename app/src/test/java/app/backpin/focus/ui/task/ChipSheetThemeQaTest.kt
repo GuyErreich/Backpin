@@ -216,13 +216,13 @@ class ChipSheetThemeQaTest {
             themeId = id
             compose.waitForIdle()
             val palette = liveColors(id, live)
-            assertEquals(id.name, palette.muted, labelColor("Take meds"))
-            assertEquals(id.name, palette.amber, labelColor("Missed at morning · muted until end of day"))
+            assertEquals(id.name, palette.text, labelColor("Take meds"))
+            assertEquals(id.name, palette.amber, labelColor("Missed this morning"))
             assertNotEquals(id.name, palette.danger, labelColor("Take meds"))
-            assertNotEquals(id.name, palette.danger, labelColor("Missed at morning · muted until end of day"))
-            assertNotEquals(id.name, Color.Red, labelColor("Missed at morning · muted until end of day"))
+            assertNotEquals(id.name, palette.danger, labelColor("Missed this morning"))
+            assertNotEquals(id.name, Color.Red, labelColor("Missed this morning"))
             if (id != ThemeId.SIGNAL) {
-                assertNotEquals(id.name, FocusColors.Amber, labelColor("Missed at morning · muted until end of day"))
+                assertNotEquals(id.name, FocusColors.Amber, labelColor("Missed this morning"))
                 assertNotEquals(id.name, FocusColors.Muted, labelColor("Take meds"))
             }
         }

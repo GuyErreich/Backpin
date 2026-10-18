@@ -100,7 +100,7 @@ class RepeatHomeSpecTest {
                 env.viewModel.repeatRows.value.rows.single().status == RepeatDayStatus.OPEN &&
                     env.viewModel.uiState.value.undo == null
             }
-            compose.onNodeWithContentDescription("Take meds. Morning. Check off.").assertExists()
+            compose.onNodeWithContentDescription("Take meds. Morning. daily. Check off.").assertExists()
         } finally {
             env.close()
         }
@@ -120,10 +120,10 @@ class RepeatHomeSpecTest {
                 env.viewModel.uiState.value.ready &&
                     env.viewModel.repeatRows.value.rows.singleOrNull()?.status == RepeatDayStatus.MISSED
             }
-            compose.onNodeWithText("Missed at noon · muted until end of day").assertExists()
+            compose.onNodeWithText("Missed at noon").assertExists()
             val missedColor = textLayout("Water plants").layoutInput.style.color
-            assertEquals(FocusColors.Muted, missedColor)
-            tapDescription("Water plants. Missed at noon · muted until end of day. Check off.")
+            assertEquals(FocusColors.Text, missedColor)
+            tapDescription("Water plants. Missed at noon. Check off.")
             await {
                 env.viewModel.missedRepeatSheet.value?.title == "Water plants" &&
                     env.viewModel.repeatRows.value.rows.single().status == RepeatDayStatus.MISSED
@@ -148,7 +148,7 @@ class RepeatHomeSpecTest {
                 runOffTestThread { env.database.repeatLogDao().get(id, today)?.outcome },
             )
             compose
-                .onNodeWithContentDescription("Water plants. Missed at noon · muted until end of day. Check off.")
+                .onNodeWithContentDescription("Water plants. Missed at noon. Check off.")
                 .assertExists()
         } finally {
             env.close()
@@ -171,8 +171,8 @@ class RepeatHomeSpecTest {
                     setOf("Take meds", "Water plants") &&
                     env.viewModel.repeatRows.value.rows.all { it.status == RepeatDayStatus.MISSED }
             }
-            compose.onNodeWithContentDescription("Take meds. Missed at morning · muted until end of day. Check off.").assertExists()
-            compose.onNodeWithContentDescription("Water plants. Missed at noon · muted until end of day. Check off.").assertExists()
+            compose.onNodeWithContentDescription("Take meds. Missed this morning. Check off.").assertExists()
+            compose.onNodeWithContentDescription("Water plants. Missed at noon. Check off.").assertExists()
 
             env.clock.now = at(hour = 0, minute = 1, day = DAY.plusDays(1))
             env.reopenHome()
@@ -185,7 +185,7 @@ class RepeatHomeSpecTest {
             assertEquals(listOf("Take meds"), rows.map { it.repeat.title })
             assertEquals(RepeatDayStatus.OPEN, rows.single().status)
             compose.onNodeWithText("Water plants").assertDoesNotExist()
-            compose.onNodeWithContentDescription("Take meds. Morning. Check off.").assertExists()
+            compose.onNodeWithContentDescription("Take meds. Morning. daily. Check off.").assertExists()
         } finally {
             env.close()
         }
@@ -241,7 +241,7 @@ class RepeatHomeSpecTest {
             compose.onNodeWithText("TODAY").assertExists()
             compose.onNodeWithText("REPEAT").assertExists()
             compose.onNodeWithText("Buy milk").assertExists()
-            compose.onNodeWithContentDescription("Take meds. Morning. Check off.").assertExists()
+            compose.onNodeWithContentDescription("Take meds. Morning. daily. Check off.").assertExists()
             assertTrue(
                 env.viewModel.uiState.value.todaySlots.none { it.task?.title == "Take meds" },
             )
@@ -333,14 +333,14 @@ class RepeatHomeSpecTest {
             assertEquals(2, env.viewModel.repeatRows.value.leftCount)
             compose.onNodeWithText("2 of 2 left").assertExists()
             compose.onNodeWithText("All done").assertDoesNotExist()
-            tapDescription("Water plants. Noon. Check off.")
+            tapDescription("Water plants. Noon. daily. Check off.")
             await {
                 env.viewModel.repeatRows.value.leftCount == 1 &&
                     env.viewModel.repeatRows.value.rows.any { it.status == RepeatDayStatus.MISSED }
             }
             compose.onNodeWithText("1 of 2 left").assertExists()
             compose.onNodeWithText("All done").assertDoesNotExist()
-            tapDescription("Take meds. Missed at morning · muted until end of day. Check off.")
+            tapDescription("Take meds. Missed this morning. Check off.")
             await {
                 env.viewModel.missedRepeatSheet.value?.title == "Take meds" &&
                     env.viewModel.repeatRows.value.leftCount == 1 &&
@@ -404,7 +404,7 @@ class RepeatHomeSpecTest {
             awaitText("2 of 2 left")
             assertHeader("2 of 2 left")
             compose.onNodeWithText("All done", useUnmergedTree = true).assertDoesNotExist()
-            tapDescription("Take meds. Morning. Check off.")
+            tapDescription("Take meds. Morning. daily. Check off.")
             await {
                 env.viewModel.uiState.value.ready &&
                     env.viewModel.repeatRows.value.leftCount == 1 &&
@@ -412,7 +412,7 @@ class RepeatHomeSpecTest {
             }
             awaitText("1 of 2 left")
             assertHeader("1 of 2 left")
-            tapDescription("Make bed. Morning. Check off.")
+            tapDescription("Make bed. Morning. daily. Check off.")
             await {
                 env.viewModel.uiState.value.ready &&
                     env.viewModel.repeatRows.value.leftCount == 0 &&
