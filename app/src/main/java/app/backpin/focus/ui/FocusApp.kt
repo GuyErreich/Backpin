@@ -354,6 +354,7 @@ fun FocusApp(
         CaptureSheet(
             phrases = emptyList(),
             frameActive = state.now != null,
+            today = viewModel.localDate(),
             onDismiss = viewModel::dismissEdit,
             onSaveToInbox = {},
             onInterruptNow = {},
@@ -400,6 +401,7 @@ fun FocusApp(
         CaptureSheet(
             phrases = state.preferences.savedPhrases,
             frameActive = state.now != null,
+            today = viewModel.localDate(),
             onDismiss = viewModel::dismissCapture,
             onSaveToInbox = viewModel::saveToInbox,
             onInterruptNow = viewModel::interruptNow,
