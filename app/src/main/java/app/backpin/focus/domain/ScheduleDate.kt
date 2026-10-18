@@ -123,7 +123,7 @@ fun isCountdownDue(
 /** Days from today a countdown may be set. Typed and stored counts stay in this range. */
 const val MIN_COUNTDOWN_DAYS: Int = 1
 const val MAX_COUNTDOWN_REARM_DAYS: Int = 365
-const val MAX_COUNTDOWN_DAYS: Int = MAX_COUNTDOWN_REARM_DAYS
+const val MAX_COUNTDOWN_DAYS: Int = 999
 
 /**
  * Days from [today] to [epochDay], when that gap is a countdown that can be reused.
