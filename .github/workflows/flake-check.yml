@@ -51,6 +51,39 @@ jobs:
             classes+=("$class")
           }
 
+          classes_from_file() {
+            local file="$1"
+            local pkg simple fqcn
+            local -a simples
+            if [[ ! -f "$file" ]]; then
+              printf 'Changed test file is missing: %s\n' "$file" >&2
+              exit 1
+            fi
+            pkg="$(grep -E '^package [A-Za-z0-9_.]+' -- "$file" | sed -n 's/^package \([A-Za-z0-9_.][A-Za-z0-9_.]*\).*/\1/p' | head -n 1 || true)"
+            if [[ -z "$pkg" ]]; then
+              printf 'No package line in %s\n' "$file" >&2
+              exit 1
+            fi
+            if [[ ! "$pkg" =~ ^[A-Za-z0-9_.]+$ ]]; then
+              printf 'Invalid package name parsed from %s\n' "$file" >&2
+              exit 1
+            fi
+            mapfile -t simples < <(grep -E '^(internal |public |private )?(abstract |open )?class [A-Za-z_][A-Za-z0-9_]*' -- "$file" | sed -E 's/^(internal |public |private )?(abstract |open )?class ([A-Za-z_][A-Za-z0-9_]*).*/\3/' || true)
+            if [[ ${#simples[@]} -eq 0 ]]; then
+              printf 'No top-level class names in %s\n' "$file" >&2
+              exit 1
+            fi
+            for simple in "${simples[@]}"; do
+              [[ -n "$simple" ]] || continue
+              if [[ ! "$simple" =~ ^[A-Za-z0-9_]+$ ]]; then
+                printf 'Invalid class name parsed from %s\n' "$file" >&2
+                exit 1
+              fi
+              fqcn="${pkg}.${simple}"
+              add_class "$fqcn"
+            done
+          }
+
           if [[ "$EVENT_NAME" == workflow_dispatch ]]; then
             if [[ -n "${DISPATCH_CLASSES// }" ]]; then
               local_normalized="${DISPATCH_CLASSES//,/ }"
@@ -67,17 +100,7 @@ jobs:
             fi
             while IFS= read -r -d '' file; do
               [[ "$file" == *Test.kt ]] || continue
-              if [[ "$file" == */java/* ]]; then
-                rel="${file##*/java/}"
-              elif [[ "$file" == */kotlin/* ]]; then
-                rel="${file##*/kotlin/}"
-              else
-                printf 'Ignoring test file outside java/ or kotlin/: %s\n' "$file"
-                continue
-              fi
-              class="${rel%.kt}"
-              class="${class//\//.}"
-              add_class "$class"
+              classes_from_file "$file"
             done < <(git diff -z --name-only --diff-filter=ACMR HEAD^1...HEAD^2 -- app/src/test)
           else
             echo "Unsupported event" >&2
@@ -117,6 +140,8 @@ jobs:
         run: |
           set -euo pipefail
           classes_file="${RUNNER_TEMP}/flake-classes.txt"
+          failed_methods_file="${RUNNER_TEMP}/flake-failed-methods.txt"
+          : >"$failed_methods_file"
           mapfile -t raw_classes <"$classes_file"
           classes=()
           for class in "${raw_classes[@]}"; do
@@ -156,7 +181,7 @@ jobs:
             echo "::group::Flake run ${i}/${RUN_COUNT}"
             rm -rf app/build/test-results app/build/reports/tests
             set +e
-            ./gradlew :app:testDebugUnitTest "${test_args[@]}" --rerun-tasks --stacktrace
+            ./gradlew :app:testDebugUnitTest "${test_args[@]}" --rerun --stacktrace
             status=$?
             set -e
             echo "::endgroup::"
@@ -177,8 +202,14 @@ jobs:
               xml="app/build/test-results/testDebugUnitTest/TEST-${class}.xml"
               class_passed=0
               if [[ -f "$xml" ]]; then
-                if python3 -c 'import sys, xml.etree.ElementTree as ET; r = ET.parse(sys.argv[1]).getroot(); raise SystemExit(0 if int(r.attrib.get("failures", "0")) == 0 and int(r.attrib.get("errors", "0")) == 0 else 1)' "$xml"; then
+                mapfile -t xml_info < <(python3 -c 'import sys, xml.etree.ElementTree as ET; r = ET.parse(sys.argv[1]).getroot(); print("1" if int(r.attrib.get("failures", "0")) == 0 and int(r.attrib.get("errors", "0")) == 0 else "0"); names = [tc.get("name") or "" for tc in r.iter("testcase") if tc.find("failure") is not None or tc.find("error") is not None]; print("\n".join(names), end="")' "$xml")
+                if [[ "${xml_info[0]:-0}" == 1 ]]; then
                   class_passed=1
+                else
+                  for method in "${xml_info[@]:1}"; do
+                    [[ -n "$method" ]] || continue
+                    printf '%s\t%s\n' "$class" "$method" >>"$failed_methods_file"
+                  done
                 fi
               fi
               if [[ "$class_passed" -eq 1 ]]; then
@@ -199,6 +230,13 @@ jobs:
             for class in "${classes[@]}"; do
               printf '| %s | %s | %s |\n' "$class" "${pass_count[$class]}" "${fail_count[$class]}"
             done
+            if [[ -s "$failed_methods_file" ]]; then
+              echo
+              echo "### Failed tests"
+              sort -u "$failed_methods_file" | while IFS=$'\t' read -r cls meth; do
+                printf -- '- %s.%s\n' "$cls" "$meth"
+              done
+            fi
           } | tee -a "$GITHUB_STEP_SUMMARY"
 
           if [[ "$any_fail" -ne 0 ]]; then
