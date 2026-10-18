@@ -102,17 +102,24 @@ def screen_size() -> tuple[int, int]:
 
 
 def dump_ui() -> ET.Element:
-    dest = "/sdcard/uidump.xml"
-    proc = adb(["shell", "uiautomator", "dump", "--compressed", dest], check=False)
-    if proc.returncode != 0:
-        raise RuntimeError(proc.stderr.decode("utf-8", "replace") or "uiautomator dump failed")
-    xml_text = adb_out(["shell", "cat", dest])
-    start = xml_text.find("<?xml")
-    if start < 0:
-        start = xml_text.find("<hierarchy")
-    if start < 0:
-        raise RuntimeError("uiautomator dump was empty")
-    return ET.fromstring(xml_text[start:])
+    dest = "/data/local/tmp/backpin-uidump.xml"
+    last_error = "uiautomator dump failed"
+    for _ in range(4):
+        proc = adb(["shell", "uiautomator", "dump", "--compressed", dest], check=False)
+        if proc.returncode != 0:
+            last_error = proc.stderr.decode("utf-8", "replace") or "uiautomator dump failed"
+            time.sleep(POLL)
+            continue
+        xml_text = adb_out(["shell", "cat", dest])
+        start = xml_text.find("<?xml")
+        if start < 0:
+            start = xml_text.find("<hierarchy")
+        if start < 0:
+            last_error = "uiautomator dump was empty"
+            time.sleep(POLL)
+            continue
+        return ET.fromstring(xml_text[start:])
+    raise RuntimeError(last_error)
 
 
 def parse_bounds(node: ET.Element) -> tuple[int, int, int, int] | None:
@@ -256,6 +263,20 @@ def log_notice_state(label: str) -> None:
 def grant_notifications() -> None:
     adb(["shell", "pm", "grant", PACKAGE, "android.permission.POST_NOTIFICATIONS"], check=False)
     adb(["shell", "appops", "set", PACKAGE, "POST_NOTIFICATION", "allow"], check=False)
+    adb(["shell", "cmd", "appops", "set", PACKAGE, "POST_NOTIFICATION", "allow"], check=False)
+
+
+def log_notification_permission() -> None:
+    pkg = adb_out(["shell", "dumpsys", "package", PACKAGE])
+    for line in pkg.splitlines():
+        if "POST_NOTIFICATION" in line.upper() or "notification" in line.casefold():
+            stripped = line.strip()
+            if stripped:
+                print(f"  perm {stripped[:200]}")
+                if "POST_NOTIFICATION" in stripped.upper():
+                    break
+    ops = adb_out(["shell", "appops", "get", PACKAGE, "POST_NOTIFICATION"])
+    print(f"  appops POST_NOTIFICATION: {ops.strip()[:200]}")
 
 
 def device_online() -> bool:
@@ -327,11 +348,32 @@ def place_today_task() -> None:
     wait_until(lambda: ui_has(TASK_TITLE) and not ui_has("Save to Inbox"), 30, "task on Today")
 
 
+def checkable_boxes(root: ET.Element) -> list[tuple[int, int, int, int]]:
+    boxes = []
+    for node in walk(root):
+        cls = node.attrib.get("class", "")
+        if node.attrib.get("checkable") != "true" and "Switch" not in cls:
+            continue
+        box = parse_bounds(node)
+        if box is not None:
+            boxes.append(box)
+    return boxes
+
+
+def tap_permission_allow() -> None:
+    # Do not match a bare "Allow": Settings also has "Allow exact alarms".
+    for needle in ("While using the app", "Allow notifications"):
+        if ui_has(needle):
+            tap_text(needle, timeout=8)
+            return
+
+
 def enable_today_notice() -> None:
     tap_text("Settings")
     wait_until(lambda: ui_has("Kept on this phone.") or ui_has("SETTINGS"), 20, "Settings")
     if ui_has("Not now"):
         tap_text("Not now")
+    grant_notifications()
     scroll_until("Show current task")
     root = dump_ui()
     labels = find_nodes(root, "Show current task")
@@ -340,31 +382,35 @@ def enable_today_notice() -> None:
     label_box = parse_bounds(labels[0])
     if label_box is None:
         raise SystemExit("Show current task has no bounds")
-    label_top, label_bottom = label_box[1], label_box[3]
-    switch = None
-    for node in walk(root):
-        if node.attrib.get("checkable") != "true":
-            continue
-        box = parse_bounds(node)
-        if box is None:
-            continue
-        left, top, right, bottom = box
-        if bottom < label_top - 40 or top > label_bottom + 40:
-            continue
-        if left < label_box[0]:
-            continue
-        switch = box
-        break
+    # The switch is vertically centered on the whole card. The title sits at
+    # the top of a long description, so a tap at the title Y misses it.
+    switches = checkable_boxes(root)
+    print(f"Show current task bounds={label_box} checkable={switches}")
     width, _ = screen_size()
-    label_cy = (label_box[1] + label_box[3]) // 2
-    if switch is not None:
+    if switches:
+        switch = max(switches, key=lambda box: box[0])
+        print(f"tapping switch {switch}")
         tap_bounds(switch)
     else:
-        adb(["shell", "input", "tap", str(width - 100), str(label_cy)])
-    if not wait_until(today_notice_posted, 20, "Today notice record id=41", required=False):
-        adb(["shell", "input", "tap", str(width - 100), str(label_cy)])
-        wait_until(today_notice_posted, 25, "Today notice record id=41")
-    log_notice_state("after enabling Show current task")
+        y = label_box[3] + 200
+        print(f"no checkable node; tapping {width - 80},{y}")
+        adb(["shell", "input", "tap", str(width - 80), str(y)])
+    tap_permission_allow()
+    if wait_until(today_notice_posted, 12, "Today notice record id=41", required=False):
+        log_notice_state("after enabling Show current task")
+        return
+    for dy in (80, 160, 240, 320, 400):
+        y = label_box[3] + dy
+        print(f"retry switch tap {width - 80},{y}")
+        adb(["shell", "input", "tap", str(width - 80), str(y)])
+        tap_permission_allow()
+        if wait_until(today_notice_posted, 6, "Today notice record id=41", required=False):
+            log_notice_state("after enabling Show current task")
+            return
+    log_notice_state("switch taps did not post id=41")
+    log_notification_permission()
+    screenshot("settings-debug.png")
+    wait_until(today_notice_posted, 8, "Today notice record id=41")
 
 
 def screenshot(name: str) -> Path:
@@ -419,9 +465,13 @@ def open_shade() -> None:
             if shade_has_notice_text():
                 break
         else:
-            log_notice_state("shade missing Today notice")
+            log_notice_state("shade dump missing Today copy")
             screenshot("shade-debug.png")
-            raise SystemExit("Today notice is posted but not visible in the shade")
+            # Custom RemoteViews often omit texts from uiautomator. The posted
+            # record plus an open shade is enough to screenshot the real notice.
+            if not shade_window_open():
+                raise SystemExit("Today notice is posted but the shade is not open")
+            print("shade is open with posted id=41; screenshotting without dump text")
     log_notice_state("shade opened")
 
 
@@ -477,6 +527,8 @@ def main() -> int:
     set_412dp_display()
     install_and_launch()
     place_today_task()
+    wait_until(lambda: ui_has("Keep your place.") and ui_has(TASK_TITLE), 20, "Home with task")
+    screenshot("home.png")
     enable_today_notice()
     tap_text("Home")
     wait_until(lambda: ui_has("Keep your place.") and ui_has(TASK_TITLE), 20, "Home with task")
