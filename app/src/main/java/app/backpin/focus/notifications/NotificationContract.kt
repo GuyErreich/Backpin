@@ -15,6 +15,7 @@ object NotificationContract {
     const val EXTRA_TASK_ID: String = "app.backpin.focus.task"
     const val ACTION_LATER: String = "app.backpin.focus.action.LATER"
     const val ACTION_SWITCH: String = "app.backpin.focus.action.SWITCH"
+    const val ACTION_TODAY_DONE: String = "app.backpin.focus.action.TODAY_DONE"
     const val ACTION_REPEAT_DONE: String = "app.backpin.focus.action.REPEAT_DONE"
     const val ACTION_BAND_ALARM: String = "app.backpin.focus.action.BAND_ALARM"
     const val EXTRA_REPEAT_ID: String = "app.backpin.focus.repeat"

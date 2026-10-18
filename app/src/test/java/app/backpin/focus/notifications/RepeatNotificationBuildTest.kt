@@ -10,6 +10,7 @@ import app.backpin.focus.MainActivity
 import app.backpin.focus.R
 import app.backpin.focus.domain.RepeatBand
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -79,6 +80,49 @@ class RepeatNotificationBuildTest {
                 group = bandGroupKey(RepeatBand.NOON),
             )
         assertEquals("Every 2 days", everyTwo.extras.getString(Notification.EXTRA_TEXT))
+    }
+
+    @Test
+    fun groupedRepeatsKeepTheAlertingSummaryAndSilentChildDone() {
+        val group = bandGroupKey(RepeatBand.MORNING)
+        val summary =
+            buildRepeatSummaryNotification(
+                context,
+                RepeatBand.MORNING,
+                count = 3,
+                group = group,
+                alert = true,
+            )
+        val child =
+            buildRepeatChildNotification(
+                context,
+                RepeatBand.MORNING,
+                repeatId = "r1",
+                title = "Take meds",
+                everyNDays = 1,
+                epochDay = 20_746,
+                group = group,
+            )
+        assertEquals("Morning · 3 things", summary.extras.getString(Notification.EXTRA_TITLE))
+        assertEquals(NotificationContract.CHANNEL_REPEATS, summary.channelId)
+        assertEquals(group, NotificationCompat.getGroup(summary))
+        assertTrue(NotificationCompat.isGroupSummary(summary))
+        assertFalse(
+            summary.actions.orEmpty().any {
+                it.title.toString() == context.getString(R.string.action_interrupt)
+            },
+        )
+        assertEquals("Take meds", child.extras.getString(Notification.EXTRA_TITLE))
+        assertEquals("Every day", child.extras.getString(Notification.EXTRA_TEXT))
+        assertEquals(NotificationContract.CHANNEL_REPEATS, child.channelId)
+        assertEquals(group, NotificationCompat.getGroup(child))
+        assertFalse(NotificationCompat.isGroupSummary(child))
+        assertEquals(1, child.actions.size)
+        assertEquals(context.getString(R.string.action_done), child.actions[0].title.toString())
+        assertFalse(
+            child.actions.any { it.title.toString() == context.getString(R.string.action_interrupt) },
+        )
+        assertTrue(child.flags and Notification.FLAG_GROUP_SUMMARY == 0)
     }
 
     @Test
