@@ -17,6 +17,7 @@ import app.backpin.focus.domain.RepeatBand
 import app.backpin.focus.domain.RepeatLog
 import app.backpin.focus.domain.RepeatOccurrence
 import app.backpin.focus.domain.RepeatOutcome
+import app.backpin.focus.domain.StartOutcome
 import app.backpin.focus.domain.SystemAppClock
 import app.backpin.focus.domain.Task
 import app.backpin.focus.domain.TaskBucket
@@ -53,6 +54,7 @@ class FocusRepositoryImpl(
     private val repeatDao: RepeatDao = database.repeatDao()
     private val repeatLogDao: RepeatLogDao = database.repeatLogDao()
 
+    @Suppress("ktlint:standard:function-signature")
     override fun observeSnapshot(): Flow<FocusSnapshot> =
         combine(taskDao.observeAll(), frameDao.observeAll()) { tasks, frames ->
             FocusSnapshot(
@@ -78,7 +80,7 @@ class FocusRepositoryImpl(
         val limit = todayLimit()
         val outcome =
             database.withTransaction {
-                if (countedOpenToday() >= limit) {
+                if (taskDao.countedOpenToday() >= limit) {
                     return@withTransaction keepCaptureInInbox(trimmed)
                 }
                 taskDao.upsert(newTask(trimmed, TaskBucket.TODAY))
@@ -95,7 +97,7 @@ class FocusRepositoryImpl(
         val limit = todayLimit()
         val outcome =
             database.withTransaction {
-                if (countedOpenToday() >= limit) {
+                if (taskDao.countedOpenToday() >= limit) {
                     return@withTransaction keepCaptureInInbox(trimmed)
                 }
                 val active = frameDao.getActive()
@@ -280,7 +282,7 @@ class FocusRepositoryImpl(
                             )
                             PromoteOutcome.Promoted
                         }
-                        DetachDestination.Today -> placeDetachedOnToday(task, limit)
+                        DetachDestination.Today -> placeUnnestedOrSwap(task, limit, placeOnToday = true)
                     }
                 requireInvariants(limit)
                 result
@@ -451,7 +453,7 @@ class FocusRepositoryImpl(
             if (task.bucket == TaskBucket.TODAY.name) {
                 return@withTransaction PromoteOutcome.Promoted
             }
-            if (countedOpenToday() >= limit) {
+            if (taskDao.countedOpenToday() >= limit) {
                 val today = taskDao.openInBucket(TaskBucket.TODAY.name).map { it.toDomain() }
                 return@withTransaction PromoteOutcome.NeedsSwap(today, taskId, canInterruptIncoming(taskId))
             }
@@ -494,7 +496,7 @@ class FocusRepositoryImpl(
         return token
     }
 
-    override suspend fun start(taskId: String): PromoteOutcome {
+    override suspend fun start(taskId: String): StartOutcome {
         val limit = todayLimit()
         val outcome =
             database.withTransaction {
@@ -506,8 +508,37 @@ class FocusRepositoryImpl(
                 if (existing?.state == FrameState.AWAITING_RESUME.name) {
                     return@withTransaction PromoteOutcome.Rejected("Resume the waiting frame explicitly")
                 }
+                val openChild = existing?.let { deepestOpenChild(it.id) }
+                if (openChild != null) {
+                    val childTask = taskDao.getById(openChild.taskId) ?: error("Missing task")
+                    val parentFrame =
+                        openChild.parentFrameId?.let { frameDao.getById(it) }
+                            ?: error("Open interruption missing parent frame")
+                    val parentTask = taskDao.getById(parentFrame.taskId) ?: error("Missing task")
+                    if (active?.id != openChild.id) {
+                        if (active != null) {
+                            frameDao.upsert(pause(active))
+                        }
+                        if (openChild.state != FrameState.ACTIVE.name) {
+                            frameDao.upsert(
+                                openChild.copy(
+                                    state = FrameState.ACTIVE.name,
+                                    startedAtEpochMillis = clock.nowEpochMillis(),
+                                    pausedAtEpochMillis = null,
+                                ),
+                            )
+                        }
+                    }
+                    requireInvariants(limit)
+                    return@withTransaction StartOutcome.RedirectedToInterruption(
+                        interruptionId = childTask.id,
+                        parentId = parentTask.id,
+                        interruptionTitle = childTask.title,
+                        parentTitle = parentTask.title,
+                    )
+                }
                 val needsSlot = task.bucket != TaskBucket.TODAY.name
-                if (needsSlot && countedOpenToday() >= limit) {
+                if (needsSlot && taskDao.countedOpenToday() >= limit) {
                     val today = taskDao.openInBucket(TaskBucket.TODAY.name).map { it.toDomain() }
                     return@withTransaction PromoteOutcome.NeedsSwap(today, taskId, canInterruptIncoming(taskId))
                 }
@@ -531,7 +562,11 @@ class FocusRepositoryImpl(
                 requireInvariants(limit)
                 PromoteOutcome.Promoted
             }
-        if (outcome is PromoteOutcome.Promoted) recordInteraction()
+        if (outcome is PromoteOutcome.Promoted ||
+            outcome is StartOutcome.RedirectedToInterruption
+        ) {
+            recordInteraction()
+        }
         return outcome
     }
 
@@ -562,6 +597,7 @@ class FocusRepositoryImpl(
         recordInteraction()
     }
 
+    @Suppress("ktlint:standard:function-signature")
     override suspend fun interrupt(title: String?): Task =
         database.withTransaction {
             val active = frameDao.getActive()
@@ -603,6 +639,7 @@ class FocusRepositoryImpl(
         recordInteraction()
     }
 
+    @Suppress("ktlint:standard:function-signature")
     override suspend fun completeActive(): UndoToken? =
         database.withTransaction {
             val active = frameDao.getActive() ?: return@withTransaction null
@@ -624,6 +661,7 @@ class FocusRepositoryImpl(
                 frameDao.upsert(parent.copy(state = FrameState.AWAITING_RESUME.name))
             }
             releaseDue(todayLimit())
+            placeUnnestedOrSwap(task, todayLimit())
             requireInvariants(todayLimit())
             token
         }.also { token ->
@@ -763,6 +801,7 @@ class FocusRepositoryImpl(
                     }
                 }
                 releaseDue(todayLimit())
+                placeUnnestedOrSwap(task, todayLimit())
                 requireInvariants(todayLimit())
                 snapshot
             } ?: return null
@@ -812,7 +851,7 @@ class FocusRepositoryImpl(
         val clamped = limit.coerceIn(MIN_TODAY_LIMIT, MAX_TODAY_LIMIT)
         database.withTransaction {
             var guard = 0
-            while (countedOpenToday() > clamped && guard < MAX_TODAY_LIMIT + 1) {
+            while (taskDao.countedOpenToday() > clamped && guard < MAX_TODAY_LIMIT + 1) {
                 guard += 1
                 val open = taskDao.openInBucket(TaskBucket.TODAY.name)
                 if (open.isEmpty()) break
@@ -821,7 +860,7 @@ class FocusRepositoryImpl(
                 parkInLater(victim.id)
             }
             releaseDue(clamped)
-            check(countedOpenToday() <= clamped) {
+            check(taskDao.countedOpenToday() <= clamped) {
                 "Today cannot hold more than $clamped open tasks"
             }
             check(frameDao.countActive() <= 1) {
@@ -840,9 +879,11 @@ class FocusRepositoryImpl(
         preferencesStore.setLastNudge(clock.nowEpochMillis(), taskId)
     }
 
+    @Suppress("ktlint:standard:function-signature")
     override fun observeRepeats(): Flow<List<Repeat>> =
         repeatDao.observeUnarchived().map { rows -> rows.map { it.toDomain() } }
 
+    @Suppress("ktlint:standard:function-signature", "ktlint:standard:indent")
     override fun observeTodaysRepeats(): Flow<TodaysRepeats> =
         combine(repeatDao.observeUnarchived(), repeatLogDao.observeAll(), preferencesStore.preferences) {
             rows,
@@ -909,6 +950,7 @@ class FocusRepositoryImpl(
         }
     }
 
+    @Suppress("ktlint:standard:function-signature")
     override suspend fun archiveRepeat(id: String): Boolean =
         database.withTransaction {
             val existing = repeatDao.getById(id) ?: return@withTransaction false
@@ -939,6 +981,7 @@ class FocusRepositoryImpl(
         }
     }
 
+    @Suppress("ktlint:standard:function-signature")
     override suspend fun undoRepeatDone(
         repeatId: String,
         epochDay: Long,
@@ -1023,6 +1066,7 @@ class FocusRepositoryImpl(
         preferencesStore.setLastInteractionAt(clock.nowEpochMillis())
     }
 
+    @Suppress("ktlint:standard:function-signature")
     private suspend fun todayLimit(): Int =
         preferencesStore.preferences.first().todayLimit.coerceIn(MIN_TODAY_LIMIT, MAX_TODAY_LIMIT)
 
@@ -1080,54 +1124,39 @@ class FocusRepositoryImpl(
     }
 
     /**
-     * Places a detached task on Today without starting it.
-     * A nested child that was already on Today now counts, because its parent
-     * frame is closed. When that overflows the cap, it waits in Inbox and
-     * [PromoteOutcome.NeedsSwap] asks Replace to free a slot, same as promote.
+     * After a nested frame ends, the task that just lost its parent link takes a
+     * Today slot if it is still open. Only that task may move to Inbox. Over the
+     * cap, [PromoteOutcome.NeedsSwap] asks Replace to free a slot, same as promote.
+     * Never moves the active task or a paused parent unless it is that task.
      */
-    private suspend fun placeDetachedOnToday(
+    private suspend fun placeUnnestedOrSwap(
         task: TaskEntity,
         limit: Int,
+        placeOnToday: Boolean = false,
     ): PromoteOutcome {
-        val alreadyToday = task.bucket == TaskBucket.TODAY.name
-        if (!alreadyToday) {
-            if (countedOpenToday() >= limit) {
-                return keepDetachedInInbox(task)
+        val current = taskDao.getById(task.id) ?: return PromoteOutcome.Promoted
+        if (current.status != TaskStatus.OPEN.name) return PromoteOutcome.Promoted
+        if (placeOnToday && current.bucket != TaskBucket.TODAY.name) {
+            if (taskDao.countedOpenToday() >= limit) {
+                return keepUnnestedInInbox(current)
             }
-            taskDao.upsert(task.movedTo(TaskBucket.TODAY, clock.nowEpochMillis()))
+            taskDao.upsert(current.movedTo(TaskBucket.TODAY, clock.nowEpochMillis()))
             return PromoteOutcome.Promoted
         }
-        if (countedOpenToday() > limit) {
-            return keepDetachedInInbox(task)
+        if (current.bucket == TaskBucket.TODAY.name && taskDao.countedOpenToday() > limit) {
+            return keepUnnestedInInbox(current)
         }
         return PromoteOutcome.Promoted
     }
 
-    private suspend fun keepDetachedInInbox(task: TaskEntity): PromoteOutcome.NeedsSwap {
+    private suspend fun keepUnnestedInInbox(task: TaskEntity): PromoteOutcome.NeedsSwap {
         taskDao.upsert(task.movedTo(TaskBucket.INBOX, clock.nowEpochMillis()))
         val today = taskDao.openInBucket(TaskBucket.TODAY.name).map { it.toDomain() }
         return PromoteOutcome.NeedsSwap(today, incomingTaskId = task.id, canInterrupt = false)
     }
 
-    /**
-     * Open Today tasks that occupy a cap slot.
-     * An open child of the current frame is nested under a paused parent and
-     * does not count. It takes a slot only after that parent link ends and the
-     * child is still open.
-     */
-    private suspend fun countedOpenToday(): Int {
-        val openToday = taskDao.openInBucket(TaskBucket.TODAY.name)
-        return openToday.count { task -> !isOpenChildOfCurrentFrame(task.id) }
-    }
-
-    /** True when [taskId] has an open frame nested under another open frame. */
-    private suspend fun isOpenChildOfCurrentFrame(taskId: String): Boolean {
-        val frame = frameDao.openFrameForTask(taskId) ?: return false
-        return frame.parentFrameId != null
-    }
-
     private suspend fun requireInvariants(limit: Int) {
-        check(countedOpenToday() <= limit) {
+        check(taskDao.countedOpenToday() <= limit) {
             "Today cannot hold more than $limit open tasks"
         }
         check(frameDao.countActive() <= 1) {
@@ -1160,6 +1189,7 @@ class FocusRepositoryImpl(
      * Clears the schedule day and time except on [TaskBucket.SCHEDULED].
      * [TaskEntity.countdownIntervalDays] stays: it is the last count, not a schedule.
      */
+    @Suppress("ktlint:standard:function-signature")
     private fun TaskEntity.movedTo(
         bucket: TaskBucket,
         sortOrder: Long = this.sortOrder,
@@ -1177,6 +1207,7 @@ class FocusRepositoryImpl(
         if (interval != null) preferencesStore.setLastCountdownDays(interval)
     }
 
+    @Suppress("ktlint:standard:function-signature")
     private fun localNow(): LocalDateTime =
         Instant.ofEpochMilli(clock.nowEpochMillis()).atZone(ZoneId.systemDefault()).toLocalDateTime()
 
@@ -1223,7 +1254,7 @@ class FocusRepositoryImpl(
                     ),
                 )
         for (entity in due) {
-            if (countedOpenToday() >= limit) return
+            if (taskDao.countedOpenToday() >= limit) return
             taskDao.upsert(
                 entity.copy(
                     bucket = TaskBucket.TODAY.name,
@@ -1232,6 +1263,20 @@ class FocusRepositoryImpl(
                     scheduledAtMinuteOfDay = null,
                 ),
             )
+        }
+    }
+
+    /**
+     * Walks open children from [parentFrameId] to the leaf.
+     * At each step, when siblings exist, takes the newest.
+     */
+    private suspend fun deepestOpenChild(parentFrameId: String): FocusFrameEntity? {
+        var current = frameDao.newestOpenChild(parentFrameId) ?: return null
+        val seen = mutableSetOf(current.id)
+        while (true) {
+            val next = frameDao.newestOpenChild(current.id) ?: return current
+            if (!seen.add(next.id)) return current
+            current = next
         }
     }
 

@@ -175,8 +175,12 @@ interface FocusRepository {
      * A task that is not already in Today takes a free slot in the same transaction.
      * When that slot is missing because Today is full, returns [PromoteOutcome.NeedsSwap]
      * and writes nothing. Refuses a frame that is waiting for an explicit resume.
+     * When [taskId] still has an open interruption, the deepest open child
+     * becomes NOW and the result is [StartOutcome.RedirectedToInterruption].
+     * The parent in that outcome is that child's direct parent, not [taskId]
+     * when the nest is deeper.
      */
-    suspend fun start(taskId: String): PromoteOutcome
+    suspend fun start(taskId: String): StartOutcome
 
     /**
      * Pauses the active Today frame and makes [taskId] the active child.
@@ -222,7 +226,11 @@ interface FocusRepository {
      */
     suspend fun demote(taskId: String): UndoToken
 
-    /** Parks the active frame without pushing a child or opening recovery. */
+    /**
+     * Pauses the active frame without pushing a child or opening recovery.
+     * A nested interruption stays nested under its parent. Start brings that
+     * interruption back first. The parent waits until Done or an explicit stop.
+     */
     suspend fun pauseActive()
 
     suspend fun updateReturnCue(

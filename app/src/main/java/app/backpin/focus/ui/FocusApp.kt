@@ -136,6 +136,23 @@ fun FocusApp(
         }
     }
 
+    val startRedirect = state.startRedirect
+    val startRedirectMessage =
+        if (startRedirect != null) {
+            stringResource(
+                R.string.start_redirect_message,
+                startRedirect.interruptionTitle,
+                startRedirect.parentTitle,
+            )
+        } else {
+            null
+        }
+    LaunchedEffect(startRedirect) {
+        val message = startRedirectMessage ?: return@LaunchedEffect
+        snackbarHostState.showSnackbar(message = message)
+        viewModel.dismissStartRedirect()
+    }
+
     Scaffold(
         containerColor = FocusColors.Live.Midnight,
         snackbarHost = { FocusSnackbarHost(snackbarHostState) },

@@ -44,6 +44,7 @@
     <string name="action_swap_one_out">Swap one out</string>
     <string name="action_keep_in_inbox">Keep in Inbox</string>
     <string name="kept_in_inbox">Kept in Inbox</string>
+    <string name="start_redirect_message">Finish %1$s first, then back to %2$s.</string>
     <string name="swap_today_full_title">Today is full</string>
     <string name="swap_today_full_body">Swap one out, or keep \"%1$s\" in Inbox. Nothing gets lost.</string>
     <string name="channel_current_name">Current task</string>
