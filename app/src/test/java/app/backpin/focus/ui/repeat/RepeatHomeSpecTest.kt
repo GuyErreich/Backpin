@@ -12,6 +12,7 @@ import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performScrollTo
@@ -389,17 +390,30 @@ class RepeatHomeSpecTest {
                 env.repeats.create("Make bed", RepeatBand.MORNING, 1, today)
             }
             showHome(env)
-            await { env.viewModel.repeatRows.value.rows.size == 2 }
+            await {
+                env.viewModel.uiState.value.ready &&
+                    env.viewModel.repeatRows.value.rows.size == 2 &&
+                    env.viewModel.repeatRows.value.leftCount == 2 &&
+                    env.viewModel.repeatRows.value.total == 2
+            }
+            awaitText("2 of 2 left")
             compose.onNodeWithText("2 of 2 left").assertExists()
             compose.onNodeWithText("All done").assertDoesNotExist()
             tapDescription("Take meds. Morning. Check off.")
-            await { env.viewModel.repeatRows.value.leftCount == 1 }
+            await {
+                env.viewModel.uiState.value.ready &&
+                    env.viewModel.repeatRows.value.leftCount == 1 &&
+                    env.viewModel.repeatRows.value.total == 2
+            }
+            awaitText("1 of 2 left")
             compose.onNodeWithText("1 of 2 left").assertExists()
             tapDescription("Make bed. Morning. Check off.")
             await {
-                env.viewModel.repeatRows.value.leftCount == 0 &&
+                env.viewModel.uiState.value.ready &&
+                    env.viewModel.repeatRows.value.leftCount == 0 &&
                     env.viewModel.repeatRows.value.total == 2
             }
+            awaitText("All done")
             compose.onNodeWithText("All done").assertExists()
             compose.onNodeWithText("0 of 2 left").assertDoesNotExist()
             assertEquals("All done", repeatsLeftLabel(env.viewModel.repeatRows.value, compose.activity.resources))
@@ -473,6 +487,10 @@ class RepeatHomeSpecTest {
             shadowOf(Looper.getMainLooper()).idle()
             predicate()
         }
+    }
+
+    private fun awaitText(text: String) {
+        await { compose.onAllNodesWithText(text).fetchSemanticsNodes().size == 1 }
     }
 
     private fun env(
