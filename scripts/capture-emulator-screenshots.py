@@ -507,38 +507,43 @@ def notice_bounds() -> tuple[int, int, int, int] | None:
     return None
 
 
+LAST_CHEVRON: tuple[int, int, int, int] | None = None
+
+
 def shade_notice_expanded() -> bool:
-    return ui_has(f"Start {TASK_TITLE}") or ui_has("Start Walk the dog")
+    return ui_has(f"Start {TASK_TITLE}")
 
 
-def tap_backpin_chevron(want: str) -> bool:
+def tap_notice_chevron(want: str) -> bool:
+    global LAST_CHEVRON
     root = dump_ui()
-    headers = find_nodes(root, "Backpin")
-    if not headers:
-        return False
-    header = parse_bounds(headers[0])
-    if header is None:
-        return False
+    anchors: list[ET.Element] = []
+    for needle in ("Backpin", "1 task", TASK_TITLE):
+        anchors.extend(find_nodes(root, needle))
+    header = parse_bounds(anchors[0]) if anchors else None
+    matches: list[tuple[int, int, int, int]] = []
     for node in find_nodes(root, want):
         box = parse_bounds(node)
         if box is None:
             continue
-        if abs(box[1] - header[1]) > 140:
+        if header is not None and abs(box[1] - header[1]) > 180:
             continue
-        print(f"tapping Backpin {want} at {box}")
-        tap_bounds(box)
-        return True
-    return False
+        matches.append(box)
+    if not matches:
+        return False
+    box = max(matches, key=lambda item: item[0])
+    LAST_CHEVRON = box
+    print(f"tapping notice {want} at {box}")
+    tap_bounds(box)
+    return True
 
 
 def collapse_today_notice() -> None:
     if not shade_notice_expanded():
         print("Today notice already collapsed")
         return
-    if not tap_backpin_chevron("Collapse"):
-        box = notice_bounds()
-        if box is not None:
-            tap_bounds(box, x_ratio=0.92)
+    if not tap_notice_chevron("Collapse"):
+        raise SystemExit("could not tap Collapse on the Today notice")
     wait_until(lambda: not shade_notice_expanded(), 10, "collapsed Today notice")
 
 
@@ -546,18 +551,15 @@ def expand_today_notice() -> None:
     if shade_notice_expanded():
         print("Today notice already expanded")
         return
-    if not tap_backpin_chevron("Expand"):
-        box = notice_bounds()
-        if box is not None:
-            tap_bounds(box, x_ratio=0.92)
+    if not tap_notice_chevron("Expand"):
+        if LAST_CHEVRON is not None:
+            print(f"retry expand at last chevron {LAST_CHEVRON}")
+            tap_bounds(LAST_CHEVRON)
         else:
-            width, height = screen_size()
-            x = width // 2
-            start_y = int(height * 0.22)
-            end_y = start_y + int(height * 0.2)
-            print(f"expand swipe {x},{start_y} -> {x},{end_y}")
-            adb(["shell", "input", "swipe", str(x), str(start_y), str(x), str(end_y), "400"])
-    wait_until(shade_notice_expanded, 10, "expanded Today notice")
+            raise SystemExit("could not tap Expand on the Today notice")
+    if not wait_until(shade_notice_expanded, 12, "expanded Today notice", required=False):
+        screenshot("shade-debug.png")
+        wait_until(shade_notice_expanded, 8, "expanded Today notice")
 
 
 def pick_emulator_serial() -> None:
