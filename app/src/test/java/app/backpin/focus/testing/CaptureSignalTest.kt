@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package app.backpin.focus.testing
 
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import androidx.activity.ComponentActivity
 import androidx.compose.material3.Text
@@ -14,6 +15,7 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import app.backpin.focus.domain.ThemeId
 import app.backpin.focus.ui.theme.paletteFor
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -52,7 +54,6 @@ class CaptureSignalTest {
         assertEquals(midnight, bitmap.getPixel(0, 0))
         assertEquals(DEFAULT_TEST_ZONE, clock.zone)
         assertEquals("2026-10-16", dateLabel)
-        assertTrue(dateLabel != java.time.LocalDate.now().toString())
     }
 
     @Test
@@ -101,8 +102,23 @@ class CaptureSignalTest {
 
     private fun hasText(value: String): Boolean = compose.onAllNodesWithText(value, substring = true).fetchSemanticsNodes().isNotEmpty()
 
-    private fun recorded(fileName: String) = BitmapFactory.decodeFile(File(screenshotPath(fileName)).absolutePath)
-        ?: error("missing screenshot $fileName")
+    private fun recorded(fileName: String): Bitmap {
+        val output = File(screenshotPath(fileName))
+        val baseline = File(screenshotBaselinePath(fileName))
+        assertTrue("missing recorded screenshot $fileName", output.isFile)
+        assertTrue("missing committed baseline $fileName", baseline.isFile)
+        assertTrue(
+            "test run must write under build/, not overwrite $SCREENSHOT_BASELINE_DIR",
+            output.canonicalFile != baseline.canonicalFile,
+        )
+        assertArrayEquals(
+            "recorded $fileName must match committed baseline",
+            baseline.readBytes(),
+            output.readBytes(),
+        )
+        return BitmapFactory.decodeFile(output.absolutePath)
+            ?: error("undecodable screenshot $fileName")
+    }
 
     private data class ClockShot(
         val name: String,

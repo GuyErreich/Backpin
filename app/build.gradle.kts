@@ -102,7 +102,8 @@ ktlint {
 }
 
 roborazzi {
-    outputDir.set(layout.projectDirectory.dir("src/test/screenshots"))
+    // Test runs write here (gitignored). Committed goldens stay in src/test/screenshots.
+    outputDir.set(layout.buildDirectory.dir("outputs/roborazzi"))
 }
 
 tasks.withType<org.gradle.api.tasks.testing.Test>().configureEach {

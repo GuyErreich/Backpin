@@ -13,6 +13,8 @@ import app.backpin.focus.domain.ThemeId
 import app.backpin.focus.ui.theme.FocusColors
 import app.backpin.focus.ui.theme.FocusStackTheme
 import com.github.takahirom.roborazzi.ExperimentalRoborazziApi
+import com.github.takahirom.roborazzi.RoborazziOptions
+import com.github.takahirom.roborazzi.RoborazziTaskType
 import com.github.takahirom.roborazzi.captureScreenRoboImage
 import org.robolectric.RuntimeEnvironment
 import java.io.File
@@ -27,8 +29,14 @@ const val SCREENSHOT_HEIGHT_DP = 891
 /** Robolectric qualifiers for a 412×891 dp xxhdpi frame. */
 const val SCREENSHOT_QUALIFIERS = "w412dp-h891dp-xxhdpi"
 
-/** Directory for recorded kit screenshots, relative to the `:app` module. */
-const val SCREENSHOT_DIR = "src/test/screenshots"
+/**
+ * Where a test run writes PNGs, relative to `:app`. Gitignored via `build/`.
+ * Copy from here into [SCREENSHOT_BASELINE_DIR] as a deliberate record.
+ */
+const val SCREENSHOT_OUTPUT_DIR = "build/outputs/roborazzi"
+
+/** Committed goldens, relative to `:app`. Update only as a deliberate record. */
+const val SCREENSHOT_BASELINE_DIR = "src/test/screenshots"
 
 /**
  * Sets [content] in the Signal theme at [SCREENSHOT_WIDTH_DP] dp, with a
@@ -69,7 +77,10 @@ fun ComposeContentTestRule.captureSignalComposable(
             waitForIdle()
             ready()
         }
-        captureScreenRoboImage(screenshotPath(fileName))
+        captureScreenRoboImage(
+            screenshotPath(fileName),
+            RoborazziOptions(taskType = RoborazziTaskType.Record),
+        )
     } finally {
         TimeZone.setDefault(previousZone)
         Settings.Global.putFloat(resolver, Settings.Global.ANIMATOR_DURATION_SCALE, previousAnimator)
@@ -81,9 +92,19 @@ fun ComposeContentTestRule.captureSignalComposable(
     }
 }
 
-/** Absolute path for a screenshot [fileName] under [SCREENSHOT_DIR]. */
+/** Absolute path for a screenshot [fileName] under [SCREENSHOT_OUTPUT_DIR]. */
 fun screenshotPath(fileName: String): String {
-    val dir = File(SCREENSHOT_DIR)
+    val dir = File(SCREENSHOT_OUTPUT_DIR)
     dir.mkdirs()
     return File(dir, fileName).absolutePath
+}
+
+/** Absolute path for a committed golden [fileName] under [SCREENSHOT_BASELINE_DIR]. */
+fun screenshotBaselinePath(fileName: String): String {
+    val candidates =
+        listOf(
+            File(SCREENSHOT_BASELINE_DIR, fileName),
+            File("app/$SCREENSHOT_BASELINE_DIR", fileName),
+        )
+    return (candidates.firstOrNull { it.isFile } ?: candidates.first()).absolutePath
 }
