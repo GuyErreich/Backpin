@@ -507,25 +507,57 @@ def notice_bounds() -> tuple[int, int, int, int] | None:
     return None
 
 
+def shade_notice_expanded() -> bool:
+    return ui_has(f"Start {TASK_TITLE}") or ui_has("Start Walk the dog")
+
+
+def tap_backpin_chevron(want: str) -> bool:
+    root = dump_ui()
+    headers = find_nodes(root, "Backpin")
+    if not headers:
+        return False
+    header = parse_bounds(headers[0])
+    if header is None:
+        return False
+    for node in find_nodes(root, want):
+        box = parse_bounds(node)
+        if box is None:
+            continue
+        if abs(box[1] - header[1]) > 140:
+            continue
+        print(f"tapping Backpin {want} at {box}")
+        tap_bounds(box)
+        return True
+    return False
+
+
+def collapse_today_notice() -> None:
+    if not shade_notice_expanded():
+        print("Today notice already collapsed")
+        return
+    if not tap_backpin_chevron("Collapse"):
+        box = notice_bounds()
+        if box is not None:
+            tap_bounds(box, x_ratio=0.92)
+    wait_until(lambda: not shade_notice_expanded(), 10, "collapsed Today notice")
+
+
 def expand_today_notice() -> None:
-    width, height = screen_size()
-    box = notice_bounds()
-    if box is not None:
-        left, top, right, bottom = box
-        x = (left + right) // 2
-        start_y = (top + bottom) // 2
-    else:
-        x = width // 2
-        start_y = int(height * 0.16)
-    end_y = min(height - 80, start_y + int(height * 0.28))
-    print(f"expand swipe {x},{start_y} -> {x},{end_y}")
-    adb(["shell", "input", "swipe", str(x), str(start_y), str(x), str(end_y), "400"])
-    wait_until(
-        lambda: shade_has_notice_text() or shade_window_open(),
-        15,
-        "expanded Today notice",
-        required=False,
-    )
+    if shade_notice_expanded():
+        print("Today notice already expanded")
+        return
+    if not tap_backpin_chevron("Expand"):
+        box = notice_bounds()
+        if box is not None:
+            tap_bounds(box, x_ratio=0.92)
+        else:
+            width, height = screen_size()
+            x = width // 2
+            start_y = int(height * 0.22)
+            end_y = start_y + int(height * 0.2)
+            print(f"expand swipe {x},{start_y} -> {x},{end_y}")
+            adb(["shell", "input", "swipe", str(x), str(start_y), str(x), str(end_y), "400"])
+    wait_until(shade_notice_expanded, 10, "expanded Today notice")
 
 
 def pick_emulator_serial() -> None:
@@ -555,14 +587,17 @@ def main() -> int:
     wait_until(lambda: ui_has("Keep your place."), 10, "shade collapsed on Home")
     screenshot("home.png")
     open_shade()
-    screenshot("today-collapsed.png")
+    collapse_today_notice()
+    collapsed = screenshot("today-collapsed.png")
     expand_today_notice()
-    screenshot("today-expanded.png")
+    expanded = screenshot("today-expanded.png")
     adb(["shell", "cmd", "statusbar", "collapse"], check=False)
     for name in ("home.png", "today-collapsed.png", "today-expanded.png"):
         path = OUT_DIR / name
         if not path.is_file() or path.stat().st_size < 1000:
             raise SystemExit(f"{path} is missing or too small")
+    if collapsed.read_bytes() == expanded.read_bytes():
+        raise SystemExit("collapsed and expanded Today notice screenshots are identical")
     print("captured Home and Today notice screenshots")
     return 0
 
