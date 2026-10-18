@@ -11,6 +11,8 @@ import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isSelected
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -87,6 +89,7 @@ class CountdownResumeStayTest {
                     event.countdownIntervalDays == 3 &&
                     parentWaits(snapshot)
             }
+            awaitFocusTabSelected()
             compose.onNodeWithText("Coming up").assertIsNotSelected()
             compose.onNodeWithText("Countdown").assertDoesNotExist()
             compose.onNodeWithText("Add countdown").assertDoesNotExist()
@@ -105,6 +108,7 @@ class CountdownResumeStayTest {
                     snapshot.frames.any { it.taskId == event.id && it.state == FrameState.ACTIVE } &&
                     snapshot.frames.any { it.taskId == work.id && it.state == FrameState.PAUSED }
             }
+            awaitFocusTabSelected()
             compose.onNodeWithText("EVENT").assertExists()
             compose.onNodeWithText(expected).assertDoesNotExist()
             val restored = runBlocking { useCases.observeSnapshot().first() }
@@ -162,8 +166,15 @@ class CountdownResumeStayTest {
         await {
             compose.onAllNodesWithText("Count down again").fetchSemanticsNodes().isNotEmpty()
         }
-        compose.onNodeWithText("Focus").assertIsSelected()
+        awaitFocusTabSelected()
         compose.onNodeWithText("Count down again").assertIsEnabled().assertHasClickAction()
+    }
+
+    private fun awaitFocusTabSelected() {
+        await {
+            compose.onAllNodes(hasText("Focus") and isSelected()).fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithText("Focus").assertIsSelected()
     }
 
     private fun tapDetachCountDownAgain() {
