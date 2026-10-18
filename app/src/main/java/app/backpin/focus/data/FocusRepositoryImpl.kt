@@ -224,9 +224,9 @@ class FocusRepositoryImpl(
                     return@withTransaction PromoteOutcome.Rejected("Task still has an open interruption")
                 }
                 if (destination is DetachDestination.Countdown &&
-                    !LocalDate.ofEpochDay(destination.epochDay).isAfter(localToday())
+                    (destination.epochDay - localToday().toEpochDay()) !in 1L..365L
                 ) {
-                    return@withTransaction PromoteOutcome.Rejected("Count down to a day after today")
+                    return@withTransaction PromoteOutcome.Rejected("Count down to a day from tomorrow through 365 days")
                 }
                 frameDao.upsert(close(frame))
                 val parent = frame.parentFrameId?.let { frameDao.getById(it) }
