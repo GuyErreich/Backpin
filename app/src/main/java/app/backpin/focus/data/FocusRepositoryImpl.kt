@@ -1083,7 +1083,7 @@ class FocusRepositoryImpl(
      * Places a detached task on Today without starting it.
      * A nested child that was already on Today now counts, because its parent
      * frame is closed. When that overflows the cap, it waits in Inbox and
-     * [PromoteOutcome.NeedsSwap] asks Replace to free a slot — same as promote.
+     * [PromoteOutcome.NeedsSwap] asks Replace to free a slot, same as promote.
      */
     private suspend fun placeDetachedOnToday(
         task: TaskEntity,
@@ -1117,11 +1117,7 @@ class FocusRepositoryImpl(
      */
     private suspend fun countedOpenToday(): Int {
         val openToday = taskDao.openInBucket(TaskBucket.TODAY.name)
-        var counted = 0
-        for (task in openToday) {
-            if (!isOpenChildOfCurrentFrame(task.id)) counted += 1
-        }
-        return counted
+        return openToday.count { task -> !isOpenChildOfCurrentFrame(task.id) }
     }
 
     /** True when [taskId] has an open frame nested under another open frame. */
