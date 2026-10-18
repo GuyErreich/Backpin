@@ -129,7 +129,7 @@ class FocusUseCases(
         outgoingTaskId: String,
     ): UndoToken = repository.swapIntoToday(incomingTaskId, outgoingTaskId)
 
-    suspend fun start(taskId: String): PromoteOutcome = repository.start(taskId)
+    suspend fun start(taskId: String): StartOutcome = repository.start(taskId)
 
     suspend fun interruptWith(taskId: String) {
         repository.interruptWith(taskId)
