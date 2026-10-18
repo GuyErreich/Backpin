@@ -8,22 +8,24 @@ import java.time.LocalDate
 
 class CountdownDaysTest {
     @Test
-    fun sanitizeKeepsDigitsThrough999AndDropsALeadingZero() {
+    fun sanitizeKeepsDigitsThrough365AndDropsALeadingZero() {
         assertEquals("", sanitizeCountdownDays(""))
         assertEquals("", sanitizeCountdownDays("abc"))
         assertEquals("0", sanitizeCountdownDays("0"))
         assertEquals("25", sanitizeCountdownDays("025"))
-        assertEquals("999", sanitizeCountdownDays("9999"))
+        assertEquals("365", sanitizeCountdownDays("9999"))
         assertEquals("12", sanitizeCountdownDays("1a2"))
     }
 
     @Test
-    fun typedDaysNeedAtLeastOne() {
+    fun typedDaysNeedAtLeastOneThrough365() {
         assertEquals(null, countdownDays(""))
         assertEquals(null, countdownDays("0"))
         assertEquals(1, countdownDays("1"))
         assertEquals(25, countdownDays("25"))
-        assertEquals(999, countdownDays("999"))
+        assertEquals(365, countdownDays("365"))
+        assertEquals(null, countdownDays("366"))
+        assertEquals(null, countdownDays("999"))
     }
 
     @Test
