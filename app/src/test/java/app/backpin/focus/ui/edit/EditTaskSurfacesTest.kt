@@ -79,7 +79,7 @@ class EditTaskSurfacesTest {
     @Test
     fun editOpensFromEachOpenSurfaceAndSaveRenames() {
         withHarness { viewModel, useCases ->
-            seedOpenTasks(useCases)
+            seedOpenTasks(useCases, viewModel.localDate())
             var screen by mutableStateOf("home")
             compose.setContent {
                 val state by viewModel.uiState.collectAsState()
@@ -138,6 +138,7 @@ class EditTaskSurfacesTest {
                             CountdownScreen(
                                 countdowns = state.countdowns,
                                 ready = state.ready,
+                                today = viewModel.localDate(),
                                 onAdd = { _, _ -> },
                                 onChangeDate = { _, _ -> },
                                 onRemove = {},
@@ -196,7 +197,6 @@ class EditTaskSurfacesTest {
             tapEditNear("From countdown")
             saveTitleAs("Countdown renamed")
             awaitSnapshot(useCases) { hasTask(it, "Countdown renamed", TaskBucket.COUNTDOWN) }
-
             compose.runOnIdle { screen = "done" }
             compose.waitForIdle()
             compose.onNodeWithText("From done").assertExists()
@@ -207,7 +207,7 @@ class EditTaskSurfacesTest {
     @Test
     fun longPressDoesNotEditPilesAndTodayStillReorders() {
         withHarness { viewModel, useCases ->
-            seedOpenTasks(useCases)
+            seedOpenTasks(useCases, viewModel.localDate())
             var screen by mutableStateOf("inbox")
             compose.setContent {
                 val state by viewModel.uiState.collectAsState()
@@ -346,7 +346,7 @@ class EditTaskSurfacesTest {
     @Test
     fun backSavesABlankKeepsTheTitleAndPlaceChangesMoveTheTask() {
         withHarness { viewModel, useCases ->
-            seedOpenTasks(useCases)
+            seedOpenTasks(useCases, viewModel.localDate())
             compose.setContent {
                 val state by viewModel.uiState.collectAsState()
                 FocusStackTheme {
@@ -387,7 +387,7 @@ class EditTaskSurfacesTest {
             await { viewModel.uiState.value.editing?.title == "From later" }
             tap("Schedule")
             tap("Tomorrow")
-            val tomorrow = LocalDate.now().plusDays(1).toEpochDay()
+            val tomorrow = viewModel.localDate().plusDays(1).toEpochDay()
             awaitSnapshot(useCases) {
                 it.tasks.any { task ->
                     task.title == "From later" &&
@@ -425,18 +425,18 @@ class EditTaskSurfacesTest {
     }
 
     private fun withHarness(block: (FocusStackViewModel, FocusUseCases) -> Unit) {
-        val context: Context = ApplicationProvider.getApplicationContext()
+        val clock: AppClock = app.backpin.focus.testing.FakeAppClock()
         val database =
             Room
-                .inMemoryDatabaseBuilder(context, FocusStackDatabase::class.java)
+                .inMemoryDatabaseBuilder(ApplicationProvider.getApplicationContext<Context>(), FocusStackDatabase::class.java)
                 .allowMainThreadQueries()
                 .build()
         val useCases =
             FocusUseCases(
                 FocusRepositoryImpl(
                     database = database,
-                    preferencesStore = PreferencesDataStore(context, "edit-surfaces-${UUID.randomUUID()}"),
-                    clock = AppClock { System.currentTimeMillis() },
+                    preferencesStore = PreferencesDataStore(ApplicationProvider.getApplicationContext(), "edit-surfaces-${UUID.randomUUID()}"),
+                    clock = clock,
                 ),
             )
         val store = ViewModelStore()
@@ -446,7 +446,7 @@ class EditTaskSurfacesTest {
                 object : ViewModelProvider.Factory {
                     override fun <T : ViewModel> create(modelClass: Class<T>): T {
                         @Suppress("UNCHECKED_CAST")
-                        return FocusStackViewModel(useCases) as T
+                        return FocusStackViewModel(useCases, clock = clock) as T
                     }
                 },
             )[FocusStackViewModel::class.java]
@@ -458,7 +458,7 @@ class EditTaskSurfacesTest {
         }
     }
 
-    private fun seedOpenTasks(useCases: FocusUseCases) {
+    private fun seedOpenTasks(useCases: FocusUseCases, today: LocalDate) {
         runBlocking {
             useCases.capture("Hold this")
             useCases.start(idOf(useCases, "Hold this"))
@@ -466,8 +466,8 @@ class EditTaskSurfacesTest {
             useCases.promote(idOf(useCases, "Park me"))
             useCases.capture("From inbox")
             useCases.captureLater("From later")
-            useCases.captureScheduled("From scheduled", LocalDate.now().plusDays(3).toEpochDay())
-            useCases.captureCountdown("From countdown", LocalDate.now().plusDays(12).toEpochDay())
+            useCases.captureScheduled("From scheduled", today.plusDays(3).toEpochDay())
+            useCases.captureCountdown("From countdown", today.plusDays(12).toEpochDay())
             useCases.capture("From done")
             useCases.completeTask(idOf(useCases, "From done"))
         }
