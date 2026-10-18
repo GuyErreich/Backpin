@@ -15,6 +15,7 @@ import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performImeAction
@@ -121,12 +122,14 @@ class CountdownTapTest {
             compose.onNodeWithText("Save countdown").assertDoesNotExist()
             nameField().performTextInput("Dana's birthday")
             tap("Pick a date")
+            tapCalendarDay(LocalDate.now().plusDays(7))
             tap("OK")
             val eventDay = LocalDate.now().plusDays(7).toEpochDay()
             awaitCountdown(useCases, "Dana's birthday", eventDay)
             assertEquals(1, taskCount(useCases))
             compose.onNodeWithText("Count down to").assertDoesNotExist()
             compose.onNodeWithText("Save countdown").assertDoesNotExist()
+            await { compose.onAllNodesWithText("7 days").fetchSemanticsNodes().isNotEmpty() }
             compose.onNodeWithText("7 days").assertExists()
         }
     }
@@ -154,6 +157,7 @@ class CountdownTapTest {
 
             tap("Add countdown")
             tap("Pick a date")
+            tapCalendarDay(LocalDate.now().plusDays(7))
             tap("OK")
             compose.onNodeWithText("Name the event.").assertExists()
             compose.onNodeWithText("Save countdown").assertDoesNotExist()
