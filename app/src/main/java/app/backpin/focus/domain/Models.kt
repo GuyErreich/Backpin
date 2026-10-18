@@ -118,7 +118,7 @@ data class UndoToken(
  * Today-slot results stay [PromoteOutcome] values.
  * Starting a parent that still has an open interruption activates the
  * deepest open child and returns [RedirectedToInterruption]. The parent
- * fields stay the task that was started.
+ * fields are that child's direct parent.
  */
 sealed interface StartOutcome {
     data class RedirectedToInterruption(

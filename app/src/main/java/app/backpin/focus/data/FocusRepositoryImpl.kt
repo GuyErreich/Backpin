@@ -511,6 +511,10 @@ class FocusRepositoryImpl(
                 val openChild = existing?.let { deepestOpenChild(it.id) }
                 if (openChild != null) {
                     val childTask = taskDao.getById(openChild.taskId) ?: error("Missing task")
+                    val parentFrame =
+                        openChild.parentFrameId?.let { frameDao.getById(it) }
+                            ?: error("Open interruption missing parent frame")
+                    val parentTask = taskDao.getById(parentFrame.taskId) ?: error("Missing task")
                     if (active?.id != openChild.id) {
                         if (active != null) {
                             frameDao.upsert(pause(active))
@@ -528,9 +532,9 @@ class FocusRepositoryImpl(
                     requireInvariants(limit)
                     return@withTransaction StartOutcome.RedirectedToInterruption(
                         interruptionId = childTask.id,
-                        parentId = task.id,
+                        parentId = parentTask.id,
                         interruptionTitle = childTask.title,
-                        parentTitle = task.title,
+                        parentTitle = parentTask.title,
                     )
                 }
                 val needsSlot = task.bucket != TaskBucket.TODAY.name

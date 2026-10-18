@@ -177,7 +177,8 @@ interface FocusRepository {
      * and writes nothing. Refuses a frame that is waiting for an explicit resume.
      * When [taskId] still has an open interruption, the deepest open child
      * becomes NOW and the result is [StartOutcome.RedirectedToInterruption].
-     * The parent in that outcome is [taskId], the task the user started.
+     * The parent in that outcome is that child's direct parent, not [taskId]
+     * when the nest is deeper.
      */
     suspend fun start(taskId: String): StartOutcome
 
