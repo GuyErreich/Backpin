@@ -1,0 +1,135 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# Screenshots of Home plus the Today notice, collapsed and expanded.
+#
+# Display size (exactly 412 dp wide):
+#   width_dp = width_px * 160 / density_dpi
+#   1030 px at 400 dpi => 1030 * 160 / 400 = 412 dp
+#   2288 px at 400 dpi => 915.2 dp tall (~20:9)
+# 1080x2400 at 420 dpi is only ~411.4 dp, so the AVD and wm overrides
+# use 1030x2288 at 400 dpi instead of a stock Pixel skin.
+name: Emulator screenshots
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: PR head SHA or branch to build and screenshot
+        required: true
+        type: string
+  pull_request:
+    types: [labeled, synchronize]
+
+permissions: {}
+
+concurrency:
+  group: emulator-screenshots-${{ github.event.pull_request.number || github.event.inputs.ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  screenshots:
+    name: Emulator screenshots
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'screenshots')
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: read
+    env:
+      # Pass event values through env. Never interpolate PR-controlled strings into run: lines.
+      CHECKOUT_REF: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.ref || github.event.pull_request.head.sha }}
+      CHECKOUT_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+    steps:
+      - name: Checkout workflow
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Stash capture scripts
+        run: |
+          set -euo pipefail
+          mkdir -p "${RUNNER_TEMP}/screenshot-scripts"
+          cp -a scripts/. "${RUNNER_TEMP}/screenshot-scripts/"
+
+      - name: Checkout screenshot target
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          repository: ${{ env.CHECKOUT_REPOSITORY }}
+          ref: ${{ env.CHECKOUT_REF }}
+
+      - name: Restore capture scripts
+        run: |
+          set -euo pipefail
+          mkdir -p scripts
+          cp -a "${RUNNER_TEMP}/screenshot-scripts/." scripts/
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
+        with:
+          packages: platform-tools emulator
+
+      - name: Install SDK packages
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager --install \
+            "platforms;android-37.2" \
+            "build-tools;37.0.0" \
+            "system-images;android-34;google_apis;x86_64"
+
+      - name: Enable KVM
+        run: |
+          set -euo pipefail
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: AVD cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        id: avd-cache
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+          key: avd-34-google_apis-x86_64-412dp-v1
+
+      - name: Create 412 dp AVD
+        if: steps.avd-cache.outputs.cache-hit != 'true'
+        run: bash scripts/ensure-412dp-avd.sh --create
+
+      - name: Patch 412 dp AVD
+        run: bash scripts/ensure-412dp-avd.sh --patch-only
+
+      - name: Build debug APK
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Capture screenshots
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          avd-name: backpin_412dp
+          force-avd-creation: false
+          disable-animations: true
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -skin 1030x2288
+          script: python3 scripts/capture-emulator-screenshots.py
+
+      - name: Upload screenshots and debug APK
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: emulator-screenshots
+          path: |
+            screenshots/home.png
+            screenshots/today-collapsed.png
+            screenshots/today-expanded.png
+            app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14

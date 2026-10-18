@@ -26,6 +26,17 @@ Install that APK on a device or emulator running Android 8.0 (API 26) or newer.
 
 The phone build is https://github.com/guy-erreich/Backpin/releases/download/preview/backpin.apk. A merged pull request into `dev` promotes `staging`, and that promotion updates this file.
 
+## Emulator screenshots
+
+The **Emulator screenshots** workflow boots an API 34 emulator at 412 dp wide, installs a debug APK, places one Today task, turns on **Show current task**, and uploads `home.png`, `today-collapsed.png`, `today-expanded.png`, plus that APK (14-day retention).
+
+Trigger it in either of these ways:
+
+- Add the `screenshots` label to a pull request. The job also re-runs on later pushes while that label stays.
+- Actions → Emulator screenshots → Run workflow. Set `ref` to the branch or commit SHA to build.
+
+`workflow_dispatch` only lists a workflow that already exists on the default branch (`dev`). Until this file is on `dev`, GitHub may not offer the dispatch form for this job.
+
 ## What the MVP does
 
 Home shows one Now card and a Today list capped by the setting (1 to 5, default 3). A free place is a single dashed empty slot. Inbox and Later are not pulled in to fill it. Inbox, Later, Scheduled, and Done are count rows under Today. Tapping a row opens that pile on its own screen, and Back returns to Today. Those lists stay off Home. Capture stays on Home: a title field with a mic, and saved phrases as chips above it. Tapping the mic asks for the microphone if needed, listens once, and adds the words to the title. It does not save by itself. If speech is unavailable or the microphone is denied, the sheet says so. A line you type can go to Inbox, Today, Start, Interrupt now while a task is in focus, Later, a date, or Repeat. A phrase chip does not save on its own. A phrase with angle brackets, such as `Talk to <name>`, asks only for that word first. An empty fill-in creates nothing. Then it asks, in one step, Inbox, Today, Start, Interrupt (only while a task is in focus), Later, Schedule, or Repeat. Inbox leaves the active task alone. Today places it without starting. Start starts it, and if something is already active that is a switch: the current task pauses and this one starts, not nested. If Today is full, Today and Start use the existing choice: Interrupt the current task, or Replace one into Later without starting the new one. Later parks it. Schedule offers Tomorrow, In 7 days, or Pick a date, which opens a calendar with past days disabled. The back arrow at the top left of the sheet steps back one step, and on the first step it closes the sheet; the system back does the same. A picked date can also take a time with Add a time. That scheduled task does not repeat. The task waits on the Scheduled screen, with its title and date, and its time when one is set, such as `Thu, Oct 8 · 14:30`. It can move early to Today, Start, Inbox, or Later, or be removed. When the date arrives, and the time has passed if one was set, it moves onto Today without starting, if a slot is free. A full Today leaves it scheduled and marked due until a slot opens. The check runs when the app opens and on inexact WorkManager. A task with a time also queues one inexact WorkManager check for that moment, so it can arrive a few minutes late. The existing Today notice can refresh once the task is actually on Today.
