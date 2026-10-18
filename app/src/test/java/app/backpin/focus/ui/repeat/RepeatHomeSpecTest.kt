@@ -58,7 +58,6 @@ import org.robolectric.annotation.Config
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
-import java.util.TimeZone
 import java.util.UUID
 import kotlin.math.abs
 
@@ -526,42 +525,34 @@ class RepeatHomeSpecTest {
         day: LocalDate = DAY,
     ): Env {
         val context: Context = ApplicationProvider.getApplicationContext()
-        val previousZone = TimeZone.getDefault()
-        TimeZone.setDefault(TimeZone.getTimeZone(ZONE.id))
-        try {
-            val clock = SettableClock(at(hour, minute, day))
-            val database =
-                Room
-                    .inMemoryDatabaseBuilder(context, FocusStackDatabase::class.java)
-                    .allowMainThreadQueries()
-                    .build()
-            val repository =
-                FocusRepositoryImpl(
-                    database = database,
-                    preferencesStore = PreferencesDataStore(context, "repeat-home-spec-${UUID.randomUUID()}"),
-                    clock = clock,
-                )
-            val useCases = FocusUseCases(repository)
-            val repeats =
-                RepeatsService(
-                    repository = repository,
-                    clock = clock,
-                    zone = { ZONE },
-                )
-            val store = ViewModelStore()
-            return Env(
-                clock = clock,
-                repeats = repeats,
+        val clock = SettableClock(at(hour, minute, day))
+        val database =
+            Room
+                .inMemoryDatabaseBuilder(context, FocusStackDatabase::class.java)
+                .allowMainThreadQueries()
+                .build()
+        val repository =
+            FocusRepositoryImpl(
                 database = database,
-                useCases = useCases,
-                store = store,
-                previousZone = previousZone,
-                viewModel = createViewModel(store, useCases, repeats, clock),
+                preferencesStore = PreferencesDataStore(context, "repeat-home-spec-${UUID.randomUUID()}"),
+                clock = clock,
             )
-        } catch (error: Throwable) {
-            TimeZone.setDefault(previousZone)
-            throw error
-        }
+        val useCases = FocusUseCases(repository)
+        val repeats =
+            RepeatsService(
+                repository = repository,
+                clock = clock,
+                zone = { ZONE },
+            )
+        val store = ViewModelStore()
+        return Env(
+            clock = clock,
+            repeats = repeats,
+            database = database,
+            useCases = useCases,
+            store = store,
+            viewModel = createViewModel(store, useCases, repeats, clock),
+        )
     }
 
     private data class Env(
@@ -570,7 +561,6 @@ class RepeatHomeSpecTest {
         val database: FocusStackDatabase,
         val useCases: FocusUseCases,
         val store: ViewModelStore,
-        val previousZone: TimeZone,
         var viewModel: FocusStackViewModel,
     ) {
         val shown = mutableStateOf(viewModel)
@@ -587,13 +577,12 @@ class RepeatHomeSpecTest {
         fun close() {
             store.clear()
             database.close()
-            TimeZone.setDefault(previousZone)
         }
     }
 
     private companion object {
         val DAY: LocalDate = LocalDate.of(2026, 10, 16)
-        val ZONE: ZoneId = ZoneId.of("America/Los_Angeles")
+        val ZONE: ZoneId = ZoneId.of("UTC")
 
         fun at(
             hour: Int,
