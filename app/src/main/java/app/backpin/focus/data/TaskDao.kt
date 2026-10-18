@@ -21,6 +21,25 @@ interface TaskDao {
     @Query("SELECT COUNT(*) FROM tasks WHERE bucket = 'TODAY' AND status = 'OPEN'")
     suspend fun countOpenToday(): Int
 
+    /**
+     * Open Today tasks that occupy a cap slot: excludes an open child of the
+     * current frame (a nested interruption).
+     */
+    @Query(
+        "SELECT COUNT(*) FROM tasks WHERE bucket = 'TODAY' AND status = 'OPEN' " +
+            "AND id NOT IN (SELECT taskId FROM focus_frames " +
+            "WHERE state != 'CLOSED' AND parentFrameId IS NOT NULL)",
+    )
+    suspend fun countedOpenToday(): Int
+
+    @Query(
+        "SELECT * FROM tasks WHERE bucket = 'TODAY' AND status = 'OPEN' " +
+            "AND id NOT IN (SELECT taskId FROM focus_frames " +
+            "WHERE state != 'CLOSED' AND parentFrameId IS NOT NULL) " +
+            "ORDER BY sortOrder DESC LIMIT 1",
+    )
+    suspend fun newestCountedOpenToday(): TaskEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(entity: TaskEntity)
 

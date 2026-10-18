@@ -25,9 +25,11 @@ interface FocusRepository {
 
     /**
      * Starts a new task now. Nothing active means it just starts.
-     * An active frame is paused and this one starts with no parent: a switch, not a nested interruption.
-     * When Today has no free slot, saves the task to Inbox in the same transaction and returns
-     * [PromoteOutcome.NeedsSwap] with its id. It is not started.
+     * An active frame is parked and this one starts with no parent: a switch, not a nested interruption.
+     * A nested child is closed so it starts to count. When that child is still open and
+     * Today exceeds the cap, the child waits in Inbox and this returns [PromoteOutcome.NeedsSwap].
+     * When Today has no free slot for the new task, saves it to Inbox in the same transaction
+     * and returns [PromoteOutcome.NeedsSwap] with its id. It is not started.
      */
     suspend fun captureAndStart(title: String): PromoteOutcome
 
@@ -170,8 +172,11 @@ interface FocusRepository {
     ): UndoToken
 
     /**
-     * Pauses the active frame, if any, and activates [taskId].
+     * Parks the active frame, if any, and activates [taskId].
      * This is a switch, not an interruption: the new frame has no parent.
+     * A nested child is closed so it starts to count. When that child is still open
+     * and Today exceeds the cap, the child waits in Inbox and this returns
+     * [PromoteOutcome.NeedsSwap].
      * A task that is not already in Today takes a free slot in the same transaction.
      * When that slot is missing because Today is full, returns [PromoteOutcome.NeedsSwap]
      * and writes nothing. Refuses a frame that is waiting for an explicit resume.
@@ -212,18 +217,26 @@ interface FocusRepository {
      */
     suspend fun completeActive(): UndoToken?
 
-    /** Activates a frame that is [FrameState.AWAITING_RESUME]. Fails if another frame is active. */
-    suspend fun resume(frameId: String)
+    /**
+     * Activates a frame that is [FrameState.AWAITING_RESUME]. Fails if another frame is active.
+     * A still-open un-nested Today child that now exceeds the cap waits in Inbox
+     * and returns [PromoteOutcome.NeedsSwap].
+     */
+    suspend fun resume(frameId: String): PromoteOutcome
 
     /**
-     * Moves a task to Later. An active frame is paused and, when it has a parent,
-     * that parent becomes [FrameState.AWAITING_RESUME]. An awaiting frame is parked
-     * as paused without revealing another layer.
+     * Moves a task to Later. A nested active child is closed; a root active frame
+     * is paused. When it has a parent, that parent becomes [FrameState.AWAITING_RESUME].
+     * An awaiting frame is parked as paused without revealing another layer.
      */
     suspend fun demote(taskId: String): UndoToken
 
-    /** Parks the active frame without pushing a child or opening recovery. */
-    suspend fun pauseActive()
+    /**
+     * Parks the active frame. A nested child is closed so the parent can wait,
+     * and a still-open Today child that now exceeds the cap waits in Inbox
+     * and returns [PromoteOutcome.NeedsSwap].
+     */
+    suspend fun pauseActive(): PromoteOutcome
 
     suspend fun updateReturnCue(
         taskId: String,
