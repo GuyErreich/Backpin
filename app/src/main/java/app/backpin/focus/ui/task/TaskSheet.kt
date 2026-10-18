@@ -36,11 +36,6 @@ internal fun TaskSheet(
         ActionRow {
             when (state.role) {
                 TaskSheetRole.TODAY_OPEN -> {
-                    AccentButton(
-                        label = stringResource(R.string.action_done),
-                        tone = AccentTone.Mint,
-                        onClick = onDone,
-                    )
                     QuietButton(label = stringResource(R.string.action_start), onClick = onStart)
                     QuietButton(label = stringResource(R.string.action_later), onClick = onLater)
                     if (state.canInterrupt) {
@@ -51,6 +46,11 @@ internal fun TaskSheet(
                         )
                     }
                     QuietButton(label = stringResource(R.string.action_edit), onClick = onEdit)
+                    AccentButton(
+                        label = stringResource(R.string.action_done),
+                        tone = AccentTone.Mint,
+                        onClick = onDone,
+                    )
                 }
                 TaskSheetRole.TODAY_WAITING -> {
                     AccentButton(
