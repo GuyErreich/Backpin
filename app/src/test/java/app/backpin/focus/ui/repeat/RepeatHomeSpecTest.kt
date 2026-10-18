@@ -179,7 +179,8 @@ class RepeatHomeSpecTest {
             env.reopenHome()
             await {
                 env.viewModel.uiState.value.ready &&
-                    env.viewModel.repeatRows.value.rows.none { it.repeat.title == "Water plants" }
+                    env.viewModel.repeatRows.value.rows.map { it.repeat.title } == listOf("Take meds") &&
+                    env.viewModel.repeatRows.value.rows.single().status == RepeatDayStatus.OPEN
             }
             val rows = env.viewModel.repeatRows.value.rows
             assertEquals(listOf("Take meds"), rows.map { it.repeat.title })
@@ -205,13 +206,17 @@ class RepeatHomeSpecTest {
             }
             env.clock.now = at(hour = 8, minute = 0, day = DAY.plusDays(1))
             env.reopenHome()
-            await { env.viewModel.uiState.value.ready }
+            await {
+                env.viewModel.uiState.value.ready &&
+                    env.viewModel.repeatRows.value.rows.none { it.repeat.title == "Water plants" }
+            }
+            awaitText("Nothing due today.")
             assertTrue(
                 "Yesterday's off-cadence miss must not survive a reopen after midnight",
                 env.viewModel.repeatRows.value.rows.none { it.repeat.title == "Water plants" },
             )
-            compose.onNodeWithText("Water plants").assertDoesNotExist()
-            compose.onNodeWithText("Nothing due today.").assertExists()
+            compose.onNodeWithText("Water plants", useUnmergedTree = true).assertDoesNotExist()
+            compose.onNodeWithText("Nothing due today.", useUnmergedTree = true).assertExists()
         } finally {
             env.close()
         }
