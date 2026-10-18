@@ -124,6 +124,7 @@ fun ScheduledScreen(
     tasks: List<ScheduledTaskUi>,
     ready: Boolean,
     canInterrupt: Boolean,
+    today: LocalDate,
     onBack: () -> Unit,
     onToday: (String) -> Unit,
     onStart: (String) -> Unit,
@@ -140,7 +141,6 @@ fun ScheduledScreen(
     val reducedMotion = rememberReducedMotion()
     var datingId by rememberSaveable { mutableStateOf<String?>(null) }
     var timingId by rememberSaveable { mutableStateOf<String?>(null) }
-    val today = LocalDate.now()
     PileScaffold(
         title = "Scheduled",
         count = tasks.size,
