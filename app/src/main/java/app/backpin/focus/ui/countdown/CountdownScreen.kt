@@ -151,6 +151,7 @@ internal fun CountdownScreen(
 }
 
 @Composable
+@Suppress("ktlint:standard:indent")
 private fun CountdownRow(
     countdown: CountdownUi,
     onChangeDate: () -> Unit,
@@ -196,6 +197,7 @@ private object CountdownField
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
+@Suppress("ktlint:standard:indent")
 private fun AddCountdownSheet(
     today: LocalDate,
     onDismiss: () -> Unit,
@@ -336,6 +338,7 @@ private fun AddCountdownSheet(
 /** A new number of days, or a calendar day, for a countdown that already has a name. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
+@Suppress("ktlint:standard:indent")
 private fun ChangeCountdownSheet(
     epochDay: Long,
     today: LocalDate,
