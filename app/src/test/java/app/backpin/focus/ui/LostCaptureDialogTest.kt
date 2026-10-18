@@ -261,7 +261,8 @@ class LostCaptureDialogTest {
                 }
                 assertEquals(1, after.tasks.count { it.title == "Call the school" })
                 assertEquals(incomingId, after.frames.single { it.state == FrameState.ACTIVE }.taskId)
-                assertEquals(TaskBucket.LATER, after.tasks.single { it.id == today.first().id }.bucket)
+                assertEquals(TaskBucket.TODAY, after.tasks.single { it.id == today.first().id }.bucket)
+                assertEquals(FrameState.PAUSED, after.frames.single { it.taskId == today.first().id }.state)
             }
         }
     }
