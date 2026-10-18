@@ -46,6 +46,12 @@ data class TaskSheetUi(
     val frameId: String? = null,
 )
 
+/** Home item waiting on the shared Bring back sheet. */
+data class BringBackUi(
+    val taskId: String,
+    val title: String,
+)
+
 /** A missed repeat in the chip-row missed sheet. */
 data class MissedRepeatSheetUi(
     val repeatId: String,

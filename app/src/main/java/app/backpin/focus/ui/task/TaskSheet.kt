@@ -22,11 +22,12 @@ internal fun TaskSheet(
     onDismiss: () -> Unit,
     onStart: () -> Unit,
     onDone: () -> Unit,
-    onLater: () -> Unit,
+    @Suppress("UNUSED_PARAMETER") onLater: () -> Unit,
     onEdit: () -> Unit,
     onInterrupt: () -> Unit,
     onToday: () -> Unit,
     onResume: () -> Unit,
+    onBringBack: () -> Unit = {},
 ) {
     ChipSheet(
         title = stringResource(R.string.task_sheet_title),
@@ -37,7 +38,7 @@ internal fun TaskSheet(
             when (state.role) {
                 TaskSheetRole.TODAY_OPEN -> {
                     QuietButton(label = stringResource(R.string.action_start), onClick = onStart)
-                    QuietButton(label = stringResource(R.string.action_later), onClick = onLater)
+                    QuietButton(label = stringResource(R.string.action_bring_back), onClick = onBringBack)
                     if (state.canInterrupt) {
                         AccentButton(
                             label = stringResource(R.string.action_interrupt),
@@ -58,7 +59,7 @@ internal fun TaskSheet(
                         tone = AccentTone.Mint,
                         onClick = onResume,
                     )
-                    QuietButton(label = stringResource(R.string.action_later), onClick = onLater)
+                    QuietButton(label = stringResource(R.string.action_bring_back), onClick = onBringBack)
                     QuietButton(label = stringResource(R.string.action_edit), onClick = onEdit)
                 }
                 TaskSheetRole.PILE -> {

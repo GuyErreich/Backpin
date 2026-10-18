@@ -57,6 +57,7 @@ class FocusStackViewModel(
     private val switchOpen = MutableStateFlow(false)
     private val pendingUndo = MutableStateFlow<PendingUndo?>(null)
     private val taskSheetState = MutableStateFlow<TaskSheetUi?>(null)
+    private val bringBackState = MutableStateFlow<BringBackUi?>(null)
     private val missedRepeatSheetState = MutableStateFlow<MissedRepeatSheetUi?>(null)
     private val missedTaskSheetState = MutableStateFlow<MissedTaskSheetUi?>(null)
 
@@ -185,6 +186,9 @@ class FocusStackViewModel(
     /** Chip-row task sheet, or null when it is closed. */
     val taskSheet: StateFlow<TaskSheetUi?> = taskSheetState
 
+    /** Shared Bring back sheet, or null when it is closed. */
+    val bringBack: StateFlow<BringBackUi?> = bringBackState
+
     /** Chip-row missed-repeat sheet, or null when it is closed. */
     val missedRepeatSheet: StateFlow<MissedRepeatSheetUi?> = missedRepeatSheetState
 
@@ -261,6 +265,7 @@ class FocusStackViewModel(
         repeatsApi.dismissSheet()
         missedRepeatSheetState.value = null
         missedTaskSheetState.value = null
+        dismissBringBack()
         val state = uiState.value
         val title = taskTitle(taskId, state) ?: return
         val waiting = state.recovery?.takeIf { it.taskId == taskId }
@@ -300,6 +305,23 @@ class FocusStackViewModel(
         val id = taskSheetState.value?.taskId ?: return
         dismissTaskSheet()
         demote(id)
+    }
+
+    fun openBringBack(
+        taskId: String,
+        title: String,
+    ) {
+        bringBackState.value = BringBackUi(taskId, title)
+    }
+
+    fun dismissBringBack() {
+        bringBackState.value = null
+    }
+
+    fun bringBackFromTaskSheet() {
+        val sheet = taskSheetState.value ?: return
+        dismissTaskSheet()
+        openBringBack(sheet.taskId, sheet.title)
     }
 
     fun editFromTaskSheet() {
