@@ -4,6 +4,7 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
     alias(libs.plugins.ktlint)
+    alias(libs.plugins.roborazzi)
 }
 
 val commitCount = providers.exec {
@@ -100,6 +101,10 @@ ktlint {
     }
 }
 
+roborazzi {
+    outputDir.set(layout.projectDirectory.dir("src/test/screenshots"))
+}
+
 tasks.withType<org.gradle.api.tasks.testing.Test>().configureEach {
     jvmArgs(
         "--add-opens=java.base/java.lang=ALL-UNNAMED",
@@ -108,6 +113,7 @@ tasks.withType<org.gradle.api.tasks.testing.Test>().configureEach {
         "--add-opens=java.base/java.util=ALL-UNNAMED",
         "--add-opens=java.base/jdk.internal.access=ALL-UNNAMED",
     )
+    systemProperty("robolectric.pixelCopyRenderMode", "hardware")
 }
 
 dependencies {
@@ -135,6 +141,8 @@ dependencies {
     testImplementation(libs.androidx.room.testing)
     testImplementation(libs.androidx.test.core)
     testImplementation(libs.robolectric)
+    testImplementation(libs.roborazzi)
+    testImplementation(libs.roborazzi.compose)
     testImplementation(platform(libs.androidx.compose.bom))
     testImplementation(libs.androidx.compose.ui.test.junit4)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
