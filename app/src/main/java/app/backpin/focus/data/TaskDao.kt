@@ -32,14 +32,6 @@ interface TaskDao {
     )
     suspend fun countedOpenToday(): Int
 
-    @Query(
-        "SELECT * FROM tasks WHERE bucket = 'TODAY' AND status = 'OPEN' " +
-            "AND id NOT IN (SELECT taskId FROM focus_frames " +
-            "WHERE state != 'CLOSED' AND parentFrameId IS NOT NULL) " +
-            "ORDER BY sortOrder DESC LIMIT 1",
-    )
-    suspend fun newestCountedOpenToday(): TaskEntity?
-
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(entity: TaskEntity)
 

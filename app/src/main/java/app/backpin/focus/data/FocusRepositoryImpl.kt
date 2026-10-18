@@ -53,12 +53,13 @@ class FocusRepositoryImpl(
     private val repeatDao: RepeatDao = database.repeatDao()
     private val repeatLogDao: RepeatLogDao = database.repeatLogDao()
 
-    override fun observeSnapshot(): Flow<FocusSnapshot> = combine(taskDao.observeAll(), frameDao.observeAll()) { tasks, frames ->
-        FocusSnapshot(
-            tasks = tasks.map { it.toDomain() },
-            frames = frames.map { it.toDomain() },
-        )
-    }
+    override fun observeSnapshot(): Flow<FocusSnapshot> =
+        combine(taskDao.observeAll(), frameDao.observeAll()) { tasks, frames ->
+            FocusSnapshot(
+                tasks = tasks.map { it.toDomain() },
+                frames = frames.map { it.toDomain() },
+            )
+        }
 
     override val preferences: Flow<UserPreferences> = preferencesStore.preferences
 
@@ -98,16 +99,14 @@ class FocusRepositoryImpl(
                     return@withTransaction keepCaptureInInbox(trimmed)
                 }
                 val active = frameDao.getActive()
-                val parked = active?.let { taskDao.getById(it.taskId) }
                 val task = newTask(trimmed, TaskBucket.TODAY)
                 taskDao.upsert(task)
                 if (active != null) {
-                    parkOpenFrame(active.taskId)
+                    frameDao.upsert(pause(active))
                 }
                 frameDao.upsert(newFrame(task.id, parentFrameId = null))
-                val overflow = placeUnnestedOrSwap(parked, limit)
                 requireInvariants(limit)
-                overflow
+                PromoteOutcome.Promoted
             }
         if (outcome !is PromoteOutcome.Rejected) recordInteraction()
         return outcome
@@ -507,6 +506,9 @@ class FocusRepositoryImpl(
                 if (existing?.state == FrameState.AWAITING_RESUME.name) {
                     return@withTransaction PromoteOutcome.Rejected("Resume the waiting frame explicitly")
                 }
+                if (existing != null && frameDao.countOpenChildren(existing.id) > 0) {
+                    return@withTransaction PromoteOutcome.Rejected("Task still has an open interruption")
+                }
                 val needsSlot = task.bucket != TaskBucket.TODAY.name
                 if (needsSlot && taskDao.countedOpenToday() >= limit) {
                     val today = taskDao.openInBucket(TaskBucket.TODAY.name).map { it.toDomain() }
@@ -515,9 +517,8 @@ class FocusRepositoryImpl(
                 if (needsSlot) {
                     taskDao.upsert(task.movedTo(TaskBucket.TODAY, clock.nowEpochMillis()))
                 }
-                val parked = active?.let { taskDao.getById(it.taskId) }
                 if (active != null) {
-                    parkOpenFrame(active.taskId)
+                    frameDao.upsert(pause(active))
                 }
                 if (existing?.state == FrameState.PAUSED.name) {
                     frameDao.upsert(
@@ -530,17 +531,10 @@ class FocusRepositoryImpl(
                 } else {
                     frameDao.upsert(newFrame(taskId, parentFrameId = null))
                 }
-                val overflow = placeUnnestedOrSwap(parked, limit)
                 requireInvariants(limit)
-                overflow
+                PromoteOutcome.Promoted
             }
-        when (outcome) {
-            is PromoteOutcome.Promoted -> recordInteraction()
-            is PromoteOutcome.NeedsSwap -> {
-                if (outcome.incomingTaskId != taskId) recordInteraction()
-            }
-            is PromoteOutcome.Rejected -> Unit
-        }
+        if (outcome is PromoteOutcome.Promoted) recordInteraction()
         return outcome
     }
 
@@ -611,57 +605,50 @@ class FocusRepositoryImpl(
         recordInteraction()
     }
 
-    override suspend fun completeActive(): UndoToken? {
-        return database.withTransaction {
-            val active = frameDao.getActive() ?: return@withTransaction null
-            val task = taskDao.getById(active.taskId) ?: error("Missing task")
-            val parent = active.parentFrameId?.let { frameDao.getById(it) }
-            val token =
-                UndoToken(
-                    tasks = listOf(task.toDomain()),
-                    frames = listOfNotNull(active.toDomain(), parent?.toDomain()),
-                )
-            taskDao.upsert(
-                task.copy(
-                    status = TaskStatus.DONE.name,
-                    completedAtEpochMillis = clock.nowEpochMillis(),
-                ),
+    override suspend fun completeActive(): UndoToken? = database.withTransaction {
+        val active = frameDao.getActive() ?: return@withTransaction null
+        val task = taskDao.getById(active.taskId) ?: error("Missing task")
+        val parent = active.parentFrameId?.let { frameDao.getById(it) }
+        val token =
+            UndoToken(
+                tasks = listOf(task.toDomain()),
+                frames = listOfNotNull(active.toDomain(), parent?.toDomain()),
             )
-            frameDao.upsert(close(active))
-            if (parent != null) {
-                frameDao.upsert(parent.copy(state = FrameState.AWAITING_RESUME.name))
-            }
-            releaseDue(todayLimit())
-            placeUnnestedOrSwap(taskDao.getById(task.id), todayLimit())
-            requireInvariants(todayLimit())
-            token
-        }.also { token ->
-            if (token != null) recordInteraction()
+        taskDao.upsert(
+            task.copy(
+                status = TaskStatus.DONE.name,
+                completedAtEpochMillis = clock.nowEpochMillis(),
+            ),
+        )
+        frameDao.upsert(close(active))
+        if (parent != null) {
+            frameDao.upsert(parent.copy(state = FrameState.AWAITING_RESUME.name))
         }
+        releaseDue(todayLimit())
+        placeUnnestedOrSwap(task, todayLimit())
+        requireInvariants(todayLimit())
+        token
+    }.also { token ->
+        if (token != null) recordInteraction()
     }
 
-    override suspend fun resume(frameId: String): PromoteOutcome {
-        val limit = todayLimit()
-        val outcome =
-            database.withTransaction {
-                val frame = frameDao.getById(frameId) ?: error("Missing frame")
-                check(frame.state == FrameState.AWAITING_RESUME.name) {
-                    "Resume is only valid for the frame waiting to be picked up"
-                }
-                check(frameDao.getActive() == null) { "Another frame is already active" }
-                frameDao.upsert(
-                    frame.copy(
-                        state = FrameState.ACTIVE.name,
-                        startedAtEpochMillis = clock.nowEpochMillis(),
-                        pausedAtEpochMillis = null,
-                    ),
-                )
-                val overflow = placeUnnestedOrSwap(task = null, limit = limit)
-                requireInvariants(limit)
-                overflow
+    override suspend fun resume(frameId: String) {
+        database.withTransaction {
+            val frame = frameDao.getById(frameId) ?: error("Missing frame")
+            check(frame.state == FrameState.AWAITING_RESUME.name) {
+                "Resume is only valid for the frame waiting to be picked up"
             }
+            check(frameDao.getActive() == null) { "Another frame is already active" }
+            frameDao.upsert(
+                frame.copy(
+                    state = FrameState.ACTIVE.name,
+                    startedAtEpochMillis = clock.nowEpochMillis(),
+                    pausedAtEpochMillis = null,
+                ),
+            )
+            requireInvariants(todayLimit())
+        }
         recordInteraction()
-        return outcome
     }
 
     override suspend fun demote(taskId: String): UndoToken {
@@ -674,19 +661,13 @@ class FocusRepositoryImpl(
         }.also { recordInteraction() }
     }
 
-    override suspend fun pauseActive(): PromoteOutcome {
-        val limit = todayLimit()
-        val outcome =
-            database.withTransaction {
-                val active = frameDao.getActive() ?: return@withTransaction PromoteOutcome.Promoted
-                val child = taskDao.getById(active.taskId)
-                parkOpenFrame(active.taskId)
-                val overflow = placeUnnestedOrSwap(child, limit)
-                requireInvariants(limit)
-                overflow
-            }
+    override suspend fun pauseActive() {
+        database.withTransaction {
+            val active = frameDao.getActive() ?: return@withTransaction
+            frameDao.upsert(pause(active))
+            requireInvariants(todayLimit())
+        }
         recordInteraction()
-        return outcome
     }
 
     override suspend fun updateReturnCue(
@@ -784,7 +765,7 @@ class FocusRepositoryImpl(
                     }
                 }
                 releaseDue(todayLimit())
-                placeUnnestedOrSwap(taskDao.getById(task.id), todayLimit())
+                placeUnnestedOrSwap(task, todayLimit())
                 requireInvariants(todayLimit())
                 snapshot
             } ?: return null
@@ -836,15 +817,19 @@ class FocusRepositoryImpl(
             var guard = 0
             while (taskDao.countedOpenToday() > clamped && guard < MAX_TODAY_LIMIT + 1) {
                 guard += 1
+                val open = taskDao.openInBucket(TaskBucket.TODAY.name)
+                if (open.isEmpty()) break
                 val activeId = frameDao.getActive()?.taskId
-                val victim =
-                    taskDao.newestCountedOpenToday()?.takeIf { it.id != activeId }
-                        ?: taskDao.newestCountedOpenToday()
-                        ?: break
+                val victim = open.lastOrNull { it.id != activeId } ?: open.last()
                 parkInLater(victim.id)
             }
             releaseDue(clamped)
-            requireInvariants(clamped)
+            check(taskDao.countedOpenToday() <= clamped) {
+                "Today cannot hold more than $clamped open tasks"
+            }
+            check(frameDao.countActive() <= 1) {
+                "At most one frame can be active"
+            }
         }
         preferencesStore.setTodayLimit(clamped)
         recordInteraction()
@@ -927,13 +912,11 @@ class FocusRepositoryImpl(
         }
     }
 
-    override suspend fun archiveRepeat(id: String): Boolean {
-        return database.withTransaction {
-            val existing = repeatDao.getById(id) ?: return@withTransaction false
-            if (existing.archivedAtEpochMillis != null) return@withTransaction false
-            repeatDao.upsert(existing.copy(archivedAtEpochMillis = clock.nowEpochMillis()))
-            true
-        }
+    override suspend fun archiveRepeat(id: String): Boolean = database.withTransaction {
+        val existing = repeatDao.getById(id) ?: return@withTransaction false
+        if (existing.archivedAtEpochMillis != null) return@withTransaction false
+        repeatDao.upsert(existing.copy(archivedAtEpochMillis = clock.nowEpochMillis()))
+        true
     }
 
     override suspend fun markRepeatDone(
@@ -961,13 +944,11 @@ class FocusRepositoryImpl(
     override suspend fun undoRepeatDone(
         repeatId: String,
         epochDay: Long,
-    ): Boolean {
-        return database.withTransaction {
-            val existing = repeatLogDao.get(repeatId, epochDay) ?: return@withTransaction false
-            if (existing.outcome != RepeatOutcome.DONE.name) return@withTransaction false
-            repeatLogDao.delete(repeatId, epochDay)
-            true
-        }
+    ): Boolean = database.withTransaction {
+        val existing = repeatLogDao.get(repeatId, epochDay) ?: return@withTransaction false
+        if (existing.outcome != RepeatOutcome.DONE.name) return@withTransaction false
+        repeatLogDao.delete(repeatId, epochDay)
+        true
     }
 
     override suspend fun writeRepeatOutcome(
@@ -1076,22 +1057,14 @@ class FocusRepositoryImpl(
         return token
     }
 
-    /**
-     * Parks an open frame. A nested active child is closed so it starts to
-     * count; the parent waits. A root active frame is only paused. Does not
-     * move the task: callers that leave it on Today then run [placeUnnestedOrSwap].
-     */
+    /** Parks an open frame the same way [parkInLater] does. Does not move the task. */
     private suspend fun parkOpenFrame(taskId: String) {
         val openFrame = frameDao.openFrameForTask(taskId) ?: return
         val parent = openFrame.parentFrameId?.let { frameDao.getById(it) }
         if (openFrame.state == FrameState.ACTIVE.name) {
+            frameDao.upsert(pause(openFrame))
             if (parent != null) {
-                frameDao.upsert(close(openFrame))
-                if (parent.state == FrameState.PAUSED.name) {
-                    frameDao.upsert(parent.copy(state = FrameState.AWAITING_RESUME.name))
-                }
-            } else {
-                frameDao.upsert(pause(openFrame))
+                frameDao.upsert(parent.copy(state = FrameState.AWAITING_RESUME.name))
             }
         } else if (openFrame.state == FrameState.AWAITING_RESUME.name) {
             frameDao.upsert(
@@ -1107,34 +1080,29 @@ class FocusRepositoryImpl(
     }
 
     /**
-     * After a child frame is no longer nested, a still-open task takes a Today
-     * slot. Over the cap that child waits in Inbox and [PromoteOutcome.NeedsSwap]
-     * asks Replace to free one, same as promote. Leftover extras drain the same
-     * way so [requireInvariants] never throws on the Today cap. Every frame-pop
-     * path calls this.
+     * After a nested frame ends, the task that just lost its parent link takes a
+     * Today slot if it is still open. Only that task may move to Inbox. Over the
+     * cap, [PromoteOutcome.NeedsSwap] asks Replace to free a slot, same as promote.
+     * Never moves the active task or a paused parent unless it is that task.
      */
     private suspend fun placeUnnestedOrSwap(
-        task: TaskEntity?,
+        task: TaskEntity,
         limit: Int,
         placeOnToday: Boolean = false,
     ): PromoteOutcome {
-        val current = task?.id?.let { taskDao.getById(it) }
-        if (current != null && current.status == TaskStatus.OPEN.name) {
-            if (placeOnToday && current.bucket != TaskBucket.TODAY.name) {
-                if (taskDao.countedOpenToday() >= limit) {
-                    return keepUnnestedInInbox(current)
-                }
-                taskDao.upsert(current.movedTo(TaskBucket.TODAY, clock.nowEpochMillis()))
-            } else if (current.bucket == TaskBucket.TODAY.name && taskDao.countedOpenToday() > limit) {
+        val current = taskDao.getById(task.id) ?: return PromoteOutcome.Promoted
+        if (current.status != TaskStatus.OPEN.name) return PromoteOutcome.Promoted
+        if (placeOnToday && current.bucket != TaskBucket.TODAY.name) {
+            if (taskDao.countedOpenToday() >= limit) {
                 return keepUnnestedInInbox(current)
             }
+            taskDao.upsert(current.movedTo(TaskBucket.TODAY, clock.nowEpochMillis()))
+            return PromoteOutcome.Promoted
         }
-        var last: PromoteOutcome = PromoteOutcome.Promoted
-        while (taskDao.countedOpenToday() > limit) {
-            val victim = taskDao.newestCountedOpenToday() ?: break
-            last = keepUnnestedInInbox(victim)
+        if (current.bucket == TaskBucket.TODAY.name && taskDao.countedOpenToday() > limit) {
+            return keepUnnestedInInbox(current)
         }
-        return last
+        return PromoteOutcome.Promoted
     }
 
     private suspend fun keepUnnestedInInbox(task: TaskEntity): PromoteOutcome.NeedsSwap {
@@ -1143,15 +1111,13 @@ class FocusRepositoryImpl(
         return PromoteOutcome.NeedsSwap(today, incomingTaskId = task.id, canInterrupt = false)
     }
 
-    private suspend fun requireInvariants(limit: Int): PromoteOutcome {
-        val overflow = placeUnnestedOrSwap(task = null, limit = limit)
+    private suspend fun requireInvariants(limit: Int) {
         check(taskDao.countedOpenToday() <= limit) {
             "Today cannot hold more than $limit open tasks"
         }
         check(frameDao.countActive() <= 1) {
             "At most one frame can be active"
         }
-        return overflow
     }
 
     private fun newTask(

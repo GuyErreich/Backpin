@@ -488,19 +488,17 @@ class FocusStackViewModel(
     }
 
     /**
-     * Starts a new task now. An active frame is parked without nesting.
+     * Starts a new task now. An active frame is paused without nesting.
      * A full Today uses the same Replace or Interrupt choice as any other arrival.
      */
     fun placeAndStart(title: String) {
         viewModelScope.launch {
             val trimmed = title.trim()
             if (trimmed.isEmpty()) return@launch
-            val existingIds = useCases.observeSnapshot().first().tasks.map { it.id }.toSet()
             when (val outcome = useCases.captureAndStart(trimmed)) {
                 is PromoteOutcome.NeedsSwap -> {
-                    // A brand-new capture kept in Inbox can still be discarded.
-                    // An un-nested child that overflowed is a real task; Keep leaves it.
-                    beginSwap(outcome.incomingTaskId, fresh = outcome.incomingTaskId !in existingIds)
+                    // The capture is already safe in Inbox; Replace and Interrupt place that task.
+                    beginSwap(outcome.incomingTaskId, fresh = true)
                     closeCapture()
                 }
                 is PromoteOutcome.Promoted -> closeCapture()
@@ -701,7 +699,7 @@ class FocusStackViewModel(
     fun start(taskId: String) {
         viewModelScope.launch {
             when (val outcome = useCases.start(taskId)) {
-                is PromoteOutcome.NeedsSwap -> beginSwap(outcome.incomingTaskId, fresh = false)
+                is PromoteOutcome.NeedsSwap -> beginSwap(taskId, fresh = false)
                 is PromoteOutcome.Promoted -> endSwap()
                 is PromoteOutcome.Rejected -> endSwap()
             }
@@ -710,11 +708,7 @@ class FocusStackViewModel(
 
     fun pause() {
         viewModelScope.launch {
-            when (val outcome = useCases.pauseActive()) {
-                is PromoteOutcome.NeedsSwap -> beginSwap(outcome.incomingTaskId, fresh = false)
-                is PromoteOutcome.Promoted -> endSwap()
-                is PromoteOutcome.Rejected -> endSwap()
-            }
+            useCases.pauseActive()
         }
     }
 
@@ -908,11 +902,7 @@ class FocusStackViewModel(
 
     fun resume(frameId: String) {
         viewModelScope.launch {
-            when (val outcome = useCases.resume(frameId)) {
-                is PromoteOutcome.NeedsSwap -> beginSwap(outcome.incomingTaskId, fresh = false)
-                is PromoteOutcome.Promoted -> endSwap()
-                is PromoteOutcome.Rejected -> endSwap()
-            }
+            useCases.resume(frameId)
         }
     }
 

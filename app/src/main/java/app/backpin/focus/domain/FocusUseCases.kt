@@ -143,11 +143,15 @@ class FocusUseCases(
 
     suspend fun completeActive(): UndoToken? = repository.completeActive()
 
-    suspend fun resume(frameId: String): PromoteOutcome = repository.resume(frameId)
+    suspend fun resume(frameId: String) {
+        repository.resume(frameId)
+    }
 
     suspend fun demote(taskId: String): UndoToken = repository.demote(taskId)
 
-    suspend fun pauseActive(): PromoteOutcome = repository.pauseActive()
+    suspend fun pauseActive() {
+        repository.pauseActive()
+    }
 
     suspend fun updateReturnCue(
         taskId: String,
