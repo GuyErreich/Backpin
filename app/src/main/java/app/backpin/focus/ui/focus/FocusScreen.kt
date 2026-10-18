@@ -233,7 +233,10 @@ internal fun RecoveryCard(
                     AccentTone.Mint,
                     onClick = { viewModel.resume(recovery.frameId) },
                 )
-                QuietButton(androidx.compose.ui.res.stringResource(app.backpin.focus.R.string.action_bring_back), onClick = { viewModel.openBringBack(recovery.taskId, recovery.title) })
+                QuietButton(
+                    androidx.compose.ui.res.stringResource(app.backpin.focus.R.string.action_bring_back),
+                    onClick = { viewModel.openBringBack(recovery.taskId, recovery.title) },
+                )
             }
         }
     }
@@ -269,6 +272,7 @@ private fun TimeInFocus(
 }
 
 @Composable
+@Suppress("ktlint:standard:indent")
 private fun ReturnNoteField(
     taskId: String,
     cue: String,
@@ -311,4 +315,3 @@ private fun ReturnNoteField(
         keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus(force = true) }),
     )
 }
-
