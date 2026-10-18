@@ -169,6 +169,18 @@ class ResumeChipSheetQaTest {
         }
     }
 
+    @Test
+    fun lastInterval500Suggests365OnTheResumeSheet() {
+        withArrivedEvent(intervalDays = 500) { _, _, clock ->
+            val today = clock.localDate()
+            tapFocusTabOpensFocus()
+            tapDetachCountDownAgain()
+            assertResumeSheet(intervalDays = 365, today = today)
+            compose.onNodeWithText(againInDaysLabel(500, today)).assertDoesNotExist()
+            compose.onNodeWithText(againInDaysLabel(7, today)).assertDoesNotExist()
+        }
+    }
+
     private fun tapHomeNowCardOpensFocus() {
         compose.waitForIdle()
         val now = compose.onNode(hasContentDescription("Opens focus.", substring = true))
@@ -225,10 +237,11 @@ class ResumeChipSheetQaTest {
     }
 
     private fun withArrivedEvent(
+        intervalDays: Int = 180,
         block: (FocusStackViewModel, FocusUseCases, FakeAppClock) -> Unit,
     ) {
         withViewModel { viewModel, useCases, repository, database, clock ->
-            seedArrivedEvent(useCases, repository, database, clock, intervalDays = 180)
+            seedArrivedEvent(useCases, repository, database, clock, intervalDays = intervalDays)
             compose.setContent {
                 FocusStackTheme {
                     FocusApp(viewModel)
