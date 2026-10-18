@@ -68,7 +68,7 @@ jobs:
               printf 'Invalid package name parsed from %s\n' "$file" >&2
               exit 1
             fi
-            mapfile -t simples < <(grep -E '^(internal |public |private )?(abstract |open )?class [A-Za-z_][A-Za-z0-9_]*' -- "$file" | sed -E 's/^(internal |public |private )?(abstract |open )?class ([A-Za-z_][A-Za-z0-9_]*).*/\3/' || true)
+            mapfile -t simples < <(grep -E '^(internal )?class [A-Za-z_][A-Za-z0-9_]*' -- "$file" | grep -Ev '(^|[[:space:]])(private|abstract|open|data|sealed|enum|inner|object)[[:space:]]' | sed -E 's/^(internal )?class ([A-Za-z_][A-Za-z0-9_]*).*/\2/' || true)
             if [[ ${#simples[@]} -eq 0 ]]; then
               printf 'No top-level class names in %s\n' "$file" >&2
               exit 1
