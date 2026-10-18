@@ -14,14 +14,14 @@ fun isValidClassName(name: String): Boolean = validName.matches(name)
  * Skips other kinds (`private`, `abstract`, `open`, `data`, `sealed`, `enum`,
  * `inner`, `object`) because those prefixes keep the line from matching.
  * Requires a `package` line. Throws if a package or class name fails
- * [isValidClassName].
+ * [isValidClassName]. [filePath] is included when no package line exists.
  */
-fun parseTopLevelTestClasses(source: String): List<String> {
+fun parseTopLevelTestClasses(source: String, filePath: String): List<String> {
     val pkg =
         source.lineSequence()
             .mapNotNull { packageLine.matchEntire(it.trim())?.groupValues?.get(1) }
             .firstOrNull()
-            ?: error("No package line")
+            ?: error("No package line in $filePath")
     check(isValidClassName(pkg)) { "Invalid package name" }
     return source.lineSequence().mapNotNull { line ->
         val match = topLevelClass.matchAt(line, 0) ?: return@mapNotNull null

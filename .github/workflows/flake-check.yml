@@ -40,11 +40,13 @@ jobs:
         with:
           cache-read-only: true
 
+      - name: Test build-logic
+        run: ./gradlew -p build-logic test
+
       - name: Select changed tests
         id: select
         env:
-          FLAKE_CHECK_BASE: ${{ github.event.pull_request.base.sha }}
-          FLAKE_CHECK_HEAD: ${{ github.event.pull_request.head.sha }}
+          FLAKE_CHECK_MERGE_PARENTS: ${{ github.event_name == 'pull_request' }}
           FLAKE_CHECK_CLASSES: ${{ github.event.inputs.classes }}
         run: |
           set -euo pipefail
@@ -67,8 +69,6 @@ jobs:
         run: |
           set -euo pipefail
           classes_file="build/flake-check/classes.txt"
-          failed_methods_file="${RUNNER_TEMP}/flake-failed-methods.txt"
-          : >"$failed_methods_file"
           mapfile -t raw_classes <"$classes_file"
           classes=()
           for class in "${raw_classes[@]}"; do
@@ -93,15 +93,8 @@ jobs:
             test_args+=(--tests "$class")
           done
 
-          declare -A pass_count fail_count
-          for class in "${classes[@]}"; do
-            pass_count["$class"]=0
-            fail_count["$class"]=0
-          done
-
           failed_root="${RUNNER_TEMP}/flake-failed"
-          mkdir -p "$failed_root"
-          any_fail=0
+          mkdir -p "$failed_root" build/flake-check/runs
 
           for ((i = 1; i <= RUN_COUNT; i++)); do
             echo "::group::Flake run ${i}/${RUN_COUNT}"
@@ -112,8 +105,19 @@ jobs:
             set -e
             echo "::endgroup::"
 
+            run_dir="build/flake-check/runs/${i}"
+            mkdir -p "$run_dir"
+            xml_dir="app/build/test-results/testDebugUnitTest"
+            if [[ -d "$xml_dir" ]]; then
+              shopt -s nullglob
+              xml_files=("$xml_dir"/TEST-*.xml)
+              shopt -u nullglob
+              if [[ ${#xml_files[@]} -gt 0 ]]; then
+                cp "${xml_files[@]}" "$run_dir/"
+              fi
+            fi
+
             if [[ "$status" -ne 0 ]]; then
-              any_fail=1
               dest="${failed_root}/run-${i}"
               mkdir -p "$dest"
               if [[ -d app/build/test-results ]]; then
@@ -123,52 +127,13 @@ jobs:
                 cp -a app/build/reports/tests "$dest/"
               fi
             fi
-
-            for class in "${classes[@]}"; do
-              xml="app/build/test-results/testDebugUnitTest/TEST-${class}.xml"
-              class_passed=0
-              if [[ -f "$xml" ]]; then
-                mapfile -t xml_info < <(python3 -c 'import sys, xml.etree.ElementTree as ET; r = ET.parse(sys.argv[1]).getroot(); print("1" if int(r.attrib.get("failures", "0")) == 0 and int(r.attrib.get("errors", "0")) == 0 else "0"); names = [tc.get("name") or "" for tc in r.iter("testcase") if tc.find("failure") is not None or tc.find("error") is not None]; print("\n".join(names), end="")' "$xml")
-                if [[ "${xml_info[0]:-0}" == 1 ]]; then
-                  class_passed=1
-                else
-                  for method in "${xml_info[@]:1}"; do
-                    [[ -n "$method" ]] || continue
-                    printf '%s\t%s\n' "$class" "$method" >>"$failed_methods_file"
-                  done
-                fi
-              fi
-              if [[ "$class_passed" -eq 1 ]]; then
-                pass_count["$class"]=$((pass_count["$class"] + 1))
-              else
-                fail_count["$class"]=$((fail_count["$class"] + 1))
-              fi
-            done
           done
 
-          {
-            echo "## Flake check"
-            echo
-            echo "Runs: ${RUN_COUNT}"
-            echo
-            echo "| Class | Pass | Fail |"
-            echo "| --- | ---: | ---: |"
-            for class in "${classes[@]}"; do
-              printf '| %s | %s | %s |\n' "$class" "${pass_count[$class]}" "${fail_count[$class]}"
-            done
-            if [[ -s "$failed_methods_file" ]]; then
-              echo
-              echo "### Failed tests"
-              sort -u "$failed_methods_file" | while IFS=$'\t' read -r cls meth; do
-                printf -- '- %s.%s\n' "$cls" "$meth"
-              done
-            fi
-          } | tee -a "$GITHUB_STEP_SUMMARY"
+          ./gradlew summarizeFlakeResults
 
-          if [[ "$any_fail" -ne 0 ]]; then
-            echo "One or more flake-check runs failed" >&2
-            exit 1
-          fi
+      - name: Publish flake summary
+        if: always() && steps.rerun.outcome != 'skipped'
+        run: cat build/flake-check/summary.md >>"$GITHUB_STEP_SUMMARY"
 
       - name: Upload failing run reports
         if: failure() && steps.rerun.outcome == 'failure'
