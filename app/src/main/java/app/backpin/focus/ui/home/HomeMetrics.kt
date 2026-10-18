@@ -45,6 +45,8 @@ internal object HomeMetrics {
 
     val CountsTop = 6.dp
     val HomeTouchTarget = 48.dp
+    val ListBottom = 96.dp
+    val TabBarHeight = 64.dp
 
     val Eyebrow =
         TextStyle(
@@ -124,6 +126,14 @@ internal object HomeMetrics {
             fontWeight = FontWeight.Normal,
             letterSpacing = 0.sp,
             lineHeight = 20.sp,
+            platformStyle = PlatformTextStyle(includeFontPadding = false),
+        )
+    val RepeatCadence =
+        TextStyle(
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Normal,
+            letterSpacing = 0.sp,
+            lineHeight = 16.sp,
             platformStyle = PlatformTextStyle(includeFontPadding = false),
         )
 }

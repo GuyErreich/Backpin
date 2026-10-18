@@ -28,12 +28,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import app.backpin.focus.R
 import app.backpin.focus.ui.motion.WithoutRipple
 import app.backpin.focus.ui.motion.pressScale
 import app.backpin.focus.ui.motion.rememberPressSource
@@ -396,7 +398,7 @@ internal fun RowDonePill(
         LocalButtonVerticalPadding provides 0.dp,
         LocalMinimumInteractiveComponentSize provides 0.dp,
     ) {
-        AccentButton("Done", AccentTone.Mint, onClick, modifier)
+        AccentButton(stringResource(R.string.action_done), AccentTone.Mint, onClick, modifier)
     }
 }
 

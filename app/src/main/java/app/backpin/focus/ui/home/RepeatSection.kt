@@ -230,7 +230,7 @@ internal fun RepeatRow(
                 if (missedCopy != null) {
                     Text(
                         missedCopy,
-                        style = HomeMetrics.RepeatTitle,
+                        style = HomeMetrics.RepeatCadence,
                         color = FocusColors.Live.Amber,
                         maxLines = 1,
                         softWrap = false,
@@ -238,7 +238,7 @@ internal fun RepeatRow(
                 } else if (cadence != null) {
                     Text(
                         cadence,
-                        style = HomeMetrics.RepeatTitle,
+                        style = HomeMetrics.RepeatCadence,
                         color = FocusColors.Live.Muted,
                         maxLines = 1,
                         softWrap = false,

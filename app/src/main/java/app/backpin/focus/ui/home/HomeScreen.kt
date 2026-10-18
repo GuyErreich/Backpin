@@ -1,12 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package app.backpin.focus.ui.home
 
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,13 +17,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
@@ -57,8 +53,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.backpin.focus.R
 import app.backpin.focus.domain.DetachDestination
 import app.backpin.focus.domain.HomeLayout
@@ -92,17 +88,17 @@ fun HomeScreen(
     state: FocusUiState,
     viewModel: FocusStackViewModel,
     onOpenFocus: () -> Unit,
-    onOpenInbox: () -> Unit,
-    onOpenLater: () -> Unit,
-    onOpenScheduled: () -> Unit,
-    onOpenDone: () -> Unit,
+    @Suppress("UNUSED_PARAMETER") onOpenInbox: () -> Unit,
+    @Suppress("UNUSED_PARAMETER") onOpenLater: () -> Unit,
+    @Suppress("UNUSED_PARAMETER") onOpenScheduled: () -> Unit,
+    @Suppress("UNUSED_PARAMETER") onOpenDone: () -> Unit,
     modifier: Modifier = Modifier,
     homeLayout: HomeLayout = HomeLayout.FLAT,
 ) {
     val grouped = homeLayout == HomeLayout.BANDS
     val reducedMotion = rememberReducedMotion()
-    val repeatRows by viewModel.repeatRows.collectAsState()
-    val homeBands by viewModel.homeBands.collectAsState()
+    val repeatRows by viewModel.repeatRows.collectAsStateWithLifecycle()
+    val homeBands by viewModel.homeBands.collectAsStateWithLifecycle()
     val todayLimit = state.preferences.todayLimit.coerceIn(MIN_TODAY_LIMIT, MAX_TODAY_LIMIT)
     val filled = state.todaySlots.mapNotNull { slot -> slot.task?.let { slot to it } }
     val hasRoom = filled.size < todayLimit
@@ -111,17 +107,22 @@ fun HomeScreen(
         modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = HomeMetrics.PageHorizontal, vertical = HomeMetrics.PageVertical),
+            .padding(
+                start = HomeMetrics.PageHorizontal,
+                end = HomeMetrics.PageHorizontal,
+                top = HomeMetrics.PageVertical,
+                bottom = HomeMetrics.ListBottom,
+            ),
     ) {
         Column {
             Text(
-                text = "FOCUS STACK",
+                text = stringResource(R.string.home_eyebrow),
                 style = HomeMetrics.Eyebrow,
                 color = FocusColors.Live.Muted,
                 modifier = Modifier.padding(top = HomeMetrics.EyebrowTop, bottom = HomeMetrics.EyebrowBottom),
             )
             Text(
-                text = "Keep your place.",
+                text = stringResource(R.string.home_title),
                 style = HomeMetrics.ScreenTitle,
                 color = FocusColors.Live.Text,
                 modifier =
@@ -131,7 +132,7 @@ fun HomeScreen(
             )
         }
         if (!state.ready) {
-            Text("Loading your place…", style = MaterialTheme.typography.bodyLarge)
+            Text(stringResource(R.string.home_loading), style = MaterialTheme.typography.bodyLarge)
         } else {
             NowCard(state, viewModel, onOpenFocus, reducedMotion)
             if (grouped) {
@@ -197,19 +198,12 @@ fun HomeScreen(
                     onCreate = { viewModel.openRepeatCreate() },
                 )
             }
-            HorizontalDivider(
-                modifier = Modifier.padding(top = HomeMetrics.CountsTop),
-                color = FocusColors.Live.Outline,
+            Text(
+                text = stringResource(R.string.home_missed_footer),
+                style = HomeMetrics.NowTime,
+                color = FocusColors.Live.Muted,
+                modifier = Modifier.padding(top = HomeMetrics.FlatHeaderTop),
             )
-            Column(
-                modifier = Modifier.padding(top = HomeMetrics.CountsTop),
-                verticalArrangement = Arrangement.spacedBy(Space),
-            ) {
-                PileCountRow(title = "Inbox", count = state.inboxCount, onClick = onOpenInbox)
-                PileCountRow(title = "Later", count = state.laterCount, onClick = onOpenLater)
-                PileCountRow(title = "Scheduled", count = state.scheduledCount, onClick = onOpenScheduled)
-                PileCountRow(title = "Done", count = state.archiveCount, onClick = onOpenDone)
-            }
         }
     }
 }
@@ -332,25 +326,25 @@ private fun NowCard(
                     ),
                 ) {
                     Text(
-                        "NOW",
+                        stringResource(R.string.home_now),
                         color = FocusColors.Live.Muted,
                         style = HomeMetrics.NowLabel,
                         modifier = Modifier.padding(bottom = HomeMetrics.NowLabelBottom),
                     )
                     Text(
-                        "Nothing in focus.",
+                        stringResource(R.string.home_now_empty_title),
                         style = HomeMetrics.NowTitle,
                         color = FocusColors.Live.Text,
                         modifier = Modifier.padding(bottom = HomeMetrics.NowTitleBottom),
                     )
                     Text(
-                        "Capture a thought, or add one to Today.",
+                        stringResource(R.string.home_now_empty_body),
                         style = HomeMetrics.NowTime,
                         color = FocusColors.Live.Muted,
                     )
                     state.paused?.let { paused ->
                         Text(
-                            "Paused: ${paused.title}",
+                            stringResource(R.string.home_now_paused, paused.title),
                             style = HomeMetrics.NowTitle,
                             color = FocusColors.Live.Text,
                             modifier = Modifier.padding(top = HomeMetrics.NowLabelBottom),
@@ -363,10 +357,11 @@ private fun NowCard(
 }
 
 /** "EVENT" for an arrived countdown, "INTERRUPTED" for a nested task, otherwise "NOW". */
+@Composable
 internal fun nowLabel(now: NowUi): String = when {
-    now.isEvent -> "EVENT"
-    now.isInterruption -> "INTERRUPTED"
-    else -> "NOW"
+    now.isEvent -> stringResource(R.string.home_now_event)
+    now.isInterruption -> stringResource(R.string.home_now_interrupted)
+    else -> stringResource(R.string.home_now)
 }
 
 @Composable
@@ -429,7 +424,7 @@ internal fun TodaySection(
     Column(verticalArrangement = Arrangement.spacedBy(layout.taskGap())) {
         if (showHeader) {
             SectionLabel(
-                "TODAY",
+                stringResource(R.string.home_today).uppercase(),
                 slotLabel,
                 modifier =
                 Modifier.padding(top = HomeMetrics.FlatHeaderTop),
@@ -766,7 +761,7 @@ private fun EmptyTodaySlot(layout: HomeLayout) {
         contentAlignment = Alignment.CenterStart,
     ) {
         Text(
-            "Empty slot",
+            stringResource(R.string.home_empty_slot),
             modifier =
             Modifier.padding(
                 horizontal = layout.taskPaddingHorizontal(),
@@ -841,64 +836,6 @@ internal fun SectionLabel(
             modifier = Modifier.semantics { heading() },
         )
         Text(trailing, style = HomeMetrics.Eyebrow, color = FocusColors.Live.Muted)
-    }
-}
-
-/**
- * A count-only row for a pile that lives on its own screen.
- * The row is not a Today slot and does not expand a list.
- */
-@Composable
-private fun PileCountRow(
-    title: String,
-    count: Int,
-    onClick: () -> Unit,
-) {
-    val interaction = rememberPressSource()
-    val pressed by interaction.collectIsPressedAsState()
-    val reducedMotion = rememberReducedMotion()
-    val color by animateColorAsState(
-        targetValue = if (pressed) FocusColors.Live.SurfaceHigh else FocusColors.Live.Surface,
-        animationSpec = motionSpec(MotionSpec.PressMillis, reducedMotion),
-        label = "countPress",
-    )
-    Surface(
-        modifier =
-        Modifier
-            .fillMaxWidth()
-            .heightIn(min = 56.dp)
-            .pressScale(interaction)
-            .clickable(
-                interactionSource = interaction,
-                indication = null,
-                role = Role.Button,
-                onClickLabel = "Open $title",
-                onClick = onClick,
-            ),
-        shape = RoundedCornerShape(CardRadius),
-        color = color,
-        border = BorderStroke(1.dp, FocusColors.Live.Outline),
-    ) {
-        Row(
-            modifier =
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 14.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                title.uppercase(),
-                style = MaterialTheme.typography.labelLarge,
-                color = FocusColors.Live.Muted,
-                letterSpacing = 1.2.sp,
-            )
-            Text(
-                count.toString(),
-                style = MaterialTheme.typography.titleMedium,
-                color = FocusColors.Live.Mint,
-            )
-        }
     }
 }
 
