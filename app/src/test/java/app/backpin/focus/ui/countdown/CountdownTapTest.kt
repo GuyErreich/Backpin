@@ -37,6 +37,7 @@ import app.backpin.focus.domain.TaskStatus
 import app.backpin.focus.testing.DEFAULT_TEST_INSTANT
 import app.backpin.focus.testing.DEFAULT_TEST_ZONE
 import app.backpin.focus.testing.FakeAppClock
+import app.backpin.focus.testing.MainDispatcherRule
 import app.backpin.focus.testing.useTestFocus
 import app.backpin.focus.ui.FocusStackViewModel
 import app.backpin.focus.ui.capture.SpeechProblem
@@ -53,7 +54,6 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
-import org.robolectric.shadows.ShadowSystemClock
 import java.time.LocalDate
 import java.time.chrono.IsoChronology
 import java.time.format.DateTimeFormatter
@@ -62,10 +62,14 @@ import java.time.format.FormatStyle
 import java.util.Locale
 import java.util.TimeZone
 
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36], qualifiers = "w411dp-h891dp")
 class CountdownTapTest {
-    @get:Rule
+    @get:Rule(order = 0)
+    val mainDispatcherRule = MainDispatcherRule()
+
+    @get:Rule(order = 1)
     val compose = createAndroidComposeRule<ComponentActivity>()
 
     private val context: Context = ApplicationProvider.getApplicationContext()
@@ -203,6 +207,7 @@ class CountdownTapTest {
             }
             await { viewModel.uiState.value.now?.isEvent == true }
             compose.onNodeWithText("EVENT").assertExists()
+            compose.mainClock.autoAdvance = false
 
             tap("Today")
             awaitSnapshot(useCases) { snapshot ->
@@ -210,11 +215,14 @@ class CountdownTapTest {
                 event.bucket == TaskBucket.TODAY && event.status == TaskStatus.OPEN && parentWaits(snapshot)
             }
             await { viewModel.uiState.value.recovery?.title == "Write the report" }
+            repeat(10) { pump() }
             compose.onNodeWithText("Resume").assertExists()
 
-            compose.runOnIdle { screen = "focus" }
+            screen = "focus"
+            repeat(10) { pump() }
             arriveAgain(useCases, repository, "Dentist again", today)
             await { viewModel.uiState.value.now?.title == "Dentist again" }
+            repeat(10) { pump() }
             compose.onNodeWithText("EVENT").assertExists()
             tap("Later")
             awaitSnapshot(useCases) { snapshot ->
@@ -389,7 +397,7 @@ class CountdownTapTest {
             compose.onNodeWithText("Next week").assertExists()
             compose.onNodeWithText("Pick a date").assertExists()
             compose.onNodeWithContentDescription("Close").performTouchInput { click(center) }
-            compose.waitForIdle()
+            pump()
             compose.onNodeWithText("Pick a date").assertDoesNotExist()
             await { viewModel.uiState.value.now?.title == "Dentist" && viewModel.uiState.value.now?.isEvent == true }
             awaitSnapshot(useCases) { snapshot ->
@@ -503,7 +511,6 @@ class CountdownTapTest {
         block: (FocusStackViewModel, FocusUseCases, FocusRepositoryImpl, FocusStackDatabase) -> Unit,
     ) {
         TimeZone.setDefault(TimeZone.getTimeZone(DEFAULT_TEST_ZONE.id))
-        ShadowSystemClock.setNanoTime(clock.nowEpochMillis() * 1_000_000L)
         useTestFocus(context = context, clock = clock) { fixture ->
             fixture.withViewModel { viewModel ->
                 block(viewModel, fixture.useCases, fixture.repository, fixture.database)
@@ -570,31 +577,41 @@ class CountdownTapTest {
         compose
             .onNode(hasContentDescription("Switch to text input mode", substring = true))
             .performTouchInput { click() }
-        compose.waitForIdle()
+        pump()
         val fields = compose.onAllNodes(hasSetTextAction())
         val count = fields.fetchSemanticsNodes().size
         check(count > before) { "The date field did not open" }
         fields[count - 1].performTextReplacement(dateInputDigits(date))
-        compose.waitForIdle()
+        pump()
         val shown = DateTimeFormatter.ofPattern("MMMM d, yyyy", Locale.getDefault()).format(date)
         compose.onNode(hasContentDescription(shown, substring = true)).assertExists()
     }
 
     private fun tap(label: String): SemanticsNodeInteraction {
-        compose.waitForIdle()
+        pump()
         val node = compose.onNodeWithText(label)
         node.assertIsEnabled().assertHasClickAction()
         node.performTouchInput { click() }
-        compose.waitForIdle()
+        pump()
         return node
     }
 
     private fun await(predicate: () -> Boolean) {
         compose.waitUntil(timeoutMillis = 5_000) {
-            compose.waitForIdle()
-            shadowOf(Looper.getMainLooper()).idle()
+            pump()
             predicate()
         }
+    }
+
+    private fun pump() {
+        if (compose.mainClock.autoAdvance) {
+            compose.waitForIdle()
+        } else {
+            compose.mainClock.advanceTimeBy(16L)
+            compose.mainClock.advanceTimeByFrame()
+        }
+        shadowOf(Looper.getMainLooper()).idle()
+        mainDispatcherRule.scheduler.advanceUntilIdle()
     }
 
     private fun awaitSnapshot(
