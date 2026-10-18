@@ -13,16 +13,16 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import app.backpin.focus.MainActivity
 import app.backpin.focus.R
-import app.backpin.focus.domain.BandTimes
 import app.backpin.focus.domain.FocusRepository
 import app.backpin.focus.domain.FocusSnapshot
 import app.backpin.focus.domain.MAX_TODAY_LIMIT
 import app.backpin.focus.domain.MIN_TODAY_LIMIT
+import app.backpin.focus.domain.RepeatBand
+import app.backpin.focus.domain.Task
 import app.backpin.focus.domain.TaskBucket
 import app.backpin.focus.domain.TaskStatus
 import app.backpin.focus.domain.UserPreferences
-import app.backpin.focus.domain.label
-import app.backpin.focus.domain.openHomeBand
+import app.backpin.focus.domain.minuteOfDayLabel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
@@ -144,14 +144,14 @@ class NotificationCoordinator(
         force: Boolean,
     ) {
         val target = relevantFocus(snapshot)
-        val now = LocalTime.now()
         val rows =
             todayNoticeRows(
                 snapshot,
                 target?.taskId.orEmpty(),
                 preferences.todayLimit,
-                todayNoticeBandLabel(preferences.bandTimes, now.hour * 60 + now.minute),
-            )
+            ) { task ->
+                todayNoticeRowSubtitle(context, scheduledAtMinuteOfDay = task.scheduledAtMinuteOfDay)
+            }
         if (!shouldShowTodayNotice(preferences.currentNotificationEnabled, allowed, rows.size)) {
             cancel(NotificationContract.ID_CURRENT)
             postedKey = null
@@ -287,18 +287,21 @@ internal data class TodayNoticeRow(
     val taskId: String,
     val title: String,
     val current: Boolean,
-    val bandLabel: String = "",
+    val subtitle: String = "",
 )
 
 /**
  * Open Today tasks, in saved order, capped by the stored limit.
  * [currentTaskId] is marked and is not a switch target.
+ * [subtitleFor] is the second line, from that task's own data.
  */
 internal fun todayNoticeRows(
     snapshot: FocusSnapshot,
     currentTaskId: String,
     limit: Int,
-    bandLabel: String = "",
+    subtitleFor: (Task) -> String = { task ->
+        task.scheduledAtMinuteOfDay?.let(::minuteOfDayLabel).orEmpty()
+    },
 ): List<TodayNoticeRow> {
     val cap = limit.coerceIn(MIN_TODAY_LIMIT, MAX_TODAY_LIMIT)
     return snapshot.tasks
@@ -311,24 +314,42 @@ internal fun todayNoticeRows(
                 taskId = task.id,
                 title = task.title,
                 current = task.id == currentTaskId,
-                bandLabel = bandLabel,
+                subtitle = subtitleFor(task),
             )
         }
         .toList()
 }
 
-/** Second line of an expanded Today row. Matches option B: `Morning repeat`. */
-internal fun todayNoticeBandLabel(
-    times: BandTimes,
-    minuteOfDay: Int,
-): String = "${openHomeBand(minuteOfDay, times).label()} repeat"
+/**
+ * Second line of an expanded row, from that row's own data. Never from the clock.
+ * A repeat is `{band} repeat`. A timed task is `HH:mm`. No time is Anytime.
+ */
+internal fun todayNoticeRowSubtitle(
+    context: Context,
+    scheduledAtMinuteOfDay: Int? = null,
+    repeatBand: RepeatBand? = null,
+): String {
+    if (repeatBand != null) {
+        val bandName = context.getString(repeatBandTitleRes(repeatBand))
+        return context.getString(R.string.notification_today_row_repeat, bandName)
+    }
+    val minute = scheduledAtMinuteOfDay ?: return context.getString(R.string.notification_today_row_anytime)
+    return minuteOfDayLabel(minute)
+}
+
+private fun repeatBandTitleRes(band: RepeatBand): Int =
+    when (band) {
+        RepeatBand.MORNING -> R.string.home_band_morning
+        RepeatBand.NOON -> R.string.home_band_noon
+        RepeatBand.NIGHT -> R.string.home_band_night
+    }
 
 /** Changes when the collapsed copy or the open Today set changes. */
 internal fun currentNoticeKey(
     copy: CurrentNoticeCopy,
     rows: List<TodayNoticeRow>,
 ): String {
-    val today = rows.joinToString(separator = "|") { "${it.taskId}:${it.title}:${it.current}:${it.bandLabel}" }
+    val today = rows.joinToString(separator = "|") { "${it.taskId}:${it.title}:${it.current}:${it.subtitle}" }
     return "${copy.idle}:${copy.offersInterrupt}:${copy.title}:${copy.body}:$today"
 }
 
@@ -460,7 +481,7 @@ private val todayDoneIds =
 
 /**
  * Expanded shade lists Today in five fixed slots. Each open task is its own
- * neutral row: title, band label (`Morning repeat`), and a mint-outlined Done.
+ * neutral row: title, subtitle from that row's data, and a mint-outlined Done.
  * Empty slots are [View.GONE]. Done writes without opening the app.
  * The current title still opens Focus. Other titles still switch or start.
  */
@@ -483,11 +504,11 @@ internal fun todayBigContent(
         val doneId = todayDoneIds[index]
         root.setViewVisibility(itemId, View.VISIBLE)
         root.setTextViewText(titleId, row.title)
-        if (row.bandLabel.isBlank()) {
+        if (row.subtitle.isBlank()) {
             root.setViewVisibility(bandId, View.GONE)
         } else {
             root.setViewVisibility(bandId, View.VISIBLE)
-            root.setTextViewText(bandId, row.bandLabel)
+            root.setTextViewText(bandId, row.subtitle)
         }
         root.setTextViewText(doneId, context.getString(R.string.action_done))
         root.setTextColor(doneId, mint)

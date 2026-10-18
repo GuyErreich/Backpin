@@ -10,6 +10,8 @@
     <string name="notification_switch_row">Switch to %1$s</string>
     <string name="notification_start_row">Start %1$s</string>
     <string name="notification_done_row">Done. %1$s</string>
+    <string name="notification_today_row_anytime">Anytime</string>
+    <string name="notification_today_row_repeat">%1$s repeat</string>
     <string name="action_resume">Resume</string>
     <string name="action_later">Later</string>
     <string name="action_interrupt">Interrupt</string>
