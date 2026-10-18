@@ -7,6 +7,7 @@ import app.backpin.focus.domain.FocusRepository
 import app.backpin.focus.domain.FocusSnapshot
 import app.backpin.focus.domain.FrameState
 import app.backpin.focus.domain.PromoteOutcome
+import app.backpin.focus.domain.StartOutcome
 import app.backpin.focus.domain.TaskBucket
 import app.backpin.focus.domain.TaskStatus
 import app.backpin.focus.testing.InMemoryFocusRule
@@ -145,25 +146,27 @@ class ChildFrameCloseOverflowTest {
         assertEquals(nest.others, otherPlaces(resumed, nest.childId))
         assertInvariantsHold("child started first", resumed)
 
-        val refused = focus.repository.start(nest.parentId)
-        assertTrue(refused is PromoteOutcome.Rejected)
-        assertEquals(
-            "Task still has an open interruption",
-            (refused as PromoteOutcome.Rejected).reason,
-        )
-        val afterRefuse =
+        val redirected = focus.repository.start(nest.parentId)
+        val redirect = redirected as StartOutcome.RedirectedToInterruption
+        val childTask = resumed.tasks.single { it.id == nest.childId }
+        val parentTask = resumed.tasks.single { it.id == nest.parentId }
+        assertEquals(nest.childId, redirect.interruptionId)
+        assertEquals(nest.parentId, redirect.parentId)
+        assertEquals(childTask.title, redirect.interruptionTitle)
+        assertEquals(parentTask.title, redirect.parentTitle)
+        val afterRedirect =
             focus.repository.observeSnapshot().awaitState { state ->
                 state.frames.singleOrNull { it.state == FrameState.ACTIVE }?.taskId == nest.childId
             }
-        assertEquals(nest.others, otherPlaces(afterRefuse, nest.childId))
-        val child = afterRefuse.frames.single { it.state == FrameState.ACTIVE }
+        assertEquals(nest.others, otherPlaces(afterRedirect, nest.childId))
+        val child = afterRedirect.frames.single { it.state == FrameState.ACTIVE }
         assertEquals(nest.childId, child.taskId)
         assertEquals(nest.parentFrameId, child.parentFrameId)
         assertEquals(
             FrameState.PAUSED,
-            afterRefuse.frames.single { it.id == nest.parentFrameId }.state,
+            afterRedirect.frames.single { it.id == nest.parentFrameId }.state,
         )
-        assertInvariantsHold("parent start refused", afterRefuse)
+        assertInvariantsHold("parent start redirected", afterRedirect)
     }
 
     @Test
