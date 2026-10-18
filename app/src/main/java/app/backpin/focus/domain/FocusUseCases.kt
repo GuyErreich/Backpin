@@ -24,6 +24,10 @@ class FocusUseCases(
 
     suspend fun captureAndStart(title: String): PromoteOutcome = repository.captureAndStart(title)
 
+    suspend fun discardCapture(taskId: String) {
+        repository.discardCapture(taskId)
+    }
+
     suspend fun captureLater(title: String) {
         repository.captureLater(title)
     }

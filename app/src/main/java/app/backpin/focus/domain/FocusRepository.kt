@@ -18,16 +18,24 @@ interface FocusRepository {
     /**
      * Places a new task on Today without starting it.
      * A blank title changes nothing.
-     * When Today is full, returns [PromoteOutcome.NeedsSwap] and writes nothing.
+     * When Today is full, saves the task to Inbox in the same transaction and returns
+     * [PromoteOutcome.NeedsSwap] with its id, so the capture is never lost.
      */
     suspend fun captureIntoToday(title: String): PromoteOutcome
 
     /**
      * Starts a new task now. Nothing active means it just starts.
      * An active frame is paused and this one starts with no parent: a switch, not a nested interruption.
-     * When Today has no free slot, returns [PromoteOutcome.NeedsSwap] and writes nothing.
+     * When Today has no free slot, saves the task to Inbox in the same transaction and returns
+     * [PromoteOutcome.NeedsSwap] with its id. It is not started.
      */
     suspend fun captureAndStart(title: String): PromoteOutcome
+
+    /**
+     * Undo for a capture kept in Inbox: deletes [taskId] only while it is still an open Inbox
+     * task with no open frame. Anything else is a no-op.
+     */
+    suspend fun discardCapture(taskId: String)
 
     /** Parks a new task in Later. Does not start it. A blank title changes nothing. */
     suspend fun captureLater(title: String)

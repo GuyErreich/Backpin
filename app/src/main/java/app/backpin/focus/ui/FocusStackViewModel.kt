@@ -478,9 +478,10 @@ class FocusStackViewModel(
         viewModelScope.launch {
             val trimmed = title.trim()
             if (trimmed.isEmpty()) return@launch
-            when (useCases.captureIntoToday(trimmed)) {
+            when (val outcome = useCases.captureIntoToday(trimmed)) {
                 is PromoteOutcome.NeedsSwap -> {
-                    freshSwapTitle.value = trimmed
+                    // The capture is already safe in Inbox; Replace and Interrupt place that task.
+                    swapIncomingId.value = outcome.incomingTaskId
                     closeCapture()
                 }
                 is PromoteOutcome.Promoted -> closeCapture()
@@ -497,9 +498,10 @@ class FocusStackViewModel(
         viewModelScope.launch {
             val trimmed = title.trim()
             if (trimmed.isEmpty()) return@launch
-            when (useCases.captureAndStart(trimmed)) {
+            when (val outcome = useCases.captureAndStart(trimmed)) {
                 is PromoteOutcome.NeedsSwap -> {
-                    freshSwapTitle.value = trimmed
+                    // The capture is already safe in Inbox; Replace and Interrupt place that task.
+                    swapIncomingId.value = outcome.incomingTaskId
                     closeCapture()
                 }
                 is PromoteOutcome.Promoted -> closeCapture()

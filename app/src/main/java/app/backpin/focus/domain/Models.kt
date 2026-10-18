@@ -117,12 +117,15 @@ data class UndoToken(
  * Result of trying to move a task into Today, or of starting one that needs a Today slot.
  * [NeedsSwap.canInterrupt] is true when an open Today task is the active frame, so the
  * full list can offer Interrupt as well as Replace.
+ * [NeedsSwap.incomingTaskId] is the task waiting for a slot. For a fresh capture it is the
+ * Inbox task the capture was saved as, so dismissing the swap never loses it.
  */
 sealed interface PromoteOutcome {
     data object Promoted : PromoteOutcome
 
     data class NeedsSwap(
         val todayTasks: List<Task>,
+        val incomingTaskId: String,
         val canInterrupt: Boolean = false,
     ) : PromoteOutcome
 

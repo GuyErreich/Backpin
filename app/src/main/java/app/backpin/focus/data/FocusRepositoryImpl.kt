@@ -79,14 +79,13 @@ class FocusRepositoryImpl(
         val outcome =
             database.withTransaction {
                 if (taskDao.countOpenToday() >= limit) {
-                    val today = taskDao.openInBucket(TaskBucket.TODAY.name).map { it.toDomain() }
-                    return@withTransaction PromoteOutcome.NeedsSwap(today, canInterruptIncoming(""))
+                    return@withTransaction keepCaptureInInbox(trimmed)
                 }
                 taskDao.upsert(newTask(trimmed, TaskBucket.TODAY))
                 requireInvariants(limit)
                 PromoteOutcome.Promoted
             }
-        if (outcome is PromoteOutcome.Promoted) recordInteraction()
+        if (outcome !is PromoteOutcome.Rejected) recordInteraction()
         return outcome
     }
 
@@ -97,8 +96,7 @@ class FocusRepositoryImpl(
         val outcome =
             database.withTransaction {
                 if (taskDao.countOpenToday() >= limit) {
-                    val today = taskDao.openInBucket(TaskBucket.TODAY.name).map { it.toDomain() }
-                    return@withTransaction PromoteOutcome.NeedsSwap(today, canInterruptIncoming(""))
+                    return@withTransaction keepCaptureInInbox(trimmed)
                 }
                 val active = frameDao.getActive()
                 val task = newTask(trimmed, TaskBucket.TODAY)
@@ -110,8 +108,38 @@ class FocusRepositoryImpl(
                 requireInvariants(limit)
                 PromoteOutcome.Promoted
             }
-        if (outcome is PromoteOutcome.Promoted) recordInteraction()
+        if (outcome !is PromoteOutcome.Rejected) recordInteraction()
         return outcome
+    }
+
+    /**
+     * Saves a fresh capture to Inbox when Today is full, so it survives whatever the swap
+     * choice turns out to be. Runs inside the caller's transaction.
+     */
+    private suspend fun keepCaptureInInbox(title: String): PromoteOutcome.NeedsSwap {
+        val kept = newTask(title, TaskBucket.INBOX)
+        taskDao.upsert(kept)
+        val today = taskDao.openInBucket(TaskBucket.TODAY.name).map { it.toDomain() }
+        return PromoteOutcome.NeedsSwap(
+            todayTasks = today,
+            incomingTaskId = kept.id,
+            canInterrupt = canInterruptIncoming(kept.id),
+        )
+    }
+
+    override suspend fun discardCapture(taskId: String) {
+        val discarded =
+            database.withTransaction {
+                val task = taskDao.getById(taskId) ?: return@withTransaction false
+                val untouchedInboxCapture =
+                    task.bucket == TaskBucket.INBOX.name &&
+                        task.status == TaskStatus.OPEN.name &&
+                        frameDao.openFrameForTask(taskId) == null
+                if (!untouchedInboxCapture) return@withTransaction false
+                taskDao.deleteById(taskId)
+                true
+            }
+        if (discarded) recordInteraction()
     }
 
     override suspend fun captureLater(title: String) {
@@ -257,7 +285,7 @@ class FocusRepositoryImpl(
                             } else if (taskDao.countOpenToday() >= limit) {
                                 taskDao.upsert(task.movedTo(TaskBucket.INBOX, clock.nowEpochMillis()))
                                 val today = taskDao.openInBucket(TaskBucket.TODAY.name).map { it.toDomain() }
-                                PromoteOutcome.NeedsSwap(today, canInterrupt = false)
+                                PromoteOutcome.NeedsSwap(today, incomingTaskId = task.id, canInterrupt = false)
                             } else {
                                 taskDao.upsert(task.movedTo(TaskBucket.TODAY, clock.nowEpochMillis()))
                                 PromoteOutcome.Promoted
@@ -435,7 +463,7 @@ class FocusRepositoryImpl(
             }
             if (taskDao.countOpenToday() >= limit) {
                 val today = taskDao.openInBucket(TaskBucket.TODAY.name).map { it.toDomain() }
-                return@withTransaction PromoteOutcome.NeedsSwap(today, canInterruptIncoming(taskId))
+                return@withTransaction PromoteOutcome.NeedsSwap(today, taskId, canInterruptIncoming(taskId))
             }
             taskDao.upsert(task.movedTo(TaskBucket.TODAY, clock.nowEpochMillis()))
             requireInvariants(limit)
@@ -491,7 +519,7 @@ class FocusRepositoryImpl(
                 val needsSlot = task.bucket != TaskBucket.TODAY.name
                 if (needsSlot && taskDao.countOpenToday() >= limit) {
                     val today = taskDao.openInBucket(TaskBucket.TODAY.name).map { it.toDomain() }
-                    return@withTransaction PromoteOutcome.NeedsSwap(today, canInterruptIncoming(taskId))
+                    return@withTransaction PromoteOutcome.NeedsSwap(today, taskId, canInterruptIncoming(taskId))
                 }
                 if (needsSlot) {
                     taskDao.upsert(task.movedTo(TaskBucket.TODAY, clock.nowEpochMillis()))
