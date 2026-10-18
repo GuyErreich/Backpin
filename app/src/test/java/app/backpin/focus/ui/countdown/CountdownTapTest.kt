@@ -640,10 +640,7 @@ class CountdownTapTest {
 
     private fun readPickerToday(): LocalDate {
         pickerTodayFromUi()?.let { return it }
-        return java.time.Instant
-            .ofEpochMilli(System.currentTimeMillis())
-            .atZone(java.time.ZoneId.systemDefault())
-            .toLocalDate()
+        return clock.localDate()
     }
 
     private fun pickerTodayFromUi(): LocalDate? {
