@@ -26,6 +26,9 @@ abstract class SelectChangedTestClassesTask : DefaultTask() {
     @get:Input
     abstract val dispatchClasses: Property<String>
 
+    @get:Input
+    abstract val useMergeParents: Property<Boolean>
+
     @get:Internal
     abstract val repoRoot: DirectoryProperty
 
@@ -51,20 +54,26 @@ abstract class SelectChangedTestClassesTask : DefaultTask() {
         if (dispatch.isNotEmpty()) {
             return parseDispatchClasses(dispatch)
         }
+        if (useMergeParents.get()) {
+            return parseChangedFiles("HEAD^1...HEAD^2")
+        }
         val base = baseSha.get().trim()
         val head = headSha.get().trim()
         if (base.isEmpty() || head.isEmpty()) {
             return emptyList()
         }
         check(isValidSha(base) && isValidSha(head)) { "Invalid git SHA" }
-        return changedTestFiles(base, head).flatMap { relative ->
-            val file = repoRoot.get().file(relative).asFile
-            check(file.isFile) { "Changed test file is missing: $relative" }
-            parseTopLevelTestClasses(file.readText())
-        }
+        return parseChangedFiles("$base...$head")
     }
 
-    private fun changedTestFiles(base: String, head: String): List<String> {
+    private fun parseChangedFiles(revisionRange: String): List<String> =
+        changedTestFiles(revisionRange).flatMap { relative ->
+            val file = repoRoot.get().file(relative).asFile
+            check(file.isFile) { "Changed test file is missing: $relative" }
+            parseTopLevelTestClasses(file.readText(), relative)
+        }
+
+    private fun changedTestFiles(revisionRange: String): List<String> {
         val output =
             providers.exec {
                 commandLine(
@@ -73,7 +82,7 @@ abstract class SelectChangedTestClassesTask : DefaultTask() {
                     "-z",
                     "--name-only",
                     "--diff-filter=ACMR",
-                    "$base...$head",
+                    revisionRange,
                     "--",
                     "app/src/test",
                 )
@@ -87,6 +96,6 @@ abstract class SelectChangedTestClassesTask : DefaultTask() {
     private fun isValidSha(value: String): Boolean = SHA.matches(value)
 
     private companion object {
-        val SHA = Regex("^[0-9a-fA-F]+$")
+        val SHA = Regex("^[0-9a-f]{40}([0-9a-f]{24})?$")
     }
 }
