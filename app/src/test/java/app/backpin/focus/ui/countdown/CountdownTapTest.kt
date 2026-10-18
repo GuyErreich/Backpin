@@ -16,6 +16,7 @@ import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performTextInput
@@ -30,7 +31,6 @@ import app.backpin.focus.data.FocusRepositoryImpl
 import app.backpin.focus.runOffTestThread
 import app.backpin.focus.data.FocusStackDatabase
 import app.backpin.focus.data.PreferencesDataStore
-import app.backpin.focus.domain.AppClock
 import app.backpin.focus.domain.FocusSnapshot
 import app.backpin.focus.domain.FocusUseCases
 import app.backpin.focus.domain.FrameState
@@ -512,7 +512,7 @@ class CountdownTapTest {
             FocusRepositoryImpl(
                 database = database,
                 preferencesStore = PreferencesDataStore(context, "countdown-tap-${UUID.randomUUID()}"),
-                clock = AppClock { System.currentTimeMillis() },
+                clock = app.backpin.focus.domain.AppClock { System.currentTimeMillis() },
             )
         val useCases = FocusUseCases(repository)
         val store = ViewModelStore()
