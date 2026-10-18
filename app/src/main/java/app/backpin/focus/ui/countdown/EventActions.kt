@@ -22,6 +22,7 @@ import app.backpin.focus.R
 import app.backpin.focus.domain.DetachDestination
 import app.backpin.focus.domain.MAX_COUNTDOWN_REARM_DAYS
 import app.backpin.focus.domain.MIN_COUNTDOWN_DAYS
+import app.backpin.focus.domain.isCountdownRearmDay
 import app.backpin.focus.ui.calendar.PickDateDialog
 import app.backpin.focus.ui.components.CaptureChoice
 import app.backpin.focus.ui.components.ChipSheet
@@ -106,7 +107,7 @@ internal fun ResumeCountdownSheet(
     val landing = today.plusDays(interval.toLong())
 
     fun commit(day: Long) {
-        if (sent[0]) return
+        if (sent[0] || !isCountdownRearmDay(day, today)) return
         sent[0] = true
         onCommit(day)
     }
