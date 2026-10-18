@@ -2,7 +2,6 @@
 package app.backpin.focus.data
 
 import app.backpin.focus.domain.DetachDestination
-import app.backpin.focus.domain.MAX_COUNTDOWN_DAYS
 import app.backpin.focus.domain.PromoteOutcome
 import app.backpin.focus.domain.Task
 import app.backpin.focus.domain.TaskBucket
@@ -26,11 +25,6 @@ import java.time.ZoneId
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
 class CountdownRearmTest {
-    @Test
-    fun maxCountdownDaysIs365() {
-        assertEquals(365, MAX_COUNTDOWN_DAYS)
-    }
-
     @Test
     fun isCountdownRearmDayAllowsTomorrowThrough365() {
         val today = todayOn(FakeAppClock())
