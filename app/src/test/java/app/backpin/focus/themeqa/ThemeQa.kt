@@ -59,6 +59,7 @@ internal fun themeQaEnv(
 ): ThemeQaEnv {
     val context: Context = ApplicationProvider.getApplicationContext()
     val millis = day.atTime(LocalTime.of(hour, minute)).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+    val clock = AppClock { millis }
     val database =
         Room
             .inMemoryDatabaseBuilder(context, FocusStackDatabase::class.java)
@@ -69,10 +70,10 @@ internal fun themeQaEnv(
         FocusRepositoryImpl(
             database = database,
             preferencesStore = preferences,
-            clock = AppClock { millis },
+            clock = clock,
         )
     val useCases = FocusUseCases(repository)
-    val repeats = RepeatsService(repository)
+    val repeats = RepeatsService(repository, clock = clock)
     val store = ViewModelStore()
     val viewModel =
         ViewModelProvider(
