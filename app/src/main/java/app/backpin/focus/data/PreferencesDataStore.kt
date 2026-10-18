@@ -11,6 +11,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStoreFile
 import app.backpin.focus.domain.BandTimes
+import app.backpin.focus.domain.CountdownUnit
 import app.backpin.focus.domain.DEFAULT_TODAY_LIMIT
 import app.backpin.focus.domain.HomeLayout
 import app.backpin.focus.domain.MAX_COUNTDOWN_DAYS
@@ -28,7 +29,7 @@ import kotlinx.coroutines.flow.map
 /**
  * Stores nudge timing, quiet hours, the current-task notification preference,
  * the ordered capture phrases, the last countdown count used on this phone,
- * the named palette, and the Home list layout.
+ * the named palette, the Home list layout, and the Coming up days/months unit.
  * Writing a value does not schedule work; the notification coordinator does that.
  */
 class PreferencesDataStore(
@@ -54,7 +55,7 @@ class PreferencesDataStore(
                 todayLimit = (prefs[Keys.TODAY_LIMIT] ?: DEFAULT_TODAY_LIMIT).coerceIn(MIN_TODAY_LIMIT, MAX_TODAY_LIMIT),
                 savedPhrases = decodeSavedPhrases(prefs[Keys.SAVED_PHRASES]),
                 lastCountdownDays =
-                    prefs[Keys.LAST_COUNTDOWN_DAYS]?.takeIf { it in MIN_COUNTDOWN_DAYS..MAX_COUNTDOWN_DAYS },
+                prefs[Keys.LAST_COUNTDOWN_DAYS]?.takeIf { it in MIN_COUNTDOWN_DAYS..MAX_COUNTDOWN_DAYS },
                 bandTimes = readBandTimes(prefs),
                 heldBandNudge = prefs[Keys.HELD_BAND_NUDGE]?.let { runCatching { RepeatBand.valueOf(it) }.getOrNull() },
                 heldBandEpochDay = prefs[Keys.HELD_BAND_EPOCH_DAY],
@@ -82,6 +83,16 @@ class PreferencesDataStore(
                 ?: HomeLayout.FLAT
         }
 
+    /**
+     * How Coming up writes the wait until a day.
+     * Missing or unknown names are [CountdownUnit.DAYS].
+     */
+    val countdownUnit: Flow<CountdownUnit> =
+        dataStore.data.map { prefs ->
+            prefs[Keys.COUNTDOWN_UNIT]?.let { runCatching { CountdownUnit.valueOf(it) }.getOrNull() }
+                ?: CountdownUnit.DAYS
+        }
+
     /** Writes the default shape so the keys exist even before a later settings pass. */
     suspend fun ensureDefaultsStored() {
         dataStore.edit { prefs ->
@@ -106,6 +117,7 @@ class PreferencesDataStore(
             }
             if (Keys.THEME_ID !in prefs) prefs[Keys.THEME_ID] = ThemeId.SIGNAL.name
             if (Keys.HOME_LAYOUT !in prefs) prefs[Keys.HOME_LAYOUT] = HomeLayout.FLAT.name
+            if (Keys.COUNTDOWN_UNIT !in prefs) prefs[Keys.COUNTDOWN_UNIT] = CountdownUnit.DAYS.name
         }
     }
 
@@ -120,6 +132,13 @@ class PreferencesDataStore(
     suspend fun setHomeLayout(layout: HomeLayout) {
         dataStore.edit { prefs ->
             prefs[Keys.HOME_LAYOUT] = layout.name
+        }
+    }
+
+    /** Writes [unit] by enum name. */
+    suspend fun setCountdownUnit(unit: CountdownUnit) {
+        dataStore.edit { prefs ->
+            prefs[Keys.COUNTDOWN_UNIT] = unit.name
         }
     }
 
@@ -271,14 +290,14 @@ class PreferencesDataStore(
         val EXACT_ALARM_PROMPT_DISMISSED = booleanPreferencesKey("exact_alarm_prompt_dismissed")
         val THEME_ID = stringPreferencesKey("theme_id")
         val HOME_LAYOUT = stringPreferencesKey("home_layout")
+        val COUNTDOWN_UNIT = stringPreferencesKey("countdown_unit")
     }
 
-    private fun followUpKey(band: RepeatBand) =
-        when (band) {
-            RepeatBand.MORNING -> Keys.FOLLOW_UP_MORNING
-            RepeatBand.NOON -> Keys.FOLLOW_UP_NOON
-            RepeatBand.NIGHT -> Keys.FOLLOW_UP_NIGHT
-        }
+    private fun followUpKey(band: RepeatBand) = when (band) {
+        RepeatBand.MORNING -> Keys.FOLLOW_UP_MORNING
+        RepeatBand.NOON -> Keys.FOLLOW_UP_NOON
+        RepeatBand.NIGHT -> Keys.FOLLOW_UP_NIGHT
+    }
 
     private fun readBandTimes(prefs: Preferences): BandTimes {
         val times =
@@ -304,11 +323,10 @@ class PreferencesDataStore(
 }
 
 /** One phrase per line, in display order. Blank lines are dropped. */
-internal fun encodeSavedPhrases(phrases: List<String>): String =
-    phrases
-        .map { it.replace('\n', ' ').trim() }
-        .filter { it.isNotEmpty() }
-        .joinToString("\n")
+internal fun encodeSavedPhrases(phrases: List<String>): String = phrases
+    .map { it.replace('\n', ' ').trim() }
+    .filter { it.isNotEmpty() }
+    .joinToString("\n")
 
 /** Restores [encodeSavedPhrases]. A missing or empty value is an empty list. */
 internal fun decodeSavedPhrases(stored: String?): List<String> {

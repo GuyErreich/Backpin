@@ -196,12 +196,12 @@ private object CountdownField
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AddCountdownSheet(
+internal fun AddCountdownSheet(
     onDismiss: () -> Unit,
     onAdd: (String, Long) -> Unit,
     today: LocalDate,
-    recognizer: UtteranceRecognizer?,
-    onSystemSpeech: ((Intent, (String) -> Unit) -> Unit)?,
+    recognizer: UtteranceRecognizer? = null,
+    onSystemSpeech: ((Intent, (String) -> Unit) -> Unit)? = null,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val reducedMotion = rememberReducedMotion()
@@ -336,7 +336,7 @@ private fun AddCountdownSheet(
 /** A new number of days, or a calendar day, for a countdown that already has a name. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ChangeCountdownSheet(
+internal fun ChangeCountdownSheet(
     epochDay: Long,
     today: LocalDate,
     onDismiss: () -> Unit,

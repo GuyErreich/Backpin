@@ -127,6 +127,7 @@
     <string name="home_row_desc">Today position %1$d. %2$s. %3$s. Swipe right for done, swipe left to bring back. Long press for more actions.</string>
     <string name="home_missed_footer">Missed repeats don\'t pile up. Tomorrow starts fresh.</string>
     <string name="action_add">+ Add</string>
+    <string name="action_plan_ahead">+ Plan ahead</string>
     <string name="action_add_countdown">Add countdown</string>
     <string name="tab_home">Home</string>
     <string name="tab_inbox">Inbox</string>
@@ -138,6 +139,24 @@
     <string name="screen_scheduled">Scheduled</string>
     <string name="screen_done">Done</string>
     <string name="screen_coming_up">Coming up</string>
+    <string name="coming_up_eyebrow">COMING UP</string>
+    <string name="coming_up_title">It comes back on its day.</string>
+    <string name="coming_up_empty">Nothing is waiting on a day.</string>
+    <string name="coming_up_group_today">TODAY</string>
+    <string name="coming_up_group_tomorrow">TOMORROW</string>
+    <string name="coming_up_group_this_week">THIS WEEK</string>
+    <string name="coming_up_group_further_out">FURTHER OUT</string>
+    <string name="coming_up_today">today</string>
+    <string name="coming_up_passed">passed</string>
+    <plurals name="coming_up_in_days">
+        <item quantity="one">in %d day</item>
+        <item quantity="other">in %d days</item>
+    </plurals>
+    <plurals name="coming_up_in_months">
+        <item quantity="one">in %d month</item>
+        <item quantity="other">in %d months</item>
+    </plurals>
+    <string name="coming_up_row_desc">%1$s. %2$s.</string>
     <string name="screen_countdown">Countdown</string>
     <string name="pile_inbox_empty">Inbox is clear.</string>
     <string name="pile_later_empty">Nothing parked for later.</string>
@@ -172,4 +191,8 @@
     <string name="settings_home_layout">Home layout</string>
     <string name="home_layout_flat">Flat</string>
     <string name="home_layout_bands">Bands</string>
+    <string name="settings_countdown">Countdown</string>
+    <string name="settings_countdown_copy">Days keeps every Coming up label in days. Months uses months once an item is a month or more away.</string>
+    <string name="settings_countdown_days">Days</string>
+    <string name="settings_countdown_months">Months</string>
 </resources>

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package app.backpin.focus.ui.components
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -20,14 +21,15 @@ import app.backpin.focus.ui.theme.ButtonMinHeight
 import app.backpin.focus.ui.theme.FocusColors
 
 /**
- * Mint + Add control that replaced the full-width Capture bar.
- * Tap opens Capture. Long-press is forwarded when the caller has one.
+ * Mint floating control. Home uses + Add. Coming up uses + Plan ahead.
+ * Long-press is forwarded when the caller has one.
  */
 @Composable
 internal fun AddFab(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     onLongClick: (() -> Unit)? = null,
+    @StringRes labelRes: Int = R.string.action_add,
 ) {
     val interaction = rememberPressSource()
     Surface(
@@ -48,7 +50,7 @@ internal fun AddFab(
         shadowElevation = 6.dp,
     ) {
         Text(
-            text = stringResource(R.string.action_add),
+            text = stringResource(labelRes),
             color = FocusColors.Live.OnMint,
             style = ButtonLabel,
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 14.dp),

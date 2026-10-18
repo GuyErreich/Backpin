@@ -53,6 +53,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import app.backpin.focus.R
 import app.backpin.focus.domain.BandEdge
 import app.backpin.focus.domain.BandTimes
+import app.backpin.focus.domain.CountdownUnit
 import app.backpin.focus.domain.HomeLayout
 import app.backpin.focus.domain.MAX_TODAY_LIMIT
 import app.backpin.focus.domain.MIN_TODAY_LIMIT
@@ -89,6 +90,8 @@ fun SettingsScreen(
     homeLayout: HomeLayout = HomeLayout.FLAT,
     onHomeLayout: (HomeLayout) -> Unit = {},
     showHomeLayout: Boolean = false,
+    countdownUnit: CountdownUnit = CountdownUnit.DAYS,
+    onCountdownUnit: (CountdownUnit) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -168,6 +171,28 @@ fun SettingsScreen(
                             stringResource(label),
                             selected = themeId == id,
                             onClick = { onThemeId(id) },
+                        )
+                    }
+                }
+            }
+        }
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(CardRadius),
+            color = FocusColors.Live.Surface,
+        ) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(Space)) {
+                Text(stringResource(R.string.settings_countdown), style = MaterialTheme.typography.titleMedium)
+                Text(
+                    stringResource(R.string.settings_countdown_copy),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                ActionRow {
+                    for ((unit, label) in countdownUnitChoices) {
+                        QuietButton(
+                            stringResource(label),
+                            selected = countdownUnit == unit,
+                            onClick = { onCountdownUnit(unit) },
                         )
                     }
                 }
@@ -568,6 +593,12 @@ private val homeLayoutChoices =
     listOf(
         HomeLayout.FLAT to R.string.home_layout_flat,
         HomeLayout.BANDS to R.string.home_layout_bands,
+    )
+
+private val countdownUnitChoices =
+    listOf(
+        CountdownUnit.DAYS to R.string.settings_countdown_days,
+        CountdownUnit.MONTHS to R.string.settings_countdown_months,
     )
 
 private enum class QuietPick { START, END }

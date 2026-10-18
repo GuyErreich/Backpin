@@ -31,6 +31,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import app.backpin.focus.R
+import app.backpin.focus.domain.CountdownUnit
 import app.backpin.focus.domain.HomeLayout
 import app.backpin.focus.domain.ThemeId
 import app.backpin.focus.notifications.NotificationContract
@@ -88,6 +89,8 @@ fun FocusApp(
     homeLayout: HomeLayout = HomeLayout.FLAT,
     onHomeLayout: (HomeLayout) -> Unit = {},
     showHomeLayout: Boolean = false,
+    countdownUnit: CountdownUnit = CountdownUnit.DAYS,
+    onCountdownUnit: (CountdownUnit) -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val checkedOffMessage = stringResource(R.string.undo_checked_off)
@@ -155,7 +158,7 @@ fun FocusApp(
             AppTabBar(
                 selected = selectedTab(route),
                 inboxCount = state.inboxCount,
-                comingUpCount = state.scheduledCount + state.countdowns.size,
+                comingUpCount = state.scheduledTasks.size + state.countdowns.size,
                 onSelect = { tab ->
                     when (tab) {
                         AppTab.HOME -> navController.navigateTab(Routes.HOME)
@@ -205,22 +208,13 @@ fun FocusApp(
                     scheduledTasks = state.scheduledTasks,
                     countdowns = state.countdowns,
                     ready = state.ready,
-                    canInterrupt = state.canInterrupt,
                     today = state.today,
-                    now = state.localTime,
-                    onToday = viewModel::promote,
-                    onStart = viewModel::start,
-                    onInterrupt = viewModel::interruptFromPile,
+                    countdownUnit = countdownUnit,
                     onEdit = viewModel::openEdit,
-                    onInbox = viewModel::moveToInbox,
-                    onRemoveScheduled = viewModel::removeScheduled,
-                    onChangeDate = viewModel::changeScheduledDate,
-                    onChangeTime = viewModel::changeScheduledTime,
+                    onOpenSheet = viewModel::openTaskSheet,
                     onOpenMissed = viewModel::openMissedTask,
                     onAddCountdown = viewModel::addCountdown,
                     onChangeCountdownDate = viewModel::changeCountdownDate,
-                    onRemoveCountdown = viewModel::removeCountdown,
-                    onEditCountdown = viewModel::openEdit,
                 )
             }
             composable(
@@ -330,6 +324,8 @@ fun FocusApp(
                     homeLayout = homeLayout,
                     onHomeLayout = onHomeLayout,
                     showHomeLayout = showHomeLayout,
+                    countdownUnit = countdownUnit,
+                    onCountdownUnit = onCountdownUnit,
                 )
             }
         }
