@@ -51,6 +51,7 @@ abstract class SelectChangedTestClassesTask : DefaultTask() {
             }
         val out = outputFile.get().asFile
         out.parentFile.mkdirs()
+        java.io.File(out.parentFile, "runs").mkdirs()
         out.writeText(if (classes.isEmpty()) "" else classes.joinToString("\n", postfix = "\n"))
         if (classes.isEmpty()) {
             logger.lifecycle("No changed unit test classes under app/src/test; skipping.")
