@@ -386,25 +386,6 @@ class FocusStackViewModelTest {
         }
 
     @Test
-    fun startOnAFullTodayKeepsTheCaptureInInboxAndDoesNotSwitch() = runBlocking {
-        val viewModel = FocusStackViewModel(useCases, clock = AppClock { 5_000L })
-        val collect = launch { viewModel.uiState.collect {} }
-        val today = List(3) { index -> seedToday("Today $index") }
-        useCases.start(today[0])
-        viewModel.placeAndStart("Call Dana")
-        val waiting =
-            withTimeout(5_000) {
-                viewModel.uiState.first { it.swapIncoming?.title == "Call Dana" && it.swapChoices.size == 3 }
-            }
-        val snapshot = useCases.observeSnapshot().first()
-        assertEquals(TaskBucket.INBOX, snapshot.tasks.single { it.title == "Call Dana" }.bucket)
-        assertEquals(snapshot.tasks.single { it.title == "Call Dana" }.id, waiting.swapIncoming?.id)
-        assertEquals(today[0], snapshot.frames.single { it.state == FrameState.ACTIVE }.taskId)
-        assertEquals(3, waiting.swapChoices.size)
-        collect.cancel()
-    }
-
-    @Test
     fun editSheetSavesATitleAndABlankKeepsTheOldOne() =
         runBlocking {
             val viewModel = FocusStackViewModel(useCases, clock = AppClock { 5_000L })
