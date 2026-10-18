@@ -163,13 +163,14 @@ private fun ActiveCard(
                     ),
                 today = viewModel.localDate(),
                 onDetach = viewModel::detachEvent,
-            ) { onCountDownAgain ->
+            ) { onCountDownAgain, resumeOpen ->
                 CardActions {
                     if (now.isEvent) {
                         EventDetachButtons(
                             taskId = now.taskId,
                             onDetach = viewModel::detachEvent,
                             onCountDownAgain = onCountDownAgain,
+                            showCountDownAgain = !resumeOpen,
                         )
                     } else {
                         QuietButton("Pause", onClick = viewModel::pause)
