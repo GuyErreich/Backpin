@@ -29,8 +29,15 @@ POLL = 0.25
 BOUNDS_RE = re.compile(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]")
 
 
+def adb_prefix() -> list[str]:
+    serial = os.environ.get("ANDROID_SERIAL", "").strip()
+    if serial:
+        return ["adb", "-s", serial]
+    return ["adb"]
+
+
 def adb(args: list[str], check: bool = True) -> subprocess.CompletedProcess[bytes]:
-    proc = subprocess.run(["adb", *args], capture_output=True)
+    proc = subprocess.run([*adb_prefix(), *args], capture_output=True)
     if proc.returncode != 0:
         err = proc.stderr.decode("utf-8", "replace").strip()
         out = proc.stdout.decode("utf-8", "replace").strip()
@@ -273,10 +280,13 @@ def install_and_launch() -> None:
         last_install[0] = now
         if not device_online():
             return False
-        proc = subprocess.run(["adb", "install", "-r", "-g", str(APK)], capture_output=True)
+        proc = subprocess.run(
+            [*adb_prefix(), "install", "-r", "-g", "--no-streaming", str(APK)],
+            capture_output=True,
+        )
         text = (proc.stdout + proc.stderr).decode("utf-8", "replace")
         print(f"adb install rc={proc.returncode}: {text[:400]}")
-        return proc.returncode == 0
+        return proc.returncode == 0 or "Success" in text
 
     wait_until(installed, 90, "debug APK installed")
     grant_notifications()
@@ -446,9 +456,21 @@ def expand_today_notice() -> None:
     )
 
 
+def pick_emulator_serial() -> None:
+    if os.environ.get("ANDROID_SERIAL"):
+        return
+    for line in subprocess.run(["adb", "devices"], capture_output=True).stdout.decode().splitlines():
+        if "emulator-" in line and "device" in line:
+            serial = line.split()[0]
+            os.environ["ANDROID_SERIAL"] = serial
+            print(f"ANDROID_SERIAL={serial}")
+            return
+
+
 def main() -> int:
     print(f"CHECKOUT_REF={os.environ.get('CHECKOUT_REF', '')}")
     wait_boot()
+    pick_emulator_serial()
     set_412dp_display()
     install_and_launch()
     place_today_task()
