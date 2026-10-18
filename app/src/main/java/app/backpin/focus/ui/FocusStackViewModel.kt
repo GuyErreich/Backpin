@@ -734,6 +734,60 @@ class FocusStackViewModel(
         }
     }
 
+    /**
+     * Sends a Home item to Coming up on [epochDay]. Arrived events count down
+     * again; everything else is scheduled. Undo puts it back where it was.
+     */
+    fun bringBackOnDate(
+        taskId: String,
+        epochDay: Long,
+        undoMessage: String,
+    ) {
+        viewModelScope.launch {
+            val snapshot = useCases.observeSnapshot().first()
+            val task = snapshot.tasks.firstOrNull { it.id == taskId } ?: return@launch
+            val token = undoTokenFor(snapshot, taskId) ?: return@launch
+            if (task.bucket == TaskBucket.COUNTDOWN) {
+                when (useCases.detachInterruption(taskId, DetachDestination.Countdown(epochDay))) {
+                    is PromoteOutcome.NeedsSwap -> swapIncomingId.value = taskId
+                    is PromoteOutcome.Promoted -> {
+                        swapIncomingId.value = null
+                        offerUndo(undoMessage, token)
+                    }
+                    is PromoteOutcome.Rejected -> Unit
+                }
+            } else {
+                useCases.scheduleExisting(taskId, epochDay)
+                offerUndo(undoMessage, token)
+            }
+        }
+    }
+
+    /**
+     * Parks a Home item in Inbox with no date. Undo puts it back where it was.
+     */
+    fun bringBackToInbox(
+        taskId: String,
+        undoMessage: String,
+    ) {
+        viewModelScope.launch {
+            val snapshot = useCases.observeSnapshot().first()
+            val token = undoTokenFor(snapshot, taskId) ?: return@launch
+            useCases.moveToInbox(taskId)
+            offerUndo(undoMessage, token)
+        }
+    }
+
+    private fun undoTokenFor(
+        snapshot: app.backpin.focus.domain.FocusSnapshot,
+        taskId: String,
+    ): UndoToken? {
+        val task = snapshot.tasks.firstOrNull { it.id == taskId } ?: return null
+        val frame = snapshot.frames.firstOrNull { it.taskId == taskId && it.state != FrameState.CLOSED }
+        val parent = frame?.parentFrameId?.let { id -> snapshot.frames.firstOrNull { it.id == id } }
+        return UndoToken(tasks = listOf(task), frames = listOfNotNull(frame, parent))
+    }
+
     fun restore(taskId: String) {
         viewModelScope.launch {
             useCases.restore(taskId)

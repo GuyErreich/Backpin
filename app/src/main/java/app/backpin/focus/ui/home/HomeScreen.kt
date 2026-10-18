@@ -56,7 +56,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.backpin.focus.R
-import app.backpin.focus.domain.DetachDestination
 import app.backpin.focus.domain.HomeLayout
 import app.backpin.focus.domain.MAX_TODAY_LIMIT
 import app.backpin.focus.domain.MIN_TODAY_LIMIT
@@ -102,6 +101,13 @@ fun HomeScreen(
     val todayLimit = state.preferences.todayLimit.coerceIn(MIN_TODAY_LIMIT, MAX_TODAY_LIMIT)
     val filled = state.todaySlots.mapNotNull { slot -> slot.task?.let { slot to it } }
     val hasRoom = filled.size < todayLimit
+    val movedComingUp = stringResource(R.string.moved_to_coming_up)
+    val movedInbox = stringResource(R.string.moved_to_inbox)
+    val today = java.time.LocalDate.now()
+    var bringBack by remember { mutableStateOf<BringBackTarget?>(null) }
+    val openBringBack: (String, String) -> Unit = { id, title ->
+        bringBack = BringBackTarget(id, title)
+    }
 
     Column(
         modifier
@@ -134,7 +140,7 @@ fun HomeScreen(
         if (!state.ready) {
             Text(stringResource(R.string.home_loading), style = MaterialTheme.typography.bodyLarge)
         } else {
-            NowCard(state, viewModel, onOpenFocus, reducedMotion)
+            NowCard(state, viewModel, onOpenFocus, reducedMotion, openBringBack)
             if (grouped) {
                 HomeBandsSection(
                     bands = homeBands,
@@ -146,7 +152,7 @@ fun HomeScreen(
                     onOpenFocus = onOpenFocus,
                     onStart = viewModel::start,
                     onDone = viewModel::markDone,
-                    onLater = viewModel::demote,
+                    onBringBack = openBringBack,
                     onInterrupt = viewModel::interruptWith,
                     onReorder = viewModel::reorderToday,
                     onEditTask = viewModel::openEdit,
@@ -174,7 +180,7 @@ fun HomeScreen(
                     somethingCurrent = state.now != null,
                     onStart = viewModel::start,
                     onDone = viewModel::markDone,
-                    onLater = viewModel::demote,
+                    onBringBack = openBringBack,
                     onInterrupt = viewModel::interruptWith,
                     onReorder = viewModel::reorderToday,
                     onEdit = viewModel::openEdit,
@@ -206,7 +212,29 @@ fun HomeScreen(
             )
         }
     }
+    bringBack?.let { target ->
+        val isEvent = state.now?.let { it.taskId == target.taskId && it.isEvent } == true
+        app.backpin.focus.ui.capture.BringBackSheet(
+            title = target.title,
+            today = today,
+            earliest = if (isEvent) today.plusDays(1) else today,
+            onDismiss = { bringBack = null },
+            onDate = { date ->
+                bringBack = null
+                viewModel.bringBackOnDate(target.taskId, date.toEpochDay(), movedComingUp)
+            },
+            onKeepInInbox = {
+                bringBack = null
+                viewModel.bringBackToInbox(target.taskId, movedInbox)
+            },
+        )
+    }
 }
+
+private data class BringBackTarget(
+    val taskId: String,
+    val title: String,
+)
 
 private fun move(
     ids: List<String>,
@@ -226,6 +254,7 @@ private fun NowCard(
     viewModel: FocusStackViewModel,
     onOpenFocus: () -> Unit,
     reducedMotion: Boolean,
+    onBringBack: (String, String) -> Unit,
 ) {
     val now = state.now
     val recovery = state.recovery
@@ -234,33 +263,26 @@ private fun NowCard(
             val accent = FocusColors.Live.Lavender
             val label = nowLabel(now)
             val openInteraction = rememberPressSource()
+            val bringBackLabel = stringResource(R.string.action_bring_back)
             SwipeRevealCard(
                 towardStart = doneSwipe(viewModel::completeActive),
                 towardEnd =
-                laterSwipe {
-                    if (now.isEvent) {
-                        viewModel.detachEvent(now.taskId, DetachDestination.Later)
-                    } else {
-                        viewModel.demote(now.taskId)
-                    }
+                bringBackSwipe {
+                    onBringBack(now.taskId, now.title)
                 },
                 reducedMotion = reducedMotion,
                 onLongPress = { viewModel.openTaskSheet(now.taskId) },
                 extraActions =
                 listOf(
-                    CustomAccessibilityAction("Done") {
+                    CustomAccessibilityAction(stringResource(R.string.action_done)) {
                         viewModel.completeActive()
                         true
                     },
-                    CustomAccessibilityAction("Later") {
-                        if (now.isEvent) {
-                            viewModel.detachEvent(now.taskId, DetachDestination.Later)
-                        } else {
-                            viewModel.demote(now.taskId)
-                        }
+                    CustomAccessibilityAction(bringBackLabel) {
+                        onBringBack(now.taskId, now.title)
                         true
                     },
-                    CustomAccessibilityAction("Edit") {
+                    CustomAccessibilityAction(stringResource(R.string.action_edit)) {
                         viewModel.openEdit(now.taskId)
                         true
                     },
@@ -374,7 +396,7 @@ internal fun TodaySection(
     onOpenFocus: () -> Unit,
     onStart: (String) -> Unit,
     onDone: (String) -> Unit,
-    onLater: (String) -> Unit,
+    onBringBack: (String, String) -> Unit,
     onInterrupt: (String) -> Unit,
     onReorder: (List<String>) -> Unit,
     onEdit: (String) -> Unit,
@@ -501,7 +523,7 @@ internal fun TodaySection(
                         onOpen = onOpenFocus,
                         onStart = { onStart(task.id) },
                         onDone = { onDone(task.id) },
-                        onLater = { onLater(task.id) },
+                        onBringBack = { onBringBack(task.id, task.title) },
                         onInterrupt = { onInterrupt(task.id) },
                         onEdit = { onEdit(task.id) },
                         onOpenSheet = { onOpenSheet(task.id) },
@@ -628,7 +650,7 @@ private fun TodayRow(
     onOpen: () -> Unit,
     onStart: () -> Unit,
     onDone: () -> Unit,
-    onLater: () -> Unit,
+    onBringBack: () -> Unit,
     onInterrupt: () -> Unit,
     onEdit: () -> Unit,
     onOpenSheet: () -> Unit,
@@ -638,16 +660,18 @@ private fun TodayRow(
     onDragCancel: () -> Unit,
 ) {
     val opensSheet = slot.role == SlotRole.OPEN || slot.role == SlotRole.WAITING
+    val roleName = slot.role.name.lowercase()
     val description =
         if (opensSheet) {
-            "Today position ${index + 1}. ${slot.role.name.lowercase()}. ${task.title}. Opens the task sheet. Swipe right for done, swipe left for later. Long press for more actions."
+            stringResource(R.string.home_row_desc_opens_sheet, index + 1, roleName, task.title)
         } else {
-            "Today position ${index + 1}. ${slot.role.name.lowercase()}. ${task.title}. Swipe right for done, swipe left for later. Long press for more actions."
+            stringResource(R.string.home_row_desc, index + 1, roleName, task.title)
         }
     val openInteraction = rememberPressSource()
+    val bringBackLabel = stringResource(R.string.action_bring_back)
     SwipeRevealCard(
         towardStart = doneSwipe(onDone),
-        towardEnd = laterSwipe(onLater),
+        towardEnd = bringBackSwipe(onBringBack),
         reducedMotion = reducedMotion,
         onReorderDragStart = onDragStart,
         onReorderDrag = onDragBy,
@@ -656,13 +680,13 @@ private fun TodayRow(
         onLongPress = onOpenSheet,
         extraActions =
         reorderActions +
-            CustomAccessibilityAction("Done") {
+            CustomAccessibilityAction(stringResource(R.string.action_done)) {
                 onDone()
                 true
             } +
             listOfNotNull(
                 if (slot.role == SlotRole.OPEN) {
-                    CustomAccessibilityAction("Start") {
+                    CustomAccessibilityAction(stringResource(R.string.action_start)) {
                         onStart()
                         true
                     }
@@ -670,7 +694,7 @@ private fun TodayRow(
                     null
                 },
                 if (slot.role == SlotRole.OPEN && somethingCurrent) {
-                    CustomAccessibilityAction("Interrupt") {
+                    CustomAccessibilityAction(stringResource(R.string.action_interrupt)) {
                         onInterrupt()
                         true
                     }
@@ -678,11 +702,11 @@ private fun TodayRow(
                     null
                 },
             ) +
-            CustomAccessibilityAction("Later") {
-                onLater()
+            CustomAccessibilityAction(bringBackLabel) {
+                onBringBack()
                 true
             } +
-            CustomAccessibilityAction("Edit") {
+            CustomAccessibilityAction(stringResource(R.string.action_edit)) {
                 onEdit()
                 true
             },

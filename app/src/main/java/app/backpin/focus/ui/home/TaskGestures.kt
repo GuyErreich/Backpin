@@ -78,12 +78,12 @@ internal fun doneSwipe(onDone: () -> Unit): SwipeSide = SwipeSide(
 )
 
 @Composable
-internal fun laterSwipe(onLater: () -> Unit): SwipeSide = SwipeSide(
-    label = "Later",
-    accessibilityLabel = "Move to Later",
+internal fun bringBackSwipe(onBringBack: () -> Unit): SwipeSide = SwipeSide(
+    label = androidx.compose.ui.res.stringResource(app.backpin.focus.R.string.action_bring_back),
+    accessibilityLabel = androidx.compose.ui.res.stringResource(app.backpin.focus.R.string.action_bring_back_a11y),
     tint = FocusColors.Live.SurfaceHigh,
     onTint = FocusColors.Live.Text,
-    onCommit = onLater,
+    onCommit = onBringBack,
 )
 
 @Composable
@@ -119,7 +119,7 @@ internal fun interruptSwipe(onInterrupt: () -> Unit): SwipeSide = SwipeSide(
  * The word is centered in the band and grows slightly once the finger passes that point.
  * Today and NOW long-press opens the task sheet. Vertical drag still reorders
  * Today when those callbacks are set.
- * Inbox, Later, and Scheduled do not use long-press. Edit is a button on the card.
+ * Inbox, Coming up, and Scheduled do not use long-press. Edit is a button on the card.
  * Reduced motion keeps the card still. The band and the word still appear with the drag.
  */
 @Composable

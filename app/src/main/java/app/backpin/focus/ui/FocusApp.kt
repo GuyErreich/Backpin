@@ -91,6 +91,7 @@ fun FocusApp(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val checkedOffMessage = stringResource(R.string.undo_checked_off)
+    val undoLabel = stringResource(R.string.action_undo)
     val repeatDraft by viewModel.editingRepeat.collectAsStateWithLifecycle()
     val taskSheet by viewModel.taskSheet.collectAsStateWithLifecycle()
     val missedRepeatSheet by viewModel.missedRepeatSheet.collectAsStateWithLifecycle()
@@ -121,7 +122,7 @@ fun FocusApp(
         val result =
             snackbarHostState.showSnackbar(
                 message = message,
-                actionLabel = "Undo",
+                actionLabel = undoLabel,
                 withDismissAction = true,
             )
         if (result == SnackbarResult.ActionPerformed) {
