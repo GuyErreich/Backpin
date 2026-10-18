@@ -249,12 +249,9 @@ def today_notice_posted() -> bool:
 
 def log_notice_state(label: str) -> None:
     dump = notification_dump()
-    posted = PACKAGE in dump and (
-        "focus_today_ongoing" in dump or "focus_current_ongoing" in dump
-    )
-    print(f"{label}: today_notice_posted={posted}")
+    print(f"{label}: record_id_41={today_notice_posted()}")
     for line in dump.splitlines():
-        if "NotificationRecord" in line and PACKAGE in line:
+        if "NotificationRecord" in line:
             print(f"  {line[:240]}")
         elif "android.title" in line or "android.text" in line:
             print(f"  {line.strip()[:240]}")
@@ -368,13 +365,42 @@ def tap_permission_allow() -> None:
             return
 
 
+def today_notice_switch_box(
+    root: ET.Element,
+    label_box: tuple[int, int, int, int],
+    width: int,
+    height: int,
+) -> tuple[int, int, int, int]:
+    desc = find_nodes(root, "An ongoing notice")
+    desc_box = parse_bounds(desc[0]) if desc else None
+    card_top = label_box[1]
+    card_bottom = desc_box[3] if desc_box else min(height - 160, label_box[3] + 520)
+    hits: list[tuple[int, int, int, int]] = []
+    for box in checkable_boxes(root):
+        cx = (box[0] + box[2]) // 2
+        cy = (box[1] + box[3]) // 2
+        if cx < width * 0.55:
+            continue
+        if cy < card_top - 20 or cy > card_bottom + 20:
+            continue
+        hits.append(box)
+    if hits:
+        mid = (card_top + card_bottom) / 2
+        return min(hits, key=lambda box: abs((box[1] + box[3]) / 2 - mid))
+    cy = (card_top + card_bottom) // 2
+    return (width - 140, cy - 40, width - 40, cy + 40)
+
+
 def enable_today_notice() -> None:
     tap_text("Settings")
     wait_until(lambda: ui_has("Kept on this phone.") or ui_has("SETTINGS"), 20, "Settings")
     if ui_has("Not now"):
         tap_text("Not now")
     grant_notifications()
+    # Title-only visibility leaves the switch under the nav bar. Scroll until
+    # the last line of the card is on screen, then tap the right-hand switch.
     scroll_until("Show current task")
+    scroll_until("No foreground service.")
     root = dump_ui()
     labels = find_nodes(root, "Show current task")
     if not labels:
@@ -382,27 +408,20 @@ def enable_today_notice() -> None:
     label_box = parse_bounds(labels[0])
     if label_box is None:
         raise SystemExit("Show current task has no bounds")
-    # The switch is vertically centered on the whole card. The title sits at
-    # the top of a long description, so a tap at the title Y misses it.
-    switches = checkable_boxes(root)
-    print(f"Show current task bounds={label_box} checkable={switches}")
-    width, _ = screen_size()
-    if switches:
-        switch = max(switches, key=lambda box: box[0])
-        print(f"tapping switch {switch}")
-        tap_bounds(switch)
-    else:
-        y = label_box[3] + 200
-        print(f"no checkable node; tapping {width - 80},{y}")
-        adb(["shell", "input", "tap", str(width - 80), str(y)])
+    width, height = screen_size()
+    switch = today_notice_switch_box(root, label_box, width, height)
+    print(f"Show current task bounds={label_box} switch={switch}")
+    tap_bounds(switch)
     tap_permission_allow()
     if wait_until(today_notice_posted, 12, "Today notice record id=41", required=False):
         log_notice_state("after enabling Show current task")
         return
-    for dy in (80, 160, 240, 320, 400):
-        y = label_box[3] + dy
-        print(f"retry switch tap {width - 80},{y}")
-        adb(["shell", "input", "tap", str(width - 80), str(y)])
+    left, top, right, bottom = switch
+    for dx, dy in ((0, -80), (0, 80), (-40, 0), (40, 0), (0, 0)):
+        x = (left + right) // 2 + dx
+        y = (top + bottom) // 2 + dy
+        print(f"retry switch tap {x},{y}")
+        adb(["shell", "input", "tap", str(x), str(y)])
         tap_permission_allow()
         if wait_until(today_notice_posted, 6, "Today notice record id=41", required=False):
             log_notice_state("after enabling Show current task")
