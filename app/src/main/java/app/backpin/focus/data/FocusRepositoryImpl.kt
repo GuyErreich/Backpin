@@ -17,6 +17,7 @@ import app.backpin.focus.domain.RepeatBand
 import app.backpin.focus.domain.RepeatLog
 import app.backpin.focus.domain.RepeatOccurrence
 import app.backpin.focus.domain.RepeatOutcome
+import app.backpin.focus.domain.StartOutcome
 import app.backpin.focus.domain.SystemAppClock
 import app.backpin.focus.domain.Task
 import app.backpin.focus.domain.TaskBucket
@@ -494,7 +495,7 @@ class FocusRepositoryImpl(
         return token
     }
 
-    override suspend fun start(taskId: String): PromoteOutcome {
+    override suspend fun start(taskId: String): StartOutcome {
         val limit = todayLimit()
         val outcome =
             database.withTransaction {
@@ -506,8 +507,30 @@ class FocusRepositoryImpl(
                 if (existing?.state == FrameState.AWAITING_RESUME.name) {
                     return@withTransaction PromoteOutcome.Rejected("Resume the waiting frame explicitly")
                 }
-                if (existing != null && frameDao.countOpenChildren(existing.id) > 0) {
-                    return@withTransaction PromoteOutcome.Rejected("Task still has an open interruption")
+                val openChild = existing?.let { frameDao.newestOpenChild(it.id) }
+                if (openChild != null) {
+                    val childTask = taskDao.getById(openChild.taskId) ?: error("Missing task")
+                    if (active?.id != openChild.id) {
+                        if (active != null) {
+                            frameDao.upsert(pause(active))
+                        }
+                        if (openChild.state != FrameState.ACTIVE.name) {
+                            frameDao.upsert(
+                                openChild.copy(
+                                    state = FrameState.ACTIVE.name,
+                                    startedAtEpochMillis = clock.nowEpochMillis(),
+                                    pausedAtEpochMillis = null,
+                                ),
+                            )
+                        }
+                    }
+                    requireInvariants(limit)
+                    return@withTransaction StartOutcome.RedirectedToInterruption(
+                        interruptionId = childTask.id,
+                        parentId = task.id,
+                        interruptionTitle = childTask.title,
+                        parentTitle = task.title,
+                    )
                 }
                 val needsSlot = task.bucket != TaskBucket.TODAY.name
                 if (needsSlot && taskDao.countedOpenToday() >= limit) {
@@ -534,7 +557,11 @@ class FocusRepositoryImpl(
                 requireInvariants(limit)
                 PromoteOutcome.Promoted
             }
-        if (outcome is PromoteOutcome.Promoted) recordInteraction()
+        if (outcome is PromoteOutcome.Promoted ||
+            outcome is StartOutcome.RedirectedToInterruption
+        ) {
+            recordInteraction()
+        }
         return outcome
     }
 

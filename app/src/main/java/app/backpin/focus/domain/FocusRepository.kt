@@ -174,10 +174,11 @@ interface FocusRepository {
      * This is a switch, not an interruption: the new frame has no parent.
      * A task that is not already in Today takes a free slot in the same transaction.
      * When that slot is missing because Today is full, returns [PromoteOutcome.NeedsSwap]
-     * and writes nothing. Refuses a frame that is waiting for an explicit resume,
-     * and refuses a task that still has an open interruption.
+     * and writes nothing. Refuses a frame that is waiting for an explicit resume.
+     * When [taskId] still has an open interruption, that interruption becomes NOW
+     * and the result is [StartOutcome.RedirectedToInterruption].
      */
-    suspend fun start(taskId: String): PromoteOutcome
+    suspend fun start(taskId: String): StartOutcome
 
     /**
      * Pauses the active Today frame and makes [taskId] the active child.
