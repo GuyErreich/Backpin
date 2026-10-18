@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package app.backpin.focus.testing
 
+// flake-check parser probe: both top-level classes must stay selected.
+
 import app.backpin.focus.data.FocusStackDatabase
 import app.backpin.focus.domain.PromoteOutcome
 import app.backpin.focus.domain.TaskBucket
