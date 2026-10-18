@@ -133,8 +133,7 @@ class InterruptTodayPlacementTest {
                     val repo = fixture.repository
                     val parent = repo.seedFullToday(listOf("Write the brief")).single()
                     repo.start(parent.id)
-                    val todayEpochDay = fixture.clock.localDate().toEpochDay()
-                    repo.captureCountdown("Dentist", todayEpochDay)
+                    repo.captureCountdown("Dentist", fixture.clock.localEpochDay())
                     val arrived = repo.releaseDueCountdowns() ?: error("Countdown did not arrive")
                     arrived.id to parent.id
                 },
