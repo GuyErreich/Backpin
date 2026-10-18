@@ -216,10 +216,14 @@ def notification_dump() -> str:
 
 
 def today_notice_posted() -> bool:
-    dump = notification_dump()
-    if PACKAGE not in dump:
-        return False
-    return "focus_today_ongoing" in dump or "focus_current_ongoing" in dump
+    # Channel definitions also mention focus_today_ongoing. A live notice is a
+    # NotificationRecord for this package with ID_CURRENT (41).
+    for line in notification_dump().splitlines():
+        if "NotificationRecord" not in line:
+            continue
+        if PACKAGE in line and "id=41" in line:
+            return True
+    return False
 
 
 def log_notice_state(label: str) -> None:
@@ -229,8 +233,10 @@ def log_notice_state(label: str) -> None:
     )
     print(f"{label}: today_notice_posted={posted}")
     for line in dump.splitlines():
-        if PACKAGE in line or "focus_today" in line or "focus_current" in line or "1 task" in line:
+        if "NotificationRecord" in line and PACKAGE in line:
             print(f"  {line[:240]}")
+        elif "android.title" in line or "android.text" in line:
+            print(f"  {line.strip()[:240]}")
 
 
 def grant_notifications() -> None:
@@ -305,12 +311,16 @@ def enable_today_notice() -> None:
             continue
         switch = box
         break
+    width, _ = screen_size()
+    label_cy = (label_box[1] + label_box[3]) // 2
     if switch is not None:
         tap_bounds(switch)
     else:
-        # Right-hand side of the settings row.
-        tap_bounds(label_box, x_ratio=0.92)
-    wait_until(today_notice_posted, 30, "Today notice id=41 in dumpsys")
+        adb(["shell", "input", "tap", str(width - 100), str(label_cy)])
+    if not wait_until(today_notice_posted, 20, "Today notice record id=41", required=False):
+        adb(["shell", "input", "tap", str(width - 100), str(label_cy)])
+        wait_until(today_notice_posted, 25, "Today notice record id=41")
+    log_notice_state("after enabling Show current task")
 
 
 def screenshot(name: str) -> Path:
@@ -344,7 +354,7 @@ def shade_has_notice_text() -> bool:
     texts = [node_text(node) for node in walk(root)]
     blob = " | ".join(t for t in texts if t)
     print(f"shade dump texts: {blob[:500]}")
-    return "1 task" in blob or TASK_TITLE in blob
+    return "1 task" in blob or TASK_TITLE in blob or "Backpin" in blob
 
 
 def open_shade() -> None:
@@ -354,15 +364,20 @@ def open_shade() -> None:
     adb(["shell", "cmd", "statusbar", "collapse"], check=False)
     wait_until(lambda: not shade_window_open(), 8, "shade collapsed", required=False)
     adb(["shell", "cmd", "statusbar", "expand-notifications"])
-    wait_until(
-        lambda: shade_window_open() or shade_has_notice_text(),
-        20,
-        "notification shade",
-        required=False,
-    )
-    if not today_notice_posted():
-        log_notice_state("shade opened")
-        raise SystemExit("Today notice disappeared before the collapsed screenshot")
+    wait_until(shade_window_open, 12, "notification shade", required=False)
+    width, height = screen_size()
+    x = width // 2
+    y1 = int(height * 0.72)
+    y0 = int(height * 0.28)
+    if not wait_until(shade_has_notice_text, 4, "Today notice in shade", required=False):
+        for _ in range(5):
+            adb(["shell", "input", "swipe", str(x), str(y1), str(x), str(y0), "300"])
+            if shade_has_notice_text():
+                break
+        else:
+            log_notice_state("shade missing Today notice")
+            screenshot("shade-debug.png")
+            raise SystemExit("Today notice is posted but not visible in the shade")
     log_notice_state("shade opened")
 
 
