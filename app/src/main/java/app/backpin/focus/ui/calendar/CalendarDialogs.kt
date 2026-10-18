@@ -25,7 +25,8 @@ internal fun dateToPickerMillis(date: LocalDate): Long = date.toEpochDay() * DAY
 
 /**
  * Calendar for one local date. Days before [earliest] are disabled.
- * OK hands back the selected day. Cancel and outside taps change nothing.
+ * Days after [latest] are disabled when it is set. OK hands back the selected
+ * day. Cancel and outside taps change nothing.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -34,18 +35,31 @@ internal fun PickDateDialog(
     earliest: LocalDate,
     onPick: (LocalDate) -> Unit,
     onDismiss: () -> Unit,
+    latest: LocalDate? = null,
 ) {
     val earliestDay = earliest.toEpochDay()
+    val latestDay = latest?.toEpochDay()
+    val first =
+        maxOf(initial, earliest).let { date ->
+            if (latest != null && date.isAfter(latest)) latest else date
+        }
+    val lastYear = latest?.year ?: earliest.year + 10
     val state =
         rememberDatePickerState(
-            initialSelectedDateMillis = dateToPickerMillis(maxOf(initial, earliest)),
-            yearRange = earliest.year..(earliest.year + 10),
+            initialSelectedDateMillis = dateToPickerMillis(first),
+            yearRange = earliest.year..maxOf(earliest.year, lastYear),
             selectableDates =
                 object : SelectableDates {
-                    override fun isSelectableDate(utcTimeMillis: Long): Boolean =
-                        Math.floorDiv(utcTimeMillis, DAY_MILLIS) >= earliestDay
+                    override fun isSelectableDate(utcTimeMillis: Long): Boolean {
+                        val day = Math.floorDiv(utcTimeMillis, DAY_MILLIS)
+                        if (day < earliestDay) return false
+                        return latestDay == null || day <= latestDay
+                    }
 
-                    override fun isSelectableYear(year: Int): Boolean = year >= earliest.year
+                    override fun isSelectableYear(year: Int): Boolean {
+                        if (year < earliest.year) return false
+                        return latest == null || year <= latest.year
+                    }
                 },
         )
     val selected = state.selectedDateMillis

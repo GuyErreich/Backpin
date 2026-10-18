@@ -181,6 +181,7 @@ internal fun ResumeCountdownSheet(
         PickDateDialog(
             initial = landing,
             earliest = today.plusDays(MIN_COUNTDOWN_DAYS.toLong()),
+            latest = today.plusDays(MAX_COUNTDOWN_REARM_DAYS.toLong()),
             onPick = { date ->
                 picking = false
                 commit(date.toEpochDay())
