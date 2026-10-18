@@ -86,7 +86,7 @@ class CaptureSheetActionsTest {
         )
         val scheduled = placed.last()
         assertTrue(scheduled.startsWith("schedule:Call Dana:"))
-        assertTrue(scheduled.substringAfterLast(":").toLong() > LocalDate.now().toEpochDay())
+        assertTrue(scheduled.substringAfterLast(":").toLong() > clock.localDate().toEpochDay())
     }
 
     @Test
@@ -102,13 +102,10 @@ class CaptureSheetActionsTest {
                 FocusRepositoryImpl(
                     database = database,
                     preferencesStore = PreferencesDataStore(context, "capture-touch-${UUID.randomUUID()}"),
-                    clock =
-                        object : AppClock {
-                            override fun nowEpochMillis(): Long = 5_000L
-                        },
+                    clock = clock,
                 ),
             )
-        val viewModel = FocusStackViewModel(useCases)
+        val viewModel = FocusStackViewModel(useCases, clock = clock)
         var dismissed = 0
         try {
             compose.setContent {
@@ -117,6 +114,7 @@ class CaptureSheetActionsTest {
                     CaptureSheet(
                         phrases = emptyList(),
                         frameActive = state.now != null,
+                        today = clock.localDate(),
                         onDismiss = { dismissed += 1 },
                         onSaveToInbox = viewModel::saveToInbox,
                         onInterruptNow = viewModel::interruptNow,
@@ -179,7 +177,7 @@ class CaptureSheetActionsTest {
             replaceTitle("Talk to Dana")
             tap("Schedule")
             tap("Tomorrow")
-            val tomorrow = LocalDate.now().plusDays(1).toEpochDay()
+            val tomorrow = clock.localDate().plusDays(1).toEpochDay()
             awaitSnapshot(useCases) { snapshot ->
                 val scheduled = snapshot.tasks.singleOrNull { it.title == "Talk to Dana" }
                 scheduled != null &&
@@ -218,7 +216,7 @@ class CaptureSheetActionsTest {
         compose.onNodeWithText("Where does this go?").assertExists()
         tap("Schedule")
         tap("Tomorrow")
-        val tomorrow = LocalDate.now().plusDays(1).toEpochDay()
+        val tomorrow = clock.localDate().plusDays(1).toEpochDay()
         assertEquals(
             listOf(
                 "inbox:Talk to GUY",
@@ -423,11 +421,13 @@ class CaptureSheetActionsTest {
         onDismiss: () -> Unit = {},
         onSystemSpeech: ((Intent, (String) -> Unit) -> Unit)? = null,
     ) {
+        val today: LocalDate = clock.localDate()
         compose.setContent {
             FocusStackTheme {
                 CaptureSheet(
                     phrases = phrases,
                     frameActive = frameActive,
+                    today = today,
                     onDismiss = onDismiss,
                     onSaveToInbox = { placed += "inbox:$it" },
                     onInterruptNow = { placed += "interrupt:$it" },
@@ -510,6 +510,8 @@ class CaptureSheetActionsTest {
             viewModel.uiState.value.now?.let(predicate) == true
         }
     }
+
+    private val clock: AppClock = app.backpin.focus.testing.FakeAppClock()
 }
 
 private class FakeRecognizer(
