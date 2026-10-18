@@ -271,6 +271,9 @@ def install_and_launch() -> None:
         raise SystemExit(f"missing {APK}; run ./gradlew assembleDebug first")
     wait_until(device_online, 60, "adb device")
     wait_until(pm_ready, 60, "package manager")
+    # Cached AVDs keep a previous debug build whose signing key will not match.
+    gone = adb(["uninstall", PACKAGE], check=False)
+    print(f"adb uninstall {PACKAGE}: {(gone.stdout + gone.stderr).decode('utf-8', 'replace')[:200]}")
     last_install = [0.0]
 
     def installed() -> bool:

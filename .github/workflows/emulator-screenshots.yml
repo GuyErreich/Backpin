@@ -100,7 +100,7 @@ jobs:
           path: |
             ~/.android/avd/*
             ~/.android/adb*
-          key: avd-34-google_apis-x86_64-412dp-v1
+          key: avd-34-google_apis-x86_64-412dp-v2
 
       - name: Create 412 dp AVD
         if: steps.avd-cache.outputs.cache-hit != 'true'
