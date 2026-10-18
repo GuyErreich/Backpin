@@ -6,6 +6,7 @@ import android.os.Looper
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.getBoundsInRoot
@@ -48,6 +49,11 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import java.time.LocalDate
+import java.time.chrono.IsoChronology
+import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeFormatterBuilder
+import java.time.format.FormatStyle
+import java.util.Locale
 import java.util.UUID
 
 @RunWith(RobolectricTestRunner::class)
@@ -144,6 +150,22 @@ class ResumeChipSheetQaTest {
                     }
                 }
             }
+        }
+    }
+
+    @Test
+    fun pickADateAllowsTomorrowThrough365OnTheInjectedClock() {
+        withArrivedEvent { _, _, clock ->
+            val today = clock.localDate()
+            tapFocusTabOpensFocus()
+            tapDetachCountDownAgain()
+            assertResumeSheet(intervalDays = 180, today = today)
+            tap("Pick a date")
+            switchToDateTextInput()
+            assertPickerDateEnabled(today.plusDays(1))
+            assertPickerDateEnabled(today.plusDays(365))
+            assertPickerDateDisabled(today)
+            assertPickerDateDisabled(today.plusDays(366))
         }
     }
 
@@ -287,6 +309,44 @@ class ResumeChipSheetQaTest {
         compose.waitForIdle()
     }
 
+    private fun switchToDateTextInput() {
+        val before = compose.onAllNodes(hasSetTextAction()).fetchSemanticsNodes().size
+        compose
+            .onNode(hasContentDescription("Switch to text input mode", substring = true))
+            .performTouchInput { click(center) }
+        compose.waitForIdle()
+        shadowOf(Looper.getMainLooper()).idle()
+        val count = compose.onAllNodes(hasSetTextAction()).fetchSemanticsNodes().size
+        check(count > before) { "The date field did not open" }
+    }
+
+    private fun typePickerDate(date: LocalDate) {
+        val fields = compose.onAllNodes(hasSetTextAction())
+        val count = fields.fetchSemanticsNodes().size
+        fields[count - 1].performTextReplacement(resumeDateInputDigits(date))
+        compose.waitForIdle()
+        shadowOf(Looper.getMainLooper()).idle()
+    }
+
+    private fun assertPickerDateEnabled(date: LocalDate) {
+        typePickerDate(date)
+        compose.onNode(pickerDateMatcher(date)).assertIsEnabled()
+    }
+
+    private fun assertPickerDateDisabled(date: LocalDate) {
+        typePickerDate(date)
+        val matcher = pickerDateMatcher(date)
+        val count = compose.onAllNodes(matcher).fetchSemanticsNodes().size
+        if (count > 0) {
+            compose.onNode(matcher).assertIsNotEnabled()
+        }
+    }
+
+    private fun pickerDateMatcher(date: LocalDate) = hasContentDescription(
+        DateTimeFormatter.ofPattern("MMMM d, yyyy", Locale.getDefault()).format(date),
+        substring = true,
+    )
+
     private fun awaitSnapshot(
         useCases: FocusUseCases,
         predicate: (FocusSnapshot) -> Boolean,
@@ -310,4 +370,41 @@ class ResumeChipSheetQaTest {
     private companion object {
         const val DAYS_HELPER = "Enter 1 to 365 days"
     }
+}
+
+/** Digits for the Material date field, in the same order as its localized pattern. */
+private fun resumeDateInputDigits(date: LocalDate): String {
+    val localeFormat =
+        DateTimeFormatterBuilder.getLocalizedDateTimePattern(
+            FormatStyle.SHORT,
+            null,
+            IsoChronology.INSTANCE,
+            Locale.getDefault(),
+        )
+    val pattern =
+        localeFormat
+            .replace(Regex("[^dMy/\\-.]"), "")
+            .replace(Regex("d{1,2}"), "dd")
+            .replace(Regex("M{1,2}"), "MM")
+            .replace(Regex("y{1,4}"), "yyyy")
+    val delimiter = Regex("[/\\-.]").find(pattern)?.value.orEmpty()
+    val without = if (delimiter.isEmpty()) pattern else pattern.replace(delimiter, "")
+    val digits = StringBuilder()
+    var index = 0
+    while (index < without.length) {
+        val mark = without[index]
+        var end = index + 1
+        while (end < without.length && without[end] == mark) end += 1
+        val width = end - index
+        val piece =
+            when (mark) {
+                'M' -> date.monthValue.toString().padStart(width, '0')
+                'd' -> date.dayOfMonth.toString().padStart(width, '0')
+                'y' -> date.year.toString().padStart(width, '0').takeLast(width)
+                else -> ""
+            }
+        digits.append(piece)
+        index = end
+    }
+    return digits.toString()
 }
