@@ -44,10 +44,13 @@ internal fun EventDetachButtons(
     taskId: String,
     onDetach: (String, DetachDestination) -> Unit,
     onCountDownAgain: () -> Unit,
+    showCountDownAgain: Boolean = true,
 ) {
     QuietButton(stringResource(R.string.action_today), onClick = { onDetach(taskId, DetachDestination.Today) })
     QuietButton(stringResource(R.string.action_later), onClick = { onDetach(taskId, DetachDestination.Later) })
-    QuietButton(stringResource(R.string.action_count_down_again), onClick = onCountDownAgain)
+    if (showCountDownAgain) {
+        QuietButton(stringResource(R.string.action_count_down_again), onClick = onCountDownAgain)
+    }
 }
 
 /**
@@ -61,10 +64,10 @@ internal fun EventResumeHost(
     suggestedDays: Int?,
     today: LocalDate,
     onDetach: (String, DetachDestination) -> Unit,
-    content: @Composable (onCountDownAgain: () -> Unit) -> Unit,
+    content: @Composable (onCountDownAgain: () -> Unit, resumeOpen: Boolean) -> Unit,
 ) {
     var open by rememberSaveable(taskId) { mutableStateOf(false) }
-    content { open = true }
+    content({ open = true }, open)
     if (open) {
         ResumeCountdownSheet(
             title = title,
@@ -97,7 +100,10 @@ internal fun ResumeCountdownSheet(
     var daysText by rememberSaveable { mutableStateOf("") }
     val sent = remember { booleanArrayOf(false) }
     val interval =
-        suggestedDays?.takeIf { it in MIN_COUNTDOWN_DAYS..MAX_COUNTDOWN_REARM_DAYS } ?: DEFAULT_RESUME_DAYS
+        suggestedDays
+            ?.takeIf { it >= MIN_COUNTDOWN_DAYS }
+            ?.let { minOf(it, MAX_COUNTDOWN_REARM_DAYS) }
+            ?: DEFAULT_RESUME_DAYS
     val landing = today.plusDays(interval.toLong())
 
     fun commit(day: Long) {
@@ -117,7 +123,7 @@ internal fun ResumeCountdownSheet(
     }
 
     ChipSheet(
-        title = title.takeIf { it.isNotBlank() } ?: stringResource(R.string.resume_sheet_title),
+        title = title,
         onDismiss = onDismiss,
     ) {
         Column(

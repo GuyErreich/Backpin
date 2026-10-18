@@ -593,7 +593,7 @@ class FocusStackViewModel(
                 is PromoteOutcome.Promoted -> {
                     swapIncomingId.value = null
                     if (destination is DetachDestination.Countdown && before != null) {
-                        val today = LocalDate.now()
+                        val today = localDate()
                         val days = countdownIntervalDays(destination.epochDay, today) ?: return@launch
                         offerUndo(
                             backInDaysLabel(days, today),
