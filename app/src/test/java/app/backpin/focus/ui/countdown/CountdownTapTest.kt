@@ -46,7 +46,6 @@ import app.backpin.focus.ui.home.HomeScreen
 import app.backpin.focus.ui.theme.FocusStackTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.getCompletionExceptionOrNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -496,13 +495,19 @@ class CountdownTapTest {
         title: String,
         today: LocalDate,
     ) {
+        var failure: Throwable? = null
         val job =
             CoroutineScope(mainDispatcherRule.dispatcher).launch {
-                useCases.captureCountdown(title, today.toEpochDay())
-                repository.releaseDueCountdowns()
+                try {
+                    useCases.captureCountdown(title, today.toEpochDay())
+                    repository.releaseDueCountdowns()
+                } catch (error: Throwable) {
+                    failure = error
+                    throw error
+                }
             }
         await { job.isCompleted }
-        job.getCompletionExceptionOrNull()?.let { throw it }
+        failure?.let { throw it }
     }
 
     private fun parentWaits(snapshot: FocusSnapshot): Boolean {
