@@ -53,7 +53,7 @@ class FocusStackViewModelTest {
 
     @Before
     fun setUp() {
-        Dispatchers.setMain(Dispatchers.Unconfined)
+        Dispatchers.setMain(kotlinx.coroutines.test.UnconfinedTestDispatcher())
         database =
             Room
                 .inMemoryDatabaseBuilder(context, FocusStackDatabase::class.java)
@@ -81,7 +81,7 @@ class FocusStackViewModelTest {
     @Test
     fun openCaptureRemembersInterruptVersusInbox() =
         runBlocking {
-            val viewModel = FocusStackViewModel(useCases)
+            val viewModel = FocusStackViewModel(useCases, clock = AppClock { 5_000L })
             val collect = launch { viewModel.uiState.collect {} }
             viewModel.openCapture(interrupts = false)
             withTimeout(5_000) {
@@ -101,7 +101,7 @@ class FocusStackViewModelTest {
     @Test
     fun captureFromTheViewModelLeavesTheActiveFrame() =
         runBlocking {
-            val viewModel = FocusStackViewModel(useCases)
+            val viewModel = FocusStackViewModel(useCases, clock = AppClock { 5_000L })
             val collect = launch { viewModel.uiState.collect {} }
             val original = seedToday("Review CI failure")
             useCases.start(original)
@@ -122,7 +122,7 @@ class FocusStackViewModelTest {
     @Test
     fun doubleInterruptAndNewViewModelShowTheParentCue() =
         runBlocking {
-            val first = FocusStackViewModel(useCases)
+            val first = FocusStackViewModel(useCases, clock = AppClock { 5_000L })
             val collect = launch { first.uiState.collect {} }
             val original = seedToday("Review CI failure")
             useCases.updateReturnCue(original, "Next: reproduce CI failure")
@@ -147,7 +147,7 @@ class FocusStackViewModelTest {
             assertNull(recovered.undo)
             collect.cancel()
 
-            val recreated = FocusStackViewModel(useCases)
+            val recreated = FocusStackViewModel(useCases, clock = AppClock { 5_000L })
             val collectAgain = launch { recreated.uiState.collect {} }
             val restored =
                 withTimeout(5_000) {
@@ -176,7 +176,7 @@ class FocusStackViewModelTest {
     @Test
     fun doneLandsInArchiveAndRestoreReturnsOpenInboxWithoutChangingTheActiveFrame() =
         runBlocking {
-            val viewModel = FocusStackViewModel(useCases)
+            val viewModel = FocusStackViewModel(useCases, clock = AppClock { 5_000L })
             val collect = launch { viewModel.uiState.collect {} }
             val original = seedToday("Review CI failure")
             useCases.start(original)
@@ -250,7 +250,7 @@ class FocusStackViewModelTest {
     @Test
     fun placingOnAFullTodayWaitsAndWritesNothing() =
         runBlocking {
-            val viewModel = FocusStackViewModel(useCases)
+            val viewModel = FocusStackViewModel(useCases, clock = AppClock { 5_000L })
             val collect = launch { viewModel.uiState.collect {} }
             repeat(3) { index -> seedToday("Today $index") }
             withTimeout(5_000) {
@@ -259,7 +259,7 @@ class FocusStackViewModelTest {
             viewModel.placeOnToday("Call the school")
             val waiting =
                 withTimeout(5_000) {
-                    viewModel.uiState.first { it.freshSwapTitle == "Call the school" }
+                    viewModel.uiState.first { it.freshSwapTitle == "Call the school" && it.swapChoices.size == 3 }
                 }
             assertEquals(3, useCases.observeSnapshot().first().tasks.size)
             assertEquals(3, waiting.swapChoices.size)
@@ -275,7 +275,7 @@ class FocusStackViewModelTest {
     @Test
     fun captureActionsPlaceTheTask() =
         runBlocking {
-            val viewModel = FocusStackViewModel(useCases)
+            val viewModel = FocusStackViewModel(useCases, clock = AppClock { 5_000L })
             val collect = launch { viewModel.uiState.collect {} }
             viewModel.placeOnToday("Write the notes")
             val today =
@@ -360,7 +360,7 @@ class FocusStackViewModelTest {
     @Test
     fun emptyCaptureCreatesNothingAndInterruptNeedsAnActiveFrame() =
         runBlocking {
-            val viewModel = FocusStackViewModel(useCases)
+            val viewModel = FocusStackViewModel(useCases, clock = AppClock { 5_000L })
             val collect = launch { viewModel.uiState.collect {} }
             viewModel.openCapture()
             withTimeout(5_000) { viewModel.uiState.first { it.captureOpen } }
@@ -388,14 +388,14 @@ class FocusStackViewModelTest {
     @Test
     fun startOnAFullTodayWaitsAndDoesNotSwitch() =
         runBlocking {
-            val viewModel = FocusStackViewModel(useCases)
+            val viewModel = FocusStackViewModel(useCases, clock = AppClock { 5_000L })
             val collect = launch { viewModel.uiState.collect {} }
             val today = List(3) { index -> seedToday("Today $index") }
             useCases.start(today[0])
             viewModel.placeAndStart("Call Dana")
             val waiting =
                 withTimeout(5_000) {
-                    viewModel.uiState.first { it.freshSwapTitle == "Call Dana" }
+                    viewModel.uiState.first { it.freshSwapTitle == "Call Dana" && it.swapChoices.size == 3 }
                 }
             val snapshot = useCases.observeSnapshot().first()
             assertTrue(snapshot.tasks.none { it.title == "Call Dana" })
@@ -407,7 +407,7 @@ class FocusStackViewModelTest {
     @Test
     fun editSheetSavesATitleAndABlankKeepsTheOldOne() =
         runBlocking {
-            val viewModel = FocusStackViewModel(useCases)
+            val viewModel = FocusStackViewModel(useCases, clock = AppClock { 5_000L })
             val collect = launch { viewModel.uiState.collect {} }
             val original = seedToday("Review CI failure")
             useCases.start(original)
@@ -447,7 +447,7 @@ class FocusStackViewModelTest {
     @Test
     fun editSheetCanMoveATaskToLater() =
         runBlocking {
-            val viewModel = FocusStackViewModel(useCases)
+            val viewModel = FocusStackViewModel(useCases, clock = AppClock { 5_000L })
             val collect = launch { viewModel.uiState.collect {} }
             useCases.capture("Park me")
             val id = useCases.observeSnapshot().first().tasks.single { it.title == "Park me" }.id
@@ -483,7 +483,7 @@ class FocusStackViewModelTest {
                     object : ViewModelProvider.Factory {
                         override fun <T : ViewModel> create(modelClass: Class<T>): T {
                             @Suppress("UNCHECKED_CAST")
-                            return FocusStackViewModel(useCases, repeats) as T
+                            return FocusStackViewModel(useCases, repeats, AppClock { morning }) as T
                         }
                     },
                 )[FocusStackViewModel::class.java]
