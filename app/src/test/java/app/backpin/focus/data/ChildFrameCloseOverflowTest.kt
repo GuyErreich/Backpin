@@ -241,20 +241,19 @@ class ChildFrameCloseOverflowTest {
         repository: FocusRepository,
         childId: String,
         path: NestEndPath,
-    ): PromoteOutcome? =
-        when (path) {
-            NestEndPath.DetachInterruption ->
-                repository.detachInterruption(childId, DetachDestination.Today)
-            NestEndPath.CompleteActive -> {
-                repository.completeActive()
-                null
-            }
-            NestEndPath.CompleteTask -> {
-                repository.pauseActive()
-                repository.completeTask(childId)
-                null
-            }
+    ): PromoteOutcome? = when (path) {
+        NestEndPath.DetachInterruption ->
+            repository.detachInterruption(childId, DetachDestination.Today)
+        NestEndPath.CompleteActive -> {
+            repository.completeActive()
+            null
         }
+        NestEndPath.CompleteTask -> {
+            repository.pauseActive()
+            repository.completeTask(childId)
+            null
+        }
+    }
 
     private fun nestEnded(
         state: FocusSnapshot,
@@ -297,24 +296,23 @@ class ChildFrameCloseOverflowTest {
     private fun otherPlaces(
         snapshot: FocusSnapshot,
         childId: String,
-    ): Map<String, TaskPlace> =
-        snapshot.tasks
-            .filter { it.id != childId }
-            .associate { task ->
+    ): Map<String, TaskPlace> = snapshot.tasks
+        .filter { it.id != childId }
+        .associate { task ->
+            task.id to TaskPlace(task.bucket, task.status, task.sortOrder)
+        }
+
+    private fun allPlaces(snapshot: FocusSnapshot): SnapshotPlaces {
+        val tasks =
+            snapshot.tasks.associate { task ->
                 task.id to TaskPlace(task.bucket, task.status, task.sortOrder)
             }
-
-    private fun allPlaces(snapshot: FocusSnapshot): SnapshotPlaces =
-        SnapshotPlaces(
-            tasks =
-                snapshot.tasks.associate { task ->
-                    task.id to TaskPlace(task.bucket, task.status, task.sortOrder)
-                },
-            frames =
-                snapshot.frames.associate { frame ->
-                    frame.id to FramePlace(frame.taskId, frame.parentFrameId, frame.state)
-                },
-        )
+        val frames =
+            snapshot.frames.associate { frame ->
+                frame.id to FramePlace(frame.taskId, frame.parentFrameId, frame.state)
+            }
+        return SnapshotPlaces(tasks, frames)
+    }
 
     private data class NestEndRow(
         val name: String,

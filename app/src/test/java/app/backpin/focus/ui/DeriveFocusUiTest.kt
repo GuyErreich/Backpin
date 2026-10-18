@@ -270,10 +270,9 @@ class DeriveFocusUiTest {
                     swapIncomingId = null,
                     switchOpen = false,
                     undo = null,
-                    preferences =
-                        UserPreferences(
-                            savedPhrases = listOf("Talk to my wife", "Talk to <name>"),
-                        ),
+                    preferences = UserPreferences(
+                        savedPhrases = listOf("Talk to my wife", "Talk to <name>"),
+                    ),
                 ),
             )
         assertTrue(state.captureOpen)
@@ -286,18 +285,17 @@ class DeriveFocusUiTest {
         undo: PendingUndo? = null,
         preferences: UserPreferences = UserPreferences(),
         localDate: LocalDate = LocalDate.of(2026, 9, 27),
-    ): FocusUiState =
-        deriveFocusUi(
-            snapshot,
-            ChromeState(
-                captureOpen = false,
-                swapIncomingId = null,
-                switchOpen = false,
-                undo = undo,
-                preferences = preferences,
-            ),
-            localDate = localDate,
-        )
+    ): FocusUiState = deriveFocusUi(
+        snapshot,
+        ChromeState(
+            captureOpen = false,
+            swapIncomingId = null,
+            switchOpen = false,
+            undo = undo,
+            preferences = preferences,
+        ),
+        localDate = localDate,
+    )
 
     private fun task(
         id: String,
