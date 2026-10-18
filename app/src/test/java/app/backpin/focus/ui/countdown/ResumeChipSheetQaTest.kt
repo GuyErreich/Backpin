@@ -83,6 +83,7 @@ class ResumeChipSheetQaTest {
             DaysFieldCase("0", commits = false),
             DaysFieldCase("366", commits = false),
             DaysFieldCase("99999999999", commits = false),
+            DaysFieldCase("abc", commits = false),
             DaysFieldCase("365", commits = true),
         ).forEach { case ->
             withArrivedEvent { viewModel, useCases, clock ->
@@ -102,6 +103,19 @@ class ResumeChipSheetQaTest {
                             .isEmpty()
                     }
                 } else {
+                    await {
+                        compose.onAllNodesWithText(DAYS_HELPER, useUnmergedTree = true)
+                            .fetchSemanticsNodes()
+                            .isNotEmpty()
+                    }
+                    compose.onNodeWithText(DAYS_HELPER, useUnmergedTree = true).assertExists()
+                    typeDays("5")
+                    await {
+                        compose.onAllNodesWithText(DAYS_HELPER, useUnmergedTree = true)
+                            .fetchSemanticsNodes()
+                            .isEmpty()
+                    }
+                    compose.onNodeWithText(DAYS_HELPER, useUnmergedTree = true).assertDoesNotExist()
                     compose.onNodeWithText(again, useUnmergedTree = true).assertExists()
                     assertEquals(
                         "typed ${case.typed}: days field still there",
@@ -254,8 +268,13 @@ class ResumeChipSheetQaTest {
         }
     }
 
-    private fun typeDaysAndCommit(typed: String) {
+    private fun typeDays(typed: String) {
         compose.onAllNodes(hasSetTextAction())[0].performTextReplacement(typed)
+        compose.waitForIdle()
+    }
+
+    private fun typeDaysAndCommit(typed: String) {
+        typeDays(typed)
         compose.onAllNodes(hasSetTextAction())[0].performImeAction()
         compose.waitForIdle()
     }
@@ -287,4 +306,8 @@ class ResumeChipSheetQaTest {
         val typed: String,
         val commits: Boolean,
     )
+
+    private companion object {
+        const val DAYS_HELPER = "Enter 1 to 365 days"
+    }
 }
