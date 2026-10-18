@@ -122,7 +122,7 @@ class EditTaskSurfacesTest {
                             ScheduledScreen(
                                 tasks = state.scheduledTasks,
                                 ready = state.ready,
-                                canInterrupt = state.canInterrupt,
+                                canInterrupt = state.canInterrupt, today = viewModel.localDate(),
                                 onBack = {},
                                 onToday = {},
                                 onStart = {},
@@ -239,7 +239,7 @@ class EditTaskSurfacesTest {
                             ScheduledScreen(
                                 tasks = state.scheduledTasks,
                                 ready = state.ready,
-                                canInterrupt = state.canInterrupt,
+                                canInterrupt = state.canInterrupt, today = viewModel.localDate(),
                                 onBack = {},
                                 onToday = {},
                                 onStart = {},
