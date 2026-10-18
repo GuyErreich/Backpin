@@ -6,7 +6,6 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.graphics.Color
 import android.net.Uri
 import android.view.View
 import android.widget.RemoteViews
@@ -14,6 +13,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import app.backpin.focus.MainActivity
 import app.backpin.focus.R
+import app.backpin.focus.domain.BandTimes
 import app.backpin.focus.domain.FocusRepository
 import app.backpin.focus.domain.FocusSnapshot
 import app.backpin.focus.domain.MAX_TODAY_LIMIT
@@ -21,6 +21,8 @@ import app.backpin.focus.domain.MIN_TODAY_LIMIT
 import app.backpin.focus.domain.TaskBucket
 import app.backpin.focus.domain.TaskStatus
 import app.backpin.focus.domain.UserPreferences
+import app.backpin.focus.domain.label
+import app.backpin.focus.domain.openHomeBand
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
@@ -112,6 +114,18 @@ class NotificationCoordinator(
         repository.start(taskId)
     }
 
+    /**
+     * Done from an expanded Today row. Writes through [FocusRepository.completeTask]
+     * without opening the app. No-ops when the task is gone, not open, or not on Today.
+     */
+    suspend fun handleDone(taskId: String?) {
+        if (taskId.isNullOrBlank()) return
+        val snapshot = repository.observeSnapshot().first()
+        val task = snapshot.tasks.firstOrNull { it.id == taskId } ?: return
+        if (task.status != TaskStatus.OPEN || task.bucket != TaskBucket.TODAY) return
+        repository.completeTask(taskId)
+    }
+
     /** Later from a notification. Reads the latest frame and no-ops if that task is no longer current. */
     suspend fun handleLater(taskId: String?) {
         if (taskId.isNullOrBlank()) return
@@ -130,7 +144,14 @@ class NotificationCoordinator(
         force: Boolean,
     ) {
         val target = relevantFocus(snapshot)
-        val rows = todayNoticeRows(snapshot, target?.taskId.orEmpty(), preferences.todayLimit)
+        val now = LocalTime.now()
+        val rows =
+            todayNoticeRows(
+                snapshot,
+                target?.taskId.orEmpty(),
+                preferences.todayLimit,
+                todayNoticeBandLabel(preferences.bandTimes, now.hour * 60 + now.minute),
+            )
         if (!shouldShowTodayNotice(preferences.currentNotificationEnabled, allowed, rows.size)) {
             cancel(NotificationContract.ID_CURRENT)
             postedKey = null
@@ -241,8 +262,8 @@ class NotificationCoordinator(
 /**
  * Title and body of the ongoing notice.
  * [idle] is Today with nothing active or waiting.
- * [offersInterrupt] is true only while a frame is active.
- * Waiting to resume is not in focus, so Interrupt stays off.
+ * [offersInterrupt] is true only while a frame is active, so other rows
+ * switch rather than start. Waiting to resume is not in focus.
  */
 internal data class CurrentNoticeCopy(
     val title: String,
@@ -266,6 +287,7 @@ internal data class TodayNoticeRow(
     val taskId: String,
     val title: String,
     val current: Boolean,
+    val bandLabel: String = "",
 )
 
 /**
@@ -276,6 +298,7 @@ internal fun todayNoticeRows(
     snapshot: FocusSnapshot,
     currentTaskId: String,
     limit: Int,
+    bandLabel: String = "",
 ): List<TodayNoticeRow> {
     val cap = limit.coerceIn(MIN_TODAY_LIMIT, MAX_TODAY_LIMIT)
     return snapshot.tasks
@@ -288,17 +311,24 @@ internal fun todayNoticeRows(
                 taskId = task.id,
                 title = task.title,
                 current = task.id == currentTaskId,
+                bandLabel = bandLabel,
             )
         }
         .toList()
 }
+
+/** Second line of an expanded Today row. Matches option B: `Morning repeat`. */
+internal fun todayNoticeBandLabel(
+    times: BandTimes,
+    minuteOfDay: Int,
+): String = "${openHomeBand(minuteOfDay, times).label()} repeat"
 
 /** Changes when the collapsed copy or the open Today set changes. */
 internal fun currentNoticeKey(
     copy: CurrentNoticeCopy,
     rows: List<TodayNoticeRow>,
 ): String {
-    val today = rows.joinToString(separator = "|") { "${it.taskId}:${it.title}:${it.current}" }
+    val today = rows.joinToString(separator = "|") { "${it.taskId}:${it.title}:${it.current}:${it.bandLabel}" }
     return "${copy.idle}:${copy.offersInterrupt}:${copy.title}:${copy.body}:$today"
 }
 
@@ -350,10 +380,7 @@ internal fun todayNoticeChannel(idle: Boolean): String =
  * a heads-up or a foreground service. There is no elapsed-time ticker and no
  * full-screen intent.
  *
- * [offersInterrupt] adds the Interrupt action only while a frame is active.
- * That action pauses the focused task and opens capture for a nested detour.
- * It stays off when nothing is started and when the only relevant frame is
- * waiting to resume.
+ * Option B has no Interrupt action. Each expanded row carries its own Done.
  */
 internal fun buildCurrentTaskNotification(
     context: Context,
@@ -376,13 +403,6 @@ internal fun buildCurrentTaskNotification(
                 focusPendingIntent(context, NotificationContract.DESTINATION_FOCUS, requestCode = 1),
             )
             .setCustomContentView(todayCollapsedContent(context, text))
-    if (offersInterrupt) {
-        builder.addAction(
-            0,
-            context.getString(R.string.action_interrupt),
-            focusPendingIntent(context, NotificationContract.DESTINATION_CAPTURE, requestCode = 2),
-        )
-    }
     if (todayRows.isNotEmpty()) {
         builder.setCustomBigContentView(
             todayBigContent(context, todayRows, somethingActive = offersInterrupt),
@@ -402,6 +422,15 @@ internal fun todayCollapsedContent(
     return summary
 }
 
+private val todayItemIds =
+    intArrayOf(
+        R.id.today_item_0,
+        R.id.today_item_1,
+        R.id.today_item_2,
+        R.id.today_item_3,
+        R.id.today_item_4,
+    )
+
 private val todayRowIds =
     intArrayOf(
         R.id.today_row_0,
@@ -411,24 +440,29 @@ private val todayRowIds =
         R.id.today_row_4,
     )
 
-private val todayDividerIds =
+private val todayBandIds =
     intArrayOf(
-        R.id.today_divider_0,
-        R.id.today_divider_1,
-        R.id.today_divider_2,
-        R.id.today_divider_3,
+        R.id.today_band_0,
+        R.id.today_band_1,
+        R.id.today_band_2,
+        R.id.today_band_3,
+        R.id.today_band_4,
+    )
+
+private val todayDoneIds =
+    intArrayOf(
+        R.id.today_done_0,
+        R.id.today_done_1,
+        R.id.today_done_2,
+        R.id.today_done_3,
+        R.id.today_done_4,
     )
 
 /**
  * Expanded shade lists Today in five fixed slots. Each open task is its own
- * row, with vertical padding and a divider between rows. Empty slots and the
- * dividers around them are [View.GONE]. A full title stays in its row.
- * The active row is mint and opens Focus. A row waiting to resume is mint and
- * opens Focus too, so resume stays explicit.
- * While [somethingActive] is true, every other row switches: the current task
- * pauses and the chosen one starts, with no nested frame.
- * When nothing is active, every other row starts that task through the same
- * repository start. It does not interrupt and does not nest a frame.
+ * neutral row: title, band label (`Morning repeat`), and a mint-outlined Done.
+ * Empty slots are [View.GONE]. Done writes without opening the app.
+ * The current title still opens Focus. Other titles still switch or start.
  */
 internal fun todayBigContent(
     context: Context,
@@ -438,34 +472,39 @@ internal fun todayBigContent(
     val root = RemoteViews(context.packageName, R.layout.notification_today)
     val shown = rows.take(MAX_TODAY_LIMIT)
     val mint = context.getColor(R.color.mint)
-    val onMint = context.getColor(R.color.on_mint)
-    todayRowIds.forEachIndexed { index, viewId ->
+    todayItemIds.forEachIndexed { index, itemId ->
         val row = shown.getOrNull(index)
         if (row == null) {
-            root.setViewVisibility(viewId, View.GONE)
+            root.setViewVisibility(itemId, View.GONE)
             return@forEachIndexed
         }
-        root.setViewVisibility(viewId, View.VISIBLE)
-        root.setTextViewText(viewId, row.title)
+        val titleId = todayRowIds[index]
+        val bandId = todayBandIds[index]
+        val doneId = todayDoneIds[index]
+        root.setViewVisibility(itemId, View.VISIBLE)
+        root.setTextViewText(titleId, row.title)
+        if (row.bandLabel.isBlank()) {
+            root.setViewVisibility(bandId, View.GONE)
+        } else {
+            root.setViewVisibility(bandId, View.VISIBLE)
+            root.setTextViewText(bandId, row.bandLabel)
+        }
+        root.setTextViewText(doneId, context.getString(R.string.action_done))
+        root.setTextColor(doneId, mint)
+        root.setContentDescription(doneId, context.getString(R.string.notification_done_row, row.title))
+        root.setOnClickPendingIntent(doneId, todayDonePending(context, row.taskId))
         if (row.current) {
-            root.setInt(viewId, "setBackgroundColor", mint)
-            root.setTextColor(viewId, onMint)
-            root.setContentDescription(viewId, context.getString(R.string.notification_now_row, row.title))
+            root.setContentDescription(titleId, context.getString(R.string.notification_now_row, row.title))
             root.setOnClickPendingIntent(
-                viewId,
+                titleId,
                 focusPendingIntent(context, NotificationContract.DESTINATION_FOCUS, requestCode = 80 + index),
             )
         } else {
-            root.setInt(viewId, "setBackgroundColor", Color.TRANSPARENT)
             val rowLabel =
                 if (somethingActive) R.string.notification_switch_row else R.string.notification_start_row
-            root.setContentDescription(viewId, context.getString(rowLabel, row.title))
-            root.setOnClickPendingIntent(viewId, switchPendingIntent(context, row.taskId))
+            root.setContentDescription(titleId, context.getString(rowLabel, row.title))
+            root.setOnClickPendingIntent(titleId, switchPendingIntent(context, row.taskId))
         }
-    }
-    todayDividerIds.forEachIndexed { index, dividerId ->
-        val betweenRows = index < shown.lastIndex
-        root.setViewVisibility(dividerId, if (betweenRows) View.VISIBLE else View.GONE)
     }
     return root
 }
@@ -485,6 +524,27 @@ internal fun buildCountdownArrivalNotification(
         .setAutoCancel(true)
         .setContentIntent(focusPendingIntent(context, NotificationContract.DESTINATION_FOCUS, requestCode = 5))
         .build()
+
+internal fun todayDonePending(
+    context: Context,
+    taskId: String,
+): PendingIntent =
+    PendingIntent.getBroadcast(
+        context,
+        17 * taskId.hashCode(),
+        todayDoneBroadcast(context, taskId),
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+    )
+
+internal fun todayDoneBroadcast(
+    context: Context,
+    taskId: String,
+): Intent =
+    Intent(context, NotificationActionReceiver::class.java).apply {
+        action = NotificationContract.ACTION_TODAY_DONE
+        data = Uri.parse("app.backpin.focus://today-done/$taskId")
+        putExtra(NotificationContract.EXTRA_TASK_ID, taskId)
+    }
 
 internal fun switchPendingIntent(
     context: Context,
