@@ -306,6 +306,7 @@ fun FocusApp(
                 CountdownScreen(
                     countdowns = state.countdowns,
                     ready = state.ready,
+                    today = viewModel.localDate(),
                     onAdd = viewModel::addCountdown,
                     onChangeDate = viewModel::changeCountdownDate,
                     onRemove = viewModel::removeCountdown,
