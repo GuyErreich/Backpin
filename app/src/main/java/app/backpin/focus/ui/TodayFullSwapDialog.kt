@@ -55,9 +55,9 @@ fun TodayFullSwapDialog(
             Column(verticalArrangement = Arrangement.spacedBy(Space)) {
                 Text(
                     if (canInterrupt) {
-                        "“${incoming.title}” needs a Today slot. Interrupt the current task, or replace one. Replacing parks that task in Later and does not start the new one."
+                        stringResource(R.string.swap_today_full_body_interrupt, incoming.title)
                     } else {
-                        "“${incoming.title}” needs a Today slot. Replace one Today task. That task moves to Later, and the new one takes its place without starting."
+                        stringResource(R.string.swap_today_full_body, incoming.title)
                     },
                 )
                 Column(verticalArrangement = Arrangement.spacedBy(ButtonGap)) {
