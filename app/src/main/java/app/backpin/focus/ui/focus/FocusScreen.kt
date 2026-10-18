@@ -164,11 +164,6 @@ private fun ActiveCard(
                 onDetach = viewModel::detachEvent,
             ) { onCountDownAgain ->
                 CardActions {
-                    AccentButton(
-                        "Done",
-                        AccentTone.Mint,
-                        onClick = viewModel::completeActive,
-                    )
                     if (now.isEvent) {
                         EventDetachButtons(
                             taskId = now.taskId,
@@ -185,6 +180,11 @@ private fun ActiveCard(
                         QuietButton("Switch", onClick = viewModel::openSwitch)
                     }
                     QuietButton("Edit", onClick = { viewModel.openEdit(now.taskId) })
+                    AccentButton(
+                        "Done",
+                        AccentTone.Mint,
+                        onClick = viewModel::completeActive,
+                    )
                 }
             }
         }
