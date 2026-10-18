@@ -15,7 +15,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -23,7 +22,6 @@ import app.backpin.focus.R
 import app.backpin.focus.domain.DetachDestination
 import app.backpin.focus.domain.MAX_COUNTDOWN_REARM_DAYS
 import app.backpin.focus.domain.MIN_COUNTDOWN_DAYS
-import app.backpin.focus.domain.scheduleMomentLabel
 import app.backpin.focus.ui.calendar.PickDateDialog
 import app.backpin.focus.ui.components.CaptureChoice
 import app.backpin.focus.ui.components.ChipSheet
@@ -125,19 +123,14 @@ internal fun ResumeCountdownSheet(
     ChipSheet(
         title = title,
         onDismiss = onDismiss,
+        gesturesEnabled = true,
     ) {
         Column(
             modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(ButtonGap),
         ) {
             CaptureChoice(
-                label =
-                pluralStringResource(
-                    R.plurals.resume_again_in_days,
-                    interval,
-                    interval,
-                    scheduleMomentLabel(landing.toEpochDay(), null),
-                ),
+                label = againInDaysLabel(interval, today),
                 onClick = { commitInDays(interval) },
                 tone = ChoiceTone.Mint,
                 filled = true,
@@ -147,7 +140,6 @@ internal fun ResumeCountdownSheet(
                 onValueChange = { daysText = it.filter(Char::isDigit) },
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text(stringResource(R.string.resume_sheet_days_label)) },
-                placeholder = { Text(stringResource(R.string.resume_sheet_days_placeholder)) },
                 singleLine = true,
                 keyboardOptions =
                 KeyboardOptions(
