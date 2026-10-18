@@ -38,18 +38,22 @@ def adb_out(args: list[str]) -> str:
     return proc.stdout.decode("utf-8", "replace") + proc.stderr.decode("utf-8", "replace")
 
 
-def wait_until(predicate, timeout: float, what: str):
+def wait_until(predicate, timeout: float, what: str, required: bool = True) -> bool:
     deadline = time.monotonic() + timeout
     last_error = None
     while time.monotonic() < deadline:
         try:
             if predicate():
-                return
+                return True
         except Exception as exc:  # dump can race with animations
             last_error = exc
         time.sleep(POLL)
     extra = f" ({last_error})" if last_error else ""
-    raise SystemExit(f"timed out waiting for {what}{extra}")
+    message = f"timed out waiting for {what}{extra}"
+    if required:
+        raise SystemExit(message)
+    print(message)
+    return False
 
 
 def wait_boot() -> None:
@@ -207,15 +211,26 @@ def type_title(title: str) -> None:
     hide_keyboard()
 
 
+def notification_dump() -> str:
+    return adb_out(["shell", "dumpsys", "notification", "--noredact"])
+
+
 def today_notice_posted() -> bool:
-    dump = adb_out(["shell", "dumpsys", "notification"])
+    dump = notification_dump()
     if PACKAGE not in dump:
         return False
-    return (
-        "id=41" in dump
-        or "focus_today_ongoing" in dump
-        or "focus_current_ongoing" in dump
+    return "focus_today_ongoing" in dump or "focus_current_ongoing" in dump
+
+
+def log_notice_state(label: str) -> None:
+    dump = notification_dump()
+    posted = PACKAGE in dump and (
+        "focus_today_ongoing" in dump or "focus_current_ongoing" in dump
     )
+    print(f"{label}: today_notice_posted={posted}")
+    for line in dump.splitlines():
+        if PACKAGE in line or "focus_today" in line or "focus_current" in line or "1 task" in line:
+            print(f"  {line[:240]}")
 
 
 def grant_notifications() -> None:
@@ -309,37 +324,79 @@ def screenshot(name: str) -> Path:
     return dest
 
 
-def shade_shows_today_notice() -> bool:
-    # "Today" also appears on Home, so do not use that word alone.
-    return ui_has("1 task") or (ui_has(TASK_TITLE) and (ui_has("Anytime") or ui_has("Done")))
+def shade_window_open() -> bool:
+    dump = adb_out(["shell", "dumpsys", "window"])
+    focus = [line for line in dump.splitlines() if "mCurrentFocus" in line or "mFocusedWindow" in line]
+    for line in focus:
+        if "NotificationShade" in line:
+            return True
+    bar = adb_out(["shell", "dumpsys", "statusbar"])
+    lowered = bar.casefold()
+    return "mexpandedvisible=true" in lowered or "mpanelexpanded: true" in lowered
+
+
+def shade_has_notice_text() -> bool:
+    try:
+        root = dump_ui()
+    except Exception as exc:
+        print(f"shade dump failed: {exc}")
+        return False
+    texts = [node_text(node) for node in walk(root)]
+    blob = " | ".join(t for t in texts if t)
+    print(f"shade dump texts: {blob[:500]}")
+    return "1 task" in blob or TASK_TITLE in blob
 
 
 def open_shade() -> None:
+    if not today_notice_posted():
+        log_notice_state("open_shade")
+        raise SystemExit("Today notice is not posted; cannot screenshot the shade")
     adb(["shell", "cmd", "statusbar", "collapse"], check=False)
+    wait_until(lambda: not shade_window_open(), 8, "shade collapsed", required=False)
     adb(["shell", "cmd", "statusbar", "expand-notifications"])
-    wait_until(shade_shows_today_notice, 25, "notification shade with Today notice")
+    wait_until(
+        lambda: shade_window_open() or shade_has_notice_text(),
+        20,
+        "notification shade",
+        required=False,
+    )
+    if not today_notice_posted():
+        log_notice_state("shade opened")
+        raise SystemExit("Today notice disappeared before the collapsed screenshot")
+    log_notice_state("shade opened")
+
+
+def notice_bounds() -> tuple[int, int, int, int] | None:
+    try:
+        root = dump_ui()
+    except Exception:
+        return None
+    for needle in ("1 task", TASK_TITLE, "Anytime"):
+        for node in find_nodes(root, needle):
+            box = parse_bounds(node)
+            if box is not None:
+                return box
+    return None
 
 
 def expand_today_notice() -> None:
-    root = dump_ui()
-    target = None
-    for needle in ("1 task", TASK_TITLE, "Today"):
-        nodes = find_nodes(root, needle)
-        if nodes:
-            target = parse_bounds(nodes[0])
-            if target is not None:
-                break
-    if target is None:
-        raise SystemExit("Today notice was not in the shade")
-    left, top, right, bottom = target
-    x = (left + right) // 2
-    start_y = (top + bottom) // 2
-    end_y = min(screen_size()[1] - 80, start_y + 420)
+    width, height = screen_size()
+    box = notice_bounds()
+    if box is not None:
+        left, top, right, bottom = box
+        x = (left + right) // 2
+        start_y = (top + bottom) // 2
+    else:
+        x = width // 2
+        start_y = int(height * 0.16)
+    end_y = min(height - 80, start_y + int(height * 0.28))
+    print(f"expand swipe {x},{start_y} -> {x},{end_y}")
     adb(["shell", "input", "swipe", str(x), str(start_y), str(x), str(end_y), "400"])
     wait_until(
-        lambda: ui_has("Anytime") or ui_has("Done") or (ui_has(TASK_TITLE) and ui_has("Today")),
-        20,
+        lambda: shade_has_notice_text() or shade_window_open(),
+        15,
         "expanded Today notice",
+        required=False,
     )
 
 
