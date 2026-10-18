@@ -193,9 +193,11 @@ class CountdownResumeStayTest {
             compose.onAllNodesWithText(again, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
         }
         compose.onNodeWithText(again).assertIsEnabled().assertHasClickAction()
-        compose.onAllNodes(hasSetTextAction()).fetchSemanticsNodes().let { nodes ->
-            assertEquals("resume sheet days field", 1, nodes.size)
-        }
+        assertEquals(
+            "resume sheet days field",
+            1,
+            resumeDaysFields().fetchSemanticsNodes().size,
+        )
         compose.onNodeWithText("Days from today").assertExists()
         compose.onNodeWithText("Pick a date").assertIsEnabled().assertHasClickAction()
         compose.onNodeWithContentDescription("Close").assertExists()
@@ -205,14 +207,18 @@ class CountdownResumeStayTest {
         compose.onNodeWithText("Countdown").assertDoesNotExist()
         val againTop = compose.onNodeWithText(again).fetchSemanticsNode().boundsInRoot.top
         val pickTop = compose.onNodeWithText("Pick a date").fetchSemanticsNode().boundsInRoot.top
-        val fieldTop = compose.onAllNodes(hasSetTextAction())[0].fetchSemanticsNode().boundsInRoot.top
+        val fieldTop = resumeDaysField().fetchSemanticsNode().boundsInRoot.top
         assertTrue("Again in N days is primary", againTop < fieldTop)
         assertTrue("days field sits above Pick a date", fieldTop < pickTop)
     }
 
+    private fun resumeDaysField() = compose.onNode(hasSetTextAction() and hasText("Days from today"))
+
+    private fun resumeDaysFields() = compose.onAllNodes(hasSetTextAction() and hasText("Days from today"))
+
     private fun typeDaysAndCommit(days: Int) {
-        compose.onAllNodes(hasSetTextAction())[0].performTextReplacement(days.toString())
-        compose.onAllNodes(hasSetTextAction())[0].performImeAction()
+        resumeDaysField().performTextReplacement(days.toString())
+        resumeDaysField().performImeAction()
         compose.waitForIdle()
     }
 

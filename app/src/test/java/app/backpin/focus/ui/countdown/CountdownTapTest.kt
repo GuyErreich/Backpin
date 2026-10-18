@@ -12,6 +12,7 @@ import androidx.compose.ui.test.click
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -129,6 +130,7 @@ class CountdownTapTest {
             assertEquals(1, taskCount(useCases))
             compose.onNodeWithText("Count down to").assertDoesNotExist()
             compose.onNodeWithText("Save countdown").assertDoesNotExist()
+            await { viewModel.uiState.value.countdowns.singleOrNull()?.dayLabel == "7 days" }
             compose.onNodeWithText("7 days").assertExists()
         }
     }
@@ -206,6 +208,7 @@ class CountdownTapTest {
             compose.onNodeWithText("EVENT").assertExists()
             tap("Count down again")
             tap("Pick a date")
+            tapCalendarDay(today.plusDays(1))
             tap("OK")
             val tomorrow = today.plusDays(1).toEpochDay()
             awaitSnapshot(useCases) { snapshot ->
@@ -476,9 +479,11 @@ class CountdownTapTest {
 
     private fun daysField(): SemanticsNodeInteraction = compose.onAllNodes(hasSetTextAction())[1]
 
+    private fun resumeDaysField() = compose.onNode(hasSetTextAction() and hasText("Days from today"))
+
     private fun typeResumeDays(days: String) {
-        compose.onAllNodes(hasSetTextAction())[0].performTextReplacement(days)
-        compose.onAllNodes(hasSetTextAction())[0].performImeAction()
+        resumeDaysField().performTextReplacement(days)
+        resumeDaysField().performImeAction()
         pump()
     }
 

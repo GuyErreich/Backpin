@@ -12,6 +12,7 @@ import androidx.compose.ui.test.click
 import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -85,70 +86,62 @@ class ResumeChipSheetQaTest {
 
     @Test
     fun daysFieldRejectsOutOfRangeAndCommitsAt365() {
-        listOf(
-            DaysFieldCase("0", commits = false),
-            DaysFieldCase("366", commits = false),
-            DaysFieldCase("99999999999", commits = false),
-            DaysFieldCase("abc", commits = false),
-            DaysFieldCase("365", commits = true),
-        ).forEach { case ->
-            withArrivedEvent { viewModel, useCases, clock ->
-                val today = clock.localDate()
-                val again = againInDaysLabel(180, today)
-                tapFocusTabOpensFocus()
-                tapDetachCountDownAgain()
-                assertResumeSheet(intervalDays = 180, today = today)
-                typeDaysAndCommit(case.typed)
-                if (case.commits) {
-                    val expected = backInDaysLabel(365, today)
-                    await { viewModel.uiState.value.undo?.message == expected }
-                    compose.onNodeWithText(expected).assertExists()
-                    await {
-                        compose.onAllNodesWithText(again, useUnmergedTree = true)
-                            .fetchSemanticsNodes()
-                            .isEmpty()
-                    }
-                } else {
-                    await {
-                        compose.onAllNodesWithText(DAYS_HELPER, useUnmergedTree = true)
-                            .fetchSemanticsNodes()
-                            .isNotEmpty()
-                    }
-                    compose.onNodeWithText(DAYS_HELPER, useUnmergedTree = true).assertExists()
-                    typeDays("5")
-                    await {
-                        compose.onAllNodesWithText(DAYS_HELPER, useUnmergedTree = true)
-                            .fetchSemanticsNodes()
-                            .isEmpty()
-                    }
-                    compose.onNodeWithText(DAYS_HELPER, useUnmergedTree = true).assertDoesNotExist()
-                    compose.onNodeWithText(again, useUnmergedTree = true).assertExists()
-                    assertEquals(
-                        "typed ${case.typed}: days field still there",
-                        1,
-                        compose.onAllNodes(hasSetTextAction()).fetchSemanticsNodes().size,
-                    )
-                    await {
-                        viewModel.uiState.value.now?.title == "Dentist checkup" &&
-                            viewModel.uiState.value.now?.isEvent == true
-                    }
-                    compose.onNodeWithText("EVENT").assertExists()
-                    compose.onNodeWithText("Focus").assertIsSelected()
-                    assertNull(viewModel.uiState.value.undo)
-                    assertTrue(
-                        "typed ${case.typed}: no Back in snackbar",
-                        compose.onAllNodesWithText("Back in", substring = true)
-                            .fetchSemanticsNodes()
-                            .isEmpty(),
-                    )
-                    awaitSnapshot(useCases) { snapshot ->
-                        val event = snapshot.tasks.single { it.title == "Dentist checkup" }
-                        event.bucket == TaskBucket.COUNTDOWN &&
-                            event.countdownIntervalDays == 180 &&
-                            event.scheduledOnEpochDay == today.toEpochDay() &&
-                            snapshot.frames.any { it.taskId == event.id && it.state == FrameState.ACTIVE }
-                    }
+        withArrivedEvent { viewModel, useCases, clock ->
+            val today = clock.localDate()
+            val again = againInDaysLabel(180, today)
+            tapFocusTabOpensFocus()
+            tapDetachCountDownAgain()
+            assertResumeSheet(intervalDays = 180, today = today)
+            listOf("0", "366", "99999999999", "abc").forEach { typed ->
+                typeDaysAndCommit(typed)
+                await {
+                    compose.onAllNodesWithText(DAYS_HELPER, useUnmergedTree = true)
+                        .fetchSemanticsNodes()
+                        .isNotEmpty()
                 }
+                compose.onNodeWithText(DAYS_HELPER, useUnmergedTree = true).assertExists()
+                typeDays("5")
+                await {
+                    compose.onAllNodesWithText(DAYS_HELPER, useUnmergedTree = true)
+                        .fetchSemanticsNodes()
+                        .isEmpty()
+                }
+                compose.onNodeWithText(DAYS_HELPER, useUnmergedTree = true).assertDoesNotExist()
+                compose.onNodeWithText(again, useUnmergedTree = true).assertExists()
+                assertEquals(
+                    "typed $typed: days field still there",
+                    1,
+                    resumeDaysFields().fetchSemanticsNodes().size,
+                )
+                await {
+                    viewModel.uiState.value.now?.title == "Dentist checkup" &&
+                        viewModel.uiState.value.now?.isEvent == true
+                }
+                compose.onNodeWithText("EVENT").assertExists()
+                compose.onNodeWithText("Focus").assertIsSelected()
+                assertNull(viewModel.uiState.value.undo)
+                assertTrue(
+                    "typed $typed: no Back in snackbar",
+                    compose.onAllNodesWithText("Back in", substring = true)
+                        .fetchSemanticsNodes()
+                        .isEmpty(),
+                )
+                awaitSnapshot(useCases) { snapshot ->
+                    val event = snapshot.tasks.single { it.title == "Dentist checkup" }
+                    event.bucket == TaskBucket.COUNTDOWN &&
+                        event.countdownIntervalDays == 180 &&
+                        event.scheduledOnEpochDay == today.toEpochDay() &&
+                        snapshot.frames.any { it.taskId == event.id && it.state == FrameState.ACTIVE }
+                }
+            }
+            typeDaysAndCommit("365")
+            val expected = backInDaysLabel(365, today)
+            await { viewModel.uiState.value.undo?.message == expected }
+            compose.onNodeWithText(expected).assertExists()
+            await {
+                compose.onAllNodesWithText(again, useUnmergedTree = true)
+                    .fetchSemanticsNodes()
+                    .isEmpty()
             }
         }
     }
@@ -218,9 +211,7 @@ class ResumeChipSheetQaTest {
             compose.onAllNodesWithText(again, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
         }
         compose.onNodeWithText(again).assertIsEnabled().assertHasClickAction()
-        compose.onAllNodes(hasSetTextAction()).fetchSemanticsNodes().let { nodes ->
-            assertEquals("resume sheet days field", 1, nodes.size)
-        }
+        assertEquals("resume sheet days field", 1, resumeDaysFields().fetchSemanticsNodes().size)
         compose.onNodeWithText("Days from today").assertExists()
         compose.onNodeWithText("Pick a date").assertIsEnabled().assertHasClickAction()
         compose.onNodeWithContentDescription("Close").assertExists()
@@ -231,10 +222,14 @@ class ResumeChipSheetQaTest {
         compose.onNodeWithText("Coming up").assertExists()
         val againTop = compose.onNodeWithText(again).fetchSemanticsNode().boundsInRoot.top
         val pickTop = compose.onNodeWithText("Pick a date").fetchSemanticsNode().boundsInRoot.top
-        val fieldTop = compose.onAllNodes(hasSetTextAction())[0].fetchSemanticsNode().boundsInRoot.top
+        val fieldTop = resumeDaysField().fetchSemanticsNode().boundsInRoot.top
         assertTrue("Again in N days is primary", againTop < fieldTop)
         assertTrue("days field sits above Pick a date", fieldTop < pickTop)
     }
+
+    private fun resumeDaysField() = compose.onNode(hasSetTextAction() and hasText("Days from today"))
+
+    private fun resumeDaysFields() = compose.onAllNodes(hasSetTextAction() and hasText("Days from today"))
 
     private fun withArrivedEvent(
         intervalDays: Int = 180,
@@ -304,13 +299,13 @@ class ResumeChipSheetQaTest {
     }
 
     private fun typeDays(typed: String) {
-        compose.onAllNodes(hasSetTextAction())[0].performTextReplacement(typed)
+        resumeDaysField().performTextReplacement(typed)
         compose.waitForIdle()
     }
 
     private fun typeDaysAndCommit(typed: String) {
         typeDays(typed)
-        compose.onAllNodes(hasSetTextAction())[0].performImeAction()
+        resumeDaysField().performImeAction()
         compose.waitForIdle()
     }
 
@@ -374,11 +369,6 @@ class ResumeChipSheetQaTest {
             predicate()
         }
     }
-
-    private data class DaysFieldCase(
-        val typed: String,
-        val commits: Boolean,
-    )
 
     private companion object {
         const val DAYS_HELPER = "Enter 1 to 365 days"
