@@ -47,29 +47,29 @@ class LostCaptureDialogTest {
 
     @Test
     fun fullTodayDialogShowsTodayIsFullWithKeepInInboxAsTheDefault() {
-        compose.setContent {
-            FocusStackTheme {
-                TodayFullSwapDialog(
-                    incoming = TaskUi("incoming", "Call the school", null),
-                    swapChoices =
-                    defaultTodayTitles().mapIndexed { index, title ->
-                        TaskUi("today-$index", title, null)
-                    },
-                    canInterrupt = false,
-                    onKeepInInbox = {},
-                    onInterrupt = {},
-                    onReplace = {},
-                )
-            }
-        }
+        showFullTodayDialog()
         awaitText("Today is full")
         awaitText("Swap one out, or keep \"Call the school\" in Inbox. Nothing gets lost.")
         awaitText("Swap one out")
         awaitText("Keep in Inbox")
+        compose.onNodeWithText("Swap one out").assertHasClickAction()
+        compose.onNodeWithText("Keep in Inbox").assertHasClickAction()
         val swap = compose.onNodeWithText("Swap one out").getBoundsInRoot()
         val keep = compose.onNodeWithText("Keep in Inbox").getBoundsInRoot()
+        assertTrue("Swap one out sits on the left", swap.left < keep.left)
         assertTrue("Keep in Inbox is the default action on the right", keep.left > swap.left)
-        compose.onNodeWithText("Keep in Inbox").assertHasClickAction()
+        assertNoCancel()
+    }
+
+    @Test
+    fun fullTodayDialogHasNoCancel() {
+        showFullTodayDialog()
+        awaitText("Today is full")
+        assertNoCancel()
+        tap("Swap one out")
+        awaitText("Replace “${defaultTodayTitles()[0]}”")
+        awaitText("Keep in Inbox")
+        assertNoCancel()
     }
 
     @Test
@@ -269,6 +269,29 @@ class LostCaptureDialogTest {
 
     private fun seedToday(fixture: TestFocusFixture) = runOffTestThread {
         fixture.repository.seedFullToday()
+    }
+
+    private fun showFullTodayDialog() {
+        compose.setContent {
+            FocusStackTheme {
+                TodayFullSwapDialog(
+                    incoming = TaskUi("incoming", "Call the school", null),
+                    swapChoices =
+                    defaultTodayTitles().mapIndexed { index, title ->
+                        TaskUi("today-$index", title, null)
+                    },
+                    canInterrupt = false,
+                    onKeepInInbox = {},
+                    onInterrupt = {},
+                    onReplace = {},
+                )
+            }
+        }
+    }
+
+    private fun assertNoCancel() {
+        compose.onNodeWithText("Cancel").assertDoesNotExist()
+        compose.onNodeWithText("Cancel", useUnmergedTree = true).assertDoesNotExist()
     }
 
     private fun showApp(viewModel: FocusStackViewModel) {

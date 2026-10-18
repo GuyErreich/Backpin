@@ -17,6 +17,7 @@ import app.backpin.focus.domain.RepeatBand
 import app.backpin.focus.domain.RepeatLog
 import app.backpin.focus.domain.RepeatOccurrence
 import app.backpin.focus.domain.RepeatOutcome
+import app.backpin.focus.domain.StartOutcome
 import app.backpin.focus.domain.SystemAppClock
 import app.backpin.focus.domain.Task
 import app.backpin.focus.domain.TaskBucket
@@ -53,6 +54,7 @@ class FocusRepositoryImpl(
     private val repeatDao: RepeatDao = database.repeatDao()
     private val repeatLogDao: RepeatLogDao = database.repeatLogDao()
 
+    @Suppress("ktlint:standard:function-signature")
     override fun observeSnapshot(): Flow<FocusSnapshot> =
         combine(taskDao.observeAll(), frameDao.observeAll()) { tasks, frames ->
             FocusSnapshot(
@@ -294,55 +296,6 @@ class FocusRepositoryImpl(
         return outcome
     }
 
-    override suspend fun captureReplacing(
-        title: String,
-        outgoingTaskId: String,
-    ): UndoToken {
-        val trimmed = title.trim()
-        check(trimmed.isNotEmpty()) { "Blank title" }
-        val limit = todayLimit()
-        val token =
-            database.withTransaction {
-                val outgoing = taskDao.getById(outgoingTaskId) ?: error("Missing outgoing task")
-                val valid =
-                    outgoing.bucket == TaskBucket.TODAY.name &&
-                        outgoing.status == TaskStatus.OPEN.name
-                if (!valid) error("Swap rejected")
-                val slot = outgoing.sortOrder
-                val parked = parkInLater(outgoing.id)
-                val created = newTask(trimmed, TaskBucket.TODAY).copy(sortOrder = slot)
-                taskDao.upsert(created)
-                if (taskDao.countOpenToday() > limit) error("Swap rejected")
-                requireInvariants(limit)
-                UndoToken(
-                    tasks = parked.tasks,
-                    frames = parked.frames,
-                    createdTaskIds = listOf(created.id),
-                )
-            }
-        recordInteraction()
-        return token
-    }
-
-    override suspend fun interruptWithNew(title: String) {
-        val resolved = title.trim().ifEmpty { UNTITLED_INTERRUPTION }
-        val limit = todayLimit()
-        database.withTransaction {
-            val active = frameDao.getActive() ?: error("Nothing is active")
-            val activeTask = taskDao.getById(active.taskId) ?: error("Missing task")
-            check(activeTask.status == TaskStatus.OPEN.name) { "Active task is done" }
-            check(activeTask.bucket == TaskBucket.TODAY.name) { "Current task is not in Today" }
-            val slot = activeTask.sortOrder
-            frameDao.upsert(pause(active))
-            taskDao.upsert(activeTask.movedTo(TaskBucket.LATER))
-            val created = newTask(resolved, TaskBucket.TODAY).copy(sortOrder = slot)
-            taskDao.upsert(created)
-            frameDao.upsert(newFrame(created.id, parentFrameId = active.id))
-            requireInvariants(limit)
-        }
-        recordInteraction()
-    }
-
     override suspend fun moveToInbox(taskId: String) {
         val moved =
             database.withTransaction {
@@ -494,7 +447,7 @@ class FocusRepositoryImpl(
         return token
     }
 
-    override suspend fun start(taskId: String): PromoteOutcome {
+    override suspend fun start(taskId: String): StartOutcome {
         val limit = todayLimit()
         val outcome =
             database.withTransaction {
@@ -506,8 +459,34 @@ class FocusRepositoryImpl(
                 if (existing?.state == FrameState.AWAITING_RESUME.name) {
                     return@withTransaction PromoteOutcome.Rejected("Resume the waiting frame explicitly")
                 }
-                if (existing != null && frameDao.countOpenChildren(existing.id) > 0) {
-                    return@withTransaction PromoteOutcome.Rejected("Task still has an open interruption")
+                val openChild = existing?.let { deepestOpenChild(it.id) }
+                if (openChild != null) {
+                    val childTask = taskDao.getById(openChild.taskId) ?: error("Missing task")
+                    val parentFrame =
+                        openChild.parentFrameId?.let { frameDao.getById(it) }
+                            ?: error("Open interruption missing parent frame")
+                    val parentTask = taskDao.getById(parentFrame.taskId) ?: error("Missing task")
+                    if (active?.id != openChild.id) {
+                        if (active != null) {
+                            frameDao.upsert(pause(active))
+                        }
+                        if (openChild.state != FrameState.ACTIVE.name) {
+                            frameDao.upsert(
+                                openChild.copy(
+                                    state = FrameState.ACTIVE.name,
+                                    startedAtEpochMillis = clock.nowEpochMillis(),
+                                    pausedAtEpochMillis = null,
+                                ),
+                            )
+                        }
+                    }
+                    requireInvariants(limit)
+                    return@withTransaction StartOutcome.RedirectedToInterruption(
+                        interruptionId = childTask.id,
+                        parentId = parentTask.id,
+                        interruptionTitle = childTask.title,
+                        parentTitle = parentTask.title,
+                    )
                 }
                 val needsSlot = task.bucket != TaskBucket.TODAY.name
                 if (needsSlot && taskDao.countedOpenToday() >= limit) {
@@ -534,7 +513,11 @@ class FocusRepositoryImpl(
                 requireInvariants(limit)
                 PromoteOutcome.Promoted
             }
-        if (outcome is PromoteOutcome.Promoted) recordInteraction()
+        if (outcome is PromoteOutcome.Promoted ||
+            outcome is StartOutcome.RedirectedToInterruption
+        ) {
+            recordInteraction()
+        }
         return outcome
     }
 
@@ -1231,6 +1214,20 @@ class FocusRepositoryImpl(
                     scheduledAtMinuteOfDay = null,
                 ),
             )
+        }
+    }
+
+    /**
+     * Walks open children from [parentFrameId] to the leaf.
+     * At each step, when siblings exist, takes the newest.
+     */
+    private suspend fun deepestOpenChild(parentFrameId: String): FocusFrameEntity? {
+        var current = frameDao.newestOpenChild(parentFrameId) ?: return null
+        val seen = mutableSetOf(current.id)
+        while (true) {
+            val next = frameDao.newestOpenChild(current.id) ?: return current
+            if (!seen.add(next.id)) return current
+            current = next
         }
     }
 
