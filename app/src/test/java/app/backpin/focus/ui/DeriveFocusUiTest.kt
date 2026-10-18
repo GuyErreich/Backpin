@@ -14,7 +14,6 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDate
-import java.time.LocalTime
 
 class DeriveFocusUiTest {
     @Test
@@ -40,7 +39,7 @@ class DeriveFocusUiTest {
                         frame("f-original", "original", parent = null, FrameState.PAUSED),
                         frame("f-john", "john", parent = "f-original", FrameState.AWAITING_RESUME),
                         frame("f-sarah", "sarah", parent = "f-john", FrameState.CLOSED),
-                ),
+                    ),
             )
         val state = derive(snapshot)
         assertNull(state.now)
@@ -97,7 +96,7 @@ class DeriveFocusUiTest {
                     listOf(
                         frame("f-original", "original", parent = null, FrameState.PAUSED),
                         frame("f-john", "john", parent = "f-original", FrameState.ACTIVE, accumulated = 90_000),
-                ),
+                    ),
             )
         val state = derive(snapshot)
         assertEquals("Message John", state.now?.title)
@@ -162,7 +161,7 @@ class DeriveFocusUiTest {
                         listOf(
                             frame("f-parent", "parent", parent = null, FrameState.PAUSED),
                             frame("f-child", "child", parent = "f-parent", FrameState.ACTIVE),
-                    ),
+                        ),
                 ),
             )
         assertEquals("Call Dana", state.now?.title)
@@ -275,7 +274,7 @@ class DeriveFocusUiTest {
                     preferences =
                         UserPreferences(
                             savedPhrases = listOf("Talk to my wife", "Talk to <name>"),
-                    ),
+                        ),
                 ),
             )
         assertTrue(state.captureOpen)
@@ -288,26 +287,31 @@ class DeriveFocusUiTest {
         undo: PendingUndo? = null,
         preferences: UserPreferences = UserPreferences(),
         localDate: LocalDate = app.backpin.focus.testing.FakeAppClock().localDate(),
-        localTime: LocalTime = app.backpin.focus.testing.FakeAppClock().localTime(),
-    ): FocusUiState = deriveFocusUi(
-        snapshot,
-        ChromeState(
-            captureOpen = false,
-            swapIncomingId = null,
-            switchOpen = false,
-            undo = undo,
-            preferences = preferences,
-        ),
-        localDate = localDate,
-        localTime = localTime,
-    )
+    ): FocusUiState =
+        deriveFocusUi(
+            snapshot,
+            ChromeState(
+                captureOpen = false,
+                swapIncomingId = null,
+                switchOpen = false,
+                undo = undo,
+                preferences = preferences,
+            ),
+            localDate = localDate,
+            localTime = app.backpin.focus.testing.FakeAppClock().localTime(),
+        )
 
     private fun datedFocusUi(
         snapshot: FocusSnapshot,
         chrome: ChromeState,
     ): FocusUiState {
         val clock = app.backpin.focus.testing.FakeAppClock()
-        return deriveFocusUi(snapshot, chrome, clock.localDate(), clock.localTime())
+        return deriveFocusUi(
+            snapshot,
+            chrome,
+            localDate = clock.localDate(),
+            localTime = clock.localTime(),
+        )
     }
 
     private fun task(
