@@ -31,115 +31,42 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Resolve test classes
-        id: resolve
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          DISPATCH_CLASSES: ${{ github.event.inputs.classes }}
-        run: |
-          set -euo pipefail
-          classes_file="${RUNNER_TEMP}/flake-classes.txt"
-          : >"$classes_file"
-          classes=()
-
-          add_class() {
-            local class="$1"
-            if [[ ! "$class" =~ ^[A-Za-z0-9_.]+$ ]]; then
-              printf 'Invalid test class name\n' >&2
-              exit 1
-            fi
-            classes+=("$class")
-          }
-
-          classes_from_file() {
-            local file="$1"
-            local pkg simple fqcn
-            local -a simples
-            if [[ ! -f "$file" ]]; then
-              printf 'Changed test file is missing: %s\n' "$file" >&2
-              exit 1
-            fi
-            pkg="$(grep -E '^package [A-Za-z0-9_.]+' -- "$file" | sed -n 's/^package \([A-Za-z0-9_.][A-Za-z0-9_.]*\).*/\1/p' | head -n 1 || true)"
-            if [[ -z "$pkg" ]]; then
-              printf 'No package line in %s\n' "$file" >&2
-              exit 1
-            fi
-            if [[ ! "$pkg" =~ ^[A-Za-z0-9_.]+$ ]]; then
-              printf 'Invalid package name parsed from %s\n' "$file" >&2
-              exit 1
-            fi
-            mapfile -t simples < <(grep -E '^(internal )?class [A-Za-z_][A-Za-z0-9_]*' -- "$file" | grep -Ev '(^|[[:space:]])(private|abstract|open|data|sealed|enum|inner|object)[[:space:]]' | sed -E 's/^(internal )?class ([A-Za-z_][A-Za-z0-9_]*).*/\2/' || true)
-            if [[ ${#simples[@]} -eq 0 ]]; then
-              printf 'No top-level class names in %s\n' "$file" >&2
-              exit 1
-            fi
-            for simple in "${simples[@]}"; do
-              [[ -n "$simple" ]] || continue
-              if [[ ! "$simple" =~ ^[A-Za-z0-9_]+$ ]]; then
-                printf 'Invalid class name parsed from %s\n' "$file" >&2
-                exit 1
-              fi
-              fqcn="${pkg}.${simple}"
-              add_class "$fqcn"
-            done
-          }
-
-          if [[ "$EVENT_NAME" == workflow_dispatch ]]; then
-            if [[ -n "${DISPATCH_CLASSES// }" ]]; then
-              local_normalized="${DISPATCH_CLASSES//,/ }"
-              read -r -a raw <<<"$local_normalized"
-              for class in "${raw[@]}"; do
-                [[ -n "$class" ]] || continue
-                add_class "$class"
-              done
-            fi
-          elif [[ "$EVENT_NAME" == pull_request ]]; then
-            if ! git rev-parse --verify --quiet HEAD^2 >/dev/null; then
-              echo "Expected a pull_request merge commit with two parents" >&2
-              exit 1
-            fi
-            while IFS= read -r -d '' file; do
-              [[ "$file" == *Test.kt ]] || continue
-              classes_from_file "$file"
-            done < <(git diff -z --name-only --diff-filter=ACMR HEAD^1...HEAD^2 -- app/src/test)
-          else
-            echo "Unsupported event" >&2
-            exit 1
-          fi
-
-          if [[ ${#classes[@]} -eq 0 ]]; then
-            echo "skip=true" >>"$GITHUB_OUTPUT"
-            {
-              echo "No changed unit test classes under \`app/src/test\`; skipping."
-            } >>"$GITHUB_STEP_SUMMARY"
-            echo "No changed unit test classes under app/src/test; skipping."
-            exit 0
-          fi
-
-          printf '%s\n' "${classes[@]}" | sort -u >"$classes_file"
-          echo "skip=false" >>"$GITHUB_OUTPUT"
-          echo "Selected test classes:"
-          cat "$classes_file"
-
       - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
-        if: steps.resolve.outputs.skip != 'true'
         with:
           distribution: temurin
           java-version: "21"
 
       - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
-        if: steps.resolve.outputs.skip != 'true'
         with:
           cache-read-only: true
 
+      - name: Select changed tests
+        id: select
+        env:
+          FLAKE_CHECK_BASE: ${{ github.event.pull_request.base.sha }}
+          FLAKE_CHECK_HEAD: ${{ github.event.pull_request.head.sha }}
+          FLAKE_CHECK_CLASSES: ${{ github.event.inputs.classes }}
+        run: |
+          set -euo pipefail
+          ./gradlew selectChangedTestClasses
+          classes_file="build/flake-check/classes.txt"
+          if [[ ! -s "$classes_file" ]]; then
+            echo "has_tests=false" >>"$GITHUB_OUTPUT"
+            echo "No changed unit test classes under \`app/src/test\`; skipping." | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          echo "has_tests=true" >>"$GITHUB_OUTPUT"
+          echo "Selected test classes:"
+          cat "$classes_file"
+
       - name: Rerun selected tests
         id: rerun
-        if: steps.resolve.outputs.skip != 'true'
+        if: steps.select.outputs.has_tests == 'true'
         env:
           RUN_COUNT: ${{ github.event.inputs.runs || 30 }}
         run: |
           set -euo pipefail
-          classes_file="${RUNNER_TEMP}/flake-classes.txt"
+          classes_file="build/flake-check/classes.txt"
           failed_methods_file="${RUNNER_TEMP}/flake-failed-methods.txt"
           : >"$failed_methods_file"
           mapfile -t raw_classes <"$classes_file"
@@ -156,7 +83,6 @@ jobs:
             echo "No test classes to run" >&2
             exit 1
           fi
-
           if [[ ! "$RUN_COUNT" =~ ^[1-9][0-9]*$ ]] || ((RUN_COUNT > 100)); then
             echo "runs must be an integer from 1 to 100" >&2
             exit 1
