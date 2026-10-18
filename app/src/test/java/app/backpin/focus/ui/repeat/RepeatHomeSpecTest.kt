@@ -12,6 +12,7 @@ import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performScrollTo
@@ -124,6 +125,12 @@ class RepeatHomeSpecTest {
             assertEquals(FocusColors.Muted, missedColor)
             tapDescription("Water plants. Missed at noon · muted until end of day. Check off.")
             await {
+                env.viewModel.missedRepeatSheet.value?.title == "Water plants" &&
+                    env.viewModel.repeatRows.value.rows.single().status == RepeatDayStatus.MISSED
+            }
+            compose.onNodeWithText("This one was missed.").assertExists()
+            compose.onNodeWithText("Done now").performTouchInput { click(center) }
+            await {
                 env.viewModel.repeatRows.value.rows.single().status == RepeatDayStatus.DONE &&
                     env.viewModel.uiState.value.undo?.target is UndoTarget.RepeatCheckOff
             }
@@ -171,7 +178,8 @@ class RepeatHomeSpecTest {
             env.reopenHome()
             await {
                 env.viewModel.uiState.value.ready &&
-                    env.viewModel.repeatRows.value.rows.none { it.repeat.title == "Water plants" }
+                    env.viewModel.repeatRows.value.rows.map { it.repeat.title } == listOf("Take meds") &&
+                    env.viewModel.repeatRows.value.rows.single().status == RepeatDayStatus.OPEN
             }
             val rows = env.viewModel.repeatRows.value.rows
             assertEquals(listOf("Take meds"), rows.map { it.repeat.title })
@@ -197,13 +205,17 @@ class RepeatHomeSpecTest {
             }
             env.clock.now = at(hour = 8, minute = 0, day = DAY.plusDays(1))
             env.reopenHome()
-            await { env.viewModel.uiState.value.ready }
+            await {
+                env.viewModel.uiState.value.ready &&
+                    env.viewModel.repeatRows.value.rows.none { it.repeat.title == "Water plants" }
+            }
+            awaitText("Nothing due today.")
             assertTrue(
                 "Yesterday's off-cadence miss must not survive a reopen after midnight",
                 env.viewModel.repeatRows.value.rows.none { it.repeat.title == "Water plants" },
             )
-            compose.onNodeWithText("Water plants").assertDoesNotExist()
-            compose.onNodeWithText("Nothing due today.").assertExists()
+            compose.onNodeWithText("Water plants", useUnmergedTree = true).assertDoesNotExist()
+            compose.onNodeWithText("Nothing due today.", useUnmergedTree = true).assertExists()
         } finally {
             env.close()
         }
@@ -304,6 +316,76 @@ class RepeatHomeSpecTest {
     }
 
     @Test
+    fun headerIsNotAllDoneWhileAMissedRowRemains() {
+        val env = env(hour = 13)
+        try {
+            val today = DAY.toEpochDay()
+            runOffTestThread {
+                env.repeats.create("Take meds", RepeatBand.MORNING, 1, today)
+                env.repeats.create("Water plants", RepeatBand.NOON, 1, today)
+            }
+            showHome(env)
+            await {
+                env.viewModel.uiState.value.ready &&
+                    env.viewModel.repeatRows.value.rows.map { it.status }.toSet() ==
+                    setOf(RepeatDayStatus.MISSED, RepeatDayStatus.OPEN)
+            }
+            assertEquals(2, env.viewModel.repeatRows.value.leftCount)
+            compose.onNodeWithText("2 of 2 left").assertExists()
+            compose.onNodeWithText("All done").assertDoesNotExist()
+            tapDescription("Water plants. Noon. Check off.")
+            await {
+                env.viewModel.repeatRows.value.leftCount == 1 &&
+                    env.viewModel.repeatRows.value.rows.any { it.status == RepeatDayStatus.MISSED }
+            }
+            compose.onNodeWithText("1 of 2 left").assertExists()
+            compose.onNodeWithText("All done").assertDoesNotExist()
+            tapDescription("Take meds. Missed at morning · muted until end of day. Check off.")
+            await {
+                env.viewModel.missedRepeatSheet.value?.title == "Take meds" &&
+                    env.viewModel.repeatRows.value.leftCount == 1 &&
+                    env.viewModel.repeatRows.value.rows.any { it.status == RepeatDayStatus.MISSED }
+            }
+            compose.onNodeWithText("This one was missed.").assertExists()
+            compose.onNodeWithText("1 of 2 left").assertExists()
+            compose.onNodeWithText("All done").assertDoesNotExist()
+            compose.onNodeWithText("Done now").performTouchInput { click(center) }
+            await {
+                env.viewModel.repeatRows.value.leftCount == 0 &&
+                    env.viewModel.repeatRows.value.rows.all { it.status == RepeatDayStatus.DONE }
+            }
+            compose.onNodeWithText("All done").assertExists()
+        } finally {
+            env.close()
+        }
+    }
+
+    @Test
+    fun headerShowsAllDoneWhenEveryDueRepeatIsDone() {
+        val env = env(hour = 8)
+        try {
+            val today = DAY.toEpochDay()
+            runOffTestThread {
+                val morning = env.repeats.create("Take meds", RepeatBand.MORNING, 1, today)!!
+                val second = env.repeats.create("Make bed", RepeatBand.MORNING, 1, today)!!
+                env.repeats.markDone(morning, today)
+                env.repeats.markDone(second, today)
+            }
+            showHome(env)
+            await {
+                env.viewModel.uiState.value.ready &&
+                    env.viewModel.repeatRows.value.total == 2 &&
+                    env.viewModel.repeatRows.value.leftCount == 0 &&
+                    env.viewModel.repeatRows.value.rows.all { it.status == RepeatDayStatus.DONE }
+            }
+            compose.onNodeWithText("All done").assertExists()
+            compose.onNodeWithText("0 of 2 left").assertDoesNotExist()
+        } finally {
+            env.close()
+        }
+    }
+
+    @Test
     fun headerShowsLeftCountAndAllDoneWhenTheLastOpenRowIsCheckedOff() {
         val env = env(hour = 8)
         try {
@@ -313,19 +395,33 @@ class RepeatHomeSpecTest {
                 env.repeats.create("Make bed", RepeatBand.MORNING, 1, today)
             }
             showHome(env)
-            await { env.viewModel.repeatRows.value.rows.size == 2 }
-            compose.onNodeWithText("2 of 2 left").assertExists()
-            compose.onNodeWithText("All done").assertDoesNotExist()
-            tapDescription("Take meds. Morning. Check off.")
-            await { env.viewModel.repeatRows.value.leftCount == 1 }
-            compose.onNodeWithText("1 of 2 left").assertExists()
-            tapDescription("Make bed. Morning. Check off.")
             await {
-                env.viewModel.repeatRows.value.leftCount == 0 &&
+                env.viewModel.uiState.value.ready &&
+                    env.viewModel.repeatRows.value.rows.size == 2 &&
+                    env.viewModel.repeatRows.value.leftCount == 2 &&
                     env.viewModel.repeatRows.value.total == 2
             }
-            compose.onNodeWithText("All done").assertExists()
-            compose.onNodeWithText("0 of 2 left").assertDoesNotExist()
+            awaitText("2 of 2 left")
+            assertHeader("2 of 2 left")
+            compose.onNodeWithText("All done", useUnmergedTree = true).assertDoesNotExist()
+            tapDescription("Take meds. Morning. Check off.")
+            await {
+                env.viewModel.uiState.value.ready &&
+                    env.viewModel.repeatRows.value.leftCount == 1 &&
+                    env.viewModel.repeatRows.value.total == 2
+            }
+            awaitText("1 of 2 left")
+            assertHeader("1 of 2 left")
+            tapDescription("Make bed. Morning. Check off.")
+            await {
+                env.viewModel.uiState.value.ready &&
+                    env.viewModel.repeatRows.value.leftCount == 0 &&
+                    env.viewModel.repeatRows.value.total == 2
+            }
+            awaitText("All done")
+            assertHeader("All done")
+            awaitNoText("0 of 2 left")
+            compose.onNodeWithText("0 of 2 left", useUnmergedTree = true).assertDoesNotExist()
             assertEquals("All done", repeatsLeftLabel(env.viewModel.repeatRows.value, compose.activity.resources))
         } finally {
             env.close()
@@ -336,6 +432,7 @@ class RepeatHomeSpecTest {
         compose.setContent {
             val viewModel = env.shown.value
             val state by viewModel.uiState.collectAsState()
+            val missed by viewModel.missedRepeatSheet.collectAsState()
             FocusStackTheme {
                 HomeScreen(
                     state = state,
@@ -346,6 +443,14 @@ class RepeatHomeSpecTest {
                     onOpenScheduled = {},
                     onOpenDone = {},
                 )
+                missed?.let { pending ->
+                    MissedRepeatSheet(
+                        state = pending,
+                        onDismiss = viewModel::dismissMissedRepeat,
+                        onDoneNow = viewModel::doneMissedRepeat,
+                        onSkipToday = viewModel::skipMissedRepeat,
+                    )
+                }
             }
         }
     }
@@ -390,6 +495,30 @@ class RepeatHomeSpecTest {
         }
     }
 
+    private fun headerNodes(
+        text: String,
+        unmerged: Boolean,
+    ) = compose.onAllNodesWithText(text, useUnmergedTree = unmerged).fetchSemanticsNodes()
+
+    private fun awaitText(text: String) {
+        await {
+            headerNodes(text, unmerged = false).isNotEmpty() ||
+                headerNodes(text, unmerged = true).isNotEmpty()
+        }
+    }
+
+    private fun awaitNoText(text: String) {
+        await {
+            headerNodes(text, unmerged = false).isEmpty() &&
+                headerNodes(text, unmerged = true).isEmpty()
+        }
+    }
+
+    private fun assertHeader(text: String) {
+        val unmerged = headerNodes(text, unmerged = false).isEmpty()
+        compose.onNodeWithText(text, useUnmergedTree = unmerged).assertExists()
+    }
+
     private fun env(
         hour: Int,
         minute: Int = 0,
@@ -409,7 +538,12 @@ class RepeatHomeSpecTest {
                 clock = clock,
             )
         val useCases = FocusUseCases(repository)
-        val repeats = RepeatsService(repository)
+        val repeats =
+            RepeatsService(
+                repository = repository,
+                clock = clock,
+                zone = { ZONE },
+            )
         val store = ViewModelStore()
         return Env(
             clock = clock,
@@ -417,7 +551,7 @@ class RepeatHomeSpecTest {
             database = database,
             useCases = useCases,
             store = store,
-            viewModel = createViewModel(store, useCases, repeats),
+            viewModel = createViewModel(store, useCases, repeats, clock),
         )
     }
 
@@ -432,10 +566,11 @@ class RepeatHomeSpecTest {
         val shown = mutableStateOf(viewModel)
 
         fun reopenHome() {
-            // observeTodaysRepeats only re-reads the clock when Room or prefs emit.
-            // Recreating the ViewModel is the "phone was off, reopen Home" path.
+            // Production reopens through MainActivity.onStart → FocusStackApp.onForeground
+            // → refreshToday. Recreating the ViewModel alone does not move the day signal.
+            repeats.refreshToday()
             store.clear()
-            viewModel = createViewModel(store, useCases, repeats)
+            viewModel = createViewModel(store, useCases, repeats, clock)
             shown.value = viewModel
         }
 
@@ -447,7 +582,7 @@ class RepeatHomeSpecTest {
 
     private companion object {
         val DAY: LocalDate = LocalDate.of(2026, 10, 16)
-        val ZONE: ZoneId = ZoneId.systemDefault()
+        val ZONE: ZoneId = ZoneId.of("UTC")
 
         fun at(
             hour: Int,
@@ -459,16 +594,16 @@ class RepeatHomeSpecTest {
             store: ViewModelStore,
             useCases: FocusUseCases,
             repeats: RepeatsService,
-        ): FocusStackViewModel =
-            ViewModelProvider(
-                store,
-                object : ViewModelProvider.Factory {
-                    override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                        @Suppress("UNCHECKED_CAST")
-                        return FocusStackViewModel(useCases, repeats) as T
-                    }
-                },
-            )[FocusStackViewModel::class.java]
+            clock: AppClock,
+        ): FocusStackViewModel = ViewModelProvider(
+            store,
+            object : ViewModelProvider.Factory {
+                override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                    @Suppress("UNCHECKED_CAST")
+                    return FocusStackViewModel(useCases, repeats, clock) as T
+                }
+            },
+        )[FocusStackViewModel::class.java]
     }
 
     private class SettableClock(

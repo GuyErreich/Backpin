@@ -25,8 +25,17 @@ interface RepeatsApi {
     fun observeRepeats(): Flow<List<Repeat>>
 
     /**
+     * Current local epoch day from the injected clock and system zone.
+     * Emits on local midnight, a system date/time/zone change, or
+     * [refreshToday]. Equal days do not re-emit.
+     */
+    fun observeLocalEpochDay(): Flow<Long>
+
+    /**
      * Today's due items per band, with open / done / missed.
      * Repeats never enter Today and never become focus work.
+     * Recomputes when the local day changes: local midnight, a system
+     * date/time/zone change, or [refreshToday].
      */
     fun observeTodaysRepeats(): Flow<TodaysRepeats>
 
@@ -37,6 +46,7 @@ interface RepeatsApi {
      * Each [app.backpin.focus.domain.RepeatRow] includes [app.backpin.focus.domain.RepeatRow.everyNDays]
      * (also [app.backpin.focus.domain.RepeatRow.cadenceDays]) so the UI can show "every N days"
      * when the interval is not daily.
+     * Recomputes from the same local-day signal as [observeTodaysRepeats].
      */
     fun observeRows(): Flow<RepeatRowsState>
 
@@ -54,6 +64,16 @@ interface RepeatsApi {
      * Current user-set morning, noon, night, and night-end minutes.
      */
     fun observeBandTimes(): Flow<BandTimes>
+
+    /**
+     * Fires at each band bound (morning start, noon start, night start,
+     * night end) and when [refreshToday] or a date/time/zone change
+     * restarts the wait. Values are the clock's epoch millis at the emit.
+     * Home combines this so the open band and Today pin move at the
+     * bound without waiting for a task or day change. Band-time edits
+     * restart the delay from the new [BandTimes].
+     */
+    fun observeBandBoundaryTick(): Flow<Long>
 
     /**
      * True when Settings should show the one-time exact-alarm prompt.
@@ -85,6 +105,8 @@ interface RepeatsApi {
      * Saves a valid [draft] and closes the sheet. Done and Back both call this
      * so closing keeps the changes. A blank title writes nothing and leaves
      * the sheet open. Create when [RepeatDraft.id] is null; otherwise update.
+     * A zero [RepeatDraft.anchorEpochDay] stores the current local day from the
+     * injected clock and system zone.
      */
     suspend fun commitRepeatDraft(draft: RepeatDraft): Boolean
 
@@ -175,6 +197,16 @@ interface RepeatsApi {
     fun refreshExactAlarmPermission()
 
     /**
+     * Re-reads the current local day from the clock and system zone.
+     * Call when the app returns to foreground so Home drops yesterday's
+     * missed repeats if the date changed while the UI was stopped.
+     * Equal days do not re-emit [observeLocalEpochDay]. Restarts the
+     * band-boundary wait and emits [observeBandBoundaryTick] so Home
+     * can re-read the current minute after a clock or zone change.
+     */
+    fun refreshToday()
+
+    /**
      * Persists that the user chose "Not now" on the exact-alarm prompt.
      */
     suspend fun dismissExactAlarmPrompt()
@@ -205,6 +237,8 @@ data class RepeatUndo(
 private object EmptyRepeatsApi : RepeatsApi {
     override fun observeRepeats(): Flow<List<Repeat>> = flowOf(emptyList())
 
+    override fun observeLocalEpochDay(): Flow<Long> = flowOf(0L)
+
     override fun observeTodaysRepeats(): Flow<TodaysRepeats> = flowOf(TodaysRepeats())
 
     override fun observeRows(): Flow<RepeatRowsState> = flowOf(RepeatRowsState())
@@ -214,6 +248,8 @@ private object EmptyRepeatsApi : RepeatsApi {
     override fun observeBandTimeResult(): Flow<BandTimeResult?> = flowOf(null)
 
     override fun observeBandTimes(): Flow<BandTimes> = flowOf(BandTimes.DEFAULT)
+
+    override fun observeBandBoundaryTick(): Flow<Long> = flowOf(0L)
 
     override fun observeExactAlarmPrompt(): Flow<Boolean> = flowOf(false)
 
@@ -271,6 +307,8 @@ private object EmptyRepeatsApi : RepeatsApi {
     override fun canScheduleExactAlarms(): Boolean = false
 
     override fun refreshExactAlarmPermission() = Unit
+
+    override fun refreshToday() = Unit
 
     override suspend fun dismissExactAlarmPrompt() = Unit
 }

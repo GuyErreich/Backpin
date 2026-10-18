@@ -55,7 +55,6 @@ import androidx.compose.ui.unit.sp
 import app.backpin.focus.R
 import app.backpin.focus.domain.Repeat
 import app.backpin.focus.domain.RepeatDayStatus
-import app.backpin.focus.domain.RepeatRow as RepeatRowModel
 import app.backpin.focus.domain.RepeatRowsState
 import app.backpin.focus.ui.components.QuietButton
 import app.backpin.focus.ui.motion.MotionSpec
@@ -71,12 +70,14 @@ import app.backpin.focus.ui.theme.CardRadius
 import app.backpin.focus.ui.theme.FocusColors
 import app.backpin.focus.ui.theme.Space
 import kotlinx.coroutines.launch
+import app.backpin.focus.domain.RepeatRow as RepeatRowModel
 
 @Composable
 internal fun RepeatSection(
     rows: RepeatRowsState,
     reducedMotion: Boolean,
     onCheckOff: (RepeatRowModel) -> Unit,
+    onOpenMissed: (RepeatRowModel) -> Unit = {},
     onEdit: (Repeat) -> Unit,
     onCreate: () -> Unit,
 ) {
@@ -87,7 +88,7 @@ internal fun RepeatSection(
             Text(
                 stringResource(R.string.repeat_empty),
                 style = MaterialTheme.typography.bodyLarge,
-                color = FocusColors.Muted,
+                color = FocusColors.Live.Muted,
             )
             QuietButton(
                 label = stringResource(R.string.repeat_new),
@@ -101,6 +102,7 @@ internal fun RepeatSection(
                         row = row,
                         reducedMotion = reducedMotion,
                         onCheckOff = { onCheckOff(row) },
+                        onOpenMissed = { onOpenMissed(row) },
                         onEdit = { onEdit(row.repeat) },
                     )
                 }
@@ -110,10 +112,11 @@ internal fun RepeatSection(
 }
 
 @Composable
-private fun RepeatRow(
+internal fun RepeatRow(
     row: RepeatRowModel,
     reducedMotion: Boolean,
     onCheckOff: () -> Unit,
+    onOpenMissed: () -> Unit,
     onEdit: () -> Unit,
 ) {
     val open = row.status == RepeatDayStatus.OPEN
@@ -141,13 +144,13 @@ private fun RepeatRow(
     val content: @Composable () -> Unit = {
         Row(
             modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 14.dp),
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 14.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            RepeatMark(done = done, missed = missed, color = if (done) FocusColors.Muted else FocusColors.Text)
+            RepeatMark(done = done, missed = missed, color = if (done) FocusColors.Live.Muted else FocusColors.Live.Text)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
                     row.repeat.title,
@@ -155,13 +158,13 @@ private fun RepeatRow(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     textDecoration = if (done) TextDecoration.LineThrough else TextDecoration.None,
-                    color = if (missed) FocusColors.Muted else FocusColors.Text,
+                    color = if (missed) FocusColors.Live.Muted else FocusColors.Live.Text,
                 )
                 if (missed) {
                     Text(
                         missedRepeatCopy(row.repeat.band, resources),
                         style = MaterialTheme.typography.bodyMedium,
-                        color = FocusColors.Muted,
+                        color = FocusColors.Live.Amber,
                     )
                 }
             }
@@ -169,7 +172,7 @@ private fun RepeatRow(
                 Text(
                     cadence,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = FocusColors.Muted,
+                    color = FocusColors.Live.Muted,
                     maxLines = 1,
                     softWrap = false,
                     overflow = TextOverflow.Visible,
@@ -178,7 +181,7 @@ private fun RepeatRow(
             Text(
                 repeatBandMark(row.repeat.band),
                 style = MaterialTheme.typography.labelLarge,
-                color = FocusColors.Muted,
+                color = FocusColors.Live.Muted,
                 letterSpacing = 1.sp,
             )
         }
@@ -207,9 +210,14 @@ private fun RepeatRow(
                             interactionSource = interaction,
                             indication = null,
                             role = Role.Button,
-                            onClickLabel = resources.getString(R.string.repeat_row_check_off),
+                            onClickLabel =
+                            if (missed) {
+                                resources.getString(R.string.missed_repeat_sheet_open)
+                            } else {
+                                resources.getString(R.string.repeat_row_check_off)
+                            },
                             onLongClickLabel = resources.getString(R.string.repeat_row_edit),
-                            onClick = onCheckOff,
+                            onClick = if (missed) onOpenMissed else onCheckOff,
                             onLongClick = onEdit,
                         )
                 } else {
@@ -224,7 +232,7 @@ private fun RepeatRow(
             )
     if (missed) {
         Box(
-            modifier = rowModifier.dashedSlot(FocusColors.Outline),
+            modifier = rowModifier.dashedSlot(FocusColors.Live.Outline),
             contentAlignment = Alignment.CenterStart,
         ) {
             content()
@@ -233,8 +241,8 @@ private fun RepeatRow(
         Surface(
             modifier = rowModifier,
             shape = shape,
-            color = FocusColors.Surface,
-            border = BorderStroke(1.dp, FocusColors.Outline),
+            color = FocusColors.Live.Surface,
+            border = BorderStroke(1.dp, FocusColors.Live.Outline),
         ) {
             content()
         }

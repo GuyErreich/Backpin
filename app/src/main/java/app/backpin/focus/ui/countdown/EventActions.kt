@@ -1,44 +1,25 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package app.backpin.focus.ui.countdown
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.ModalBottomSheetProperties
-import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.semantics.heading
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
+import app.backpin.focus.R
 import app.backpin.focus.domain.DetachDestination
+import app.backpin.focus.domain.scheduleMomentLabel
 import app.backpin.focus.ui.calendar.PickDateDialog
-import app.backpin.focus.ui.components.BackArrow
-import app.backpin.focus.ui.components.CLOSE_LABEL
-import app.backpin.focus.ui.components.CaptureChoice
-import app.backpin.focus.ui.components.ChoiceTone
+import app.backpin.focus.ui.components.ActionRow
+import app.backpin.focus.ui.components.ChipSheet
 import app.backpin.focus.ui.components.QuietButton
 import app.backpin.focus.ui.theme.ButtonGap
-import app.backpin.focus.ui.theme.FocusColors
-import app.backpin.focus.ui.theme.Space
 import java.time.LocalDate
 
 /**
@@ -54,9 +35,9 @@ internal fun EventDetachButtons(
     onDetach: (String, DetachDestination) -> Unit,
     onCountDownAgain: () -> Unit,
 ) {
-    QuietButton("Today", onClick = { onDetach(taskId, DetachDestination.Today) })
-    QuietButton("Later", onClick = { onDetach(taskId, DetachDestination.Later) })
-    QuietButton("Count down again", onClick = onCountDownAgain)
+    QuietButton(stringResource(R.string.action_today), onClick = { onDetach(taskId, DetachDestination.Today) })
+    QuietButton(stringResource(R.string.action_later), onClick = { onDetach(taskId, DetachDestination.Later) })
+    QuietButton(stringResource(R.string.action_count_down_again), onClick = onCountDownAgain)
 }
 
 /**
@@ -86,11 +67,14 @@ internal fun EventResumeHost(
     }
 }
 
+private val resumePresetDays = setOf(1, 3, 7)
+
 /**
- * Again in N days when a count is known, then days from today with Start in N days,
- * then the calendar. Back closes without detaching.
+ * Task name and chips only. A suggested count above 0 that is not 1, 3, or 7
+ * sits full-width on the first row as In N days · date. Tomorrow, In 3 days,
+ * Next week, and Pick a date stay in a two-column grid. No typed days, no
+ * zero-day default, no extra labels. Back closes without detaching.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun ResumeCountdownSheet(
     title: String,
@@ -98,14 +82,11 @@ internal fun ResumeCountdownSheet(
     onDismiss: () -> Unit,
     onCommit: (Long) -> Unit,
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    var daysText by rememberSaveable { mutableStateOf("") }
     var picking by remember { mutableStateOf(false) }
     val sent = remember { booleanArrayOf(false) }
     val today = LocalDate.now()
     val tomorrow = today.plusDays(1)
-    val typedDays = countdownDays(daysText)
-    val typedDay = typedDays?.let { today.plusDays(it.toLong()).toEpochDay() }
+    val extraDays = suggestedDays?.takeIf { it !in resumePresetDays && it > 0 }
 
     fun commit(day: Long) {
         if (sent[0]) return
@@ -113,85 +94,49 @@ internal fun ResumeCountdownSheet(
         onCommit(day)
     }
 
-    fun commitTypedDays() {
-        val days = typedDays ?: return
+    fun commitInDays(days: Int) {
         commit(today.plusDays(days.toLong()).toEpochDay())
     }
 
-    fun commitAgain(days: Int) {
-        commit(today.plusDays(days.toLong()).toEpochDay())
-    }
-
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        sheetGesturesEnabled = false,
-        containerColor = FocusColors.Surface,
-        contentWindowInsets = { WindowInsets.navigationBars },
-        properties = ModalBottomSheetProperties(shouldDismissOnBackPress = false),
+    ChipSheet(
+        title = title.takeIf { it.isNotBlank() } ?: stringResource(R.string.resume_sheet_title),
+        onDismiss = onDismiss,
     ) {
-        BackHandler(onBack = onDismiss)
         Column(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp)
-                    .padding(bottom = 24.dp),
+            modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(ButtonGap),
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                BackArrow(label = CLOSE_LABEL, onClick = onDismiss, inSheet = true)
-                Text(
-                    "Count down again",
-                    style = MaterialTheme.typography.headlineMedium,
-                    modifier = Modifier.weight(1f).semantics { heading() },
-                )
-            }
-            if (title.isNotBlank()) {
-                Text(title, style = MaterialTheme.typography.bodyLarge)
-            }
-            if (suggestedDays != null) {
-                CaptureChoice(
-                    label = againInDaysLabel(suggestedDays, today),
-                    onClick = { commitAgain(suggestedDays) },
-                    tone = ChoiceTone.Lavender,
-                    filled = true,
-                )
-                Text(
-                    "or choose",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = FocusColors.Muted,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-            CountdownDayEntry(
-                daysText = daysText,
-                onDaysChange = { daysText = sanitizeCountdownDays(it) },
-                shownDay = typedDay,
-                onDone = { commitTypedDays() },
-                onPickDate = { picking = true },
-                afterField = {
-                    CaptureChoice(
-                        label = startInDaysLabel(daysText),
-                        onClick = { commitTypedDays() },
-                        tone = ChoiceTone.Lavender,
-                        enabled = typedDays != null,
+            if (extraDays != null) {
+                ActionRow {
+                    QuietButton(
+                        label =
+                        stringResource(
+                            R.string.action_in_n_days,
+                            extraDays,
+                            scheduleMomentLabel(today.plusDays(extraDays.toLong()).toEpochDay(), null),
+                        ),
+                        onClick = { commitInDays(extraDays) },
                     )
-                },
-            )
-            Text(
-                "\"Again in N days\" uses this event's own interval, or the last count used. " +
-                    "Back leaves the event as it was.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = FocusColors.Muted,
-                modifier = Modifier.padding(top = Space),
-            )
+                }
+            }
+            ActionRow {
+                QuietButton(
+                    label = stringResource(R.string.action_tomorrow),
+                    onClick = { commitInDays(1) },
+                )
+                QuietButton(
+                    label = stringResource(R.string.action_in_3_days),
+                    onClick = { commitInDays(3) },
+                )
+                QuietButton(
+                    label = stringResource(R.string.action_next_week),
+                    onClick = { commitInDays(7) },
+                )
+                QuietButton(
+                    label = stringResource(R.string.action_pick_a_date),
+                    onClick = { picking = true },
+                )
+            }
         }
     }
     if (picking) {

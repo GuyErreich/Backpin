@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package app.backpin.focus.ui.home
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -20,11 +21,14 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import app.backpin.focus.R
 import app.backpin.focus.ui.ScheduledTaskUi
 import app.backpin.focus.ui.TaskUi
 import app.backpin.focus.ui.calendar.PickDateDialog
@@ -32,9 +36,9 @@ import app.backpin.focus.ui.calendar.PickTimeDialog
 import app.backpin.focus.ui.calendar.suggestedMinuteOfDay
 import app.backpin.focus.ui.components.AccentButton
 import app.backpin.focus.ui.components.AccentTone
-import app.backpin.focus.ui.components.CardActions
 import app.backpin.focus.ui.components.BACK_LABEL
 import app.backpin.focus.ui.components.BackArrow
+import app.backpin.focus.ui.components.CardActions
 import app.backpin.focus.ui.components.QuietButton
 import app.backpin.focus.ui.motion.rememberReducedMotion
 import app.backpin.focus.ui.theme.ButtonGap
@@ -60,6 +64,7 @@ fun InboxScreen(
     onStart: (String) -> Unit,
     onInterrupt: (String) -> Unit,
     onEdit: (String) -> Unit,
+    onOpenSheet: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     ActionPileScreen(
@@ -73,6 +78,7 @@ fun InboxScreen(
         onStart = onStart,
         onInterrupt = onInterrupt,
         onEdit = onEdit,
+        onOpenSheet = onOpenSheet,
         modifier = modifier,
     )
 }
@@ -90,6 +96,7 @@ fun LaterScreen(
     onStart: (String) -> Unit,
     onInterrupt: (String) -> Unit,
     onEdit: (String) -> Unit,
+    onOpenSheet: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     ActionPileScreen(
@@ -103,6 +110,7 @@ fun LaterScreen(
         onStart = onStart,
         onInterrupt = onInterrupt,
         onEdit = onEdit,
+        onOpenSheet = onOpenSheet,
         modifier = modifier,
     )
 }
@@ -126,6 +134,7 @@ fun ScheduledScreen(
     onChangeDate: (String, Long) -> Unit,
     onChangeTime: (String, Int?) -> Unit,
     onEdit: (String) -> Unit,
+    onOpenMissed: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val reducedMotion = rememberReducedMotion()
@@ -140,7 +149,7 @@ fun ScheduledScreen(
         modifier = modifier,
     ) {
         if (tasks.isEmpty()) {
-            Text("Nothing is waiting on a date.", style = MaterialTheme.typography.bodyLarge, color = FocusColors.Muted)
+            Text("Nothing is waiting on a date.", style = MaterialTheme.typography.bodyLarge, color = FocusColors.Live.Muted)
         }
         tasks.forEach { task ->
             SwipeRevealCard(
@@ -148,25 +157,42 @@ fun ScheduledScreen(
                 towardEnd = startSwipe { onStart(task.id) },
                 reducedMotion = reducedMotion,
                 extraActions =
-                    listOf(
-                        CustomAccessibilityAction("Edit") {
-                            onEdit(task.id)
-                            true
-                        },
-                    ),
+                listOf(
+                    CustomAccessibilityAction("Edit") {
+                        onEdit(task.id)
+                        true
+                    },
+                ),
                 cornerRadius = 16.dp,
                 modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .semantics {
-                            contentDescription =
+                Modifier
+                    .fillMaxWidth()
+                    .semantics {
+                        contentDescription =
+                            if (task.due) {
+                                "Scheduled. ${task.title}. ${task.whenLabel}. Opens the missed sheet."
+                            } else {
                                 "Scheduled. ${task.title}. ${task.whenLabel}. Swipe right for today, swipe left for start."
-                        },
+                            }
+                    },
             ) {
                 Surface(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .then(
+                            if (task.due) {
+                                Modifier.clickable(
+                                    role = Role.Button,
+                                    onClickLabel = stringResource(R.string.missed_task_sheet_open),
+                                    onClick = { onOpenMissed(task.id) },
+                                )
+                            } else {
+                                Modifier
+                            },
+                        ),
                     shape = RoundedCornerShape(16.dp),
-                    color = FocusColors.SurfaceHigh,
+                    color = FocusColors.Live.SurfaceHigh,
                 ) {
                     Column(PileRowPadding, verticalArrangement = Arrangement.spacedBy(Space)) {
                         Column {
@@ -174,7 +200,7 @@ fun ScheduledScreen(
                             Text(
                                 task.whenLabel,
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = if (task.due) FocusColors.Amber else FocusColors.Muted,
+                                color = if (task.due) FocusColors.Live.Amber else FocusColors.Live.Muted,
                             )
                         }
                         CardActions {
@@ -255,16 +281,16 @@ fun DoneScreen(
         modifier = modifier,
     ) {
         if (tasks.isEmpty()) {
-            Text("Nothing in the archive.", style = MaterialTheme.typography.bodyLarge, color = FocusColors.Muted)
+            Text("Nothing in the archive.", style = MaterialTheme.typography.bodyLarge, color = FocusColors.Live.Muted)
         }
         tasks.forEach { task ->
             Surface(
                 modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .semantics { contentDescription = "Done. ${task.title}. Restore returns it to Inbox." },
+                Modifier
+                    .fillMaxWidth()
+                    .semantics { contentDescription = "Done. ${task.title}. Restore returns it to Inbox." },
                 shape = RoundedCornerShape(16.dp),
-                color = FocusColors.SurfaceHigh,
+                color = FocusColors.Live.SurfaceHigh,
             ) {
                 Column(PileRowPadding, verticalArrangement = Arrangement.spacedBy(Space)) {
                     Text(task.title, style = MaterialTheme.typography.titleLarge)
@@ -289,6 +315,7 @@ private fun ActionPileScreen(
     onStart: (String) -> Unit,
     onInterrupt: (String) -> Unit,
     onEdit: (String) -> Unit,
+    onOpenSheet: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val reducedMotion = rememberReducedMotion()
@@ -300,7 +327,7 @@ private fun ActionPileScreen(
         modifier = modifier,
     ) {
         if (tasks.isEmpty()) {
-            Text(emptyLabel, style = MaterialTheme.typography.bodyLarge, color = FocusColors.Muted)
+            Text(emptyLabel, style = MaterialTheme.typography.bodyLarge, color = FocusColors.Live.Muted)
         }
         tasks.forEach { task ->
             SwipeRevealCard(
@@ -308,25 +335,48 @@ private fun ActionPileScreen(
                 towardEnd = startSwipe { onStart(task.id) },
                 reducedMotion = reducedMotion,
                 extraActions =
-                    listOf(
-                        CustomAccessibilityAction("Edit") {
-                            onEdit(task.id)
+                listOfNotNull(
+                    CustomAccessibilityAction("Today") {
+                        onToday(task.id)
+                        true
+                    },
+                    CustomAccessibilityAction("Start") {
+                        onStart(task.id)
+                        true
+                    },
+                    if (canInterrupt) {
+                        CustomAccessibilityAction("Interrupt") {
+                            onInterrupt(task.id)
                             true
-                        },
-                    ),
+                        }
+                    } else {
+                        null
+                    },
+                    CustomAccessibilityAction("Edit") {
+                        onEdit(task.id)
+                        true
+                    },
+                ),
                 cornerRadius = CardRadius,
                 modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .semantics {
-                            contentDescription =
-                                "$title. ${task.title}. Swipe right for today, swipe left for start."
-                        },
+                Modifier
+                    .fillMaxWidth()
+                    .semantics {
+                        contentDescription =
+                            "$title. ${task.title}. Opens the task sheet. Swipe right for today, swipe left for start."
+                    },
             ) {
                 Surface(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable(
+                            role = Role.Button,
+                            onClickLabel = stringResource(R.string.task_sheet_open),
+                            onClick = { onOpenSheet(task.id) },
+                        ),
                     shape = RoundedCornerShape(CardRadius),
-                    color = FocusColors.SurfaceHigh,
+                    color = FocusColors.Live.SurfaceHigh,
                 ) {
                     Column(ActionPileCardPadding, verticalArrangement = Arrangement.spacedBy(Space)) {
                         Text(task.title, style = MaterialTheme.typography.titleLarge)
@@ -389,15 +439,15 @@ private fun PileHeader(
         Text(
             title,
             modifier =
-                Modifier
-                    .weight(1f)
-                    .semantics { heading() },
+            Modifier
+                .weight(1f)
+                .semantics { heading() },
             style = MaterialTheme.typography.headlineMedium,
         )
         Text(
             count.toString(),
             style = MaterialTheme.typography.headlineMedium,
-            color = FocusColors.Mint,
+            color = FocusColors.Live.Mint,
         )
     }
 }

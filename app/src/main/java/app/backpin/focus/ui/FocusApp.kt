@@ -28,35 +28,40 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import app.backpin.focus.R
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import app.backpin.focus.R
+import app.backpin.focus.domain.HomeLayout
+import app.backpin.focus.domain.ThemeId
 import app.backpin.focus.notifications.NotificationContract
 import app.backpin.focus.ui.capture.CaptureEdit
 import app.backpin.focus.ui.capture.CaptureSheet
+import app.backpin.focus.ui.components.AccentButton
+import app.backpin.focus.ui.components.AccentTone
+import app.backpin.focus.ui.components.QuietButton
 import app.backpin.focus.ui.countdown.CountdownScreen
-import app.backpin.focus.ui.repeat.RepeatSheet
 import app.backpin.focus.ui.focus.FocusScreen
 import app.backpin.focus.ui.home.DoneScreen
 import app.backpin.focus.ui.home.HomeScreen
 import app.backpin.focus.ui.home.InboxScreen
 import app.backpin.focus.ui.home.LaterScreen
 import app.backpin.focus.ui.home.ScheduledScreen
-import app.backpin.focus.ui.components.AccentButton
-import app.backpin.focus.ui.components.AccentTone
-import app.backpin.focus.ui.components.QuietButton
 import app.backpin.focus.ui.motion.pileEnter
 import app.backpin.focus.ui.motion.pileExit
 import app.backpin.focus.ui.motion.rememberReducedMotion
+import app.backpin.focus.ui.repeat.MissedRepeatSheet
+import app.backpin.focus.ui.repeat.RepeatSheet
 import app.backpin.focus.ui.settings.SettingsScreen
+import app.backpin.focus.ui.task.MissedTaskSheet
+import app.backpin.focus.ui.task.TaskSheet
 import app.backpin.focus.ui.theme.ButtonGap
 import app.backpin.focus.ui.theme.FocusColors
 import app.backpin.focus.ui.theme.Space
@@ -81,10 +86,18 @@ fun FocusApp(
     viewModel: FocusStackViewModel,
     launchDestination: String? = null,
     onLaunchDestinationConsumed: () -> Unit = {},
+    themeId: ThemeId = ThemeId.SIGNAL,
+    onThemeId: (ThemeId) -> Unit = {},
+    homeLayout: HomeLayout = HomeLayout.FLAT,
+    onHomeLayout: (HomeLayout) -> Unit = {},
+    showHomeLayout: Boolean = false,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val checkedOffMessage = stringResource(R.string.undo_checked_off)
     val repeatDraft by viewModel.editingRepeat.collectAsStateWithLifecycle()
+    val taskSheet by viewModel.taskSheet.collectAsStateWithLifecycle()
+    val missedRepeatSheet by viewModel.missedRepeatSheet.collectAsStateWithLifecycle()
+    val missedTaskSheet by viewModel.missedTaskSheet.collectAsStateWithLifecycle()
     val bandTimes by viewModel.bandTimes.collectAsStateWithLifecycle()
     val showExactAlarmPrompt by viewModel.showExactAlarmPrompt.collectAsStateWithLifecycle()
     val navController = rememberNavController()
@@ -122,15 +135,15 @@ fun FocusApp(
     }
 
     Scaffold(
-        containerColor = FocusColors.Midnight,
+        containerColor = FocusColors.Live.Midnight,
         snackbarHost = {
             SnackbarHost(snackbarHostState) { data ->
                 Snackbar(
                     snackbarData = data,
-                    containerColor = FocusColors.SurfaceHigh,
-                    contentColor = FocusColors.Text,
-                    actionColor = FocusColors.Mint,
-                    dismissActionContentColor = FocusColors.Muted,
+                    containerColor = FocusColors.Live.SurfaceHigh,
+                    contentColor = FocusColors.Live.Text,
+                    actionColor = FocusColors.Live.Mint,
+                    dismissActionContentColor = FocusColors.Live.Muted,
                 )
             }
         },
@@ -142,12 +155,12 @@ fun FocusApp(
                         tone = AccentTone.Mint,
                         onClick = { viewModel.openCapture(interrupts = false) },
                         modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = Space),
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = Space),
                     )
                 }
-                NavigationBar(containerColor = FocusColors.Surface) {
+                NavigationBar(containerColor = FocusColors.Live.Surface) {
                     NavigationBarItem(
                         selected = route in homeRoutes,
                         onClick = { navController.showToday() },
@@ -206,6 +219,7 @@ fun FocusApp(
                     onOpenLater = { navController.openPile(Routes.LATER) },
                     onOpenScheduled = { navController.openPile(Routes.SCHEDULED) },
                     onOpenDone = { navController.openPile(Routes.DONE) },
+                    homeLayout = homeLayout,
                 )
             }
             composable(
@@ -222,6 +236,7 @@ fun FocusApp(
                     onStart = viewModel::start,
                     onInterrupt = viewModel::interruptFromPile,
                     onEdit = viewModel::openEdit,
+                    onOpenSheet = viewModel::openTaskSheet,
                 )
             }
             composable(
@@ -238,6 +253,7 @@ fun FocusApp(
                     onStart = viewModel::start,
                     onInterrupt = viewModel::interruptFromPile,
                     onEdit = viewModel::openEdit,
+                    onOpenSheet = viewModel::openTaskSheet,
                 )
             }
             composable(
@@ -259,6 +275,7 @@ fun FocusApp(
                     onChangeDate = viewModel::changeScheduledDate,
                     onChangeTime = viewModel::changeScheduledTime,
                     onEdit = viewModel::openEdit,
+                    onOpenMissed = viewModel::openMissedTask,
                 )
             }
             composable(
@@ -301,6 +318,11 @@ fun FocusApp(
                     showExactAlarmPrompt = showExactAlarmPrompt,
                     onDismissExactAlarmPrompt = viewModel::dismissExactAlarmPrompt,
                     onRefreshExactAlarmPermission = viewModel::refreshExactAlarmPermission,
+                    themeId = themeId,
+                    onThemeId = onThemeId,
+                    homeLayout = homeLayout,
+                    onHomeLayout = onHomeLayout,
+                    showHomeLayout = showHomeLayout,
                 )
             }
         }
@@ -308,6 +330,9 @@ fun FocusApp(
 
     val editingRepeat = repeatDraft
     val editing = state.editing
+    val openTaskSheet = taskSheet
+    val openMissedRepeat = missedRepeatSheet
+    val openMissedTask = missedTaskSheet
     if (editingRepeat != null) {
         RepeatSheet(
             draft = editingRepeat,
@@ -327,12 +352,39 @@ fun FocusApp(
             onPlaceLater = {},
             onSchedule = { _, _, _ -> },
             edit =
-                CaptureEdit(
-                    title = editing.title,
-                    place = editing.place,
-                    scheduledEpochDay = editing.scheduledOnEpochDay,
-                ),
+            CaptureEdit(
+                title = editing.title,
+                place = editing.place,
+                scheduledEpochDay = editing.scheduledOnEpochDay,
+            ),
             onCommitEdit = viewModel::saveEdit,
+        )
+    } else if (openTaskSheet != null) {
+        TaskSheet(
+            state = openTaskSheet,
+            onDismiss = viewModel::dismissTaskSheet,
+            onStart = viewModel::startFromTaskSheet,
+            onDone = viewModel::doneFromTaskSheet,
+            onLater = viewModel::laterFromTaskSheet,
+            onEdit = viewModel::editFromTaskSheet,
+            onInterrupt = viewModel::interruptFromTaskSheet,
+            onToday = viewModel::todayFromTaskSheet,
+            onResume = viewModel::resumeFromTaskSheet,
+        )
+    } else if (openMissedRepeat != null) {
+        MissedRepeatSheet(
+            state = openMissedRepeat,
+            onDismiss = viewModel::dismissMissedRepeat,
+            onDoneNow = viewModel::doneMissedRepeat,
+            onSkipToday = viewModel::skipMissedRepeat,
+        )
+    } else if (openMissedTask != null) {
+        MissedTaskSheet(
+            state = openMissedTask,
+            onDismiss = viewModel::dismissMissedTask,
+            onDoneNow = viewModel::doneMissedTask,
+            onTomorrow = viewModel::tomorrowMissedTask,
+            onPickDay = viewModel::pickDayMissedTask,
         )
     } else if (state.captureOpen) {
         CaptureSheet(
@@ -355,9 +407,9 @@ fun FocusApp(
             state.now != null && state.todaySlots.any { it.task?.id == state.now?.taskId }
         AlertDialog(
             onDismissRequest = viewModel::cancelSwap,
-            containerColor = FocusColors.Surface,
-            titleContentColor = FocusColors.Text,
-            textContentColor = FocusColors.Muted,
+            containerColor = FocusColors.Live.Surface,
+            titleContentColor = FocusColors.Live.Text,
+            textContentColor = FocusColors.Live.Muted,
             title = { Text("Today is full") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(Space)) {
@@ -396,9 +448,9 @@ fun FocusApp(
     if (state.switchOpen) {
         AlertDialog(
             onDismissRequest = viewModel::dismissSwitch,
-            containerColor = FocusColors.Surface,
-            titleContentColor = FocusColors.Text,
-            textContentColor = FocusColors.Muted,
+            containerColor = FocusColors.Live.Surface,
+            titleContentColor = FocusColors.Live.Text,
+            textContentColor = FocusColors.Live.Muted,
             title = { Text("Switch") },
             text = {
                 Text("Pauses Now and starts another Today task. The return cue stays on the paused task. This is not an interruption.")
@@ -406,7 +458,7 @@ fun FocusApp(
             confirmButton = {
                 Column(verticalArrangement = Arrangement.spacedBy(ButtonGap)) {
                     if (state.switchTargets.isEmpty()) {
-                        Text("Nothing else is in Today.", color = FocusColors.Muted)
+                        Text("Nothing else is in Today.", color = FocusColors.Live.Muted)
                     }
                     state.switchTargets.forEach { target ->
                         QuietButton(
@@ -432,13 +484,11 @@ private fun androidx.navigation.NavController.navigateTab(route: String) {
 
 private fun AnimatedContentTransitionScope<NavBackStackEntry>.homePileEnter(
     reducedMotion: Boolean,
-): EnterTransition? =
-    if (initialState.destination.route == Routes.HOME) pileEnter(forward = true, reducedMotion) else null
+): EnterTransition? = if (initialState.destination.route == Routes.HOME) pileEnter(forward = true, reducedMotion) else null
 
 private fun AnimatedContentTransitionScope<NavBackStackEntry>.homePileExit(
     reducedMotion: Boolean,
-): ExitTransition? =
-    if (targetState.destination.route == Routes.HOME) pileExit(forward = false, reducedMotion) else null
+): ExitTransition? = if (targetState.destination.route == Routes.HOME) pileExit(forward = false, reducedMotion) else null
 
 /** Push a pile above Today. Task actions on that screen do not call this. */
 private fun androidx.navigation.NavController.openPile(route: String) {

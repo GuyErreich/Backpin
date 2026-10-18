@@ -125,7 +125,7 @@ class RepeatCheckOffTest {
     }
 
     @Test
-    fun tappingAMissedRowMarksItDoneAndUndoRestoresTheMiss() {
+    fun tappingAMissedRowOpensTheSheetAndDoneNowMarksItDoneAndUndoRestoresTheMiss() {
         val env = env(hour = 13)
         try {
             val today = DAY.toEpochDay()
@@ -137,15 +137,23 @@ class RepeatCheckOffTest {
             await {
                 env.viewModel.uiState.value.ready &&
                     env.viewModel.repeatRows.value.rows
-                        .single { it.repeat.title == "Take meds" }
-                        .status == RepeatDayStatus.MISSED
+                        .singleOrNull { it.repeat.title == "Take meds" }
+                        ?.status == RepeatDayStatus.MISSED
             }
-            compose.onNodeWithText("1 of 2 left").assertExists()
+            compose.onNodeWithText("2 of 2 left").assertExists()
             compose.onNodeWithText("Missed at morning · muted until end of day").assertExists()
             compose
                 .onNodeWithContentDescription("Take meds. Missed at morning · muted until end of day. Check off.")
                 .assertExists()
             tapDescription("Take meds. Missed at morning · muted until end of day. Check off.")
+            await {
+                env.viewModel.missedRepeatSheet.value?.title == "Take meds" &&
+                    env.viewModel.repeatRows.value.rows
+                        .single { it.repeat.title == "Take meds" }
+                        .status == RepeatDayStatus.MISSED
+            }
+            compose.onNodeWithText("This one was missed.").assertExists()
+            compose.onNodeWithText("Done now").performTouchInput { click(center) }
             await {
                 val rows = env.viewModel.repeatRows.value.rows
                 rows.map { it.repeat.title } == listOf("Water plants", "Take meds") &&
@@ -175,6 +183,7 @@ class RepeatCheckOffTest {
     private fun showHome(viewModel: FocusStackViewModel) {
         compose.setContent {
             val state by viewModel.uiState.collectAsState()
+            val missed by viewModel.missedRepeatSheet.collectAsState()
             FocusStackTheme {
                 HomeScreen(
                     state = state,
@@ -185,6 +194,14 @@ class RepeatCheckOffTest {
                     onOpenScheduled = {},
                     onOpenDone = {},
                 )
+                missed?.let { pending ->
+                    MissedRepeatSheet(
+                        state = pending,
+                        onDismiss = viewModel::dismissMissedRepeat,
+                        onDoneNow = viewModel::doneMissedRepeat,
+                        onSkipToday = viewModel::skipMissedRepeat,
+                    )
+                }
             }
         }
     }
@@ -199,10 +216,9 @@ class RepeatCheckOffTest {
         shadowOf(Looper.getMainLooper()).idle()
     }
 
-    private fun titleOrder(vararg titles: String): List<String> =
-        titles.sortedBy {
-            compose.onNodeWithText(it, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot.top
-        }
+    private fun titleOrder(vararg titles: String): List<String> = titles.sortedBy {
+        compose.onNodeWithText(it, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot.top
+    }
 
     private fun await(predicate: () -> Boolean) {
         compose.waitUntil(timeoutMillis = 5_000) {
@@ -224,14 +240,15 @@ class RepeatCheckOffTest {
                 .inMemoryDatabaseBuilder(context, FocusStackDatabase::class.java)
                 .allowMainThreadQueries()
                 .build()
+        val clock = clockAt(hour)
         val repository =
             FocusRepositoryImpl(
                 database = database,
                 preferencesStore = PreferencesDataStore(context, "repeat-check-${UUID.randomUUID()}"),
-                clock = clockAt(hour),
+                clock = clock,
             )
         val useCases = FocusUseCases(repository)
-        val repeats = RepeatsService(repository)
+        val repeats = RepeatsService(repository, clock = clock)
         val store = ViewModelStore()
         val viewModel =
             ViewModelProvider(

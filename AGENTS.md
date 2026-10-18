@@ -36,6 +36,16 @@ Copy
 
 ## Testing
 
+- Follow Guy's ankyr-testing discipline on every test.
+- Test behavior at seams, not internals.
+- Fake only true I/O (clock, zone, network), using `app.backpin.focus.testing` fakes, not mocks of the code under test.
+- Share setup via that kit's factories and helpers instead of per-test clocks, dispatchers, or databases.
+- Table-driven cases.
+- Cover edge cases.
+- One regression test per bug, which fails if the fix is reverted.
+- No test that still passes when the code under test is deleted.
+- No real clock and no fixed sleeps.
+- Every new or changed test passes 30 consecutive runs. Record the command and 0/30 result in the PR Test plan, which must say "ankyr-testing followed".
 - Tap tests use `performTouchInput` on the visible center, not only `performClick`.
 - Clear the `ViewModelStore` in `finally`.
 - Robolectric runs on a plain `Application`.

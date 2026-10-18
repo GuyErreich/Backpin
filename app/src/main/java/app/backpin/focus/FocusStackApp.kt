@@ -48,10 +48,12 @@ class FocusStackApp : Application() {
 
     /**
      * Each time the activity is visible, due scheduled tasks take a free Today slot and a
-     * countdown on its day comes into focus. No paused task resumes.
+     * countdown on its day comes into focus. No paused task resumes. Repeats re-read the
+     * local day so Home drops yesterday's missed rows if the date changed while stopped.
      */
     fun onForeground() {
         container.notifications.setAppVisible(true)
+        container.repeats.refreshToday()
         appScope.launch { container.releaseDue() }
     }
 
@@ -70,7 +72,15 @@ class AppContainer(
     val releaseScheduler = ScheduleReleaseScheduler(WorkManager.getInstance(app))
     val bandScheduler = BandScheduler(app, repository, scope)
     val useCases = FocusUseCases(repository, releaseScheduler)
-    val repeats: RepeatsApi = RepeatsService(repository, bandScheduler, bandScheduler)
+    val repeats: RepeatsApi =
+        RepeatsService(
+            repository = repository,
+            schedule = bandScheduler,
+            exactAlarms = bandScheduler,
+            clock = SystemAppClock,
+            context = app,
+            scope = scope,
+        )
     val viewModelFactory = FocusStackViewModelFactory(useCases, repeats)
     val notifications = NotificationCoordinator(app, repository)
     val repeatNotifications = RepeatNotificationCoordinator(app, repository, bandScheduler)
