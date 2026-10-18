@@ -565,18 +565,20 @@ class FocusRepositoryImpl(
         recordInteraction()
     }
 
-    override suspend fun interrupt(title: String?): Task = database.withTransaction {
-        val active = frameDao.getActive()
-        if (active != null) {
-            frameDao.upsert(pause(active))
-        }
-        val resolved = title?.trim()?.takeIf { it.isNotEmpty() } ?: UNTITLED_INTERRUPTION
-        val task = newTask(resolved, TaskBucket.INBOX)
-        taskDao.upsert(task)
-        frameDao.upsert(newFrame(task.id, parentFrameId = active?.id))
-        requireInvariants(todayLimit())
-        task.toDomain()
-    }.also { recordInteraction() }
+    @Suppress("ktlint:standard:function-signature")
+    override suspend fun interrupt(title: String?): Task =
+        database.withTransaction {
+            val active = frameDao.getActive()
+            if (active != null) {
+                frameDao.upsert(pause(active))
+            }
+            val resolved = title?.trim()?.takeIf { it.isNotEmpty() } ?: UNTITLED_INTERRUPTION
+            val task = newTask(resolved, TaskBucket.INBOX)
+            taskDao.upsert(task)
+            frameDao.upsert(newFrame(task.id, parentFrameId = active?.id))
+            requireInvariants(todayLimit())
+            task.toDomain()
+        }.also { recordInteraction() }
 
     override suspend fun interruptFromPile(taskId: String) {
         val limit = todayLimit()
@@ -605,32 +607,34 @@ class FocusRepositoryImpl(
         recordInteraction()
     }
 
-    override suspend fun completeActive(): UndoToken? = database.withTransaction {
-        val active = frameDao.getActive() ?: return@withTransaction null
-        val task = taskDao.getById(active.taskId) ?: error("Missing task")
-        val parent = active.parentFrameId?.let { frameDao.getById(it) }
-        val token =
-            UndoToken(
-                tasks = listOf(task.toDomain()),
-                frames = listOfNotNull(active.toDomain(), parent?.toDomain()),
+    @Suppress("ktlint:standard:function-signature")
+    override suspend fun completeActive(): UndoToken? =
+        database.withTransaction {
+            val active = frameDao.getActive() ?: return@withTransaction null
+            val task = taskDao.getById(active.taskId) ?: error("Missing task")
+            val parent = active.parentFrameId?.let { frameDao.getById(it) }
+            val token =
+                UndoToken(
+                    tasks = listOf(task.toDomain()),
+                    frames = listOfNotNull(active.toDomain(), parent?.toDomain()),
+                )
+            taskDao.upsert(
+                task.copy(
+                    status = TaskStatus.DONE.name,
+                    completedAtEpochMillis = clock.nowEpochMillis(),
+                ),
             )
-        taskDao.upsert(
-            task.copy(
-                status = TaskStatus.DONE.name,
-                completedAtEpochMillis = clock.nowEpochMillis(),
-            ),
-        )
-        frameDao.upsert(close(active))
-        if (parent != null) {
-            frameDao.upsert(parent.copy(state = FrameState.AWAITING_RESUME.name))
+            frameDao.upsert(close(active))
+            if (parent != null) {
+                frameDao.upsert(parent.copy(state = FrameState.AWAITING_RESUME.name))
+            }
+            releaseDue(todayLimit())
+            placeUnnestedOrSwap(task, todayLimit())
+            requireInvariants(todayLimit())
+            token
+        }.also { token ->
+            if (token != null) recordInteraction()
         }
-        releaseDue(todayLimit())
-        placeUnnestedOrSwap(task, todayLimit())
-        requireInvariants(todayLimit())
-        token
-    }.also { token ->
-        if (token != null) recordInteraction()
-    }
 
     override suspend fun resume(frameId: String) {
         database.withTransaction {
@@ -843,17 +847,19 @@ class FocusRepositoryImpl(
         preferencesStore.setLastNudge(clock.nowEpochMillis(), taskId)
     }
 
-    override fun observeRepeats(): Flow<List<Repeat>> = repeatDao.observeUnarchived().map { rows ->
-        rows.map { it.toDomain() }
-    }
+    @Suppress("ktlint:standard:function-signature")
+    override fun observeRepeats(): Flow<List<Repeat>> =
+        repeatDao.observeUnarchived().map { rows -> rows.map { it.toDomain() } }
 
-    override fun observeTodaysRepeats(): Flow<TodaysRepeats> = combine(
-        repeatDao.observeUnarchived(),
-        repeatLogDao.observeAll(),
-        preferencesStore.preferences,
-    ) { rows, logs, preferences ->
-        todaysRepeats(rows.map { it.toDomain() }, logs.map { it.toDomain() }, preferences.bandTimes)
-    }
+    @Suppress("ktlint:standard:function-signature", "ktlint:standard:indent")
+    override fun observeTodaysRepeats(): Flow<TodaysRepeats> =
+        combine(repeatDao.observeUnarchived(), repeatLogDao.observeAll(), preferencesStore.preferences) {
+            rows,
+            logs,
+            preferences,
+            ->
+            todaysRepeats(rows.map { it.toDomain() }, logs.map { it.toDomain() }, preferences.bandTimes)
+        }
 
     override suspend fun createRepeat(
         title: String,
@@ -912,12 +918,14 @@ class FocusRepositoryImpl(
         }
     }
 
-    override suspend fun archiveRepeat(id: String): Boolean = database.withTransaction {
-        val existing = repeatDao.getById(id) ?: return@withTransaction false
-        if (existing.archivedAtEpochMillis != null) return@withTransaction false
-        repeatDao.upsert(existing.copy(archivedAtEpochMillis = clock.nowEpochMillis()))
-        true
-    }
+    @Suppress("ktlint:standard:function-signature")
+    override suspend fun archiveRepeat(id: String): Boolean =
+        database.withTransaction {
+            val existing = repeatDao.getById(id) ?: return@withTransaction false
+            if (existing.archivedAtEpochMillis != null) return@withTransaction false
+            repeatDao.upsert(existing.copy(archivedAtEpochMillis = clock.nowEpochMillis()))
+            true
+        }
 
     override suspend fun markRepeatDone(
         repeatId: String,
@@ -941,15 +949,17 @@ class FocusRepositoryImpl(
         }
     }
 
+    @Suppress("ktlint:standard:function-signature")
     override suspend fun undoRepeatDone(
         repeatId: String,
         epochDay: Long,
-    ): Boolean = database.withTransaction {
-        val existing = repeatLogDao.get(repeatId, epochDay) ?: return@withTransaction false
-        if (existing.outcome != RepeatOutcome.DONE.name) return@withTransaction false
-        repeatLogDao.delete(repeatId, epochDay)
-        true
-    }
+    ): Boolean =
+        database.withTransaction {
+            val existing = repeatLogDao.get(repeatId, epochDay) ?: return@withTransaction false
+            if (existing.outcome != RepeatOutcome.DONE.name) return@withTransaction false
+            repeatLogDao.delete(repeatId, epochDay)
+            true
+        }
 
     override suspend fun writeRepeatOutcome(
         repeatId: String,
@@ -1024,7 +1034,9 @@ class FocusRepositoryImpl(
         preferencesStore.setLastInteractionAt(clock.nowEpochMillis())
     }
 
-    private suspend fun todayLimit(): Int = preferencesStore.preferences.first().todayLimit.coerceIn(MIN_TODAY_LIMIT, MAX_TODAY_LIMIT)
+    @Suppress("ktlint:standard:function-signature")
+    private suspend fun todayLimit(): Int =
+        preferencesStore.preferences.first().todayLimit.coerceIn(MIN_TODAY_LIMIT, MAX_TODAY_LIMIT)
 
     private suspend fun canInterruptIncoming(incomingId: String): Boolean {
         val active = frameDao.getActive() ?: return false
@@ -1145,15 +1157,17 @@ class FocusRepositoryImpl(
      * Clears the schedule day and time except on [TaskBucket.SCHEDULED].
      * [TaskEntity.countdownIntervalDays] stays: it is the last count, not a schedule.
      */
+    @Suppress("ktlint:standard:function-signature")
     private fun TaskEntity.movedTo(
         bucket: TaskBucket,
         sortOrder: Long = this.sortOrder,
-    ): TaskEntity = copy(
-        bucket = bucket.name,
-        sortOrder = sortOrder,
-        scheduledOnEpochDay = if (bucket == TaskBucket.SCHEDULED) scheduledOnEpochDay else null,
-        scheduledAtMinuteOfDay = if (bucket == TaskBucket.SCHEDULED) scheduledAtMinuteOfDay else null,
-    )
+    ): TaskEntity =
+        copy(
+            bucket = bucket.name,
+            sortOrder = sortOrder,
+            scheduledOnEpochDay = if (bucket == TaskBucket.SCHEDULED) scheduledOnEpochDay else null,
+            scheduledAtMinuteOfDay = if (bucket == TaskBucket.SCHEDULED) scheduledAtMinuteOfDay else null,
+        )
 
     private fun intervalFor(epochDay: Long): Int? = countdownIntervalDays(epochDay, localToday())
 
@@ -1161,7 +1175,9 @@ class FocusRepositoryImpl(
         if (interval != null) preferencesStore.setLastCountdownDays(interval)
     }
 
-    private fun localNow(): LocalDateTime = Instant.ofEpochMilli(clock.nowEpochMillis()).atZone(ZoneId.systemDefault()).toLocalDateTime()
+    @Suppress("ktlint:standard:function-signature")
+    private fun localNow(): LocalDateTime =
+        Instant.ofEpochMilli(clock.nowEpochMillis()).atZone(ZoneId.systemDefault()).toLocalDateTime()
 
     private fun localToday(): LocalDate = localNow().toLocalDate()
 
