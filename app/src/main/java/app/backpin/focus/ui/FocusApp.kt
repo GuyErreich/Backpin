@@ -8,16 +8,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.FabPosition
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHost
@@ -30,7 +23,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -46,9 +38,13 @@ import app.backpin.focus.ui.capture.CaptureEdit
 import app.backpin.focus.ui.capture.CaptureSheet
 import app.backpin.focus.ui.components.AccentButton
 import app.backpin.focus.ui.components.AccentTone
+import app.backpin.focus.ui.components.AddFab
+import app.backpin.focus.ui.components.AppTab
+import app.backpin.focus.ui.components.AppTabBar
 import app.backpin.focus.ui.components.QuietButton
 import app.backpin.focus.ui.countdown.CountdownScreen
 import app.backpin.focus.ui.focus.FocusScreen
+import app.backpin.focus.ui.home.ComingUpScreen
 import app.backpin.focus.ui.home.DoneScreen
 import app.backpin.focus.ui.home.HomeScreen
 import app.backpin.focus.ui.home.InboxScreen
@@ -74,11 +70,12 @@ private object Routes {
     const val DONE = "done"
     const val FOCUS = "focus"
     const val COUNTDOWN = "countdown"
+    const val COMING_UP = "coming_up"
     const val SETTINGS = "settings"
 }
 
-private val homeRoutes = setOf(Routes.HOME, Routes.INBOX, Routes.LATER, Routes.SCHEDULED, Routes.DONE)
-private val pileRoutes = setOf(Routes.INBOX, Routes.LATER, Routes.SCHEDULED, Routes.DONE)
+private val pileRoutes = setOf(Routes.INBOX, Routes.LATER, Routes.SCHEDULED, Routes.DONE, Routes.COMING_UP)
+private val comingUpRoutes = setOf(Routes.COMING_UP, Routes.LATER, Routes.SCHEDULED, Routes.COUNTDOWN)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -147,46 +144,27 @@ fun FocusApp(
                 )
             }
         },
-        bottomBar = {
-            Column {
-                if (showCapture) {
-                    AccentButton(
-                        label = "+ Capture",
-                        tone = AccentTone.Mint,
-                        onClick = { viewModel.openCapture(interrupts = false) },
-                        modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = Space),
-                    )
-                }
-                NavigationBar(containerColor = FocusColors.Live.Surface) {
-                    NavigationBarItem(
-                        selected = route in homeRoutes,
-                        onClick = { navController.showToday() },
-                        icon = { Icon(Icons.Filled.Home, contentDescription = null) },
-                        label = { Text("Home") },
-                    )
-                    NavigationBarItem(
-                        selected = route == Routes.FOCUS,
-                        onClick = { navController.navigateTab(Routes.FOCUS) },
-                        icon = { Icon(Icons.Filled.Star, contentDescription = null) },
-                        label = { Text("Focus") },
-                    )
-                    NavigationBarItem(
-                        selected = route == Routes.COUNTDOWN,
-                        onClick = { navController.navigateTab(Routes.COUNTDOWN) },
-                        icon = { Icon(Icons.Filled.DateRange, contentDescription = null) },
-                        label = { Text("Countdown") },
-                    )
-                    NavigationBarItem(
-                        selected = route == Routes.SETTINGS,
-                        onClick = { navController.navigateTab(Routes.SETTINGS) },
-                        icon = { Icon(Icons.Filled.Settings, contentDescription = null) },
-                        label = { Text("Settings") },
-                    )
-                }
+        floatingActionButton = {
+            if (showCapture) {
+                AddFab(onClick = { viewModel.openCapture(interrupts = false) })
             }
+        },
+        floatingActionButtonPosition = FabPosition.End,
+        bottomBar = {
+            AppTabBar(
+                selected = selectedTab(route),
+                inboxCount = state.inboxCount,
+                comingUpCount = state.laterCount + state.scheduledCount + state.countdowns.size,
+                onSelect = { tab ->
+                    when (tab) {
+                        AppTab.HOME -> navController.navigateTab(Routes.HOME)
+                        AppTab.INBOX -> navController.navigateTab(Routes.INBOX)
+                        AppTab.COMING_UP -> navController.navigateTab(Routes.COMING_UP)
+                        AppTab.FOCUS -> navController.navigateTab(Routes.FOCUS)
+                        AppTab.SETTINGS -> navController.navigateTab(Routes.SETTINGS)
+                    }
+                },
+            )
         },
     ) { padding ->
         NavHost(
@@ -215,11 +193,35 @@ fun FocusApp(
                     state = state,
                     viewModel = viewModel,
                     onOpenFocus = { navController.navigateTab(Routes.FOCUS) },
-                    onOpenInbox = { navController.openPile(Routes.INBOX) },
-                    onOpenLater = { navController.openPile(Routes.LATER) },
-                    onOpenScheduled = { navController.openPile(Routes.SCHEDULED) },
-                    onOpenDone = { navController.openPile(Routes.DONE) },
+                    onOpenInbox = { navController.navigateTab(Routes.INBOX) },
+                    onOpenLater = { navController.navigateTab(Routes.COMING_UP) },
+                    onOpenScheduled = { navController.navigateTab(Routes.COMING_UP) },
+                    onOpenDone = { navController.navigateTab(Routes.INBOX) },
                     homeLayout = homeLayout,
+                )
+            }
+            composable(Routes.COMING_UP) {
+                ComingUpScreen(
+                    laterTasks = state.laterTasks,
+                    scheduledTasks = state.scheduledTasks,
+                    countdowns = state.countdowns,
+                    ready = state.ready,
+                    canInterrupt = state.canInterrupt,
+                    onToday = viewModel::promote,
+                    onStart = viewModel::start,
+                    onInterrupt = viewModel::interruptFromPile,
+                    onEdit = viewModel::openEdit,
+                    onOpenSheet = viewModel::openTaskSheet,
+                    onInbox = viewModel::moveToInbox,
+                    onLater = viewModel::demote,
+                    onRemoveScheduled = viewModel::removeScheduled,
+                    onChangeDate = viewModel::changeScheduledDate,
+                    onChangeTime = viewModel::changeScheduledTime,
+                    onOpenMissed = viewModel::openMissedTask,
+                    onAddCountdown = viewModel::addCountdown,
+                    onChangeCountdownDate = viewModel::changeCountdownDate,
+                    onRemoveCountdown = viewModel::removeCountdown,
+                    onEditCountdown = viewModel::openEdit,
                 )
             }
             composable(
@@ -231,12 +233,15 @@ fun FocusApp(
                     tasks = state.inboxTasks,
                     ready = state.ready,
                     canInterrupt = state.canInterrupt,
-                    onBack = { navController.popBackStack() },
+                    onBack = { navController.navigateTab(Routes.HOME) },
                     onToday = viewModel::promote,
                     onStart = viewModel::start,
                     onInterrupt = viewModel::interruptFromPile,
                     onEdit = viewModel::openEdit,
                     onOpenSheet = viewModel::openTaskSheet,
+                    doneTasks = state.archiveTasks,
+                    onRestore = viewModel::restore,
+                    showBack = false,
                 )
             }
             composable(
@@ -474,6 +479,14 @@ fun FocusApp(
     }
 }
 
+private fun selectedTab(route: String): AppTab = when {
+    route == Routes.INBOX || route == Routes.DONE -> AppTab.INBOX
+    route in comingUpRoutes -> AppTab.COMING_UP
+    route == Routes.FOCUS -> AppTab.FOCUS
+    route == Routes.SETTINGS -> AppTab.SETTINGS
+    else -> AppTab.HOME
+}
+
 private fun androidx.navigation.NavController.navigateTab(route: String) {
     navigate(route) {
         popUpTo(graph.findStartDestination().id) { saveState = true }
@@ -489,17 +502,3 @@ private fun AnimatedContentTransitionScope<NavBackStackEntry>.homePileEnter(
 private fun AnimatedContentTransitionScope<NavBackStackEntry>.homePileExit(
     reducedMotion: Boolean,
 ): ExitTransition? = if (targetState.destination.route == Routes.HOME) pileExit(forward = false, reducedMotion) else null
-
-/** Push a pile above Today. Task actions on that screen do not call this. */
-private fun androidx.navigation.NavController.openPile(route: String) {
-    navigate(route) { launchSingleTop = true }
-}
-
-/** Home is Today. Pile screens stay off this tab until the user opens one again. */
-private fun androidx.navigation.NavController.showToday() {
-    navigate(Routes.HOME) {
-        popUpTo(graph.findStartDestination().id) { saveState = false }
-        launchSingleTop = true
-        restoreState = false
-    }
-}

@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -40,6 +41,8 @@ import app.backpin.focus.ui.components.BACK_LABEL
 import app.backpin.focus.ui.components.BackArrow
 import app.backpin.focus.ui.components.CardActions
 import app.backpin.focus.ui.components.QuietButton
+import app.backpin.focus.ui.motion.pressScale
+import app.backpin.focus.ui.motion.rememberPressSource
 import app.backpin.focus.ui.motion.rememberReducedMotion
 import app.backpin.focus.ui.theme.ButtonGap
 import app.backpin.focus.ui.theme.CardRadius
@@ -65,22 +68,32 @@ fun InboxScreen(
     onInterrupt: (String) -> Unit,
     onEdit: (String) -> Unit,
     onOpenSheet: (String) -> Unit = {},
+    doneTasks: List<TaskUi> = emptyList(),
+    onRestore: (String) -> Unit = {},
+    showBack: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
-    ActionPileScreen(
-        title = "Inbox",
-        emptyLabel = "Inbox is clear.",
-        tasks = tasks,
+    PileScaffold(
+        title = stringResource(R.string.screen_inbox),
+        count = tasks.size,
         ready = ready,
-        canInterrupt = canInterrupt,
         onBack = onBack,
-        onToday = onToday,
-        onStart = onStart,
-        onInterrupt = onInterrupt,
-        onEdit = onEdit,
-        onOpenSheet = onOpenSheet,
+        showBack = showBack,
         modifier = modifier,
-    )
+    ) {
+        ActionPileCards(
+            title = stringResource(R.string.screen_inbox),
+            emptyLabel = stringResource(R.string.pile_inbox_empty),
+            tasks = tasks,
+            canInterrupt = canInterrupt,
+            onToday = onToday,
+            onStart = onStart,
+            onInterrupt = onInterrupt,
+            onEdit = onEdit,
+            onOpenSheet = onOpenSheet,
+        )
+        DoneSection(tasks = doneTasks, onRestore = onRestore)
+    }
 }
 
 /**
@@ -100,8 +113,8 @@ fun LaterScreen(
     modifier: Modifier = Modifier,
 ) {
     ActionPileScreen(
-        title = "Later",
-        emptyLabel = "Nothing parked for later.",
+        title = stringResource(R.string.screen_later),
+        emptyLabel = stringResource(R.string.pile_later_empty),
         tasks = tasks,
         ready = ready,
         canInterrupt = canInterrupt,
@@ -137,97 +150,273 @@ fun ScheduledScreen(
     onOpenMissed: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
-    val reducedMotion = rememberReducedMotion()
-    var datingId by rememberSaveable { mutableStateOf<String?>(null) }
-    var timingId by rememberSaveable { mutableStateOf<String?>(null) }
-    val today = LocalDate.now()
     PileScaffold(
-        title = "Scheduled",
+        title = stringResource(R.string.screen_scheduled),
         count = tasks.size,
         ready = ready,
         onBack = onBack,
         modifier = modifier,
     ) {
-        if (tasks.isEmpty()) {
-            Text("Nothing is waiting on a date.", style = MaterialTheme.typography.bodyLarge, color = FocusColors.Live.Muted)
-        }
-        tasks.forEach { task ->
-            SwipeRevealCard(
-                towardStart = todaySwipe { onToday(task.id) },
-                towardEnd = startSwipe { onStart(task.id) },
-                reducedMotion = reducedMotion,
-                extraActions =
-                listOf(
-                    CustomAccessibilityAction("Edit") {
-                        onEdit(task.id)
+        ScheduledPile(
+            tasks = tasks,
+            canInterrupt = canInterrupt,
+            emptyLabel = stringResource(R.string.pile_scheduled_empty),
+            onToday = onToday,
+            onStart = onStart,
+            onInterrupt = onInterrupt,
+            onInbox = onInbox,
+            onLater = onLater,
+            onRemove = onRemove,
+            onChangeDate = onChangeDate,
+            onChangeTime = onChangeTime,
+            onEdit = onEdit,
+            onOpenMissed = onOpenMissed,
+        )
+    }
+}
+
+/**
+ * Done (archive) on its own screen. Restore returns a task to Inbox with no confirm.
+ */
+@Composable
+fun DoneScreen(
+    tasks: List<TaskUi>,
+    ready: Boolean,
+    onBack: () -> Unit,
+    onRestore: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    PileScaffold(
+        title = stringResource(R.string.screen_done),
+        count = tasks.size,
+        ready = ready,
+        onBack = onBack,
+        modifier = modifier,
+    ) {
+        DoneCards(tasks = tasks, onRestore = onRestore)
+    }
+}
+
+@Composable
+private fun ActionPileScreen(
+    title: String,
+    emptyLabel: String,
+    tasks: List<TaskUi>,
+    ready: Boolean,
+    canInterrupt: Boolean,
+    onBack: () -> Unit,
+    onToday: (String) -> Unit,
+    onStart: (String) -> Unit,
+    onInterrupt: (String) -> Unit,
+    onEdit: (String) -> Unit,
+    onOpenSheet: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    PileScaffold(
+        title = title,
+        count = tasks.size,
+        ready = ready,
+        onBack = onBack,
+        modifier = modifier,
+    ) {
+        ActionPileCards(
+            title = title,
+            emptyLabel = emptyLabel,
+            tasks = tasks,
+            canInterrupt = canInterrupt,
+            onToday = onToday,
+            onStart = onStart,
+            onInterrupt = onInterrupt,
+            onEdit = onEdit,
+            onOpenSheet = onOpenSheet,
+        )
+    }
+}
+
+@Composable
+internal fun ActionPileCards(
+    title: String,
+    emptyLabel: String,
+    tasks: List<TaskUi>,
+    canInterrupt: Boolean,
+    onToday: (String) -> Unit,
+    onStart: (String) -> Unit,
+    onInterrupt: (String) -> Unit,
+    onEdit: (String) -> Unit,
+    onOpenSheet: (String) -> Unit,
+) {
+    val reducedMotion = rememberReducedMotion()
+    if (tasks.isEmpty()) {
+        Text(emptyLabel, style = MaterialTheme.typography.bodyLarge, color = FocusColors.Live.Muted)
+    }
+    tasks.forEach { task ->
+        SwipeRevealCard(
+            towardStart = todaySwipe { onToday(task.id) },
+            towardEnd = startSwipe { onStart(task.id) },
+            reducedMotion = reducedMotion,
+            extraActions =
+            listOfNotNull(
+                CustomAccessibilityAction("Today") {
+                    onToday(task.id)
+                    true
+                },
+                CustomAccessibilityAction("Start") {
+                    onStart(task.id)
+                    true
+                },
+                if (canInterrupt) {
+                    CustomAccessibilityAction("Interrupt") {
+                        onInterrupt(task.id)
                         true
-                    },
-                ),
-                cornerRadius = 16.dp,
+                    }
+                } else {
+                    null
+                },
+                CustomAccessibilityAction("Edit") {
+                    onEdit(task.id)
+                    true
+                },
+            ),
+            cornerRadius = CardRadius,
+            modifier =
+            Modifier
+                .fillMaxWidth()
+                .semantics {
+                    contentDescription =
+                        "$title. ${task.title}. Opens the task sheet. Swipe right for today, swipe left for start."
+                },
+        ) {
+            Surface(
                 modifier =
                 Modifier
                     .fillMaxWidth()
-                    .semantics {
-                        contentDescription =
-                            if (task.due) {
-                                "Scheduled. ${task.title}. ${task.whenLabel}. Opens the missed sheet."
-                            } else {
-                                "Scheduled. ${task.title}. ${task.whenLabel}. Swipe right for today, swipe left for start."
-                            }
-                    },
+                    .clickable(
+                        role = Role.Button,
+                        onClickLabel = stringResource(R.string.task_sheet_open),
+                        onClick = { onOpenSheet(task.id) },
+                    ),
+                shape = RoundedCornerShape(CardRadius),
+                color = FocusColors.Live.SurfaceHigh,
             ) {
-                Surface(
-                    modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .then(
-                            if (task.due) {
-                                Modifier.clickable(
-                                    role = Role.Button,
-                                    onClickLabel = stringResource(R.string.missed_task_sheet_open),
-                                    onClick = { onOpenMissed(task.id) },
-                                )
-                            } else {
-                                Modifier
-                            },
-                        ),
-                    shape = RoundedCornerShape(16.dp),
-                    color = FocusColors.Live.SurfaceHigh,
-                ) {
-                    Column(PileRowPadding, verticalArrangement = Arrangement.spacedBy(Space)) {
-                        Column {
-                            Text(task.title, style = MaterialTheme.typography.titleLarge)
-                            Text(
-                                task.whenLabel,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = if (task.due) FocusColors.Live.Amber else FocusColors.Live.Muted,
+                Column(ActionPileCardPadding, verticalArrangement = Arrangement.spacedBy(Space)) {
+                    Text(task.title, style = MaterialTheme.typography.titleLarge)
+                    CardActions {
+                        QuietButton(label = "Today", onClick = { onToday(task.id) })
+                        QuietButton(label = "Start", onClick = { onStart(task.id) })
+                        if (canInterrupt) {
+                            AccentButton(
+                                label = "Interrupt",
+                                tone = AccentTone.Lavender,
+                                onClick = { onInterrupt(task.id) },
                             )
                         }
-                        CardActions {
-                            QuietButton(label = "Today", onClick = { onToday(task.id) })
-                            QuietButton(label = "Start", onClick = { onStart(task.id) })
-                            if (canInterrupt) {
-                                AccentButton(
-                                    label = "Interrupt",
-                                    tone = AccentTone.Lavender,
-                                    onClick = { onInterrupt(task.id) },
-                                )
-                            }
-                            QuietButton(label = "Inbox", onClick = { onInbox(task.id) })
-                            QuietButton(label = "Later", onClick = { onLater(task.id) })
-                            QuietButton(label = "Remove", onClick = { onRemove(task.id) })
-                            if (task.epochDay != null) {
-                                QuietButton(label = "Change date", onClick = { datingId = task.id })
-                                QuietButton(
-                                    label = if (task.minuteOfDay == null) "Add a time" else "Change time",
-                                    onClick = { timingId = task.id },
-                                )
-                            }
-                            if (task.minuteOfDay != null) {
-                                QuietButton(label = "Clear time", onClick = { onChangeTime(task.id, null) })
-                            }
-                            QuietButton(label = "Edit", onClick = { onEdit(task.id) })
+                        QuietButton(label = "Edit", onClick = { onEdit(task.id) })
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+internal fun ScheduledPile(
+    tasks: List<ScheduledTaskUi>,
+    canInterrupt: Boolean,
+    emptyLabel: String,
+    onToday: (String) -> Unit,
+    onStart: (String) -> Unit,
+    onInterrupt: (String) -> Unit,
+    onInbox: (String) -> Unit,
+    onLater: (String) -> Unit,
+    onRemove: (String) -> Unit,
+    onChangeDate: (String, Long) -> Unit,
+    onChangeTime: (String, Int?) -> Unit,
+    onEdit: (String) -> Unit,
+    onOpenMissed: (String) -> Unit,
+) {
+    val reducedMotion = rememberReducedMotion()
+    var datingId by rememberSaveable { mutableStateOf<String?>(null) }
+    var timingId by rememberSaveable { mutableStateOf<String?>(null) }
+    val today = LocalDate.now()
+    if (tasks.isEmpty()) {
+        Text(emptyLabel, style = MaterialTheme.typography.bodyLarge, color = FocusColors.Live.Muted)
+    }
+    tasks.forEach { task ->
+        SwipeRevealCard(
+            towardStart = todaySwipe { onToday(task.id) },
+            towardEnd = startSwipe { onStart(task.id) },
+            reducedMotion = reducedMotion,
+            extraActions =
+            listOf(
+                CustomAccessibilityAction("Edit") {
+                    onEdit(task.id)
+                    true
+                },
+            ),
+            cornerRadius = 16.dp,
+            modifier =
+            Modifier
+                .fillMaxWidth()
+                .semantics {
+                    contentDescription =
+                        if (task.due) {
+                            "Scheduled. ${task.title}. ${task.whenLabel}. Opens the missed sheet."
+                        } else {
+                            "Scheduled. ${task.title}. ${task.whenLabel}. Swipe right for today, swipe left for start."
                         }
+                },
+        ) {
+            Surface(
+                modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .then(
+                        if (task.due) {
+                            Modifier.clickable(
+                                role = Role.Button,
+                                onClickLabel = stringResource(R.string.missed_task_sheet_open),
+                                onClick = { onOpenMissed(task.id) },
+                            )
+                        } else {
+                            Modifier
+                        },
+                    ),
+                shape = RoundedCornerShape(16.dp),
+                color = FocusColors.Live.SurfaceHigh,
+            ) {
+                Column(PileRowPadding, verticalArrangement = Arrangement.spacedBy(Space)) {
+                    Column {
+                        Text(task.title, style = MaterialTheme.typography.titleLarge)
+                        Text(
+                            task.whenLabel,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = if (task.due) FocusColors.Live.Amber else FocusColors.Live.Muted,
+                        )
+                    }
+                    CardActions {
+                        QuietButton(label = "Today", onClick = { onToday(task.id) })
+                        QuietButton(label = "Start", onClick = { onStart(task.id) })
+                        if (canInterrupt) {
+                            AccentButton(
+                                label = "Interrupt",
+                                tone = AccentTone.Lavender,
+                                onClick = { onInterrupt(task.id) },
+                            )
+                        }
+                        QuietButton(label = "Inbox", onClick = { onInbox(task.id) })
+                        QuietButton(label = "Later", onClick = { onLater(task.id) })
+                        QuietButton(label = "Remove", onClick = { onRemove(task.id) })
+                        if (task.epochDay != null) {
+                            QuietButton(label = "Change date", onClick = { datingId = task.id })
+                            QuietButton(
+                                label = if (task.minuteOfDay == null) "Add a time" else "Change time",
+                                onClick = { timingId = task.id },
+                            )
+                        }
+                        if (task.minuteOfDay != null) {
+                            QuietButton(label = "Clear time", onClick = { onChangeTime(task.id, null) })
+                        }
+                        QuietButton(label = "Edit", onClick = { onEdit(task.id) })
                     }
                 }
             }
@@ -262,41 +451,31 @@ fun ScheduledScreen(
     }
 }
 
-/**
- * Done (archive) on its own screen. Restore returns a task to Inbox with no confirm.
- */
 @Composable
-fun DoneScreen(
+internal fun DoneCards(
     tasks: List<TaskUi>,
-    ready: Boolean,
-    onBack: () -> Unit,
     onRestore: (String) -> Unit,
-    modifier: Modifier = Modifier,
 ) {
-    PileScaffold(
-        title = "Done",
-        count = tasks.size,
-        ready = ready,
-        onBack = onBack,
-        modifier = modifier,
-    ) {
-        if (tasks.isEmpty()) {
-            Text("Nothing in the archive.", style = MaterialTheme.typography.bodyLarge, color = FocusColors.Live.Muted)
-        }
-        tasks.forEach { task ->
-            Surface(
-                modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .semantics { contentDescription = "Done. ${task.title}. Restore returns it to Inbox." },
-                shape = RoundedCornerShape(16.dp),
-                color = FocusColors.Live.SurfaceHigh,
-            ) {
-                Column(PileRowPadding, verticalArrangement = Arrangement.spacedBy(Space)) {
-                    Text(task.title, style = MaterialTheme.typography.titleLarge)
-                    CardActions {
-                        QuietButton(label = "Restore", onClick = { onRestore(task.id) })
-                    }
+    if (tasks.isEmpty()) {
+        Text(
+            stringResource(R.string.pile_done_empty),
+            style = MaterialTheme.typography.bodyLarge,
+            color = FocusColors.Live.Muted,
+        )
+    }
+    tasks.forEach { task ->
+        Surface(
+            modifier =
+            Modifier
+                .fillMaxWidth()
+                .semantics { contentDescription = "Done. ${task.title}. Restore returns it to Inbox." },
+            shape = RoundedCornerShape(16.dp),
+            color = FocusColors.Live.SurfaceHigh,
+        ) {
+            Column(PileRowPadding, verticalArrangement = Arrangement.spacedBy(Space)) {
+                Text(task.title, style = MaterialTheme.typography.titleLarge)
+                CardActions {
+                    QuietButton(label = "Restore", onClick = { onRestore(task.id) })
                 }
             }
         }
@@ -304,98 +483,49 @@ fun DoneScreen(
 }
 
 @Composable
-private fun ActionPileScreen(
-    title: String,
-    emptyLabel: String,
+private fun DoneSection(
     tasks: List<TaskUi>,
-    ready: Boolean,
-    canInterrupt: Boolean,
-    onBack: () -> Unit,
-    onToday: (String) -> Unit,
-    onStart: (String) -> Unit,
-    onInterrupt: (String) -> Unit,
-    onEdit: (String) -> Unit,
-    onOpenSheet: (String) -> Unit,
-    modifier: Modifier = Modifier,
+    onRestore: (String) -> Unit,
 ) {
-    val reducedMotion = rememberReducedMotion()
-    PileScaffold(
-        title = title,
-        count = tasks.size,
-        ready = ready,
-        onBack = onBack,
-        modifier = modifier,
+    var expanded by rememberSaveable { mutableStateOf(false) }
+    val name = stringResource(R.string.screen_done)
+    val action =
+        if (expanded) {
+            stringResource(R.string.home_done_collapse)
+        } else {
+            stringResource(R.string.home_done_expand)
+        }
+    val interaction = rememberPressSource()
+    Row(
+        modifier =
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = HomeMetrics.HomeTouchTarget)
+            .pressScale(interaction)
+            .clickable(
+                interactionSource = interaction,
+                indication = null,
+                role = Role.Button,
+                onClickLabel = action,
+                onClick = { expanded = !expanded },
+            ),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (tasks.isEmpty()) {
-            Text(emptyLabel, style = MaterialTheme.typography.bodyLarge, color = FocusColors.Live.Muted)
-        }
-        tasks.forEach { task ->
-            SwipeRevealCard(
-                towardStart = todaySwipe { onToday(task.id) },
-                towardEnd = startSwipe { onStart(task.id) },
-                reducedMotion = reducedMotion,
-                extraActions =
-                listOfNotNull(
-                    CustomAccessibilityAction("Today") {
-                        onToday(task.id)
-                        true
-                    },
-                    CustomAccessibilityAction("Start") {
-                        onStart(task.id)
-                        true
-                    },
-                    if (canInterrupt) {
-                        CustomAccessibilityAction("Interrupt") {
-                            onInterrupt(task.id)
-                            true
-                        }
-                    } else {
-                        null
-                    },
-                    CustomAccessibilityAction("Edit") {
-                        onEdit(task.id)
-                        true
-                    },
-                ),
-                cornerRadius = CardRadius,
-                modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .semantics {
-                        contentDescription =
-                            "$title. ${task.title}. Opens the task sheet. Swipe right for today, swipe left for start."
-                    },
-            ) {
-                Surface(
-                    modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .clickable(
-                            role = Role.Button,
-                            onClickLabel = stringResource(R.string.task_sheet_open),
-                            onClick = { onOpenSheet(task.id) },
-                        ),
-                    shape = RoundedCornerShape(CardRadius),
-                    color = FocusColors.Live.SurfaceHigh,
-                ) {
-                    Column(ActionPileCardPadding, verticalArrangement = Arrangement.spacedBy(Space)) {
-                        Text(task.title, style = MaterialTheme.typography.titleLarge)
-                        CardActions {
-                            QuietButton(label = "Today", onClick = { onToday(task.id) })
-                            QuietButton(label = "Start", onClick = { onStart(task.id) })
-                            if (canInterrupt) {
-                                AccentButton(
-                                    label = "Interrupt",
-                                    tone = AccentTone.Lavender,
-                                    onClick = { onInterrupt(task.id) },
-                                )
-                            }
-                            QuietButton(label = "Edit", onClick = { onEdit(task.id) })
-                        }
-                    }
-                }
-            }
-        }
+        Text(
+            name.uppercase(),
+            style = HomeMetrics.Eyebrow,
+            color = FocusColors.Live.Muted,
+            modifier = Modifier.semantics { heading() },
+        )
+        Text(
+            tasks.size.toString(),
+            style = HomeMetrics.Eyebrow,
+            color = FocusColors.Live.Muted,
+        )
+    }
+    if (expanded) {
+        DoneCards(tasks = tasks, onRestore = onRestore)
     }
 }
 
@@ -406,6 +536,7 @@ private fun PileScaffold(
     ready: Boolean,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    showBack: Boolean = true,
     content: @Composable () -> Unit,
 ) {
     Column(
@@ -415,9 +546,9 @@ private fun PileScaffold(
             .padding(horizontal = 20.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(ButtonGap),
     ) {
-        PileHeader(title = title, count = count, onBack = onBack)
+        PileHeader(title = title, count = count, onBack = onBack, showBack = showBack)
         if (!ready) {
-            Text("Loading your place…", style = MaterialTheme.typography.bodyLarge)
+            Text(stringResource(R.string.home_loading), style = MaterialTheme.typography.bodyLarge)
         } else {
             content()
         }
@@ -429,13 +560,16 @@ private fun PileHeader(
     title: String,
     count: Int,
     onBack: () -> Unit,
+    showBack: Boolean = true,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        BackArrow(label = BACK_LABEL, onClick = onBack)
+        if (showBack) {
+            BackArrow(label = BACK_LABEL, onClick = onBack)
+        }
         Text(
             title,
             modifier =

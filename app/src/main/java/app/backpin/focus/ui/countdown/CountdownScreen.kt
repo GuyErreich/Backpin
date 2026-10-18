@@ -409,3 +409,57 @@ private fun ChangeCountdownSheet(
         )
     }
 }
+
+/**
+ * Countdown rows and the add/change sheets, for Coming up.
+ */
+@Composable
+internal fun CountdownPile(
+    countdowns: List<CountdownUi>,
+    emptyLabel: String,
+    adding: Boolean,
+    onAddingChange: (Boolean) -> Unit,
+    onAdd: (String, Long) -> Unit,
+    onChangeDate: (String, Long) -> Unit,
+    onRemove: (String) -> Unit,
+    onEdit: (String) -> Unit,
+    recognizer: UtteranceRecognizer? = null,
+    onSystemSpeech: ((Intent, (String) -> Unit) -> Unit)? = null,
+) {
+    var changingId by rememberSaveable { mutableStateOf<String?>(null) }
+    if (countdowns.isEmpty()) {
+        Text(emptyLabel, style = MaterialTheme.typography.bodyLarge, color = FocusColors.Live.Muted)
+    } else {
+        countdowns.forEach { countdown ->
+            CountdownRow(
+                countdown = countdown,
+                onChangeDate = { changingId = countdown.id },
+                onRemove = { onRemove(countdown.id) },
+                onEdit = { onEdit(countdown.id) },
+            )
+        }
+    }
+    val changing = countdowns.firstOrNull { it.id == changingId }
+    if (changing != null) {
+        ChangeCountdownSheet(
+            epochDay = changing.epochDay,
+            onDismiss = { changingId = null },
+            onCommit = { day ->
+                val id = changing.id
+                changingId = null
+                onChangeDate(id, day)
+            },
+        )
+    }
+    if (adding) {
+        AddCountdownSheet(
+            onDismiss = { onAddingChange(false) },
+            onAdd = { title, day ->
+                onAddingChange(false)
+                onAdd(title, day)
+            },
+            recognizer = recognizer,
+            onSystemSpeech = onSystemSpeech,
+        )
+    }
+}
