@@ -132,17 +132,15 @@ data class PendingUndo(
 
 /**
  * Start on a parent that still has an open interruption made that interruption NOW.
- * Show [message] as a snackbar, then call [FocusStackViewModel.dismissStartRedirect].
+ * The composable formats [interruptionTitle] and [parentTitle] into a snackbar,
+ * then calls [FocusStackViewModel.dismissStartRedirect].
  */
 data class StartRedirectUi(
     val interruptionId: String,
     val parentId: String,
     val interruptionTitle: String,
     val parentTitle: String,
-) {
-    val message: String
-        get() = "Finish $interruptionTitle first, then back to $parentTitle."
-}
+)
 
 /**
  * Snackbar text for [undo]. Repeat check-off always uses [checkedOffLabel]
