@@ -9,7 +9,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
-/** Later from a nudge, Switch from the Today notice, and Done from a repeat child. */
+/** Later from a nudge, Switch or Done from the Today notice, and Done from a repeat child. */
 class NotificationActionReceiver : BroadcastReceiver() {
     override fun onReceive(
         context: Context,
@@ -18,6 +18,7 @@ class NotificationActionReceiver : BroadcastReceiver() {
         val action = intent.action
         if (action != NotificationContract.ACTION_LATER &&
             action != NotificationContract.ACTION_SWITCH &&
+            action != NotificationContract.ACTION_TODAY_DONE &&
             action != NotificationContract.ACTION_REPEAT_DONE
         ) {
             return
@@ -32,6 +33,7 @@ class NotificationActionReceiver : BroadcastReceiver() {
                 when (action) {
                     NotificationContract.ACTION_LATER -> app.container.notifications.handleLater(taskId)
                     NotificationContract.ACTION_SWITCH -> app.container.notifications.handleSwitch(taskId)
+                    NotificationContract.ACTION_TODAY_DONE -> app.container.notifications.handleDone(taskId)
                     NotificationContract.ACTION_REPEAT_DONE -> {
                         if (epochDay != Long.MIN_VALUE) {
                             app.container.repeatNotifications.handleRepeatDone(repeatId, epochDay)
