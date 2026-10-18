@@ -260,7 +260,7 @@ fun FocusApp(
                     onChangeDate = viewModel::changeCountdownDate,
                     onRemove = viewModel::removeCountdown,
                     onEdit = viewModel::openEdit,
-                    today = state.today,
+                    today = viewModel.localDate(),
                 )
             }
             composable(Routes.SETTINGS) {

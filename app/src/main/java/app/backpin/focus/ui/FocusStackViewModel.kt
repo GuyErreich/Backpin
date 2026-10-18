@@ -195,6 +195,9 @@ class FocusStackViewModel(
     /** Chip-row missed-task sheet, or null when it is closed. */
     val missedTaskSheet: StateFlow<MissedTaskSheetUi?> = missedTaskSheetState
 
+    /** Local calendar day from the injected clock. Sheets must not call LocalDate.now(). */
+    fun localDate(): LocalDate = localDateOf(clock)
+
     /**
      * Home Today tasks and today's repeats grouped by band.
      * Open Today tasks pin to the top of [HomeBands.openBand]. When no

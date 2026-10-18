@@ -4,6 +4,10 @@ package app.backpin.focus.ui.countdown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -11,13 +15,18 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import app.backpin.focus.R
 import app.backpin.focus.domain.DetachDestination
+import app.backpin.focus.domain.MIN_COUNTDOWN_DAYS
 import app.backpin.focus.domain.scheduleMomentLabel
 import app.backpin.focus.ui.calendar.PickDateDialog
-import app.backpin.focus.ui.components.ActionRow
+import app.backpin.focus.ui.components.CaptureChoice
 import app.backpin.focus.ui.components.ChipSheet
+import app.backpin.focus.ui.components.ChoiceTone
 import app.backpin.focus.ui.components.QuietButton
 import app.backpin.focus.ui.theme.ButtonGap
 import java.time.LocalDate
@@ -49,6 +58,7 @@ internal fun EventResumeHost(
     taskId: String,
     title: String,
     suggestedDays: Int?,
+    today: LocalDate,
     onDetach: (String, DetachDestination) -> Unit,
     content: @Composable (onCountDownAgain: () -> Unit) -> Unit,
 ) {
@@ -58,6 +68,7 @@ internal fun EventResumeHost(
         ResumeCountdownSheet(
             title = title,
             suggestedDays = suggestedDays,
+            today = today,
             onDismiss = { open = false },
             onCommit = { day ->
                 open = false
@@ -67,26 +78,26 @@ internal fun EventResumeHost(
     }
 }
 
-private val resumePresetDays = setOf(1, 3, 7)
+private const val DEFAULT_RESUME_DAYS = 7
+private const val MAX_TYPED_RESUME_DAYS = 365
 
 /**
- * Task name and chips only. A suggested count above 0 that is not 1, 3, or 7
- * sits full-width on the first row as In N days · date. Tomorrow, In 3 days,
- * Next week, and Pick a date stay in a two-column grid. No typed days, no
- * zero-day default, no extra labels. Back closes without detaching.
+ * One mint Again in N days choice, a typed days field, and Pick a date.
+ * N is the event's last interval, or 7. The Close arrow dismisses without saving.
  */
 @Composable
 internal fun ResumeCountdownSheet(
     title: String,
     suggestedDays: Int?,
+    today: LocalDate,
     onDismiss: () -> Unit,
     onCommit: (Long) -> Unit,
 ) {
     var picking by remember { mutableStateOf(false) }
+    var daysText by rememberSaveable { mutableStateOf("") }
     val sent = remember { booleanArrayOf(false) }
-    val today = LocalDate.now()
-    val tomorrow = today.plusDays(1)
-    val extraDays = suggestedDays?.takeIf { it !in resumePresetDays && it > 0 }
+    val interval = suggestedDays?.takeIf { it > 0 } ?: DEFAULT_RESUME_DAYS
+    val landing = today.plusDays(interval.toLong())
 
     fun commit(day: Long) {
         if (sent[0]) return
@@ -98,6 +109,12 @@ internal fun ResumeCountdownSheet(
         commit(today.plusDays(days.toLong()).toEpochDay())
     }
 
+    fun commitTyped() {
+        val days = daysText.toIntOrNull() ?: return
+        if (days !in MIN_COUNTDOWN_DAYS..MAX_TYPED_RESUME_DAYS) return
+        commitInDays(days)
+    }
+
     ChipSheet(
         title = title.takeIf { it.isNotBlank() } ?: stringResource(R.string.resume_sheet_title),
         onDismiss = onDismiss,
@@ -106,43 +123,42 @@ internal fun ResumeCountdownSheet(
             modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(ButtonGap),
         ) {
-            if (extraDays != null) {
-                ActionRow {
-                    QuietButton(
-                        label =
-                        stringResource(
-                            R.string.action_in_n_days,
-                            extraDays,
-                            scheduleMomentLabel(today.plusDays(extraDays.toLong()).toEpochDay(), null),
-                        ),
-                        onClick = { commitInDays(extraDays) },
-                    )
-                }
-            }
-            ActionRow {
-                QuietButton(
-                    label = stringResource(R.string.action_tomorrow),
-                    onClick = { commitInDays(1) },
-                )
-                QuietButton(
-                    label = stringResource(R.string.action_in_3_days),
-                    onClick = { commitInDays(3) },
-                )
-                QuietButton(
-                    label = stringResource(R.string.action_next_week),
-                    onClick = { commitInDays(7) },
-                )
-                QuietButton(
-                    label = stringResource(R.string.action_pick_a_date),
-                    onClick = { picking = true },
-                )
-            }
+            CaptureChoice(
+                label =
+                pluralStringResource(
+                    R.plurals.resume_again_in_days,
+                    interval,
+                    interval,
+                    scheduleMomentLabel(landing.toEpochDay(), null),
+                ),
+                onClick = { commitInDays(interval) },
+                tone = ChoiceTone.Mint,
+                filled = true,
+            )
+            OutlinedTextField(
+                value = daysText,
+                onValueChange = { daysText = it.filter(Char::isDigit) },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text(stringResource(R.string.resume_sheet_days_label)) },
+                placeholder = { Text(stringResource(R.string.resume_sheet_days_placeholder)) },
+                singleLine = true,
+                keyboardOptions =
+                KeyboardOptions(
+                    keyboardType = KeyboardType.Number,
+                    imeAction = ImeAction.Done,
+                ),
+                keyboardActions = KeyboardActions(onDone = { commitTyped() }),
+            )
+            CaptureChoice(
+                label = stringResource(R.string.action_pick_a_date),
+                onClick = { picking = true },
+            )
         }
     }
     if (picking) {
         PickDateDialog(
-            initial = tomorrow,
-            earliest = tomorrow,
+            initial = landing.coerceAtLeast(today),
+            earliest = today,
             onPick = { date ->
                 picking = false
                 commit(date.toEpochDay())
