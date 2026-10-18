@@ -15,7 +15,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -23,7 +22,7 @@ import app.backpin.focus.R
 import app.backpin.focus.domain.DetachDestination
 import app.backpin.focus.domain.MAX_COUNTDOWN_REARM_DAYS
 import app.backpin.focus.domain.MIN_COUNTDOWN_DAYS
-import app.backpin.focus.domain.scheduleMomentLabel
+import app.backpin.focus.domain.isCountdownRearmDay
 import app.backpin.focus.ui.calendar.PickDateDialog
 import app.backpin.focus.ui.components.CaptureChoice
 import app.backpin.focus.ui.components.ChipSheet
@@ -98,6 +97,7 @@ internal fun ResumeCountdownSheet(
 ) {
     var picking by remember { mutableStateOf(false) }
     var daysText by rememberSaveable { mutableStateOf("") }
+    var daysInvalid by rememberSaveable { mutableStateOf(false) }
     val sent = remember { booleanArrayOf(false) }
     val interval =
         suggestedDays
@@ -107,7 +107,7 @@ internal fun ResumeCountdownSheet(
     val landing = today.plusDays(interval.toLong())
 
     fun commit(day: Long) {
-        if (sent[0]) return
+        if (sent[0] || !isCountdownRearmDay(day, today)) return
         sent[0] = true
         onCommit(day)
     }
@@ -117,37 +117,53 @@ internal fun ResumeCountdownSheet(
     }
 
     fun commitTyped() {
-        val days = daysText.toIntOrNull() ?: return
-        if (days !in MIN_COUNTDOWN_DAYS..MAX_COUNTDOWN_REARM_DAYS) return
+        val days = daysText.toIntOrNull()
+        if (days == null || days !in MIN_COUNTDOWN_DAYS..MAX_COUNTDOWN_REARM_DAYS) {
+            daysInvalid = true
+            return
+        }
         commitInDays(days)
     }
 
     ChipSheet(
-        title = title,
+        title = title.takeIf { it.isNotBlank() } ?: stringResource(R.string.resume_sheet_title),
         onDismiss = onDismiss,
+        gesturesEnabled = true,
     ) {
         Column(
             modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(ButtonGap),
         ) {
             CaptureChoice(
-                label =
-                pluralStringResource(
-                    R.plurals.resume_again_in_days,
-                    interval,
-                    interval,
-                    scheduleMomentLabel(landing.toEpochDay(), null),
-                ),
+                label = againInDaysLabel(interval, today),
                 onClick = { commitInDays(interval) },
                 tone = ChoiceTone.Mint,
                 filled = true,
             )
             OutlinedTextField(
                 value = daysText,
-                onValueChange = { daysText = it.filter(Char::isDigit) },
+                onValueChange = {
+                    daysText = it.filter(Char::isDigit)
+                    daysInvalid = false
+                },
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text(stringResource(R.string.resume_sheet_days_label)) },
                 placeholder = { Text(stringResource(R.string.resume_sheet_days_placeholder)) },
+                supportingText =
+                if (daysInvalid) {
+                    {
+                        Text(
+                            stringResource(
+                                R.string.resume_sheet_days_error,
+                                MIN_COUNTDOWN_DAYS,
+                                MAX_COUNTDOWN_REARM_DAYS,
+                            ),
+                        )
+                    }
+                } else {
+                    null
+                },
+                isError = daysInvalid,
                 singleLine = true,
                 keyboardOptions =
                 KeyboardOptions(
@@ -166,6 +182,7 @@ internal fun ResumeCountdownSheet(
         PickDateDialog(
             initial = landing,
             earliest = today.plusDays(MIN_COUNTDOWN_DAYS.toLong()),
+            latest = today.plusDays(MAX_COUNTDOWN_REARM_DAYS.toLong()),
             onPick = { date ->
                 picking = false
                 commit(date.toEpochDay())
