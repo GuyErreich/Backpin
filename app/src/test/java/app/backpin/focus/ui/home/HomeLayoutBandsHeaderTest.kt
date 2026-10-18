@@ -84,19 +84,19 @@ class HomeLayoutBandsHeaderTest {
         var layout by mutableStateOf(HomeLayout.BANDS)
         showHome(env) { layout }
         await { env.viewModel.uiState.value.ready }
-        compose.onNodeWithText("Morning").assertIsDisplayed()
-        compose.onNodeWithText("Noon").assertIsDisplayed()
-        compose.onNodeWithText("Night").assertIsDisplayed()
-        compose.onNodeWithText("Anytime").assertIsDisplayed()
+        compose.onNodeWithText("MORNING").assertIsDisplayed()
+        compose.onNodeWithText("NOON", substring = true).assertIsDisplayed()
+        compose.onNodeWithText("NIGHT").assertIsDisplayed()
+        compose.onNodeWithText("ANYTIME").assertIsDisplayed()
         compose.onNodeWithText("TODAY").assertDoesNotExist()
         compose.onNodeWithText("REPEAT").assertDoesNotExist()
 
         compose.runOnIdle { layout = HomeLayout.FLAT }
         await { env.viewModel.uiState.value.ready }
-        compose.onNodeWithText("Morning").assertDoesNotExist()
-        compose.onNodeWithText("Noon").assertDoesNotExist()
-        compose.onNodeWithText("Night").assertDoesNotExist()
-        compose.onNodeWithText("Anytime").assertDoesNotExist()
+        compose.onNodeWithText("MORNING").assertDoesNotExist()
+        compose.onNodeWithText("NOON", substring = true).assertDoesNotExist()
+        compose.onNodeWithText("NIGHT").assertDoesNotExist()
+        compose.onNodeWithText("ANYTIME").assertDoesNotExist()
         compose.onNodeWithText("TODAY").assertIsDisplayed()
         compose.onNodeWithText("REPEAT").assertIsDisplayed()
         compose.onNodeWithText("Nothing due today.").assertIsDisplayed()
@@ -128,17 +128,17 @@ class HomeLayoutBandsHeaderTest {
         compose.onNodeWithText("REPEAT").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("Buy milk").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("Take meds", useUnmergedTree = true).performScrollTo().assertIsDisplayed()
-        compose.onNodeWithText("Morning").assertDoesNotExist()
-        compose.onNodeWithText("Noon").assertDoesNotExist()
-        compose.onNodeWithText("Night").assertDoesNotExist()
+        compose.onNodeWithText("MORNING").assertDoesNotExist()
+        compose.onNodeWithText("NOON", substring = true).assertDoesNotExist()
+        compose.onNodeWithText("NIGHT").assertDoesNotExist()
 
         compose.runOnIdle { layout = HomeLayout.BANDS }
         await { env.viewModel.uiState.value.ready }
         compose.onNodeWithText("TODAY").assertDoesNotExist()
         compose.onNodeWithText("REPEAT").assertDoesNotExist()
-        compose.onNodeWithText("Noon").assertIsDisplayed()
-        compose.onNodeWithText("Night").assertIsDisplayed()
-        compose.onNodeWithText("Anytime").assertIsDisplayed()
+        compose.onNodeWithText("NOON", substring = true).assertIsDisplayed()
+        compose.onNodeWithText("NIGHT").assertIsDisplayed()
+        compose.onNodeWithText("ANYTIME").assertIsDisplayed()
         compose.onNodeWithText("Buy milk", useUnmergedTree = true).performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("Take meds", useUnmergedTree = true).assertDoesNotExist()
     }
@@ -169,7 +169,7 @@ class HomeLayoutBandsHeaderTest {
                     onOpenFocus = {},
                     onStart = {},
                     onDone = {},
-                    onLater = {},
+                    onBringBack = { _, _ -> },
                     onInterrupt = {},
                     onReorder = {},
                     onEditTask = {},
@@ -183,15 +183,12 @@ class HomeLayoutBandsHeaderTest {
             compose.runOnIdle { themeId = id }
             compose.waitForIdle()
             val palette = paletteFor(id)
-            val summary = morningPastSummary()
-            val missed = missedCount(1)
-            assertEquals(id.name, palette.textSecondary, labelColor(summary))
-            assertEquals(id.name, palette.missed, spanColor(summary, missed))
-            assertNotEquals(id.name, palette.textSecondary, spanColor(summary, missed))
-            assertEquals(id.name, palette.textPrimary, labelColor("Noon"))
-            assertEquals(id.name, palette.textSecondary, labelColor("Night"))
-            assertEquals(id.name, palette.textPrimary, labelColor("Anytime"))
-            assertEquals(id.name, palette.textSecondary, labelColor(leftCount(1)))
+            assertEquals(id.name, palette.textSecondary, labelColor("MORNING"))
+            assertEquals(id.name, palette.now, labelColor("NOON · NOW"))
+            assertNotEquals(id.name, palette.textSecondary, labelColor("NOON · NOW"))
+            assertEquals(id.name, palette.textSecondary, labelColor("NIGHT"))
+            assertEquals(id.name, palette.textSecondary, labelColor("ANYTIME"))
+            assertEquals(id.name, palette.textSecondary, labelColor(doneOf(1, 1)))
         }
     }
 
@@ -207,7 +204,6 @@ class HomeLayoutBandsHeaderTest {
                     viewModel = env.viewModel,
                     onOpenFocus = {},
                     onOpenInbox = {},
-                    onOpenLater = {},
                     onOpenScheduled = {},
                     onOpenDone = {},
                     homeLayout = layout(),
@@ -265,35 +261,10 @@ class HomeLayoutBandsHeaderTest {
         return layouts.single().layoutInput.style.color
     }
 
-    private fun spanColor(
-        text: String,
-        segment: String,
-    ): Color {
-        val node = compose.onNodeWithText(text, useUnmergedTree = true).fetchSemanticsNode()
-        val layouts = mutableListOf<TextLayoutResult>()
-        node.config[SemanticsActions.GetTextLayoutResult].action?.invoke(layouts)
-        val annotated = layouts.single().layoutInput.text
-        val start = annotated.text.indexOf(segment)
-        check(start >= 0) { "$segment missing from $annotated" }
-        val end = start + segment.length
-        return annotated.spanStyles
-            .single { range ->
-                range.start <= start && range.end >= end && range.item.color != Color.Unspecified
-            }.item.color
-    }
-
-    private fun morningPastSummary(): String = compose.activity.getString(
-        R.string.home_band_summary,
-        compose.activity.getString(R.string.home_band_morning),
-        listOf(
-            compose.activity.getString(R.string.home_band_count_done, 1),
-            compose.activity.getString(R.string.home_band_count_missed, 1),
-        ).joinToString(compose.activity.getString(R.string.home_band_count_separator)),
-    )
-
-    private fun leftCount(left: Int): String = compose.activity.getString(R.string.home_band_count_left, left)
-
-    private fun missedCount(missed: Int): String = compose.activity.getString(R.string.home_band_count_missed, missed)
+    private fun doneOf(
+        done: Int,
+        total: Int,
+    ): String = compose.activity.getString(R.string.home_band_count_of_done, done, total)
 
     private fun noonBands(): HomeBands = HomeBands(
         morning =

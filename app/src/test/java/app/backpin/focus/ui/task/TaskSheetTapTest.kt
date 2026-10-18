@@ -38,7 +38,6 @@ import app.backpin.focus.ui.TaskSheetRole
 import app.backpin.focus.ui.TaskSheetUi
 import app.backpin.focus.ui.home.HomeScreen
 import app.backpin.focus.ui.home.InboxScreen
-import app.backpin.focus.ui.home.LaterScreen
 import app.backpin.focus.ui.theme.FocusStackTheme
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -68,7 +67,7 @@ class TaskSheetTapTest {
             await { viewModel.uiState.value.todaySlots.any { it.task?.title == "Park me" } }
             tapRow("open. Park me. Opens the task sheet")
             await { viewModel.taskSheet.value?.role == TaskSheetRole.TODAY_OPEN }
-            assertEquals(listOf("Start", "Done", "Later", "Edit"), sheetActions())
+            assertEquals(listOf("Done", "Start", "Later", "Edit"), sheetActions())
             tapSheet("Start")
             await { viewModel.taskSheet.value == null && viewModel.uiState.value.now?.title == "Park me" }
             compose.onNodeWithText("This task.").assertDoesNotExist()
@@ -87,7 +86,7 @@ class TaskSheetTapTest {
             await { viewModel.uiState.value.now?.title == "Hold this" }
             tapRow("open. Park me. Opens the task sheet")
             await { viewModel.taskSheet.value?.canInterrupt == true }
-            assertEquals(listOf("Start", "Done", "Later", "Interrupt", "Edit"), sheetActions())
+            assertEquals(listOf("Done", "Start", "Later", "Interrupt", "Edit"), sheetActions())
             tapSheet("Interrupt")
             await {
                 viewModel.taskSheet.value == null && viewModel.uiState.value.now?.title == "Park me"
@@ -191,21 +190,21 @@ class TaskSheetTapTest {
     }
 
     @Test
-    fun laterInFocusInterruptNestsFromThePileAndCloses() {
+    fun inboxInFocusInterruptNestsFromThePileAndCloses() {
         withHarness { viewModel, useCases, _ ->
             runBlocking {
                 todayTask(useCases, "Hold this")
                 useCases.start(idOf(useCases, "Hold this"))
-                useCases.captureLater("From later")
+                useCases.capture("Nest me")
             }
-            showLater(viewModel)
-            await { viewModel.uiState.value.laterTasks.any { it.title == "From later" } }
-            tapRow("Later. From later. Opens the task sheet")
+            showInbox(viewModel)
+            await { viewModel.uiState.value.inboxTasks.any { it.title == "Nest me" } }
+            tapRow("Inbox. Nest me. Opens the task sheet")
             await { viewModel.taskSheet.value?.role == TaskSheetRole.PILE }
             assertEquals(listOf("Today", "Start", "Interrupt", "Edit"), sheetActions())
             tapSheet("Interrupt")
             awaitSnapshot(useCases) { snapshot ->
-                activeTitle(snapshot) == "From later" &&
+                activeTitle(snapshot) == "Nest me" &&
                     snapshot.frames.any { it.taskId == idOfBlocking(useCases, "Hold this") && it.state == FrameState.PAUSED }
             }
             assertNull(viewModel.taskSheet.value)
@@ -213,25 +212,25 @@ class TaskSheetTapTest {
     }
 
     @Test
-    fun laterStartAndEditEachRunAndCloseTheSheet() {
+    fun inboxStartAndEditEachRunAndCloseTheSheet() {
         withHarness { viewModel, useCases, _ ->
             runBlocking {
-                useCases.captureLater("Start later")
-                useCases.captureLater("Edit later")
+                useCases.capture("Start from pile")
+                useCases.capture("Edit from pile")
             }
-            showLater(viewModel)
-            await { viewModel.uiState.value.laterTasks.size == 2 }
+            showInbox(viewModel)
+            await { viewModel.uiState.value.inboxTasks.size == 2 }
 
-            tapRow("Later. Start later. Opens the task sheet")
-            await { viewModel.taskSheet.value?.title == "Start later" }
+            tapRow("Inbox. Start from pile. Opens the task sheet")
+            await { viewModel.taskSheet.value?.title == "Start from pile" }
             tapSheet("Start")
-            awaitSnapshot(useCases) { activeTitle(it) == "Start later" }
+            awaitSnapshot(useCases) { activeTitle(it) == "Start from pile" }
             assertNull(viewModel.taskSheet.value)
 
-            tapRow("Later. Edit later. Opens the task sheet")
-            await { viewModel.taskSheet.value?.title == "Edit later" }
+            tapRow("Inbox. Edit from pile. Opens the task sheet")
+            await { viewModel.taskSheet.value?.title == "Edit from pile" }
             tapSheet("Edit")
-            await { viewModel.uiState.value.editing?.title == "Edit later" }
+            await { viewModel.uiState.value.editing?.title == "Edit from pile" }
             assertNull(viewModel.taskSheet.value)
         }
     }
@@ -246,7 +245,6 @@ class TaskSheetTapTest {
                     viewModel = viewModel,
                     onOpenFocus = {},
                     onOpenInbox = {},
-                    onOpenLater = {},
                     onOpenScheduled = {},
                     onOpenDone = {},
                 )
@@ -262,27 +260,6 @@ class TaskSheetTapTest {
             FocusStackTheme {
                 InboxScreen(
                     tasks = state.inboxTasks,
-                    ready = state.ready,
-                    canInterrupt = state.canInterrupt,
-                    onBack = {},
-                    onToday = viewModel::promote,
-                    onStart = viewModel::start,
-                    onInterrupt = viewModel::interruptFromPile,
-                    onEdit = viewModel::openEdit,
-                    onOpenSheet = viewModel::openTaskSheet,
-                )
-                sheet?.let { pending -> hostedTaskSheet(pending, viewModel) }
-            }
-        }
-    }
-
-    private fun showLater(viewModel: FocusStackViewModel) {
-        compose.setContent {
-            val state by viewModel.uiState.collectAsState()
-            val sheet by viewModel.taskSheet.collectAsState()
-            FocusStackTheme {
-                LaterScreen(
-                    tasks = state.laterTasks,
                     ready = state.ready,
                     canInterrupt = state.canInterrupt,
                     onBack = {},

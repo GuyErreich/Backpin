@@ -190,7 +190,6 @@ class CountdownTapTest {
                                 viewModel = viewModel,
                                 onOpenFocus = {},
                                 onOpenInbox = {},
-                                onOpenLater = {},
                                 onOpenScheduled = {},
                                 onOpenDone = {},
                             )
@@ -306,7 +305,6 @@ class CountdownTapTest {
                                 viewModel = viewModel,
                                 onOpenFocus = {},
                                 onOpenInbox = {},
-                                onOpenLater = {},
                                 onOpenScheduled = {},
                                 onOpenDone = {},
                             )
@@ -371,7 +369,6 @@ class CountdownTapTest {
                         viewModel = viewModel,
                         onOpenFocus = {},
                         onOpenInbox = {},
-                        onOpenLater = {},
                         onOpenScheduled = {},
                         onOpenDone = {},
                     )
@@ -456,7 +453,6 @@ class CountdownTapTest {
                         viewModel = viewModel,
                         onOpenFocus = {},
                         onOpenInbox = {},
-                        onOpenLater = {},
                         onOpenScheduled = {},
                         onOpenDone = {},
                     )

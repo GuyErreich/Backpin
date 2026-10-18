@@ -190,7 +190,6 @@ class RepeatCheckOffTest {
                     viewModel = viewModel,
                     onOpenFocus = {},
                     onOpenInbox = {},
-                    onOpenLater = {},
                     onOpenScheduled = {},
                     onOpenDone = {},
                 )

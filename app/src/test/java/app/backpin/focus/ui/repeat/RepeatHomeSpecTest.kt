@@ -439,7 +439,6 @@ class RepeatHomeSpecTest {
                     viewModel = viewModel,
                     onOpenFocus = {},
                     onOpenInbox = {},
-                    onOpenLater = {},
                     onOpenScheduled = {},
                     onOpenDone = {},
                 )

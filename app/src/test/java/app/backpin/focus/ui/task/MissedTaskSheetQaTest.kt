@@ -27,13 +27,14 @@ import app.backpin.focus.data.FocusRepositoryImpl
 import app.backpin.focus.data.FocusStackDatabase
 import app.backpin.focus.data.PreferencesDataStore
 import app.backpin.focus.domain.AppClock
+import app.backpin.focus.domain.CountdownUnit
 import app.backpin.focus.domain.FocusSnapshot
 import app.backpin.focus.domain.FocusUseCases
 import app.backpin.focus.domain.TaskBucket
 import app.backpin.focus.domain.TaskStatus
 import app.backpin.focus.ui.FocusStackViewModel
 import app.backpin.focus.ui.calendar.PickDateDialog
-import app.backpin.focus.ui.home.ScheduledScreen
+import app.backpin.focus.ui.home.ComingUpScreen
 import app.backpin.focus.ui.theme.FocusStackTheme
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -67,9 +68,9 @@ class MissedTaskSheetQaTest {
             runBlocking {
                 useCases.captureScheduled("Call Dana", today.toEpochDay())
             }
-            showScheduled(viewModel)
+            showComingUp(viewModel)
             await { viewModel.uiState.value.scheduledTasks.singleOrNull { it.title == "Call Dana" }?.due == true }
-            tapRow("Scheduled. Call Dana")
+            tapRow("Call Dana. today")
             await { viewModel.missedTaskSheet.value?.title == "Call Dana" }
             compose.onNodeWithText("This one was missed.").assertExists()
             compose.onNodeWithText("It stayed off Today. Done now, or pick another day.").assertExists()
@@ -88,9 +89,9 @@ class MissedTaskSheetQaTest {
             runBlocking {
                 useCases.captureScheduled("Call Dana", LocalDate.now().toEpochDay())
             }
-            showScheduled(viewModel)
+            showComingUp(viewModel)
             await { viewModel.uiState.value.scheduledTasks.any { it.title == "Call Dana" && it.due } }
-            tapRow("Scheduled. Call Dana")
+            tapRow("Call Dana. today")
             await { viewModel.missedTaskSheet.value != null }
             tapSheet("Done now")
             awaitSnapshot(useCases) { task(it, "Call Dana").status == TaskStatus.DONE }
@@ -106,9 +107,9 @@ class MissedTaskSheetQaTest {
             runBlocking {
                 useCases.captureScheduled("Call Dana", today.toEpochDay())
             }
-            showScheduled(viewModel)
+            showComingUp(viewModel)
             await { viewModel.uiState.value.scheduledTasks.any { it.title == "Call Dana" && it.due } }
-            tapRow("Scheduled. Call Dana")
+            tapRow("Call Dana. today")
             await { viewModel.missedTaskSheet.value != null }
             tapSheet("Tomorrow")
             val tomorrow = today.plusDays(1)
@@ -151,9 +152,9 @@ class MissedTaskSheetQaTest {
             runBlocking {
                 useCases.captureScheduled("Call Dana", today.toEpochDay())
             }
-            showScheduled(viewModel)
+            showComingUp(viewModel)
             await { viewModel.uiState.value.scheduledTasks.any { it.title == "Call Dana" && it.due } }
-            tapRow("Scheduled. Call Dana")
+            tapRow("Call Dana. today")
             await { viewModel.missedTaskSheet.value != null }
             tapSheet("Pick a day")
             assertTodayCellDisabled(today)
@@ -166,26 +167,22 @@ class MissedTaskSheetQaTest {
         }
     }
 
-    private fun showScheduled(viewModel: FocusStackViewModel) {
+    private fun showComingUp(viewModel: FocusStackViewModel) {
         compose.setContent {
             val state by viewModel.uiState.collectAsState()
             val missed by viewModel.missedTaskSheet.collectAsState()
             FocusStackTheme {
-                ScheduledScreen(
-                    tasks = state.scheduledTasks,
+                ComingUpScreen(
+                    scheduledTasks = state.scheduledTasks,
+                    countdowns = state.countdowns,
                     ready = state.ready,
-                    canInterrupt = state.canInterrupt,
-                    onBack = {},
-                    onToday = {},
-                    onStart = {},
-                    onInterrupt = {},
-                    onInbox = {},
-                    onLater = {},
-                    onRemove = {},
-                    onChangeDate = { _, _ -> },
-                    onChangeTime = { _, _ -> },
+                    today = state.today,
+                    countdownUnit = CountdownUnit.DAYS,
                     onEdit = {},
+                    onOpenSheet = {},
                     onOpenMissed = viewModel::openMissedTask,
+                    onAddCountdown = { _, _ -> },
+                    onChangeCountdownDate = { _, _ -> },
                 )
                 missed?.let { pending ->
                     MissedTaskSheet(
