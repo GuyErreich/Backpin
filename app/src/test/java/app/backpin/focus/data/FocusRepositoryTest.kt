@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package app.backpin.focus.data
 
+// flake-check summary probe: this file must stay selected.
+
 import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
