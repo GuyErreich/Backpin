@@ -508,7 +508,7 @@ class FocusRepositoryImpl(
                 if (existing?.state == FrameState.AWAITING_RESUME.name) {
                     return@withTransaction PromoteOutcome.Rejected("Resume the waiting frame explicitly")
                 }
-                val openChild = existing?.let { frameDao.newestOpenChild(it.id) }
+                val openChild = existing?.let { deepestOpenChild(it.id) }
                 if (openChild != null) {
                     val childTask = taskDao.getById(openChild.taskId) ?: error("Missing task")
                     if (active?.id != openChild.id) {
@@ -1259,6 +1259,20 @@ class FocusRepositoryImpl(
                     scheduledAtMinuteOfDay = null,
                 ),
             )
+        }
+    }
+
+    /**
+     * Walks open children from [parentFrameId] to the leaf.
+     * At each step, when siblings exist, takes the newest.
+     */
+    private suspend fun deepestOpenChild(parentFrameId: String): FocusFrameEntity? {
+        var current = frameDao.newestOpenChild(parentFrameId) ?: return null
+        val seen = mutableSetOf(current.id)
+        while (true) {
+            val next = frameDao.newestOpenChild(current.id) ?: return current
+            if (!seen.add(next.id)) return current
+            current = next
         }
     }
 

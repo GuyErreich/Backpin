@@ -116,9 +116,9 @@ data class UndoToken(
 /**
  * Result of [FocusRepository.start].
  * Today-slot results stay [PromoteOutcome] values.
- * Starting a parent that still has an open interruption activates that
- * interruption and returns [RedirectedToInterruption] so the UI can say
- * "Finish <interruption> first, then back to <parent>."
+ * Starting a parent that still has an open interruption activates the
+ * deepest open child and returns [RedirectedToInterruption]. The parent
+ * fields stay the task that was started.
  */
 sealed interface StartOutcome {
     data class RedirectedToInterruption(
