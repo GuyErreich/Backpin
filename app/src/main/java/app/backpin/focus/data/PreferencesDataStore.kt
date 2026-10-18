@@ -293,6 +293,7 @@ class PreferencesDataStore(
         val COUNTDOWN_UNIT = stringPreferencesKey("countdown_unit")
     }
 
+    @Suppress("ktlint:standard:function-signature")
     private fun followUpKey(band: RepeatBand) =
         when (band) {
             RepeatBand.MORNING -> Keys.FOLLOW_UP_MORNING
@@ -324,6 +325,7 @@ class PreferencesDataStore(
 }
 
 /** One phrase per line, in display order. Blank lines are dropped. */
+@Suppress("ktlint:standard:function-signature")
 internal fun encodeSavedPhrases(phrases: List<String>): String =
     phrases
         .map { it.replace('\n', ' ').trim() }
