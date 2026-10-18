@@ -220,9 +220,8 @@ class NotificationCoordinator(
         notify(NotificationContract.ID_NUDGE, notification)
     }
 
-    private fun base(channelId: String): NotificationCompat.Builder =
-        NotificationCompat.Builder(context, channelId)
-            .setSmallIcon(R.drawable.ic_stat_focus)
+    private fun base(channelId: String): NotificationCompat.Builder = NotificationCompat.Builder(context, channelId)
+        .setSmallIcon(R.drawable.ic_stat_focus)
 
     private fun openApp(
         destination: String,
@@ -246,13 +245,12 @@ class NotificationCoordinator(
     private fun notify(
         id: Int,
         notification: android.app.Notification,
-    ): Boolean =
-        try {
-            NotificationManagerCompat.from(context).notify(id, notification)
-            true
-        } catch (_: SecurityException) {
-            false
-        }
+    ): Boolean = try {
+        NotificationManagerCompat.from(context).notify(id, notification)
+        true
+    } catch (_: SecurityException) {
+        false
+    }
 
     private fun cancel(id: Int) {
         NotificationManagerCompat.from(context).cancel(id)
@@ -337,12 +335,11 @@ internal fun todayNoticeRowSubtitle(
     return minuteOfDayLabel(minute)
 }
 
-private fun repeatBandTitleRes(band: RepeatBand): Int =
-    when (band) {
-        RepeatBand.MORNING -> R.string.home_band_morning
-        RepeatBand.NOON -> R.string.home_band_noon
-        RepeatBand.NIGHT -> R.string.home_band_night
-    }
+private fun repeatBandTitleRes(band: RepeatBand): Int = when (band) {
+    RepeatBand.MORNING -> R.string.home_band_morning
+    RepeatBand.NOON -> R.string.home_band_noon
+    RepeatBand.NIGHT -> R.string.home_band_night
+}
 
 /** Changes when the collapsed copy or the open Today set changes. */
 internal fun currentNoticeKey(
@@ -392,8 +389,7 @@ internal fun todayTaskCount(count: Int): String = if (count == 1) "1 task" else 
  * which is default importance, because the older low channel did not show a
  * status icon. An active or waiting task stays on [NotificationContract.CHANNEL_CURRENT].
  */
-internal fun todayNoticeChannel(idle: Boolean): String =
-    if (idle) NotificationContract.CHANNEL_TODAY else NotificationContract.CHANNEL_CURRENT
+internal fun todayNoticeChannel(idle: Boolean): String = if (idle) NotificationContract.CHANNEL_TODAY else NotificationContract.CHANNEL_CURRENT
 
 /**
  * Ongoing, silent notice. Idle and active both use default importance so a
@@ -534,59 +530,54 @@ internal fun todayBigContent(
 internal fun buildCountdownArrivalNotification(
     context: Context,
     title: String,
-): android.app.Notification =
-    NotificationCompat.Builder(context, NotificationContract.CHANNEL_COUNTDOWN)
-        .setSmallIcon(R.drawable.ic_stat_focus)
-        .setContentTitle(context.getString(R.string.countdown_arrived_title, title))
-        .setContentText(context.getString(R.string.countdown_arrived_text))
-        .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-        .setSilent(true)
-        .setOnlyAlertOnce(true)
-        .setAutoCancel(true)
-        .setContentIntent(focusPendingIntent(context, NotificationContract.DESTINATION_FOCUS, requestCode = 5))
-        .build()
+): android.app.Notification = NotificationCompat.Builder(context, NotificationContract.CHANNEL_COUNTDOWN)
+    .setSmallIcon(R.drawable.ic_stat_focus)
+    .setContentTitle(context.getString(R.string.countdown_arrived_title, title))
+    .setContentText(context.getString(R.string.countdown_arrived_text))
+    .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+    .setSilent(true)
+    .setOnlyAlertOnce(true)
+    .setAutoCancel(true)
+    .setContentIntent(focusPendingIntent(context, NotificationContract.DESTINATION_FOCUS, requestCode = 5))
+    .build()
 
 internal fun todayDonePending(
     context: Context,
     taskId: String,
-): PendingIntent =
-    PendingIntent.getBroadcast(
-        context,
-        17 * taskId.hashCode(),
-        todayDoneBroadcast(context, taskId),
-        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-    )
+): PendingIntent = PendingIntent.getBroadcast(
+    context,
+    17 * taskId.hashCode(),
+    todayDoneBroadcast(context, taskId),
+    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+)
 
 internal fun todayDoneBroadcast(
     context: Context,
     taskId: String,
-): Intent =
-    Intent(context, NotificationActionReceiver::class.java).apply {
-        action = NotificationContract.ACTION_TODAY_DONE
-        data = Uri.parse("app.backpin.focus://today-done/$taskId")
-        putExtra(NotificationContract.EXTRA_TASK_ID, taskId)
-    }
+): Intent = Intent(context, NotificationActionReceiver::class.java).apply {
+    action = NotificationContract.ACTION_TODAY_DONE
+    data = Uri.parse("app.backpin.focus://today-done/$taskId")
+    putExtra(NotificationContract.EXTRA_TASK_ID, taskId)
+}
 
 internal fun switchPendingIntent(
     context: Context,
     taskId: String,
-): PendingIntent =
-    PendingIntent.getBroadcast(
-        context,
-        taskId.hashCode(),
-        switchBroadcast(context, taskId),
-        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-    )
+): PendingIntent = PendingIntent.getBroadcast(
+    context,
+    taskId.hashCode(),
+    switchBroadcast(context, taskId),
+    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+)
 
 internal fun switchBroadcast(
     context: Context,
     taskId: String,
-): Intent =
-    Intent(context, NotificationActionReceiver::class.java).apply {
-        action = NotificationContract.ACTION_SWITCH
-        data = Uri.parse("app.backpin.focus://switch/$taskId")
-        putExtra(NotificationContract.EXTRA_TASK_ID, taskId)
-    }
+): Intent = Intent(context, NotificationActionReceiver::class.java).apply {
+    action = NotificationContract.ACTION_SWITCH
+    data = Uri.parse("app.backpin.focus://switch/$taskId")
+    putExtra(NotificationContract.EXTRA_TASK_ID, taskId)
+}
 
 internal fun focusPendingIntent(
     context: Context,
