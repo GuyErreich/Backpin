@@ -68,6 +68,8 @@ import app.backpin.focus.ui.NowUi
 import app.backpin.focus.ui.SlotRole
 import app.backpin.focus.ui.SlotUi
 import app.backpin.focus.ui.TaskUi
+import app.backpin.focus.ui.capture.BringBackSheet
+import app.backpin.focus.ui.capture.localDateOf
 import app.backpin.focus.ui.focus.RecoveryCard
 import app.backpin.focus.ui.motion.MotionSpec
 import app.backpin.focus.ui.motion.motionSpec
@@ -79,6 +81,7 @@ import app.backpin.focus.ui.theme.FocusColors
 import app.backpin.focus.ui.theme.Space
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.time.ZoneId
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -103,7 +106,6 @@ fun HomeScreen(
     val hasRoom = filled.size < todayLimit
     val movedComingUp = stringResource(R.string.moved_to_coming_up)
     val movedInbox = stringResource(R.string.moved_to_inbox)
-    val today = java.time.LocalDate.now()
     var bringBack by remember { mutableStateOf<BringBackTarget?>(null) }
     val openBringBack: (String, String) -> Unit = { id, title ->
         bringBack = BringBackTarget(id, title)
@@ -213,11 +215,10 @@ fun HomeScreen(
         }
     }
     bringBack?.let { target ->
+        val zone = ZoneId.systemDefault()
+        val today = localDateOf(viewModel.clock, zone)
         val isEvent = state.now?.let { it.taskId == target.taskId && it.isEvent } == true
-        app.backpin.focus.ui.capture.BringBackSheet(
-            title = target.title,
-            today = today,
-            earliest = if (isEvent) today.plusDays(1) else today,
+        BringBackSheet(
             onDismiss = { bringBack = null },
             onDate = { date ->
                 bringBack = null
@@ -227,6 +228,9 @@ fun HomeScreen(
                 bringBack = null
                 viewModel.bringBackToInbox(target.taskId, movedInbox)
             },
+            clock = viewModel.clock,
+            zone = zone,
+            earliest = if (isEvent) today.plusDays(1) else null,
         )
     }
 }

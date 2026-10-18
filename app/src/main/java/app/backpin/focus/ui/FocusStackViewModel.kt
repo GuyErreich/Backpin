@@ -45,7 +45,7 @@ import java.time.LocalDate
 class FocusStackViewModel(
     private val useCases: FocusUseCases,
     private val repeatsApi: RepeatsApi = RepeatsApi.Empty,
-    private val clock: AppClock = SystemAppClock,
+    internal val clock: AppClock = SystemAppClock,
 ) : ViewModel() {
     private val captureOpen = MutableStateFlow(false)
     private val captureInterrupts = MutableStateFlow(false)

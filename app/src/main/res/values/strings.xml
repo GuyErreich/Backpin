@@ -29,9 +29,21 @@
     <string name="action_bring_back_a11y">Bring back</string>
     <string name="action_keep_in_inbox">No date, keep in Inbox</string>
     <string name="action_undo">Undo</string>
-    <string name="bring_back_sheet_title">Bring back…</string>
-    <string name="bring_back_sheet_lede">When should it come back?</string>
-    <string name="bring_back_sheet_note">Without a time, it lands on Today any time that day.</string>
+    <string name="bring_back_sheet_title">Bring it back in…</string>
+    <string name="bring_back_sheet_subtitle">Scroll to pick how many days.</string>
+    <string name="bring_back_pick_a_date">Pick a date</string>
+    <string name="bring_back_pick_a_date_title">Pick a date</string>
+    <string name="bring_back_prev_month">Previous month</string>
+    <string name="bring_back_next_month">Next month</string>
+    <plurals name="bring_back_days">
+        <item quantity="one">%d day</item>
+        <item quantity="other">%d days</item>
+    </plurals>
+    <plurals name="bring_back_save_in_days">
+        <item quantity="one">Save · in %d day</item>
+        <item quantity="other">Save · in %d days</item>
+    </plurals>
+    <string name="bring_back_save_on_date">Save · %1$s</string>
     <string name="moved_to_coming_up">Moved to Coming up</string>
     <string name="moved_to_inbox">Moved to Inbox</string>
     <string name="action_count_down_again">Count down again</string>
