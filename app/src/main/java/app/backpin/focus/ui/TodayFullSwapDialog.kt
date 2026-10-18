@@ -50,16 +50,10 @@ fun TodayFullSwapDialog(
         containerColor = FocusColors.Live.Surface,
         titleContentColor = FocusColors.Live.Text,
         textContentColor = FocusColors.Live.Muted,
-        title = { Text("Today is full") },
+        title = { Text(stringResource(R.string.swap_today_full_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(Space)) {
-                Text(
-                    if (canInterrupt) {
-                        stringResource(R.string.swap_today_full_body_interrupt, incoming.title)
-                    } else {
-                        stringResource(R.string.swap_today_full_body, incoming.title)
-                    },
-                )
+                Text(stringResource(R.string.swap_today_full_body, incoming.title))
                 Column(verticalArrangement = Arrangement.spacedBy(ButtonGap)) {
                     if (canInterrupt) {
                         AccentButton(

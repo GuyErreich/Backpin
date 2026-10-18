@@ -44,8 +44,8 @@
     <string name="action_swap_one_out">Swap one out</string>
     <string name="action_keep_in_inbox">Keep in Inbox</string>
     <string name="kept_in_inbox">Kept in Inbox</string>
-    <string name="swap_today_full_body_interrupt">“%1$s” needs a Today slot. Interrupt the current task, or replace one. Replacing parks that task in Later and does not start the new one.</string>
-    <string name="swap_today_full_body">“%1$s” needs a Today slot. Replace one Today task. That task moves to Later, and the new one takes its place without starting.</string>
+    <string name="swap_today_full_title">Today is full</string>
+    <string name="swap_today_full_body">Swap one out, or keep \"%1$s\" in Inbox. Nothing gets lost.</string>
     <string name="channel_current_name">Current task</string>
     <string name="channel_current_description">Ongoing notice of the task to return to. It stays until you leave it. Elapsed time stays in the app.</string>
     <string name="channel_today_name">Today</string>
