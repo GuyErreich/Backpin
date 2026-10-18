@@ -9,6 +9,7 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.click
+import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
@@ -20,6 +21,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStore
@@ -197,6 +199,8 @@ class CountdownResumeStayTest {
         compose.onNodeWithText("Days from today").assertExists()
         compose.onNodeWithText("Pick a date").assertIsEnabled().assertHasClickAction()
         compose.onNodeWithContentDescription("Close").assertExists()
+        val close = compose.onNodeWithContentDescription("Close").getBoundsInRoot()
+        assertTrue("Close is ${close.bottom - close.top} tall", close.bottom - close.top >= 48.dp)
         compose.onNodeWithText("Count down again").assertDoesNotExist()
         compose.onNodeWithText("Countdown").assertDoesNotExist()
         val againTop = compose.onNodeWithText(again).fetchSemanticsNode().boundsInRoot.top
