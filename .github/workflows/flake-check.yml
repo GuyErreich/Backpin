@@ -30,116 +30,23 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-
       - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
           distribution: temurin
           java-version: "21"
-
       - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
         with:
           cache-read-only: true
-
       - name: Test build-logic
         run: ./gradlew -p build-logic test
-
-      - name: Select changed tests
-        id: select
+      - name: Flake check
         env:
           FLAKE_CHECK_MERGE_PARENTS: ${{ github.event_name == 'pull_request' }}
+          FLAKE_CHECK_BASE: ${{ github.event.pull_request.base.sha }}
+          FLAKE_CHECK_HEAD: ${{ github.event.pull_request.head.sha }}
           FLAKE_CHECK_CLASSES: ${{ github.event.inputs.classes }}
-        run: |
-          set -euo pipefail
-          ./gradlew selectChangedTestClasses
-          classes_file="build/flake-check/classes.txt"
-          if [[ ! -s "$classes_file" ]]; then
-            echo "has_tests=false" >>"$GITHUB_OUTPUT"
-            echo "No changed unit test classes under \`app/src/test\`; skipping." | tee -a "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
-          echo "has_tests=true" >>"$GITHUB_OUTPUT"
-          echo "Selected test classes:"
-          cat "$classes_file"
-
-      - name: Rerun selected tests
-        id: rerun
-        if: steps.select.outputs.has_tests == 'true'
-        env:
           RUN_COUNT: ${{ github.event.inputs.runs || 30 }}
-        run: |
-          set -euo pipefail
-          classes_file="build/flake-check/classes.txt"
-          mapfile -t raw_classes <"$classes_file"
-          classes=()
-          for class in "${raw_classes[@]}"; do
-            [[ -n "$class" ]] || continue
-            if [[ ! "$class" =~ ^[A-Za-z0-9_.]+$ ]]; then
-              echo "Invalid test class name" >&2
-              exit 1
-            fi
-            classes+=("$class")
-          done
-          if [[ ${#classes[@]} -eq 0 ]]; then
-            echo "No test classes to run" >&2
-            exit 1
-          fi
-          if [[ ! "$RUN_COUNT" =~ ^[1-9][0-9]*$ ]] || ((RUN_COUNT > 100)); then
-            echo "runs must be an integer from 1 to 100" >&2
-            exit 1
-          fi
-
-          test_args=()
-          for class in "${classes[@]}"; do
-            test_args+=(--tests "$class")
-          done
-
-          failed_root="${RUNNER_TEMP}/flake-failed"
-          mkdir -p "$failed_root" build/flake-check/runs
-
-          for ((i = 1; i <= RUN_COUNT; i++)); do
-            echo "::group::Flake run ${i}/${RUN_COUNT}"
-            rm -rf app/build/test-results app/build/reports/tests
-            set +e
-            ./gradlew :app:testDebugUnitTest "${test_args[@]}" --rerun --stacktrace
-            status=$?
-            set -e
-            echo "::endgroup::"
-
-            run_dir="build/flake-check/runs/${i}"
-            mkdir -p "$run_dir"
-            xml_dir="app/build/test-results/testDebugUnitTest"
-            if [[ -d "$xml_dir" ]]; then
-              shopt -s nullglob
-              xml_files=("$xml_dir"/TEST-*.xml)
-              shopt -u nullglob
-              if [[ ${#xml_files[@]} -gt 0 ]]; then
-                cp "${xml_files[@]}" "$run_dir/"
-              fi
-            fi
-
-            if [[ "$status" -ne 0 ]]; then
-              dest="${failed_root}/run-${i}"
-              mkdir -p "$dest"
-              if [[ -d app/build/test-results ]]; then
-                cp -a app/build/test-results "$dest/"
-              fi
-              if [[ -d app/build/reports/tests ]]; then
-                cp -a app/build/reports/tests "$dest/"
-              fi
-            fi
-          done
-
-          ./gradlew summarizeFlakeResults
-
+        run: ./gradlew flakeCheck
       - name: Publish flake summary
-        if: always() && steps.rerun.outcome != 'skipped'
+        if: always()
         run: cat build/flake-check/summary.md >>"$GITHUB_STEP_SUMMARY"
-
-      - name: Upload failing run reports
-        if: failure() && steps.rerun.outcome == 'failure'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: flake-check-reports
-          path: ${{ runner.temp }}/flake-failed/
-          if-no-files-found: ignore
-          retention-days: 14
