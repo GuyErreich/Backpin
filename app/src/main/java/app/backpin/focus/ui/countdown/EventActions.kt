@@ -81,7 +81,6 @@ internal fun EventResumeHost(
 }
 
 private const val DEFAULT_RESUME_DAYS = 7
-private const val MAX_TYPED_RESUME_DAYS = 3650
 
 /**
  * One mint Again in N days choice, a typed days field, and Pick a date.
@@ -117,7 +116,7 @@ internal fun ResumeCountdownSheet(
 
     fun commitTyped() {
         val days = daysText.toIntOrNull() ?: return
-        if (days !in MIN_COUNTDOWN_DAYS..MAX_TYPED_RESUME_DAYS) return
+        if (days !in MIN_COUNTDOWN_DAYS..MAX_COUNTDOWN_REARM_DAYS) return
         commitInDays(days)
     }
 
