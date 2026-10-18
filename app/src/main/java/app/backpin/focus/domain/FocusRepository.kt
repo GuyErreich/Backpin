@@ -75,7 +75,7 @@ interface FocusRepository {
      * [FrameState.AWAITING_RESUME], and moves the task to [destination]. Nothing resumes on its own.
      * [DetachDestination.Today] places it without starting it. When Today is full it
      * waits in Inbox and returns [PromoteOutcome.NeedsSwap], so Replace can place it.
-     * [DetachDestination.Countdown] needs a day after today.
+     * [DetachDestination.Countdown] needs a day from tomorrow through today plus 365 days.
      */
     suspend fun detachInterruption(
         taskId: String,
