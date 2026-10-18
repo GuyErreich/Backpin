@@ -259,16 +259,21 @@ class FocusStackViewModelTest {
             viewModel.placeOnToday("Call the school")
             val waiting =
                 withTimeout(5_000) {
-                    viewModel.uiState.first { it.freshSwapTitle == "Call the school" && it.swapChoices.size == 3 }
+                    viewModel.uiState.first { it.swapIncoming?.title == "Call the school" && it.swapChoices.size == 3 }
                 }
-            assertEquals(3, useCases.observeSnapshot().first().tasks.size)
+            val held = useCases.observeSnapshot().first().tasks.single { it.title == "Call the school" }
+            assertEquals(TaskBucket.INBOX, held.bucket)
+            assertEquals(4, useCases.observeSnapshot().first().tasks.size)
             assertEquals(3, waiting.swapChoices.size)
-            assertNull(waiting.swapIncoming)
+            assertEquals("Call the school", waiting.swapIncoming?.title)
             viewModel.cancelSwap()
             withTimeout(5_000) {
-                viewModel.uiState.first { it.freshSwapTitle == null }
+                viewModel.uiState.first { it.swapIncoming == null }
             }
-            assertTrue(useCases.observeSnapshot().first().tasks.none { it.title == "Call the school" })
+            assertEquals(
+                TaskBucket.INBOX,
+                useCases.observeSnapshot().first().tasks.single { it.title == "Call the school" }.bucket,
+            )
             collect.cancel()
         }
 
@@ -395,10 +400,11 @@ class FocusStackViewModelTest {
             viewModel.placeAndStart("Call Dana")
             val waiting =
                 withTimeout(5_000) {
-                    viewModel.uiState.first { it.freshSwapTitle == "Call Dana" && it.swapChoices.size == 3 }
+                    viewModel.uiState.first { it.swapIncoming?.title == "Call Dana" && it.swapChoices.size == 3 }
                 }
             val snapshot = useCases.observeSnapshot().first()
-            assertTrue(snapshot.tasks.none { it.title == "Call Dana" })
+            val held = snapshot.tasks.single { it.title == "Call Dana" }
+            assertEquals(TaskBucket.INBOX, held.bucket)
             assertEquals(today[0], snapshot.frames.single { it.state == FrameState.ACTIVE }.taskId)
             assertEquals(3, waiting.swapChoices.size)
             collect.cancel()

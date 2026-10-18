@@ -211,20 +211,19 @@ class DeriveFocusUiTest {
     @Test
     fun aFreshCaptureOnAFullTodayStillListsReplaceChoices() {
         val notes = task("notes", "Write the notes", TaskBucket.TODAY)
+        val incoming = task("incoming", "Call the school", TaskBucket.INBOX)
         val state =
             deriveFocusUi(
-                FocusSnapshot(tasks = listOf(notes)),
+                FocusSnapshot(tasks = listOf(notes, incoming)),
                 ChromeState(
                     captureOpen = false,
-                    swapIncomingId = null,
-                    freshSwapTitle = "Call the school",
+                    swapIncomingId = incoming.id,
                     switchOpen = false,
                     undo = null,
                     preferences = UserPreferences(todayLimit = 1),
                 ),
             )
-        assertEquals("Call the school", state.freshSwapTitle)
-        assertNull(state.swapIncoming)
+        assertEquals("Call the school", state.swapIncoming?.title)
         assertEquals(listOf("Write the notes"), state.swapChoices.map { it.title })
     }
 
