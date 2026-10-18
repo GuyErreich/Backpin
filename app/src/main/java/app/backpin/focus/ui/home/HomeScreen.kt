@@ -770,12 +770,7 @@ internal fun SectionLabel(
             letterSpacing = 1.2.sp,
             modifier = Modifier.semantics { heading() },
         )
-        Text(
-            trailing,
-            style = MaterialTheme.typography.bodyMedium,
-            color = FocusColors.Live.Muted,
-            modifier = Modifier.semantics(mergeDescendants = true) {},
-        )
+        Text(trailing, style = MaterialTheme.typography.bodyMedium, color = FocusColors.Live.Muted)
     }
 }
 
