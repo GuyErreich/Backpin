@@ -196,7 +196,7 @@ class CountdownArrivalTest {
         }
 
     @Test
-    fun laterSendsTheEventToInboxAndReturnsToTheParent() =
+    fun laterParksTheEventAndReturnsToTheParent() =
         runBlocking {
             val work = startedToday()
             val event = arrive("Dentist")

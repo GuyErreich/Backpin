@@ -166,8 +166,7 @@ class InterruptTodayPlacementTest {
 
     private suspend fun snapshot(repo: FocusRepository): FocusSnapshot = repo.observeSnapshot().first()
 
-    private suspend fun openToday(repo: FocusRepository) =
-        snapshot(repo).tasks.filter { it.bucket == TaskBucket.TODAY && it.status == TaskStatus.OPEN }
+    private suspend fun openToday(repo: FocusRepository) = snapshot(repo).tasks.filter { it.bucket == TaskBucket.TODAY && it.status == TaskStatus.OPEN }
 
     private suspend fun task(
         repo: FocusRepository,

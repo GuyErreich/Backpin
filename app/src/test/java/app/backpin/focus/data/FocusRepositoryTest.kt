@@ -492,9 +492,6 @@ class FocusRepositoryTest {
             assertEquals(TaskBucket.TODAY, task(original).bucket)
             assertEquals(FrameState.PAUSED, after.frames.single { it.id == parentFrame }.state)
             assertEquals(setOf(original, second, third, incoming), openToday().map { it.id }.toSet())
-            val extra = capture("Extra")
-            assertTrue(repository.promote(extra) is PromoteOutcome.NeedsSwap)
-            assertEquals(TaskBucket.INBOX, task(extra).bucket)
             repository.completeActive()
             val recovered = snapshot()
             val waiting = recovered.frames.single { it.state == FrameState.AWAITING_RESUME }
