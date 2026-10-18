@@ -22,7 +22,6 @@ internal data class ChromeState(
     val captureOpen: Boolean,
     val captureInterrupts: Boolean = false,
     val swapIncomingId: String?,
-    val freshSwapTitle: String? = null,
     val switchOpen: Boolean,
     val undo: PendingUndo?,
     val preferences: UserPreferences,
@@ -157,7 +156,7 @@ internal fun deriveFocusUi(
             .sortedWith(compareByDescending<Task> { it.completedAtEpochMillis ?: 0L }.thenByDescending { it.sortOrder })
             .map { it.toUi() }
     val incoming = chrome.swapIncomingId?.let { id -> tasksById[id]?.toUi() }
-    val swapping = incoming != null || chrome.freshSwapTitle != null
+    val swapping = incoming != null
     val switchTargets =
         today
             .filter { it.id != now?.taskId }
@@ -187,7 +186,6 @@ internal fun deriveFocusUi(
         captureInterrupts = chrome.captureInterrupts,
         editing = editing,
         swapIncoming = incoming,
-        freshSwapTitle = chrome.freshSwapTitle,
         swapChoices = if (!swapping) emptyList() else today.map { it.toUi() },
         switchOpen = chrome.switchOpen,
         switchTargets = switchTargets,
@@ -198,10 +196,9 @@ internal fun deriveFocusUi(
 
 private fun Task.toUi(): TaskUi = TaskUi(id = id, title = title, returnCue = returnCue)
 
-private fun Task.toEditing(): EditingUi =
-    EditingUi(
-        id = id,
-        title = title,
-        place = bucket.editPlace(),
-        scheduledOnEpochDay = scheduledOnEpochDay,
-    )
+private fun Task.toEditing(): EditingUi = EditingUi(
+    id = id,
+    title = title,
+    place = bucket.editPlace(),
+    scheduledOnEpochDay = scheduledOnEpochDay,
+)

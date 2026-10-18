@@ -68,15 +68,6 @@ class FocusUseCases(
         destination: DetachDestination,
     ): PromoteOutcome = repository.detachInterruption(taskId, destination)
 
-    suspend fun captureReplacing(
-        title: String,
-        outgoingTaskId: String,
-    ): UndoToken = repository.captureReplacing(title, outgoingTaskId)
-
-    suspend fun interruptWithNew(title: String) {
-        repository.interruptWithNew(title)
-    }
-
     suspend fun moveToInbox(taskId: String) {
         repository.moveToInbox(taskId)
     }

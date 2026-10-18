@@ -94,6 +94,8 @@ fun FocusApp(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val checkedOffMessage = stringResource(R.string.undo_checked_off)
+    val keptInInboxMessage = stringResource(R.string.kept_in_inbox)
+    val undoAction = stringResource(R.string.action_undo)
     val repeatDraft by viewModel.editingRepeat.collectAsStateWithLifecycle()
     val taskSheet by viewModel.taskSheet.collectAsStateWithLifecycle()
     val missedRepeatSheet by viewModel.missedRepeatSheet.collectAsStateWithLifecycle()
@@ -120,11 +122,11 @@ fun FocusApp(
 
     LaunchedEffect(state.undo?.id) {
         val undo = state.undo ?: return@LaunchedEffect
-        val message = undoSnackbarMessage(undo, checkedOffMessage)
+        val message = undoSnackbarMessage(undo, checkedOffMessage, keptInInboxMessage)
         val result =
             snackbarHostState.showSnackbar(
                 message = message,
-                actionLabel = "Undo",
+                actionLabel = undoAction,
                 withDismissAction = true,
             )
         if (result == SnackbarResult.ActionPerformed) {
@@ -136,17 +138,7 @@ fun FocusApp(
 
     Scaffold(
         containerColor = FocusColors.Live.Midnight,
-        snackbarHost = {
-            SnackbarHost(snackbarHostState) { data ->
-                Snackbar(
-                    snackbarData = data,
-                    containerColor = FocusColors.Live.SurfaceHigh,
-                    contentColor = FocusColors.Live.Text,
-                    actionColor = FocusColors.Live.Mint,
-                    dismissActionContentColor = FocusColors.Live.Muted,
-                )
-            }
-        },
+        snackbarHost = { FocusSnackbarHost(snackbarHostState) },
         bottomBar = {
             Column {
                 if (showCapture) {
@@ -401,47 +393,17 @@ fun FocusApp(
         )
     }
 
-    val swapTitle = state.swapIncoming?.title ?: state.freshSwapTitle
-    if (swapTitle != null) {
+    val swapIncoming = state.swapIncoming
+    if (swapIncoming != null) {
         val canInterrupt =
             state.now != null && state.todaySlots.any { it.task?.id == state.now?.taskId }
-        AlertDialog(
-            onDismissRequest = viewModel::cancelSwap,
-            containerColor = FocusColors.Live.Surface,
-            titleContentColor = FocusColors.Live.Text,
-            textContentColor = FocusColors.Live.Muted,
-            title = { Text("Today is full") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(Space)) {
-                    Text(
-                        if (canInterrupt) {
-                            "“$swapTitle” needs a Today slot. Interrupt the current task, or replace one. Replacing parks that task in Later and does not start the new one."
-                        } else {
-                            "“$swapTitle” needs a Today slot. Replace one Today task. That task moves to Later, and the new one takes its place without starting."
-                        },
-                    )
-                    Column(verticalArrangement = Arrangement.spacedBy(ButtonGap)) {
-                        if (canInterrupt) {
-                            AccentButton(
-                                label = "Interrupt current task",
-                                tone = AccentTone.Lavender,
-                                onClick = viewModel::confirmInterrupt,
-                                modifier = Modifier.fillMaxWidth(),
-                            )
-                        }
-                        state.swapChoices.forEach { choice ->
-                            QuietButton(
-                                label = "Replace “${choice.title}”",
-                                onClick = { viewModel.confirmReplace(choice.id) },
-                                modifier = Modifier.fillMaxWidth(),
-                            )
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                QuietButton("Cancel", onClick = viewModel::cancelSwap, modifier = Modifier.fillMaxWidth())
-            },
+        TodayFullSwapDialog(
+            incoming = swapIncoming,
+            swapChoices = state.swapChoices,
+            canInterrupt = canInterrupt,
+            onKeepInInbox = viewModel::keepInInbox,
+            onInterrupt = viewModel::confirmInterrupt,
+            onReplace = viewModel::confirmReplace,
         )
     }
 
@@ -470,6 +432,19 @@ fun FocusApp(
                     QuietButton("Cancel", onClick = viewModel::dismissSwitch, modifier = Modifier.fillMaxWidth())
                 }
             },
+        )
+    }
+}
+
+@Composable
+internal fun FocusSnackbarHost(hostState: SnackbarHostState) {
+    SnackbarHost(hostState) { data ->
+        Snackbar(
+            snackbarData = data,
+            containerColor = FocusColors.Live.SurfaceHigh,
+            contentColor = FocusColors.Live.Text,
+            actionColor = FocusColors.Live.Mint,
+            dismissActionContentColor = FocusColors.Live.Muted,
         )
     }
 }

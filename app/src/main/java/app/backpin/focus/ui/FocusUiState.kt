@@ -117,6 +117,11 @@ sealed interface UndoTarget {
         val epochDay: Long,
         val restore: RepeatDayStatus = RepeatDayStatus.OPEN,
     ) : UndoTarget
+
+    /** Fresh capture kept in Inbox. Undo deletes it only while it is still an open Inbox task. */
+    data class DiscardCapture(
+        val taskId: String,
+    ) : UndoTarget
 }
 
 data class PendingUndo(
@@ -128,13 +133,19 @@ data class PendingUndo(
 /**
  * Snackbar text for [undo]. Repeat check-off always uses [checkedOffLabel]
  * (`R.string.undo_checked_off`) so an empty ViewModel message cannot go blank.
+ * A kept fresh capture uses [keptInInboxLabel] (`R.string.kept_in_inbox`).
  */
 fun undoSnackbarMessage(
     undo: PendingUndo,
     checkedOffLabel: String,
+    keptInInboxLabel: String = "",
 ): String {
     val preferred =
-        if (undo.target is UndoTarget.RepeatCheckOff) checkedOffLabel else undo.message
+        when (undo.target) {
+            is UndoTarget.DiscardCapture -> keptInInboxLabel
+            is UndoTarget.RepeatCheckOff -> checkedOffLabel
+            is UndoTarget.Tasks -> undo.message
+        }
     return preferred.ifBlank { checkedOffLabel }.ifBlank { undo.message }
 }
 
@@ -158,7 +169,6 @@ data class FocusUiState(
     val captureInterrupts: Boolean = false,
     val editing: EditingUi? = null,
     val swapIncoming: TaskUi? = null,
-    val freshSwapTitle: String? = null,
     val swapChoices: List<TaskUi> = emptyList(),
     val switchOpen: Boolean = false,
     val switchTargets: List<TaskUi> = emptyList(),
