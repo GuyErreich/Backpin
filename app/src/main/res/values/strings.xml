@@ -57,10 +57,6 @@
     <string name="resume_sheet_days_label">Days from today</string>
     <string name="resume_sheet_days_placeholder">Or type days</string>
     <string name="resume_sheet_days_error">Enter %1$d to %2$d days</string>
-    <plurals name="resume_again_in_days">
-        <item quantity="one">Again in %1$d day · %2$s</item>
-        <item quantity="other">Again in %1$d days · %2$s</item>
-    </plurals>
     <string name="resume_start_in_days">Start in %1$d days</string>
     <string name="missed_repeat_sheet_title">This one was missed.</string>
     <string name="missed_repeat_sheet_lede">Muted until the end of the day. You can still check it off.</string>

@@ -126,7 +126,7 @@ internal fun ResumeCountdownSheet(
     }
 
     ChipSheet(
-        title = title,
+        title = title.takeIf { it.isNotBlank() } ?: stringResource(R.string.resume_sheet_title),
         onDismiss = onDismiss,
         gesturesEnabled = true,
     ) {
