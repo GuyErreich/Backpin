@@ -58,6 +58,7 @@ internal fun HomeBandsSection(
     onOpenSheet: (String) -> Unit = {},
     onCheckOffRepeat: (RepeatRow) -> Unit,
     onOpenMissedRepeat: (RepeatRow) -> Unit = {},
+    onUndoRepeat: (RepeatRow) -> Unit = {},
     onEditRepeat: (Repeat) -> Unit,
 ) {
     Column {
@@ -80,6 +81,7 @@ internal fun HomeBandsSection(
                     onOpenSheet = onOpenSheet,
                     onCheckOffRepeat = onCheckOffRepeat,
                     onOpenMissedRepeat = onOpenMissedRepeat,
+                    onUndoRepeat = onUndoRepeat,
                     onEditRepeat = onEditRepeat,
                 )
             }
@@ -105,6 +107,7 @@ private fun HomeBandBlock(
     onOpenSheet: (String) -> Unit,
     onCheckOffRepeat: (RepeatRow) -> Unit,
     onOpenMissedRepeat: (RepeatRow) -> Unit,
+    onUndoRepeat: (RepeatRow) -> Unit,
     onEditRepeat: (Repeat) -> Unit,
 ) {
     val toggleable = group.phase != BandPhase.ALWAYS_OPEN
@@ -141,17 +144,16 @@ private fun HomeBandBlock(
                 layout = HomeLayout.BANDS,
                 todayTaskIds = filled.map { it.second.id }.toSet(),
             )
-            group.repeats.forEach { row ->
-                key(row.repeat.id) {
-                    RepeatRow(
-                        row = row,
-                        reducedMotion = reducedMotion,
-                        onCheckOff = { onCheckOffRepeat(row) },
-                        onOpenMissed = { onOpenMissedRepeat(row) },
-                        onEdit = { onEditRepeat(row.repeat) },
-                        layout = HomeLayout.BANDS,
-                    )
-                }
+            if (group.repeats.isNotEmpty()) {
+                RepeatRowGroup(
+                    rows = group.repeats,
+                    reducedMotion = reducedMotion,
+                    layout = HomeLayout.BANDS,
+                    onCheckOff = onCheckOffRepeat,
+                    onOpenMissed = onOpenMissedRepeat,
+                    onUndo = onUndoRepeat,
+                    onEdit = onEditRepeat,
+                )
             }
         }
     }

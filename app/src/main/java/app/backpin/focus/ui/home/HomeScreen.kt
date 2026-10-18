@@ -67,19 +67,12 @@ import app.backpin.focus.domain.MIN_TODAY_LIMIT
 import app.backpin.focus.domain.RepeatDayStatus
 import app.backpin.focus.domain.elapsedMillis
 import app.backpin.focus.domain.formatElapsed
-import app.backpin.focus.domain.suggestedCountdownDays
 import app.backpin.focus.ui.FocusStackViewModel
 import app.backpin.focus.ui.FocusUiState
 import app.backpin.focus.ui.NowUi
 import app.backpin.focus.ui.SlotRole
 import app.backpin.focus.ui.SlotUi
 import app.backpin.focus.ui.TaskUi
-import app.backpin.focus.ui.components.AccentButton
-import app.backpin.focus.ui.components.AccentTone
-import app.backpin.focus.ui.components.CardActions
-import app.backpin.focus.ui.components.QuietButton
-import app.backpin.focus.ui.countdown.EventDetachButtons
-import app.backpin.focus.ui.countdown.EventResumeHost
 import app.backpin.focus.ui.focus.RecoveryCard
 import app.backpin.focus.ui.motion.MotionSpec
 import app.backpin.focus.ui.motion.motionSpec
@@ -165,6 +158,9 @@ fun HomeScreen(
                     onOpenMissedRepeat = { row ->
                         viewModel.openMissedRepeat(row.repeat.id, row.epochDay)
                     },
+                    onUndoRepeat = { row ->
+                        viewModel.undoRepeatDone(row.repeat.id, row.epochDay)
+                    },
                     onEditRepeat = viewModel::openRepeatEdit,
                 )
             } else {
@@ -193,6 +189,9 @@ fun HomeScreen(
                     },
                     onOpenMissed = { row ->
                         viewModel.openMissedRepeat(row.repeat.id, row.epochDay)
+                    },
+                    onUndo = { row ->
+                        viewModel.undoRepeatDone(row.repeat.id, row.epochDay)
                     },
                     onEdit = viewModel::openRepeatEdit,
                     onCreate = { viewModel.openRepeatCreate() },
@@ -252,6 +251,7 @@ private fun NowCard(
                     }
                 },
                 reducedMotion = reducedMotion,
+                onLongPress = { viewModel.openTaskSheet(now.taskId) },
                 extraActions =
                 listOf(
                     CustomAccessibilityAction("Done") {
@@ -313,35 +313,6 @@ private fun NowCard(
                             running = true,
                             clock = true,
                         )
-                        EventResumeHost(
-                            taskId = now.taskId,
-                            title = now.title,
-                            suggestedDays =
-                            suggestedCountdownDays(
-                                now.countdownIntervalDays,
-                                state.preferences.lastCountdownDays,
-                            ),
-                            onDetach = viewModel::detachEvent,
-                        ) { onCountDownAgain ->
-                            CardActions(modifier = Modifier.padding(top = HomeMetrics.SlotGap)) {
-                                AccentButton("Done", AccentTone.Mint, onClick = viewModel::completeActive)
-                                if (now.isEvent) {
-                                    EventDetachButtons(
-                                        taskId = now.taskId,
-                                        onDetach = viewModel::detachEvent,
-                                        onCountDownAgain = onCountDownAgain,
-                                    )
-                                } else {
-                                    AccentButton(
-                                        "Interrupt",
-                                        AccentTone.Lavender,
-                                        onClick = { viewModel.openCapture(interrupts = true) },
-                                    )
-                                    QuietButton("Later", onClick = { viewModel.demote(now.taskId) })
-                                }
-                                QuietButton("Edit", onClick = { viewModel.openEdit(now.taskId) })
-                            }
-                        }
                     }
                 }
             }
@@ -384,9 +355,6 @@ private fun NowCard(
                             color = FocusColors.Live.Text,
                             modifier = Modifier.padding(top = HomeMetrics.NowLabelBottom),
                         )
-                        CardActions(modifier = Modifier.padding(top = HomeMetrics.SlotGap)) {
-                            QuietButton("Start", onClick = { viewModel.start(paused.taskId) })
-                        }
                     }
                 }
             }
@@ -674,34 +642,23 @@ private fun TodayRow(
     onDragEnd: () -> Unit,
     onDragCancel: () -> Unit,
 ) {
-    val rightSwipe = todayRightSwipe(slot.role, somethingCurrent)
-    val rightWord =
-        when (rightSwipe) {
-            TodayRightSwipe.Done -> "done"
-            TodayRightSwipe.Start -> "start"
-            TodayRightSwipe.Interrupt -> "interrupt"
-        }
     val opensSheet = slot.role == SlotRole.OPEN || slot.role == SlotRole.WAITING
     val description =
         if (opensSheet) {
-            "Today position ${index + 1}. ${slot.role.name.lowercase()}. ${task.title}. Opens the task sheet. Swipe right for $rightWord, swipe left for later. Long press and drag to reorder within Today."
+            "Today position ${index + 1}. ${slot.role.name.lowercase()}. ${task.title}. Opens the task sheet. Swipe right for done, swipe left for later. Long press for more actions."
         } else {
-            "Today position ${index + 1}. ${slot.role.name.lowercase()}. ${task.title}. Swipe right for $rightWord, swipe left for later. Long press and drag to reorder within Today."
+            "Today position ${index + 1}. ${slot.role.name.lowercase()}. ${task.title}. Swipe right for done, swipe left for later. Long press for more actions."
         }
     val openInteraction = rememberPressSource()
     SwipeRevealCard(
-        towardStart =
-        when (rightSwipe) {
-            TodayRightSwipe.Done -> doneSwipe(onDone)
-            TodayRightSwipe.Start -> startSwipe(onStart)
-            TodayRightSwipe.Interrupt -> interruptSwipe(onInterrupt)
-        },
+        towardStart = doneSwipe(onDone),
         towardEnd = laterSwipe(onLater),
         reducedMotion = reducedMotion,
         onReorderDragStart = onDragStart,
         onReorderDrag = onDragBy,
         onReorderDragEnd = onDragEnd,
         onReorderDragCancel = onDragCancel,
+        onLongPress = onOpenSheet,
         extraActions =
         reorderActions +
             CustomAccessibilityAction("Done") {
@@ -712,6 +669,14 @@ private fun TodayRow(
                 if (slot.role == SlotRole.OPEN) {
                     CustomAccessibilityAction("Start") {
                         onStart()
+                        true
+                    }
+                } else {
+                    null
+                },
+                if (slot.role == SlotRole.OPEN && somethingCurrent) {
+                    CustomAccessibilityAction("Interrupt") {
+                        onInterrupt()
                         true
                     }
                 } else {
@@ -758,44 +723,32 @@ private fun TodayRow(
             color = FocusColors.Live.Surface,
             shadowElevation = 8.dp * lift,
         ) {
-            Column(
-                Modifier.padding(
-                    horizontal = layout.taskPaddingHorizontal(),
-                    vertical = layout.taskPaddingVertical(),
-                ),
-                verticalArrangement = Arrangement.spacedBy(HomeMetrics.SlotGap),
+            Row(
+                modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = HomeMetrics.HomeTouchTarget)
+                    .padding(
+                        horizontal = layout.taskPaddingHorizontal(),
+                        vertical = layout.taskPaddingVertical(),
+                    ),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Row(
-                    modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = HomeMetrics.HomeTouchTarget),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        task.title,
-                        style = layout.taskTitleStyle(),
-                        color = FocusColors.Live.Text,
-                        modifier = Modifier.weight(1f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    val trailing = compactTrailing(layout, task, todayLimit, pinnedToToday)
-                    Text(
-                        trailing.text,
-                        style = if (layout == HomeLayout.FLAT) HomeMetrics.SlotChevron else HomeMetrics.RowTag,
-                        color = trailing.color,
-                    )
-                }
-                CardActions {
-                    AccentButton("Done", AccentTone.Mint, onClick = onDone)
-                    if (slot.role == SlotRole.OPEN) {
-                        QuietButton("Start", onClick = onStart)
-                    }
-                    QuietButton("Later", onClick = onLater)
-                    QuietButton("Edit", onClick = onEdit)
-                }
+                Text(
+                    task.title,
+                    style = layout.taskTitleStyle(),
+                    color = FocusColors.Live.Text,
+                    modifier = Modifier.weight(1f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                val trailing = compactTrailing(layout, task, todayLimit, pinnedToToday)
+                Text(
+                    trailing.text,
+                    style = if (layout == HomeLayout.FLAT) HomeMetrics.SlotChevron else HomeMetrics.RowTag,
+                    color = trailing.color,
+                )
             }
         }
     }

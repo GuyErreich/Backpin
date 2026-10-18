@@ -23,7 +23,12 @@ internal fun repeatBandMark(band: RepeatBand): String = band.name
 internal fun everyNDaysLabel(
     cadenceDays: Int,
     resources: Resources,
-): String? = if (cadenceDays <= 1) null else resources.getString(R.string.repeat_cadence, cadenceDays)
+): String? =
+    when {
+        cadenceDays <= 0 -> null
+        cadenceDays == 1 -> resources.getString(R.string.repeat_cadence_daily)
+        else -> resources.getString(R.string.repeat_cadence, cadenceDays)
+    }
 
 internal fun missedRepeatCopy(
     band: RepeatBand,

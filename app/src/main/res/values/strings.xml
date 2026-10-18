@@ -58,6 +58,7 @@
     <string name="repeat_empty">Nothing due today.</string>
     <string name="repeat_new">New repeat</string>
     <string name="repeat_cadence">every %d days</string>
+    <string name="repeat_cadence_daily">daily</string>
     <string name="repeat_title_cadence_gap">" · %1$s"</string>
     <string name="repeat_missed">Missed at %1$s · muted until end of day</string>
     <string name="repeat_missed_morning">Missed this morning</string>
@@ -72,6 +73,7 @@
     <string name="repeat_row_desc_missed">%1$s. %2$s. Check off.</string>
     <string name="repeat_row_edit">Edit</string>
     <string name="repeat_row_check_off">Check off</string>
+    <string name="repeat_row_undo">Undo</string>
     <string name="repeat_sheet_create_title">A small repeating thing.</string>
     <string name="repeat_sheet_edit_title">This repeat.</string>
     <string name="repeat_sheet_lede">Repeats stay off Today. Checking them off is enough.</string>

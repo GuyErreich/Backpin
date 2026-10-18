@@ -203,10 +203,9 @@ private fun Task.toUi(): TaskUi = TaskUi(
     scheduledAtMinuteOfDay = scheduledAtMinuteOfDay,
 )
 
-private fun Task.toEditing(): EditingUi =
-    EditingUi(
-        id = id,
-        title = title,
-        place = bucket.editPlace(),
-        scheduledOnEpochDay = scheduledOnEpochDay,
-    )
+private fun Task.toEditing(): EditingUi = EditingUi(
+    id = id,
+    title = title,
+    place = bucket.editPlace(),
+    scheduledOnEpochDay = scheduledOnEpochDay,
+)

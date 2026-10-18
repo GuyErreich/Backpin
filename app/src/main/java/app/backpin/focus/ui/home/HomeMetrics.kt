@@ -38,11 +38,8 @@ internal object HomeMetrics {
     val TaskPaddingHorizontal = 18.dp
     val TaskGap = 7.dp
 
-    val RepeatRadius = 22.dp
-    val RepeatBorder = 1.5.dp
-    val RepeatPaddingVertical = 10.dp
-    val RepeatPaddingHorizontal = 18.dp
-    val RepeatGap = 7.dp
+    val RowVisualHeight = 43.dp
+    val RepeatIconSize = 20.dp
     val RepeatGlyphGap = 6.dp
     val RepeatTagGap = 8.dp
 

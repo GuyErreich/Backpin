@@ -46,6 +46,7 @@ import app.backpin.focus.ui.theme.ButtonRadius
 import app.backpin.focus.ui.theme.CardActionGap
 import app.backpin.focus.ui.theme.CardActionHeight
 import app.backpin.focus.ui.theme.FocusColors
+import app.backpin.focus.ui.theme.RowDoneHeight
 
 /** Mint is the one primary action. Lavender is Interrupt and events. Amber is missed or due. */
 internal enum class AccentTone {
@@ -376,6 +377,26 @@ internal fun ActionRow(
                 }
             }
         }
+    }
+}
+
+/**
+ * Mint outline Done on a compact Home row. Same size on every upcoming and missed row.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun RowDonePill(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    CompositionLocalProvider(
+        LocalButtonMinHeight provides RowDoneHeight,
+        LocalLockButtonHeight provides true,
+        LocalButtonPadding provides CardActionPadding,
+        LocalButtonVerticalPadding provides 0.dp,
+        LocalMinimumInteractiveComponentSize provides 0.dp,
+    ) {
+        AccentButton("Done", AccentTone.Mint, onClick, modifier)
     }
 }
 
