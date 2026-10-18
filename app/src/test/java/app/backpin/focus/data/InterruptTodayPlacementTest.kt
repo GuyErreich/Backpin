@@ -22,8 +22,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
-import java.time.Instant
-import java.time.ZoneId
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
@@ -135,11 +133,7 @@ class InterruptTodayPlacementTest {
                     val repo = fixture.repository
                     val parent = repo.seedFullToday(listOf("Write the brief")).single()
                     repo.start(parent.id)
-                    val todayEpochDay =
-                        Instant.ofEpochMilli(fixture.clock.nowEpochMillis())
-                            .atZone(ZoneId.systemDefault())
-                            .toLocalDate()
-                            .toEpochDay()
+                    val todayEpochDay = fixture.clock.localDate().toEpochDay()
                     repo.captureCountdown("Dentist", todayEpochDay)
                     val arrived = repo.releaseDueCountdowns() ?: error("Countdown did not arrive")
                     arrived.id to parent.id
