@@ -270,7 +270,7 @@ private fun TimeInFocus(
 }
 
 @Composable
-@Suppress("ktlint:standard:indent", "ktlint:standard:no-consecutive-blank-lines")
+@Suppress("ktlint:standard:indent")
 private fun ReturnNoteField(
     taskId: String,
     cue: String,

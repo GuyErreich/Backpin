@@ -33,7 +33,7 @@ internal fun deriveFocusUi(
     snapshot: FocusSnapshot,
     chrome: ChromeState,
     localDate: LocalDate,
-    localTime: LocalTime = LocalTime.now(),
+    localTime: LocalTime,
 ): FocusUiState {
     val localNow = localDate.atTime(localTime)
     val tasksById = snapshot.tasks.associateBy { it.id }
