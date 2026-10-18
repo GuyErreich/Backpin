@@ -304,12 +304,15 @@ class DeriveFocusUiTest {
     private fun datedFocusUi(
         snapshot: FocusSnapshot,
         chrome: ChromeState,
-    ): FocusUiState = deriveFocusUi(
-        snapshot,
-        chrome,
-        app.backpin.focus.testing.FakeAppClock().localDate(),
-        app.backpin.focus.testing.FakeAppClock().localTime(),
-    )
+    ): FocusUiState {
+        val clock = app.backpin.focus.testing.FakeAppClock()
+        return deriveFocusUi(
+            snapshot,
+            chrome,
+            localDate = clock.localDate(),
+            localTime = clock.localTime(),
+        )
+    }
 
     private fun task(
         id: String,
