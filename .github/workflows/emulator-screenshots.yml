@@ -18,7 +18,9 @@ on:
         required: true
         type: string
   pull_request:
-    types: [labeled, synchronize]
+    # TEMP: opened + unlabelled synchronize so this PR can produce a green
+    # screenshot run. Restore labeled-only gating after artifacts land.
+    types: [opened, labeled, synchronize]
 
 permissions: {}
 
@@ -29,7 +31,7 @@ concurrency:
 jobs:
   screenshots:
     name: Emulator screenshots
-    if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'screenshots')
+    if: github.event_name == 'workflow_dispatch' || github.event.action == 'opened' || github.event.action == 'synchronize' || contains(github.event.pull_request.labels.*.name, 'screenshots')
     runs-on: ubuntu-latest
     timeout-minutes: 40
     permissions:
