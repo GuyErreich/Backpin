@@ -28,6 +28,8 @@ import app.backpin.focus.domain.countdownIntervalDays
 import app.backpin.focus.domain.currentMinuteOfDay
 import app.backpin.focus.domain.editPlace
 import app.backpin.focus.domain.homeBandsForToday
+import app.backpin.focus.domain.localDateOf
+import app.backpin.focus.domain.localTimeOf
 import app.backpin.focus.repeats.RepeatsApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -45,7 +47,7 @@ import java.time.LocalDate
 class FocusStackViewModel(
     private val useCases: FocusUseCases,
     private val repeatsApi: RepeatsApi = RepeatsApi.Empty,
-    internal val clock: AppClock = SystemAppClock,
+    private val clock: AppClock = SystemAppClock,
 ) : ViewModel() {
     private val captureOpen = MutableStateFlow(false)
     private val captureInterrupts = MutableStateFlow(false)
@@ -108,6 +110,8 @@ class FocusStackViewModel(
                     preferences = preferences,
                     editingTaskId = editing,
                 ),
+                localDate = localDateOf(clock),
+                localTime = localTimeOf(clock),
             )
         }.stateIn(
             viewModelScope,

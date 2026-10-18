@@ -23,29 +23,29 @@ import androidx.compose.ui.unit.dp
 import app.backpin.focus.R
 import app.backpin.focus.ui.CountdownUi
 import app.backpin.focus.ui.ScheduledTaskUi
-import app.backpin.focus.ui.TaskUi
 import app.backpin.focus.ui.components.AccentButton
 import app.backpin.focus.ui.components.AccentTone
 import app.backpin.focus.ui.countdown.CountdownPile
 import app.backpin.focus.ui.theme.ButtonGap
+import java.time.LocalDate
+import java.time.LocalTime
 
 /**
- * Later, Scheduled, and Countdown on one tab. No back arrow — this is a root tab.
+ * Scheduled and Countdown on one tab. No back arrow — this is a root tab.
  */
 @Composable
 fun ComingUpScreen(
-    laterTasks: List<TaskUi>,
     scheduledTasks: List<ScheduledTaskUi>,
     countdowns: List<CountdownUi>,
     ready: Boolean,
     canInterrupt: Boolean,
+    today: LocalDate,
+    now: LocalTime,
     onToday: (String) -> Unit,
     onStart: (String) -> Unit,
     onInterrupt: (String) -> Unit,
     onEdit: (String) -> Unit,
-    onOpenSheet: (String) -> Unit,
     onInbox: (String) -> Unit,
-    onLater: (String) -> Unit,
     onRemoveScheduled: (String) -> Unit,
     onChangeDate: (String, Long) -> Unit,
     onChangeTime: (String, Int?) -> Unit,
@@ -84,31 +84,17 @@ fun ComingUpScreen(
                 tasks = scheduledTasks,
                 canInterrupt = canInterrupt,
                 emptyLabel = stringResource(R.string.pile_scheduled_empty),
+                today = today,
+                now = now,
                 onToday = onToday,
                 onStart = onStart,
                 onInterrupt = onInterrupt,
                 onInbox = onInbox,
-                onLater = onLater,
                 onRemove = onRemoveScheduled,
                 onChangeDate = onChangeDate,
                 onChangeTime = onChangeTime,
                 onEdit = onEdit,
                 onOpenMissed = onOpenMissed,
-            )
-            SectionLabel(
-                stringResource(R.string.screen_later).uppercase(),
-                laterTasks.size.toString(),
-            )
-            ActionPileCards(
-                title = stringResource(R.string.screen_later),
-                emptyLabel = stringResource(R.string.pile_later_empty),
-                tasks = laterTasks,
-                canInterrupt = canInterrupt,
-                onToday = onToday,
-                onStart = onStart,
-                onInterrupt = onInterrupt,
-                onEdit = onEdit,
-                onOpenSheet = onOpenSheet,
             )
             SectionLabel(
                 stringResource(R.string.screen_countdown).uppercase(),
@@ -124,6 +110,7 @@ fun ComingUpScreen(
                 countdowns = countdowns,
                 emptyLabel = stringResource(R.string.pile_countdown_empty),
                 adding = addingCountdown,
+                today = today,
                 onAddingChange = { addingCountdown = it },
                 onAdd = onAddCountdown,
                 onChangeDate = onChangeCountdownDate,

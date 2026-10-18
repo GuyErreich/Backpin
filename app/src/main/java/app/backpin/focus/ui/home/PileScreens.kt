@@ -148,6 +148,8 @@ fun ScheduledScreen(
     onChangeTime: (String, Int?) -> Unit,
     onEdit: (String) -> Unit,
     onOpenMissed: (String) -> Unit = {},
+    today: LocalDate = LocalDate.now(),
+    now: LocalTime = LocalTime.now(),
     modifier: Modifier = Modifier,
 ) {
     PileScaffold(
@@ -161,6 +163,8 @@ fun ScheduledScreen(
             tasks = tasks,
             canInterrupt = canInterrupt,
             emptyLabel = stringResource(R.string.pile_scheduled_empty),
+            today = today,
+            now = now,
             onToday = onToday,
             onStart = onStart,
             onInterrupt = onInterrupt,
@@ -323,21 +327,22 @@ internal fun ScheduledPile(
     tasks: List<ScheduledTaskUi>,
     canInterrupt: Boolean,
     emptyLabel: String,
+    today: LocalDate,
+    now: LocalTime,
     onToday: (String) -> Unit,
     onStart: (String) -> Unit,
     onInterrupt: (String) -> Unit,
     onInbox: (String) -> Unit,
-    onLater: (String) -> Unit,
     onRemove: (String) -> Unit,
     onChangeDate: (String, Long) -> Unit,
     onChangeTime: (String, Int?) -> Unit,
     onEdit: (String) -> Unit,
     onOpenMissed: (String) -> Unit,
+    onLater: ((String) -> Unit)? = null,
 ) {
     val reducedMotion = rememberReducedMotion()
     var datingId by rememberSaveable { mutableStateOf<String?>(null) }
     var timingId by rememberSaveable { mutableStateOf<String?>(null) }
-    val today = LocalDate.now()
     if (tasks.isEmpty()) {
         Text(emptyLabel, style = MaterialTheme.typography.bodyLarge, color = FocusColors.Live.Muted)
     }
@@ -404,7 +409,9 @@ internal fun ScheduledPile(
                             )
                         }
                         QuietButton(label = "Inbox", onClick = { onInbox(task.id) })
-                        QuietButton(label = "Later", onClick = { onLater(task.id) })
+                        if (onLater != null) {
+                            QuietButton(label = "Later", onClick = { onLater(task.id) })
+                        }
                         QuietButton(label = "Remove", onClick = { onRemove(task.id) })
                         if (task.epochDay != null) {
                             QuietButton(label = "Change date", onClick = { datingId = task.id })
@@ -441,7 +448,7 @@ internal fun ScheduledPile(
     if (timing != null && timingDay != null) {
         val date = LocalDate.ofEpochDay(timingDay)
         PickTimeDialog(
-            initialMinuteOfDay = timing.minuteOfDay ?: suggestedMinuteOfDay(date, today, LocalTime.now()),
+            initialMinuteOfDay = timing.minuteOfDay ?: suggestedMinuteOfDay(date, today, now),
             onPick = { minute ->
                 timingId = null
                 onChangeTime(timing.id, minute)

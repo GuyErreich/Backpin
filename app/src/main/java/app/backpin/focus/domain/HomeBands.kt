@@ -2,6 +2,8 @@
 package app.backpin.focus.domain
 
 import java.time.Instant
+import java.time.LocalDate
+import java.time.LocalTime
 import java.time.ZoneId
 
 /**
@@ -142,6 +144,18 @@ fun currentMinuteOfDay(
     val now = Instant.ofEpochMilli(clock.nowEpochMillis()).atZone(zone)
     return now.hour * 60 + now.minute
 }
+
+/** Local calendar day from [clock] and [zone]. */
+fun localDateOf(
+    clock: AppClock,
+    zone: ZoneId = ZoneId.systemDefault(),
+): LocalDate = Instant.ofEpochMilli(clock.nowEpochMillis()).atZone(zone).toLocalDate()
+
+/** Local clock time from [clock] and [zone]. */
+fun localTimeOf(
+    clock: AppClock,
+    zone: ZoneId = ZoneId.systemDefault(),
+): LocalTime = Instant.ofEpochMilli(clock.nowEpochMillis()).atZone(zone).toLocalTime()
 
 /**
  * Millis until the next band bound by clock time: the earliest of

@@ -193,6 +193,8 @@ internal fun deriveFocusUi(
         switchTargets = switchTargets,
         undo = chrome.undo,
         preferences = chrome.preferences,
+        today = localDate,
+        localTime = localTime,
     )
 }
 

@@ -155,7 +155,7 @@ fun FocusApp(
             AppTabBar(
                 selected = selectedTab(route),
                 inboxCount = state.inboxCount,
-                comingUpCount = state.laterCount + state.scheduledCount + state.countdowns.size,
+                comingUpCount = state.scheduledCount + state.countdowns.size,
                 onSelect = { tab ->
                     when (tab) {
                         AppTab.HOME -> navController.navigateTab(Routes.HOME)
@@ -195,7 +195,6 @@ fun FocusApp(
                     viewModel = viewModel,
                     onOpenFocus = { navController.navigateTab(Routes.FOCUS) },
                     onOpenInbox = { navController.navigateTab(Routes.INBOX) },
-                    onOpenLater = { navController.navigateTab(Routes.COMING_UP) },
                     onOpenScheduled = { navController.navigateTab(Routes.COMING_UP) },
                     onOpenDone = { navController.navigateTab(Routes.INBOX) },
                     homeLayout = homeLayout,
@@ -203,18 +202,17 @@ fun FocusApp(
             }
             composable(Routes.COMING_UP) {
                 ComingUpScreen(
-                    laterTasks = state.laterTasks,
                     scheduledTasks = state.scheduledTasks,
                     countdowns = state.countdowns,
                     ready = state.ready,
                     canInterrupt = state.canInterrupt,
+                    today = state.today,
+                    now = state.localTime,
                     onToday = viewModel::promote,
                     onStart = viewModel::start,
                     onInterrupt = viewModel::interruptFromPile,
                     onEdit = viewModel::openEdit,
-                    onOpenSheet = viewModel::openTaskSheet,
                     onInbox = viewModel::moveToInbox,
-                    onLater = viewModel::demote,
                     onRemoveScheduled = viewModel::removeScheduled,
                     onChangeDate = viewModel::changeScheduledDate,
                     onChangeTime = viewModel::changeScheduledTime,
@@ -282,6 +280,8 @@ fun FocusApp(
                     onChangeTime = viewModel::changeScheduledTime,
                     onEdit = viewModel::openEdit,
                     onOpenMissed = viewModel::openMissedTask,
+                    today = state.today,
+                    now = state.localTime,
                 )
             }
             composable(
@@ -307,6 +307,7 @@ fun FocusApp(
                     onChangeDate = viewModel::changeCountdownDate,
                     onRemove = viewModel::removeCountdown,
                     onEdit = viewModel::openEdit,
+                    today = state.today,
                 )
             }
             composable(Routes.SETTINGS) {

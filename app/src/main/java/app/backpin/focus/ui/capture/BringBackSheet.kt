@@ -65,7 +65,6 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.backpin.focus.R
-import app.backpin.focus.domain.AppClock
 import app.backpin.focus.domain.scheduleMomentLabel
 import app.backpin.focus.ui.components.ActionRow
 import app.backpin.focus.ui.components.CaptureChoice
@@ -80,10 +79,8 @@ import app.backpin.focus.ui.theme.FocusStackTheme
 import app.backpin.focus.ui.theme.Space
 import kotlinx.coroutines.launch
 import java.time.DayOfWeek
-import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
-import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
@@ -104,7 +101,7 @@ private enum class BringBackPage {
 
 /**
  * Days wheel, then an optional calendar. Dismiss without Save moves nothing.
- * [clock] and [zone] feed the live date line and the month grid.
+ * [today] is the injected local day from ViewModel state.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -112,12 +109,10 @@ internal fun BringBackSheet(
     onDismiss: () -> Unit,
     onDate: (LocalDate) -> Unit,
     onKeepInInbox: () -> Unit,
-    clock: AppClock,
-    zone: ZoneId,
+    today: LocalDate,
     locale: Locale = Locale.getDefault(),
     earliest: LocalDate? = null,
 ) {
-    val today = localDateOf(clock, zone)
     val minDate = earliest ?: today
     var page by remember { mutableStateOf(BringBackPage.Days) }
     var days by remember { mutableIntStateOf(BRING_BACK_DEFAULT_DAYS) }
@@ -576,11 +571,6 @@ private fun centeredDays(state: LazyListState): Int {
     return (index + 1).coerceIn(BRING_BACK_MIN_DAYS, BRING_BACK_MAX_DAYS)
 }
 
-internal fun localDateOf(
-    clock: AppClock,
-    zone: ZoneId,
-): LocalDate = Instant.ofEpochMilli(clock.nowEpochMillis()).atZone(zone).toLocalDate()
-
 internal fun sundayWeekdayLabels(locale: Locale): List<String> = (0L..6L).map { offset ->
     DayOfWeek.SUNDAY.plus(offset).getDisplayName(TextStyle.NARROW_STANDALONE, locale)
 }
@@ -592,9 +582,7 @@ internal fun sundayMonthCells(month: YearMonth): List<LocalDate> {
     return (0 until 42).map { start.plusDays(it.toLong()) }
 }
 
-private val PreviewClock = AppClock {
-    Instant.parse("2026-10-18T16:00:00Z").toEpochMilli()
-}
+private val PreviewToday = LocalDate.of(2026, 10, 18)
 
 @Composable
 private fun BringBackPreviewFrame(content: @Composable () -> Unit) {
@@ -635,7 +623,7 @@ private fun BringBackPreviewFrame(content: @Composable () -> Unit) {
 internal fun BringBackDaysPreview() {
     BringBackPreviewFrame {
         BringBackDaysPane(
-            today = localDateOf(PreviewClock, ZoneId.of("UTC")),
+            today = PreviewToday,
             days = BRING_BACK_DEFAULT_DAYS,
             locale = Locale.US,
             onDays = {},
@@ -649,7 +637,7 @@ internal fun BringBackDaysPreview() {
 @Preview(name = "Pick a date", widthDp = 412, heightDp = 720)
 @Composable
 internal fun BringBackDatePreview() {
-    val today = localDateOf(PreviewClock, ZoneId.of("UTC"))
+    val today = PreviewToday
     BringBackPreviewFrame {
         BringBackDatePane(
             today = today,

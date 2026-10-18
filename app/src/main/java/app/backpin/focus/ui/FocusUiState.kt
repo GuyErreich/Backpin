@@ -5,6 +5,8 @@ import app.backpin.focus.domain.CapturePlace
 import app.backpin.focus.domain.RepeatDayStatus
 import app.backpin.focus.domain.UndoToken
 import app.backpin.focus.domain.UserPreferences
+import java.time.LocalDate
+import java.time.LocalTime
 
 enum class SlotRole {
     NOW,
@@ -165,4 +167,6 @@ data class FocusUiState(
     val switchTargets: List<TaskUi> = emptyList(),
     val undo: PendingUndo? = null,
     val preferences: UserPreferences = UserPreferences(),
+    val today: LocalDate = LocalDate.ofEpochDay(0),
+    val localTime: LocalTime = LocalTime.MIN,
 )
