@@ -49,18 +49,18 @@ internal fun PickDateDialog(
             initialSelectedDateMillis = dateToPickerMillis(first),
             yearRange = earliest.year..maxOf(earliest.year, lastYear),
             selectableDates =
-                object : SelectableDates {
-                    override fun isSelectableDate(utcTimeMillis: Long): Boolean {
-                        val day = Math.floorDiv(utcTimeMillis, DAY_MILLIS)
-                        if (day < earliestDay) return false
-                        return latestDay == null || day <= latestDay
-                    }
+            object : SelectableDates {
+                override fun isSelectableDate(utcTimeMillis: Long): Boolean {
+                    val day = Math.floorDiv(utcTimeMillis, DAY_MILLIS)
+                    if (day < earliestDay) return false
+                    return latestDay == null || day <= latestDay
+                }
 
-                    override fun isSelectableYear(year: Int): Boolean {
-                        if (year < earliest.year) return false
-                        return latest == null || year <= latest.year
-                    }
-                },
+                override fun isSelectableYear(year: Int): Boolean {
+                    if (year < earliest.year) return false
+                    return latest == null || year <= latest.year
+                }
+            },
         )
     val selected = state.selectedDateMillis
     DatePickerDialog(
