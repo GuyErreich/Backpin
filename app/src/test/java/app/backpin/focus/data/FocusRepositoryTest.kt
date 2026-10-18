@@ -489,14 +489,14 @@ class FocusRepositoryTest {
             assertEquals(incoming, active.taskId)
             assertEquals(parentFrame, active.parentFrameId)
             assertEquals(TaskBucket.TODAY, task(incoming).bucket)
-            assertEquals(TaskBucket.LATER, task(original).bucket)
+            assertEquals(TaskBucket.TODAY, task(original).bucket)
             assertEquals(FrameState.PAUSED, after.frames.single { it.id == parentFrame }.state)
-            assertEquals(setOf(second, third, incoming), openToday().map { it.id }.toSet())
+            assertEquals(setOf(original, second, third, incoming), openToday().map { it.id }.toSet())
             repository.completeActive()
             val recovered = snapshot()
             val waiting = recovered.frames.single { it.state == FrameState.AWAITING_RESUME }
             assertEquals(original, waiting.taskId)
-            assertEquals(TaskBucket.LATER, task(original).bucket)
+            assertEquals(TaskBucket.TODAY, task(original).bucket)
         }
 
     @Test
