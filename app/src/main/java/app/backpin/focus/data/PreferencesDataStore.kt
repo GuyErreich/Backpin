@@ -293,11 +293,13 @@ class PreferencesDataStore(
         val COUNTDOWN_UNIT = stringPreferencesKey("countdown_unit")
     }
 
-    private fun followUpKey(band: RepeatBand) = when (band) {
-        RepeatBand.MORNING -> Keys.FOLLOW_UP_MORNING
-        RepeatBand.NOON -> Keys.FOLLOW_UP_NOON
-        RepeatBand.NIGHT -> Keys.FOLLOW_UP_NIGHT
-    }
+    @Suppress("ktlint:standard:function-signature")
+    private fun followUpKey(band: RepeatBand) =
+        when (band) {
+            RepeatBand.MORNING -> Keys.FOLLOW_UP_MORNING
+            RepeatBand.NOON -> Keys.FOLLOW_UP_NOON
+            RepeatBand.NIGHT -> Keys.FOLLOW_UP_NIGHT
+        }
 
     private fun readBandTimes(prefs: Preferences): BandTimes {
         val times =
@@ -323,10 +325,12 @@ class PreferencesDataStore(
 }
 
 /** One phrase per line, in display order. Blank lines are dropped. */
-internal fun encodeSavedPhrases(phrases: List<String>): String = phrases
-    .map { it.replace('\n', ' ').trim() }
-    .filter { it.isNotEmpty() }
-    .joinToString("\n")
+@Suppress("ktlint:standard:function-signature")
+internal fun encodeSavedPhrases(phrases: List<String>): String =
+    phrases
+        .map { it.replace('\n', ' ').trim() }
+        .filter { it.isNotEmpty() }
+        .joinToString("\n")
 
 /** Restores [encodeSavedPhrases]. A missing or empty value is an empty list. */
 internal fun decodeSavedPhrases(stored: String?): List<String> {
