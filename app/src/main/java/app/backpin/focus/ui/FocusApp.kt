@@ -274,6 +274,7 @@ fun FocusApp(
                     tasks = state.scheduledTasks,
                     ready = state.ready,
                     canInterrupt = state.canInterrupt,
+                    today = viewModel.localDate(),
                     onBack = { navController.popBackStack() },
                     onToday = viewModel::promote,
                     onStart = viewModel::start,
@@ -392,6 +393,7 @@ fun FocusApp(
     } else if (openMissedTask != null) {
         MissedTaskSheet(
             state = openMissedTask,
+            today = viewModel.localDate(),
             onDismiss = viewModel::dismissMissedTask,
             onDoneNow = viewModel::doneMissedTask,
             onTomorrow = viewModel::tomorrowMissedTask,
