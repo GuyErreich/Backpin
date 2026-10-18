@@ -25,11 +25,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestCoroutineScheduler
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
 import kotlinx.coroutines.withTimeout
@@ -53,12 +56,10 @@ import java.util.concurrent.CopyOnWriteArrayList
 @Config(sdk = [36])
 class FocusStackViewModelHomeBandsTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
-    private lateinit var scheduler: TestCoroutineScheduler
 
     @Before
     fun setUp() {
-        scheduler = TestCoroutineScheduler()
-        Dispatchers.setMain(StandardTestDispatcher(scheduler))
+        Dispatchers.setMain(UnconfinedTestDispatcher())
     }
 
     @After
@@ -213,7 +214,7 @@ class FocusStackViewModelHomeBandsTest {
                 env.drain()
                 val settled = env.emissions.size
                 env.clock.now = noon
-                env.scheduler.advanceTimeBy(millisUntilNextBandBoundary(beforeNoon, BandTimes(), ZONE))
+                env.serviceScheduler.advanceTimeBy(millisUntilNextBandBoundary(beforeNoon, BandTimes(), ZONE))
                 env.drain()
                 val after =
                     env.awaitBands { state ->
@@ -226,7 +227,7 @@ class FocusStackViewModelHomeBandsTest {
                 assertEquals(BandPhase.OPEN, after.noon.phase)
                 val afterCross = env.emissions.size
                 assertTrue(afterCross > settled)
-                env.scheduler.advanceTimeBy(250)
+                env.serviceScheduler.advanceTimeBy(250)
                 env.drain()
                 assertEquals(describeEmissions(env.emissions), afterCross, env.emissions.size)
             } finally {
@@ -240,7 +241,8 @@ class FocusStackViewModelHomeBandsTest {
         armBoundaryLoop: Boolean = false,
     ): Env {
         val clock = SettableClock(now)
-        val dispatcher = StandardTestDispatcher(scheduler)
+        val serviceScheduler = TestCoroutineScheduler()
+        val serviceScope = TestScope(StandardTestDispatcher(serviceScheduler))
         val database =
             Room
                 .inMemoryDatabaseBuilder(context, FocusStackDatabase::class.java)
@@ -253,29 +255,28 @@ class FocusStackViewModelHomeBandsTest {
                 clock = clock,
             )
         repository.preferences.first()
-        val job = SupervisorJob()
-        val scope = CoroutineScope(job + dispatcher)
         val repeats =
             RepeatsService(
                 repository = repository,
                 clock = clock,
                 context = if (armBoundaryLoop) context else null,
                 zone = { ZONE },
-                scope = scope,
+                scope = serviceScope,
             )
+        serviceScheduler.runCurrent()
         val store = ViewModelStore()
         val useCases = FocusUseCases(repository)
         val viewModel = FocusStackViewModel(useCases, repeats, clock)
+        val collectJob = SupervisorJob()
         val emissions = CopyOnWriteArrayList<HomeBands>()
         val collector =
-            scope.launch {
+            CoroutineScope(collectJob + UnconfinedTestDispatcher()).launch {
                 viewModel.homeBands.collect { emissions += it }
             }
-        scheduler.runCurrent()
         withTimeout(5_000) {
             while (emissions.isEmpty()) {
                 shadowOf(Looper.getMainLooper()).idle()
-                scheduler.runCurrent()
+                serviceScheduler.runCurrent()
                 yield()
             }
         }
@@ -287,10 +288,11 @@ class FocusStackViewModelHomeBandsTest {
             useCases = useCases,
             store = store,
             viewModel = viewModel,
-            job = job,
+            collectJob = collectJob,
             collector = collector,
             emissions = emissions,
-            scheduler = scheduler,
+            serviceScheduler = serviceScheduler,
+            serviceScope = serviceScope,
         )
     }
 
@@ -302,10 +304,11 @@ class FocusStackViewModelHomeBandsTest {
         val useCases: FocusUseCases,
         val store: ViewModelStore,
         val viewModel: FocusStackViewModel,
-        val job: Job,
+        val collectJob: Job,
         val collector: Job,
         val emissions: MutableList<HomeBands>,
-        val scheduler: TestCoroutineScheduler,
+        val serviceScheduler: TestCoroutineScheduler,
+        val serviceScope: TestScope,
     ) {
         suspend fun captureToday(title: String) {
             val outcome = useCases.captureIntoToday(title)
@@ -317,7 +320,7 @@ class FocusStackViewModelHomeBandsTest {
             withTimeout(5_000) {
                 while (emissions.none(predicate)) {
                     shadowOf(Looper.getMainLooper()).idle()
-                    scheduler.runCurrent()
+                    serviceScheduler.runCurrent()
                     yield()
                 }
             }
@@ -327,12 +330,13 @@ class FocusStackViewModelHomeBandsTest {
 
         fun drain() {
             shadowOf(Looper.getMainLooper()).idle()
-            scheduler.runCurrent()
+            serviceScheduler.runCurrent()
         }
 
         fun close() {
             collector.cancel()
-            job.cancel()
+            collectJob.cancel()
+            serviceScope.cancel()
             drain()
             store.clear()
             drain()
