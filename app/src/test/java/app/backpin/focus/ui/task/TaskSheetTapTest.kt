@@ -284,11 +284,11 @@ class TaskSheetTapTest {
             onDismiss = viewModel::dismissTaskSheet,
             onStart = viewModel::startFromTaskSheet,
             onDone = viewModel::doneFromTaskSheet,
-            onLater = viewModel::laterFromTaskSheet,
             onEdit = viewModel::editFromTaskSheet,
             onInterrupt = viewModel::interruptFromTaskSheet,
             onToday = viewModel::todayFromTaskSheet,
             onResume = viewModel::resumeFromTaskSheet,
+            onBringBack = viewModel::bringBackFromTaskSheet,
         )
     }
 

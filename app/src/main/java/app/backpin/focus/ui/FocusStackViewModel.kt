@@ -301,12 +301,6 @@ class FocusStackViewModel(
         markDone(id)
     }
 
-    fun laterFromTaskSheet() {
-        val id = taskSheetState.value?.taskId ?: return
-        dismissTaskSheet()
-        demote(id)
-    }
-
     fun openBringBack(
         taskId: String,
         title: String,

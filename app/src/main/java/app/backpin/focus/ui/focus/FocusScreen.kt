@@ -233,7 +233,7 @@ internal fun RecoveryCard(
                     AccentTone.Mint,
                     onClick = { viewModel.resume(recovery.frameId) },
                 )
-                QuietButton("Later", onClick = { viewModel.demote(recovery.taskId) })
+                QuietButton(androidx.compose.ui.res.stringResource(app.backpin.focus.R.string.action_bring_back), onClick = { viewModel.openBringBack(recovery.taskId, recovery.title) })
             }
         }
     }
