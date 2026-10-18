@@ -30,11 +30,7 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import app.backpin.focus.R
-import app.backpin.focus.ui.ScheduledTaskUi
 import app.backpin.focus.ui.TaskUi
-import app.backpin.focus.ui.calendar.PickDateDialog
-import app.backpin.focus.ui.calendar.PickTimeDialog
-import app.backpin.focus.ui.calendar.suggestedMinuteOfDay
 import app.backpin.focus.ui.components.AccentButton
 import app.backpin.focus.ui.components.AccentTone
 import app.backpin.focus.ui.components.BACK_LABEL
@@ -48,8 +44,6 @@ import app.backpin.focus.ui.theme.ButtonGap
 import app.backpin.focus.ui.theme.CardRadius
 import app.backpin.focus.ui.theme.FocusColors
 import app.backpin.focus.ui.theme.Space
-import java.time.LocalDate
-import java.time.LocalTime
 
 private val PileRowPadding = Modifier.padding(horizontal = 12.dp, vertical = 12.dp)
 private val ActionPileCardPadding = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
@@ -97,89 +91,6 @@ fun InboxScreen(
 }
 
 /**
- * Later on its own screen. Today and Start move the task and leave this screen open.
- */
-@Composable
-fun LaterScreen(
-    tasks: List<TaskUi>,
-    ready: Boolean,
-    canInterrupt: Boolean,
-    onBack: () -> Unit,
-    onToday: (String) -> Unit,
-    onStart: (String) -> Unit,
-    onInterrupt: (String) -> Unit,
-    onEdit: (String) -> Unit,
-    onOpenSheet: (String) -> Unit = {},
-    modifier: Modifier = Modifier,
-) {
-    ActionPileScreen(
-        title = stringResource(R.string.screen_later),
-        emptyLabel = stringResource(R.string.pile_later_empty),
-        tasks = tasks,
-        ready = ready,
-        canInterrupt = canInterrupt,
-        onBack = onBack,
-        onToday = onToday,
-        onStart = onStart,
-        onInterrupt = onInterrupt,
-        onEdit = onEdit,
-        onOpenSheet = onOpenSheet,
-        modifier = modifier,
-    )
-}
-
-/**
- * Scheduled on its own screen. A task stays here until its local date, then moves onto Today
- * without starting. From here it can move early, or be removed.
- */
-@Composable
-fun ScheduledScreen(
-    tasks: List<ScheduledTaskUi>,
-    ready: Boolean,
-    canInterrupt: Boolean,
-    onBack: () -> Unit,
-    onToday: (String) -> Unit,
-    onStart: (String) -> Unit,
-    onInterrupt: (String) -> Unit,
-    onInbox: (String) -> Unit,
-    onLater: (String) -> Unit,
-    onRemove: (String) -> Unit,
-    onChangeDate: (String, Long) -> Unit,
-    onChangeTime: (String, Int?) -> Unit,
-    onEdit: (String) -> Unit,
-    onOpenMissed: (String) -> Unit = {},
-    today: LocalDate = LocalDate.now(),
-    now: LocalTime = LocalTime.now(),
-    modifier: Modifier = Modifier,
-) {
-    PileScaffold(
-        title = stringResource(R.string.screen_scheduled),
-        count = tasks.size,
-        ready = ready,
-        onBack = onBack,
-        modifier = modifier,
-    ) {
-        ScheduledPile(
-            tasks = tasks,
-            canInterrupt = canInterrupt,
-            emptyLabel = stringResource(R.string.pile_scheduled_empty),
-            today = today,
-            now = now,
-            onToday = onToday,
-            onStart = onStart,
-            onInterrupt = onInterrupt,
-            onInbox = onInbox,
-            onLater = onLater,
-            onRemove = onRemove,
-            onChangeDate = onChangeDate,
-            onChangeTime = onChangeTime,
-            onEdit = onEdit,
-            onOpenMissed = onOpenMissed,
-        )
-    }
-}
-
-/**
  * Done (archive) on its own screen. Restore returns a task to Inbox with no confirm.
  */
 @Composable
@@ -198,42 +109,6 @@ fun DoneScreen(
         modifier = modifier,
     ) {
         DoneCards(tasks = tasks, onRestore = onRestore)
-    }
-}
-
-@Composable
-private fun ActionPileScreen(
-    title: String,
-    emptyLabel: String,
-    tasks: List<TaskUi>,
-    ready: Boolean,
-    canInterrupt: Boolean,
-    onBack: () -> Unit,
-    onToday: (String) -> Unit,
-    onStart: (String) -> Unit,
-    onInterrupt: (String) -> Unit,
-    onEdit: (String) -> Unit,
-    onOpenSheet: (String) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    PileScaffold(
-        title = title,
-        count = tasks.size,
-        ready = ready,
-        onBack = onBack,
-        modifier = modifier,
-    ) {
-        ActionPileCards(
-            title = title,
-            emptyLabel = emptyLabel,
-            tasks = tasks,
-            canInterrupt = canInterrupt,
-            onToday = onToday,
-            onStart = onStart,
-            onInterrupt = onInterrupt,
-            onEdit = onEdit,
-            onOpenSheet = onOpenSheet,
-        )
     }
 }
 
@@ -319,142 +194,6 @@ internal fun ActionPileCards(
                 }
             }
         }
-    }
-}
-
-@Composable
-internal fun ScheduledPile(
-    tasks: List<ScheduledTaskUi>,
-    canInterrupt: Boolean,
-    emptyLabel: String,
-    today: LocalDate,
-    now: LocalTime,
-    onToday: (String) -> Unit,
-    onStart: (String) -> Unit,
-    onInterrupt: (String) -> Unit,
-    onInbox: (String) -> Unit,
-    onRemove: (String) -> Unit,
-    onChangeDate: (String, Long) -> Unit,
-    onChangeTime: (String, Int?) -> Unit,
-    onEdit: (String) -> Unit,
-    onOpenMissed: (String) -> Unit,
-    onLater: ((String) -> Unit)? = null,
-) {
-    val reducedMotion = rememberReducedMotion()
-    var datingId by rememberSaveable { mutableStateOf<String?>(null) }
-    var timingId by rememberSaveable { mutableStateOf<String?>(null) }
-    if (tasks.isEmpty()) {
-        Text(emptyLabel, style = MaterialTheme.typography.bodyLarge, color = FocusColors.Live.Muted)
-    }
-    tasks.forEach { task ->
-        SwipeRevealCard(
-            towardStart = todaySwipe { onToday(task.id) },
-            towardEnd = startSwipe { onStart(task.id) },
-            reducedMotion = reducedMotion,
-            extraActions =
-            listOf(
-                CustomAccessibilityAction("Edit") {
-                    onEdit(task.id)
-                    true
-                },
-            ),
-            cornerRadius = 16.dp,
-            modifier =
-            Modifier
-                .fillMaxWidth()
-                .semantics {
-                    contentDescription =
-                        if (task.due) {
-                            "Scheduled. ${task.title}. ${task.whenLabel}. Opens the missed sheet."
-                        } else {
-                            "Scheduled. ${task.title}. ${task.whenLabel}. Swipe right for today, swipe left for start."
-                        }
-                },
-        ) {
-            Surface(
-                modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .then(
-                        if (task.due) {
-                            Modifier.clickable(
-                                role = Role.Button,
-                                onClickLabel = stringResource(R.string.missed_task_sheet_open),
-                                onClick = { onOpenMissed(task.id) },
-                            )
-                        } else {
-                            Modifier
-                        },
-                    ),
-                shape = RoundedCornerShape(16.dp),
-                color = FocusColors.Live.SurfaceHigh,
-            ) {
-                Column(PileRowPadding, verticalArrangement = Arrangement.spacedBy(Space)) {
-                    Column {
-                        Text(task.title, style = MaterialTheme.typography.titleLarge)
-                        Text(
-                            task.whenLabel,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = if (task.due) FocusColors.Live.Amber else FocusColors.Live.Muted,
-                        )
-                    }
-                    CardActions {
-                        QuietButton(label = "Today", onClick = { onToday(task.id) })
-                        QuietButton(label = "Start", onClick = { onStart(task.id) })
-                        if (canInterrupt) {
-                            AccentButton(
-                                label = "Interrupt",
-                                tone = AccentTone.Lavender,
-                                onClick = { onInterrupt(task.id) },
-                            )
-                        }
-                        QuietButton(label = "Inbox", onClick = { onInbox(task.id) })
-                        if (onLater != null) {
-                            QuietButton(label = "Later", onClick = { onLater(task.id) })
-                        }
-                        QuietButton(label = "Remove", onClick = { onRemove(task.id) })
-                        if (task.epochDay != null) {
-                            QuietButton(label = "Change date", onClick = { datingId = task.id })
-                            QuietButton(
-                                label = if (task.minuteOfDay == null) "Add a time" else "Change time",
-                                onClick = { timingId = task.id },
-                            )
-                        }
-                        if (task.minuteOfDay != null) {
-                            QuietButton(label = "Clear time", onClick = { onChangeTime(task.id, null) })
-                        }
-                        QuietButton(label = "Edit", onClick = { onEdit(task.id) })
-                    }
-                }
-            }
-        }
-    }
-    val dating = tasks.firstOrNull { it.id == datingId }
-    val datingDay = dating?.epochDay
-    if (dating != null && datingDay != null) {
-        val initial = LocalDate.ofEpochDay(datingDay)
-        PickDateDialog(
-            initial = if (initial.isBefore(today)) today else initial,
-            earliest = today,
-            onPick = { date ->
-                datingId = null
-                onChangeDate(dating.id, date.toEpochDay())
-            },
-            onDismiss = { datingId = null },
-        )
-    }
-    val timing = tasks.firstOrNull { it.id == timingId }
-    val timingDay = timing?.epochDay
-    if (timing != null && timingDay != null) {
-        val date = LocalDate.ofEpochDay(timingDay)
-        PickTimeDialog(
-            initialMinuteOfDay = timing.minuteOfDay ?: suggestedMinuteOfDay(date, today, now),
-            onPick = { minute ->
-                timingId = null
-                onChangeTime(timing.id, minute)
-            },
-            onDismiss = { timingId = null },
-        )
     }
 }
 

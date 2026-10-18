@@ -49,8 +49,6 @@ import app.backpin.focus.ui.home.ComingUpScreen
 import app.backpin.focus.ui.home.DoneScreen
 import app.backpin.focus.ui.home.HomeScreen
 import app.backpin.focus.ui.home.InboxScreen
-import app.backpin.focus.ui.home.LaterScreen
-import app.backpin.focus.ui.home.ScheduledScreen
 import app.backpin.focus.ui.motion.pileEnter
 import app.backpin.focus.ui.motion.pileExit
 import app.backpin.focus.ui.motion.rememberReducedMotion
@@ -66,8 +64,6 @@ import app.backpin.focus.ui.theme.Space
 private object Routes {
     const val HOME = "home"
     const val INBOX = "inbox"
-    const val LATER = "later"
-    const val SCHEDULED = "scheduled"
     const val DONE = "done"
     const val FOCUS = "focus"
     const val COUNTDOWN = "countdown"
@@ -75,8 +71,8 @@ private object Routes {
     const val SETTINGS = "settings"
 }
 
-private val pileRoutes = setOf(Routes.INBOX, Routes.LATER, Routes.SCHEDULED, Routes.DONE, Routes.COMING_UP)
-private val comingUpRoutes = setOf(Routes.COMING_UP, Routes.LATER, Routes.SCHEDULED, Routes.COUNTDOWN)
+private val pileRoutes = setOf(Routes.INBOX, Routes.DONE, Routes.COMING_UP)
+private val comingUpRoutes = setOf(Routes.COMING_UP, Routes.COUNTDOWN)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -235,47 +231,6 @@ fun FocusApp(
                     doneTasks = state.archiveTasks,
                     onRestore = viewModel::restore,
                     showBack = false,
-                )
-            }
-            composable(
-                Routes.LATER,
-                enterTransition = { homePileEnter(reducedMotion) },
-                popExitTransition = { homePileExit(reducedMotion) },
-            ) {
-                LaterScreen(
-                    tasks = state.laterTasks,
-                    ready = state.ready,
-                    canInterrupt = state.canInterrupt,
-                    onBack = { navController.popBackStack() },
-                    onToday = viewModel::promote,
-                    onStart = viewModel::start,
-                    onInterrupt = viewModel::interruptFromPile,
-                    onEdit = viewModel::openEdit,
-                    onOpenSheet = viewModel::openTaskSheet,
-                )
-            }
-            composable(
-                Routes.SCHEDULED,
-                enterTransition = { homePileEnter(reducedMotion) },
-                popExitTransition = { homePileExit(reducedMotion) },
-            ) {
-                ScheduledScreen(
-                    tasks = state.scheduledTasks,
-                    ready = state.ready,
-                    canInterrupt = state.canInterrupt,
-                    onBack = { navController.popBackStack() },
-                    onToday = viewModel::promote,
-                    onStart = viewModel::start,
-                    onInterrupt = viewModel::interruptFromPile,
-                    onInbox = viewModel::moveToInbox,
-                    onLater = viewModel::demote,
-                    onRemove = viewModel::removeScheduled,
-                    onChangeDate = viewModel::changeScheduledDate,
-                    onChangeTime = viewModel::changeScheduledTime,
-                    onEdit = viewModel::openEdit,
-                    onOpenMissed = viewModel::openMissedTask,
-                    today = state.today,
-                    now = state.localTime,
                 )
             }
             composable(
