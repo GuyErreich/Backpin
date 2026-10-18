@@ -54,6 +54,7 @@ class FocusRepositoryImpl(
     private val repeatDao: RepeatDao = database.repeatDao()
     private val repeatLogDao: RepeatLogDao = database.repeatLogDao()
 
+    @Suppress("ktlint:standard:function-signature")
     override fun observeSnapshot(): Flow<FocusSnapshot> =
         combine(taskDao.observeAll(), frameDao.observeAll()) { tasks, frames ->
             FocusSnapshot(
