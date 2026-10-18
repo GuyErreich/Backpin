@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package app.backpin.focus.domain
 
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
+
 /**
  * Where a task sits. Placement is independent of which frame is in focus.
  * [SCHEDULED] waits outside Inbox, Today, and Later until its local date.
@@ -167,6 +171,11 @@ sealed interface DetachDestination {
 /** Time source so elapsed segments and tests share one clock. */
 fun interface AppClock {
     fun nowEpochMillis(): Long
+
+    val zone: ZoneId
+        get() = ZoneId.systemDefault()
+
+    fun localDate(): LocalDate = Instant.ofEpochMilli(nowEpochMillis()).atZone(zone).toLocalDate()
 }
 
 object SystemAppClock : AppClock {

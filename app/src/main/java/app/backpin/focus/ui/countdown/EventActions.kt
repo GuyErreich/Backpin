@@ -49,6 +49,7 @@ internal fun EventResumeHost(
     taskId: String,
     title: String,
     suggestedDays: Int?,
+    today: LocalDate,
     onDetach: (String, DetachDestination) -> Unit,
     content: @Composable (onCountDownAgain: () -> Unit) -> Unit,
 ) {
@@ -58,6 +59,7 @@ internal fun EventResumeHost(
         ResumeCountdownSheet(
             title = title,
             suggestedDays = suggestedDays,
+            today = today,
             onDismiss = { open = false },
             onCommit = { day ->
                 open = false
@@ -79,12 +81,12 @@ private val resumePresetDays = setOf(1, 3, 7)
 internal fun ResumeCountdownSheet(
     title: String,
     suggestedDays: Int?,
+    today: LocalDate,
     onDismiss: () -> Unit,
     onCommit: (Long) -> Unit,
 ) {
     var picking by remember { mutableStateOf(false) }
     val sent = remember { booleanArrayOf(false) }
-    val today = LocalDate.now()
     val tomorrow = today.plusDays(1)
     val extraDays = suggestedDays?.takeIf { it !in resumePresetDays && it > 0 }
 

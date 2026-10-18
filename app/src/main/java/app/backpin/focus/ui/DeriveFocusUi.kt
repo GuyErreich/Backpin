@@ -32,7 +32,7 @@ internal data class ChromeState(
 internal fun deriveFocusUi(
     snapshot: FocusSnapshot,
     chrome: ChromeState,
-    localDate: LocalDate = LocalDate.now(),
+    localDate: LocalDate,
     localTime: LocalTime = LocalTime.now(),
 ): FocusUiState {
     val localNow = localDate.atTime(localTime)

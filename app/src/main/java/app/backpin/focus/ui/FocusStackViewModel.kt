@@ -60,6 +60,8 @@ class FocusStackViewModel(
     private val missedRepeatSheetState = MutableStateFlow<MissedRepeatSheetUi?>(null)
     private val missedTaskSheetState = MutableStateFlow<MissedTaskSheetUi?>(null)
 
+    fun localDate(): LocalDate = clock.localDate()
+
     val uiState: StateFlow<FocusUiState> =
         combine(
             useCases.observeSnapshot(),
@@ -110,6 +112,7 @@ class FocusStackViewModel(
                     editingTaskId = editing,
                     startRedirect = capture.startRedirect,
                 ),
+                localDate = clock.localDate(),
             )
         }.stateIn(
             viewModelScope,
@@ -574,7 +577,7 @@ class FocusStackViewModel(
                 is PromoteOutcome.Promoted -> {
                     endSwap()
                     if (destination is DetachDestination.Countdown && before != null) {
-                        val today = LocalDate.now()
+                        val today = clock.localDate()
                         val days = countdownIntervalDays(destination.epochDay, today) ?: return@launch
                         offerUndo(
                             backInDaysLabel(days, today),
