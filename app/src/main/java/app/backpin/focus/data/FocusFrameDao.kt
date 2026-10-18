@@ -30,6 +30,12 @@ interface FocusFrameDao {
     @Query("SELECT COUNT(*) FROM focus_frames WHERE parentFrameId = :frameId AND state != 'CLOSED'")
     suspend fun countOpenChildren(frameId: String): Int
 
+    @Query(
+        "SELECT * FROM focus_frames WHERE parentFrameId = :frameId AND state != 'CLOSED' " +
+            "ORDER BY startedAtEpochMillis DESC LIMIT 1",
+    )
+    suspend fun newestOpenChild(frameId: String): FocusFrameEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(entity: FocusFrameEntity)
 

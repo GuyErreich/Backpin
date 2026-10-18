@@ -18,6 +18,7 @@ import app.backpin.focus.domain.Repeat
 import app.backpin.focus.domain.RepeatBand
 import app.backpin.focus.domain.RepeatDraft
 import app.backpin.focus.domain.RepeatRowsState
+import app.backpin.focus.domain.StartOutcome
 import app.backpin.focus.domain.SystemAppClock
 import app.backpin.focus.domain.TaskBucket
 import app.backpin.focus.domain.TodaysRepeats
@@ -54,6 +55,7 @@ class FocusStackViewModel(
     private val freshCaptureSwap = MutableStateFlow(false)
     private val switchOpen = MutableStateFlow(false)
     private val pendingUndo = MutableStateFlow<PendingUndo?>(null)
+    private val startRedirect = MutableStateFlow<StartRedirectUi?>(null)
     private val taskSheetState = MutableStateFlow<TaskSheetUi?>(null)
     private val missedRepeatSheetState = MutableStateFlow<MissedRepeatSheetUi?>(null)
     private val missedTaskSheetState = MutableStateFlow<MissedTaskSheetUi?>(null)
@@ -66,11 +68,13 @@ class FocusStackViewModel(
                 captureOpen,
                 captureInterrupts,
                 swapIncomingId,
-            ) { capture, interrupts, swap ->
+                startRedirect,
+            ) { capture, interrupts, swap, redirect ->
                 CaptureChrome(
                     captureOpen = capture,
                     captureInterrupts = interrupts,
                     swapIncomingId = swap,
+                    startRedirect = redirect,
                 )
             },
             combine(switchOpen, pendingUndo, editingTaskId, repeatsApi.observePendingUndo()) { switching, taskUndo, editing, repeatUndo ->
@@ -104,6 +108,7 @@ class FocusStackViewModel(
                     undo = undo,
                     preferences = preferences,
                     editingTaskId = editing,
+                    startRedirect = capture.startRedirect,
                 ),
             )
         }.stateIn(
@@ -699,11 +704,34 @@ class FocusStackViewModel(
     fun start(taskId: String) {
         viewModelScope.launch {
             when (val outcome = useCases.start(taskId)) {
-                is PromoteOutcome.NeedsSwap -> beginSwap(taskId, fresh = false)
-                is PromoteOutcome.Promoted -> endSwap()
-                is PromoteOutcome.Rejected -> endSwap()
+                is PromoteOutcome.NeedsSwap -> {
+                    startRedirect.value = null
+                    beginSwap(taskId, fresh = false)
+                }
+                is PromoteOutcome.Promoted -> {
+                    startRedirect.value = null
+                    endSwap()
+                }
+                is PromoteOutcome.Rejected -> {
+                    startRedirect.value = null
+                    endSwap()
+                }
+                is StartOutcome.RedirectedToInterruption -> {
+                    endSwap()
+                    startRedirect.value =
+                        StartRedirectUi(
+                            interruptionId = outcome.interruptionId,
+                            parentId = outcome.parentId,
+                            interruptionTitle = outcome.interruptionTitle,
+                            parentTitle = outcome.parentTitle,
+                        )
+                }
             }
         }
+    }
+
+    fun dismissStartRedirect() {
+        startRedirect.value = null
     }
 
     fun pause() {
@@ -1033,6 +1061,7 @@ class FocusStackViewModel(
         val captureOpen: Boolean,
         val captureInterrupts: Boolean,
         val swapIncomingId: String?,
+        val startRedirect: StartRedirectUi?,
     )
 }
 

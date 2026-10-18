@@ -131,6 +131,18 @@ data class PendingUndo(
 )
 
 /**
+ * Start on a parent that still has an open interruption made that interruption NOW.
+ * The composable formats [interruptionTitle] and [parentTitle] into a snackbar,
+ * then calls [FocusStackViewModel.dismissStartRedirect].
+ */
+data class StartRedirectUi(
+    val interruptionId: String,
+    val parentId: String,
+    val interruptionTitle: String,
+    val parentTitle: String,
+)
+
+/**
  * Snackbar text for [undo]. Repeat check-off always uses [checkedOffLabel]
  * (`R.string.undo_checked_off`) so an empty ViewModel message cannot go blank.
  * A kept fresh capture uses [keptInInboxLabel] (`R.string.kept_in_inbox`).
@@ -173,5 +185,6 @@ data class FocusUiState(
     val switchOpen: Boolean = false,
     val switchTargets: List<TaskUi> = emptyList(),
     val undo: PendingUndo? = null,
+    val startRedirect: StartRedirectUi? = null,
     val preferences: UserPreferences = UserPreferences(),
 )
