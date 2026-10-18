@@ -6,12 +6,20 @@ import org.gradle.api.tasks.testing.Test
 import org.gradle.kotlin.dsl.named
 import org.gradle.kotlin.dsl.register
 
+/**
+ * Registers `flakeCheck`, `selectChangedTestClasses`, `flakeRun1..N`, and
+ * `summarizeFlakeResults`.
+ *
+ * Not configuration-cache compatible: [parseRunCount] reads `RUN_COUNT` at
+ * configuration to size the `flakeRun` graph, and `afterEvaluate` copies
+ * classpath plus Robolectric/Android unit-test JVM config from AGP's
+ * `testDebugUnitTest` after that task exists.
+ */
 fun Project.configureFlakeCheck() {
     val classesFile = rootProject.layout.buildDirectory.file("flake-check/classes.txt")
     val resultsDir = rootProject.layout.buildDirectory.dir("flake-check/runs")
     val summaryFile = rootProject.layout.buildDirectory.file("flake-check/summary.md")
     val runCount = parseRunCount(providers.environmentVariable("RUN_COUNT").orElse("30").get())
-    val plannedClasses = peekSelectedTestClasses()
 
     val select =
         tasks.register<SelectChangedTestClassesTask>("selectChangedTestClasses") {
@@ -40,16 +48,15 @@ fun Project.configureFlakeCheck() {
             dependsOn(select)
         }
 
-    tasks.register("flakeCheck") {
-        group = "verification"
-        description = "Select changed unit tests, rerun them, and summarize results."
-        dependsOn(select)
-        dependsOn(summarize)
-    }
-
-    if (plannedClasses.isEmpty()) {
-        return
-    }
+    val flakeCheck =
+        tasks.register("flakeCheck") {
+            group = "verification"
+            description = "Select changed unit tests, rerun them, and summarize results."
+            dependsOn(summarize)
+            notCompatibleWithConfigurationCache(
+                "RUN_COUNT sizes flakeRun1..N at configuration; afterEvaluate copies testDebugUnitTest",
+            )
+        }
 
     afterEvaluate {
         val sourceTest = tasks.named<Test>("testDebugUnitTest")
@@ -107,6 +114,9 @@ fun Project.configureFlakeCheck() {
                         filter.setIncludePatterns(*classes.toTypedArray())
                         filter.isFailOnNoMatchingTests = true
                     }
+                    notCompatibleWithConfigurationCache(
+                        "RUN_COUNT sizes flakeRun1..N at configuration; afterEvaluate copies testDebugUnitTest",
+                    )
                 }
             }
         flakeRuns.forEachIndexed { index, task ->
@@ -115,6 +125,7 @@ fun Project.configureFlakeCheck() {
             }
         }
         summarize.configure { dependsOn(flakeRuns) }
+        flakeCheck.configure { dependsOn(flakeRuns) }
     }
 }
 
@@ -122,41 +133,4 @@ internal fun parseRunCount(raw: String): Int {
     val value = raw.trim().toIntOrNull()
     check(value != null && value in 1..100) { "runs must be an integer from 1 to 100" }
     return value
-}
-
-private fun Project.peekSelectedTestClasses(): List<String> {
-    val dispatch = providers.environmentVariable("FLAKE_CHECK_CLASSES").orElse("").get()
-    val mergeParents =
-        providers.environmentVariable("FLAKE_CHECK_MERGE_PARENTS").orElse("false").get() == "true"
-    val base = providers.environmentVariable("FLAKE_CHECK_BASE").orElse("").get()
-    val head = providers.environmentVariable("FLAKE_CHECK_HEAD").orElse("").get()
-    return resolveSelectedTestClasses(
-        dispatch,
-        mergeParents,
-        base,
-        head,
-        ::gitChangedTestFileNames,
-    ) { relative ->
-        val file = rootProject.file(relative)
-        check(file.isFile) { "Changed test file is missing: $relative" }
-        file.readText()
-    }
-}
-
-private fun Project.gitChangedTestFileNames(revisionRange: String): List<String> {
-    val output =
-        providers.exec {
-            commandLine(
-                "git",
-                "diff",
-                "-z",
-                "--name-only",
-                "--diff-filter=ACMR",
-                revisionRange,
-                "--",
-                "app/src/test",
-            )
-            workingDir = rootProject.projectDir
-        }.standardOutput.asText.get()
-    return gitChangedTestFiles(output)
 }
