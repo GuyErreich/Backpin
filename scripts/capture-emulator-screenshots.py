@@ -30,7 +30,14 @@ BOUNDS_RE = re.compile(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]")
 
 
 def adb(args: list[str], check: bool = True) -> subprocess.CompletedProcess[bytes]:
-    return subprocess.run(["adb", *args], check=check, capture_output=True)
+    proc = subprocess.run(["adb", *args], capture_output=True)
+    if proc.returncode != 0:
+        err = proc.stderr.decode("utf-8", "replace").strip()
+        out = proc.stdout.decode("utf-8", "replace").strip()
+        print(f"adb {args[0]} rc={proc.returncode}: {err or out}")
+        if check:
+            proc.check_returncode()
+    return proc
 
 
 def adb_out(args: list[str]) -> str:
@@ -244,10 +251,34 @@ def grant_notifications() -> None:
     adb(["shell", "appops", "set", PACKAGE, "POST_NOTIFICATION", "allow"], check=False)
 
 
+def device_online() -> bool:
+    return adb_out(["get-state"]).strip() == "device"
+
+
+def pm_ready() -> bool:
+    return "package:" in adb_out(["shell", "pm", "path", "android"])
+
+
 def install_and_launch() -> None:
     if not APK.is_file():
         raise SystemExit(f"missing {APK}; run ./gradlew assembleDebug first")
-    adb(["install", "-r", "-g", str(APK)])
+    wait_until(device_online, 60, "adb device")
+    wait_until(pm_ready, 60, "package manager")
+    last_install = [0.0]
+
+    def installed() -> bool:
+        now = time.monotonic()
+        if now - last_install[0] < 2:
+            return False
+        last_install[0] = now
+        if not device_online():
+            return False
+        proc = subprocess.run(["adb", "install", "-r", "-g", str(APK)], capture_output=True)
+        text = (proc.stdout + proc.stderr).decode("utf-8", "replace")
+        print(f"adb install rc={proc.returncode}: {text[:400]}")
+        return proc.returncode == 0
+
+    wait_until(installed, 90, "debug APK installed")
     grant_notifications()
     adb(["shell", "am", "force-stop", PACKAGE], check=False)
     adb(["shell", "am", "start", "-W", "-n", ACTIVITY])
