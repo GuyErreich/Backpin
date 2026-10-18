@@ -68,7 +68,6 @@ import app.backpin.focus.ui.NowUi
 import app.backpin.focus.ui.SlotRole
 import app.backpin.focus.ui.SlotUi
 import app.backpin.focus.ui.TaskUi
-import app.backpin.focus.ui.capture.BringBackSheet
 import app.backpin.focus.ui.focus.RecoveryCard
 import app.backpin.focus.ui.motion.MotionSpec
 import app.backpin.focus.ui.motion.motionSpec
@@ -101,9 +100,6 @@ fun HomeScreen(
     val todayLimit = state.preferences.todayLimit.coerceIn(MIN_TODAY_LIMIT, MAX_TODAY_LIMIT)
     val filled = state.todaySlots.mapNotNull { slot -> slot.task?.let { slot to it } }
     val hasRoom = filled.size < todayLimit
-    val movedComingUp = stringResource(R.string.moved_to_coming_up)
-    val movedInbox = stringResource(R.string.moved_to_inbox)
-    val bringBack by viewModel.bringBack.collectAsStateWithLifecycle()
     val openBringBack: (String, String) -> Unit = viewModel::openBringBack
 
     Column(
@@ -208,23 +204,6 @@ fun HomeScreen(
                 modifier = Modifier.padding(top = HomeMetrics.FlatHeaderTop),
             )
         }
-    }
-    bringBack?.let { target ->
-        val today = state.today
-        val isEvent = state.now?.let { it.taskId == target.taskId && it.isEvent } == true
-        BringBackSheet(
-            onDismiss = viewModel::dismissBringBack,
-            onDate = { date ->
-                viewModel.dismissBringBack()
-                viewModel.bringBackOnDate(target.taskId, date.toEpochDay(), movedComingUp)
-            },
-            onKeepInInbox = {
-                viewModel.dismissBringBack()
-                viewModel.bringBackToInbox(target.taskId, movedInbox)
-            },
-            today = today,
-            earliest = if (isEvent) today.plusDays(1) else null,
-        )
     }
 }
 

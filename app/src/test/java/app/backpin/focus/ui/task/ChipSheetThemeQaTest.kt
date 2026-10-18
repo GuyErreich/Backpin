@@ -60,11 +60,11 @@ class ChipSheetThemeQaTest {
                     onDismiss = {},
                     onStart = {},
                     onDone = {},
-                    onLater = {},
                     onEdit = {},
                     onInterrupt = {},
                     onToday = {},
                     onResume = {},
+                    onBringBack = {},
                 )
             }
         }

@@ -35,6 +35,7 @@ import app.backpin.focus.domain.CountdownUnit
 import app.backpin.focus.domain.HomeLayout
 import app.backpin.focus.domain.ThemeId
 import app.backpin.focus.notifications.NotificationContract
+import app.backpin.focus.ui.capture.BringBackSheet
 import app.backpin.focus.ui.capture.CaptureEdit
 import app.backpin.focus.ui.capture.CaptureSheet
 import app.backpin.focus.ui.components.AccentButton
@@ -91,8 +92,11 @@ fun FocusApp(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val checkedOffMessage = stringResource(R.string.undo_checked_off)
     val undoLabel = stringResource(R.string.action_undo)
+    val movedComingUp = stringResource(R.string.moved_to_coming_up)
+    val movedInbox = stringResource(R.string.moved_to_inbox)
     val repeatDraft by viewModel.editingRepeat.collectAsStateWithLifecycle()
     val taskSheet by viewModel.taskSheet.collectAsStateWithLifecycle()
+    val bringBack by viewModel.bringBack.collectAsStateWithLifecycle()
     val missedRepeatSheet by viewModel.missedRepeatSheet.collectAsStateWithLifecycle()
     val missedTaskSheet by viewModel.missedTaskSheet.collectAsStateWithLifecycle()
     val bandTimes by viewModel.bandTimes.collectAsStateWithLifecycle()
@@ -323,7 +327,6 @@ fun FocusApp(
             onDismiss = viewModel::dismissTaskSheet,
             onStart = viewModel::startFromTaskSheet,
             onDone = viewModel::doneFromTaskSheet,
-            onLater = {},
             onEdit = viewModel::editFromTaskSheet,
             onInterrupt = viewModel::interruptFromTaskSheet,
             onToday = viewModel::todayFromTaskSheet,
@@ -357,6 +360,24 @@ fun FocusApp(
             onPlaceLater = viewModel::placeLater,
             onSchedule = viewModel::placeScheduled,
             onRepeat = viewModel::openRepeatCreate,
+        )
+    }
+
+    bringBack?.let { target ->
+        val today = state.today
+        val isEvent = state.now?.let { it.taskId == target.taskId && it.isEvent } == true
+        BringBackSheet(
+            onDismiss = viewModel::dismissBringBack,
+            onDate = { date ->
+                viewModel.dismissBringBack()
+                viewModel.bringBackOnDate(target.taskId, date.toEpochDay(), movedComingUp)
+            },
+            onKeepInInbox = {
+                viewModel.dismissBringBack()
+                viewModel.bringBackToInbox(target.taskId, movedInbox)
+            },
+            today = today,
+            earliest = if (isEvent) today.plusDays(1) else null,
         )
     }
 

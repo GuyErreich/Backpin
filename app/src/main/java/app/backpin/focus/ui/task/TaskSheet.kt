@@ -22,12 +22,11 @@ internal fun TaskSheet(
     onDismiss: () -> Unit,
     onStart: () -> Unit,
     onDone: () -> Unit,
-    @Suppress("UNUSED_PARAMETER") onLater: () -> Unit,
     onEdit: () -> Unit,
     onInterrupt: () -> Unit,
     onToday: () -> Unit,
     onResume: () -> Unit,
-    onBringBack: () -> Unit = {},
+    onBringBack: () -> Unit,
 ) {
     ChipSheet(
         title = stringResource(R.string.task_sheet_title),

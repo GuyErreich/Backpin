@@ -115,11 +115,11 @@ class TaskSheetChipTest {
                     onDismiss = { calls += "dismiss" },
                     onStart = { calls += "start" },
                     onDone = { calls += "done" },
-                    onLater = { calls += "later" },
                     onEdit = { calls += "edit" },
                     onInterrupt = { calls += "interrupt" },
                     onToday = { calls += "today" },
                     onResume = { calls += "resume" },
+                    onBringBack = { calls += "bringBack" },
                 )
             }
         }
