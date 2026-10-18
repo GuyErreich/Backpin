@@ -224,6 +224,7 @@ class DeriveFocusUiTest {
                 ),
             )
         assertEquals("Call the school", state.swapIncoming?.title)
+        assertEquals(incoming.id, state.swapIncoming?.id)
         assertEquals(listOf("Write the notes"), state.swapChoices.map { it.title })
     }
 
