@@ -58,6 +58,7 @@ import org.robolectric.annotation.Config
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
+import java.util.TimeZone
 import java.util.UUID
 import kotlin.math.abs
 
@@ -397,8 +398,8 @@ class RepeatHomeSpecTest {
                     env.viewModel.repeatRows.value.total == 2
             }
             awaitText("2 of 2 left")
-            compose.onNodeWithText("2 of 2 left").assertExists()
-            compose.onNodeWithText("All done").assertDoesNotExist()
+            assertHeader("2 of 2 left")
+            compose.onNodeWithText("All done", useUnmergedTree = true).assertDoesNotExist()
             tapDescription("Take meds. Morning. Check off.")
             await {
                 env.viewModel.uiState.value.ready &&
@@ -406,7 +407,7 @@ class RepeatHomeSpecTest {
                     env.viewModel.repeatRows.value.total == 2
             }
             awaitText("1 of 2 left")
-            compose.onNodeWithText("1 of 2 left").assertExists()
+            assertHeader("1 of 2 left")
             tapDescription("Make bed. Morning. Check off.")
             await {
                 env.viewModel.uiState.value.ready &&
@@ -414,8 +415,9 @@ class RepeatHomeSpecTest {
                     env.viewModel.repeatRows.value.total == 2
             }
             awaitText("All done")
-            compose.onNodeWithText("All done").assertExists()
-            compose.onNodeWithText("0 of 2 left").assertDoesNotExist()
+            assertHeader("All done")
+            awaitNoText("0 of 2 left")
+            compose.onNodeWithText("0 of 2 left", useUnmergedTree = true).assertDoesNotExist()
             assertEquals("All done", repeatsLeftLabel(env.viewModel.repeatRows.value, compose.activity.resources))
         } finally {
             env.close()
@@ -489,8 +491,28 @@ class RepeatHomeSpecTest {
         }
     }
 
+    private fun headerNodes(
+        text: String,
+        unmerged: Boolean,
+    ) = compose.onAllNodesWithText(text, useUnmergedTree = unmerged).fetchSemanticsNodes()
+
     private fun awaitText(text: String) {
-        await { compose.onAllNodesWithText(text).fetchSemanticsNodes().size == 1 }
+        await {
+            headerNodes(text, unmerged = false).isNotEmpty() ||
+                headerNodes(text, unmerged = true).isNotEmpty()
+        }
+    }
+
+    private fun awaitNoText(text: String) {
+        await {
+            headerNodes(text, unmerged = false).isEmpty() &&
+                headerNodes(text, unmerged = true).isEmpty()
+        }
+    }
+
+    private fun assertHeader(text: String) {
+        val unmerged = headerNodes(text, unmerged = false).isEmpty()
+        compose.onNodeWithText(text, useUnmergedTree = unmerged).assertExists()
     }
 
     private fun env(
@@ -499,29 +521,42 @@ class RepeatHomeSpecTest {
         day: LocalDate = DAY,
     ): Env {
         val context: Context = ApplicationProvider.getApplicationContext()
-        val clock = SettableClock(at(hour, minute, day))
-        val database =
-            Room
-                .inMemoryDatabaseBuilder(context, FocusStackDatabase::class.java)
-                .allowMainThreadQueries()
-                .build()
-        val repository =
-            FocusRepositoryImpl(
-                database = database,
-                preferencesStore = PreferencesDataStore(context, "repeat-home-spec-${UUID.randomUUID()}"),
+        val previousZone = TimeZone.getDefault()
+        TimeZone.setDefault(TimeZone.getTimeZone(ZONE.id))
+        try {
+            val clock = SettableClock(at(hour, minute, day))
+            val database =
+                Room
+                    .inMemoryDatabaseBuilder(context, FocusStackDatabase::class.java)
+                    .allowMainThreadQueries()
+                    .build()
+            val repository =
+                FocusRepositoryImpl(
+                    database = database,
+                    preferencesStore = PreferencesDataStore(context, "repeat-home-spec-${UUID.randomUUID()}"),
+                    clock = clock,
+                )
+            val useCases = FocusUseCases(repository)
+            val repeats =
+                RepeatsService(
+                    repository = repository,
+                    clock = clock,
+                    zone = { ZONE },
+                )
+            val store = ViewModelStore()
+            return Env(
                 clock = clock,
+                repeats = repeats,
+                database = database,
+                useCases = useCases,
+                store = store,
+                previousZone = previousZone,
+                viewModel = createViewModel(store, useCases, repeats, clock),
             )
-        val useCases = FocusUseCases(repository)
-        val repeats = RepeatsService(repository, clock = clock)
-        val store = ViewModelStore()
-        return Env(
-            clock = clock,
-            repeats = repeats,
-            database = database,
-            useCases = useCases,
-            store = store,
-            viewModel = createViewModel(store, useCases, repeats),
-        )
+        } catch (error: Throwable) {
+            TimeZone.setDefault(previousZone)
+            throw error
+        }
     }
 
     private data class Env(
@@ -530,6 +565,7 @@ class RepeatHomeSpecTest {
         val database: FocusStackDatabase,
         val useCases: FocusUseCases,
         val store: ViewModelStore,
+        val previousZone: TimeZone,
         var viewModel: FocusStackViewModel,
     ) {
         val shown = mutableStateOf(viewModel)
@@ -539,19 +575,20 @@ class RepeatHomeSpecTest {
             // → refreshToday. Recreating the ViewModel alone does not move the day signal.
             repeats.refreshToday()
             store.clear()
-            viewModel = createViewModel(store, useCases, repeats)
+            viewModel = createViewModel(store, useCases, repeats, clock)
             shown.value = viewModel
         }
 
         fun close() {
             store.clear()
             database.close()
+            TimeZone.setDefault(previousZone)
         }
     }
 
     private companion object {
         val DAY: LocalDate = LocalDate.of(2026, 10, 16)
-        val ZONE: ZoneId = ZoneId.systemDefault()
+        val ZONE: ZoneId = ZoneId.of("America/Los_Angeles")
 
         fun at(
             hour: Int,
@@ -563,12 +600,13 @@ class RepeatHomeSpecTest {
             store: ViewModelStore,
             useCases: FocusUseCases,
             repeats: RepeatsService,
+            clock: AppClock,
         ): FocusStackViewModel = ViewModelProvider(
             store,
             object : ViewModelProvider.Factory {
                 override fun <T : ViewModel> create(modelClass: Class<T>): T {
                     @Suppress("UNCHECKED_CAST")
-                    return FocusStackViewModel(useCases, repeats) as T
+                    return FocusStackViewModel(useCases, repeats, clock) as T
                 }
             },
         )[FocusStackViewModel::class.java]
