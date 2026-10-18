@@ -96,6 +96,7 @@ internal fun ResumeCountdownSheet(
 ) {
     var picking by remember { mutableStateOf(false) }
     var daysText by rememberSaveable { mutableStateOf("") }
+    var daysInvalid by rememberSaveable { mutableStateOf(false) }
     val sent = remember { booleanArrayOf(false) }
     val interval =
         suggestedDays
@@ -115,8 +116,11 @@ internal fun ResumeCountdownSheet(
     }
 
     fun commitTyped() {
-        val days = daysText.toIntOrNull() ?: return
-        if (days !in MIN_COUNTDOWN_DAYS..MAX_COUNTDOWN_REARM_DAYS) return
+        val days = daysText.toIntOrNull()
+        if (days == null || days !in MIN_COUNTDOWN_DAYS..MAX_COUNTDOWN_REARM_DAYS) {
+            daysInvalid = true
+            return
+        }
         commitInDays(days)
     }
 
@@ -137,10 +141,28 @@ internal fun ResumeCountdownSheet(
             )
             OutlinedTextField(
                 value = daysText,
-                onValueChange = { daysText = it.filter(Char::isDigit) },
+                onValueChange = {
+                    daysText = it.filter(Char::isDigit)
+                    daysInvalid = false
+                },
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text(stringResource(R.string.resume_sheet_days_label)) },
                 placeholder = { Text(stringResource(R.string.resume_sheet_days_placeholder)) },
+                supportingText =
+                if (daysInvalid) {
+                    {
+                        Text(
+                            stringResource(
+                                R.string.resume_sheet_days_error,
+                                MIN_COUNTDOWN_DAYS,
+                                MAX_COUNTDOWN_REARM_DAYS,
+                            ),
+                        )
+                    }
+                } else {
+                    null
+                },
+                isError = daysInvalid,
                 singleLine = true,
                 keyboardOptions =
                 KeyboardOptions(
