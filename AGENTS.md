@@ -18,7 +18,7 @@ Colors
 Navigation
 - One top-left back arrow, [BackArrow](app/src/main/java/app/backpin/focus/ui/components/BackArrow.kt), in every screen and sheet. It steps back, and on the first step it closes.
 - No X and no text Back. The system back does the same as the arrow.
-- Dialogs use Cancel.
+- Dialogs use Cancel. Exception: when dismissing is itself the safe choice, the safe button replaces Cancel.
 
 Motion
 - Quiet motion from [ui/motion](app/src/main/java/app/backpin/focus/ui/motion): no ripple, no bounce, no sound.

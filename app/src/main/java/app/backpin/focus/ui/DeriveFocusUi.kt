@@ -26,6 +26,7 @@ internal data class ChromeState(
     val undo: PendingUndo?,
     val preferences: UserPreferences,
     val editingTaskId: String? = null,
+    val startRedirect: StartRedirectUi? = null,
 )
 
 internal fun deriveFocusUi(
@@ -190,6 +191,7 @@ internal fun deriveFocusUi(
         switchOpen = chrome.switchOpen,
         switchTargets = switchTargets,
         undo = chrome.undo,
+        startRedirect = chrome.startRedirect,
         preferences = chrome.preferences,
     )
 }
