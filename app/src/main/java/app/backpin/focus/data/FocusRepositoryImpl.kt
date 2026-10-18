@@ -40,7 +40,6 @@ import kotlinx.coroutines.flow.map
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
-import java.time.ZoneId
 import java.util.UUID
 
 class FocusRepositoryImpl(
@@ -1160,7 +1159,7 @@ class FocusRepositoryImpl(
 
     @Suppress("ktlint:standard:function-signature")
     private fun localNow(): LocalDateTime =
-        Instant.ofEpochMilli(clock.nowEpochMillis()).atZone(ZoneId.systemDefault()).toLocalDateTime()
+        Instant.ofEpochMilli(clock.nowEpochMillis()).atZone(clock.zone).toLocalDateTime()
 
     private fun localToday(): LocalDate = localNow().toLocalDate()
 
