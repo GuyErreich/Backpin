@@ -37,7 +37,18 @@ abstract class SelectChangedTestClassesTask : DefaultTask() {
 
     @TaskAction
     fun select() {
-        val classes = selectedClasses().distinct().sorted()
+        val classes =
+            resolveSelectedTestClasses(
+                dispatchClasses.get(),
+                useMergeParents.get(),
+                baseSha.get(),
+                headSha.get(),
+                ::changedTestFiles,
+            ) { relative ->
+                val file = repoRoot.get().file(relative).asFile
+                check(file.isFile) { "Changed test file is missing: $relative" }
+                file.readText()
+            }
         val out = outputFile.get().asFile
         out.parentFile.mkdirs()
         out.writeText(if (classes.isEmpty()) "" else classes.joinToString("\n", postfix = "\n"))
@@ -48,30 +59,6 @@ abstract class SelectChangedTestClassesTask : DefaultTask() {
             classes.forEach { logger.lifecycle(it) }
         }
     }
-
-    private fun selectedClasses(): List<String> {
-        val dispatch = dispatchClasses.get().trim()
-        if (dispatch.isNotEmpty()) {
-            return parseDispatchClasses(dispatch)
-        }
-        if (useMergeParents.get()) {
-            return parseChangedFiles("HEAD^1...HEAD^2")
-        }
-        val base = baseSha.get().trim()
-        val head = headSha.get().trim()
-        if (base.isEmpty() || head.isEmpty()) {
-            return emptyList()
-        }
-        check(isValidSha(base) && isValidSha(head)) { "Invalid git SHA" }
-        return parseChangedFiles("$base...$head")
-    }
-
-    private fun parseChangedFiles(revisionRange: String): List<String> =
-        changedTestFiles(revisionRange).flatMap { relative ->
-            val file = repoRoot.get().file(relative).asFile
-            check(file.isFile) { "Changed test file is missing: $relative" }
-            parseTopLevelTestClasses(file.readText(), relative)
-        }
 
     private fun changedTestFiles(revisionRange: String): List<String> {
         val output =
@@ -88,14 +75,6 @@ abstract class SelectChangedTestClassesTask : DefaultTask() {
                 )
                 workingDir = repoRoot.get().asFile
             }.standardOutput.asText.get()
-        return output.split('\u0000')
-            .map { it.trim() }
-            .filter { it.endsWith("Test.kt") }
-    }
-
-    private fun isValidSha(value: String): Boolean = SHA.matches(value)
-
-    private companion object {
-        val SHA = Regex("^[0-9a-f]{40}([0-9a-f]{24})?$")
+        return gitChangedTestFiles(output)
     }
 }

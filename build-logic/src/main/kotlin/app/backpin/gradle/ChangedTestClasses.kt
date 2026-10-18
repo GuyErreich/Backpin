@@ -38,3 +38,40 @@ fun parseDispatchClasses(raw: String): List<String> =
         .map { it.trim() }
         .filter { it.isNotEmpty() }
         .onEach { check(isValidClassName(it)) { "Invalid test class name" } }
+
+fun isValidGitSha(value: String): Boolean = GIT_SHA.matches(value)
+
+fun gitChangedTestFiles(diffOutput: String): List<String> =
+    diffOutput.split('\u0000').map { it.trim() }.filter { it.endsWith("Test.kt") }
+
+fun resolveSelectedTestClasses(
+    dispatchClasses: String,
+    useMergeParents: Boolean,
+    baseSha: String,
+    headSha: String,
+    changedTestFiles: (revisionRange: String) -> List<String>,
+    readSource: (relativePath: String) -> String,
+): List<String> {
+    val dispatch = dispatchClasses.trim()
+    if (dispatch.isNotEmpty()) {
+        return parseDispatchClasses(dispatch).distinct().sorted()
+    }
+    val revisionRange =
+        if (useMergeParents) {
+            "HEAD^1...HEAD^2"
+        } else {
+            val base = baseSha.trim()
+            val head = headSha.trim()
+            if (base.isEmpty() || head.isEmpty()) {
+                return emptyList()
+            }
+            check(isValidGitSha(base) && isValidGitSha(head)) { "Invalid git SHA" }
+            "$base...$head"
+        }
+    return changedTestFiles(revisionRange)
+        .flatMap { relative -> parseTopLevelTestClasses(readSource(relative), relative) }
+        .distinct()
+        .sorted()
+}
+
+private val GIT_SHA = Regex("^[0-9a-f]{40}([0-9a-f]{24})?$")

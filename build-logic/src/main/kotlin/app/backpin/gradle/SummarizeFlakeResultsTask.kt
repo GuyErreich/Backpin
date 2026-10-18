@@ -8,6 +8,7 @@ import org.gradle.api.provider.Property
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputDirectory
 import org.gradle.api.tasks.InputFile
+import org.gradle.api.tasks.Optional
 import org.gradle.api.tasks.OutputFile
 import org.gradle.api.tasks.PathSensitive
 import org.gradle.api.tasks.PathSensitivity
@@ -19,6 +20,7 @@ abstract class SummarizeFlakeResultsTask : DefaultTask() {
     @get:PathSensitive(PathSensitivity.RELATIVE)
     abstract val classesFile: RegularFileProperty
 
+    @get:Optional
     @get:InputDirectory
     @get:PathSensitive(PathSensitivity.RELATIVE)
     abstract val resultsDir: DirectoryProperty
@@ -35,7 +37,12 @@ abstract class SummarizeFlakeResultsTask : DefaultTask() {
             classesFile.get().asFile.readLines()
                 .map { it.trim() }
                 .filter { it.isNotEmpty() }
-        check(classes.isNotEmpty()) { "No test classes to summarize" }
+        val out = summaryFile.get().asFile
+        out.parentFile.mkdirs()
+        if (classes.isEmpty()) {
+            out.writeText("No changed unit test classes under `app/src/test`; skipping.\n")
+            return
+        }
         classes.forEach { check(isValidClassName(it)) { "Invalid test class name" } }
         val runCount = expectedRuns.get().trim().toIntOrNull()
         check(runCount != null && runCount in 1..100) { "runs must be an integer from 1 to 100" }
@@ -49,8 +56,6 @@ abstract class SummarizeFlakeResultsTask : DefaultTask() {
                 }
             }
         val tally = parseFlakeXmlResults(classes, runs)
-        val out = summaryFile.get().asFile
-        out.parentFile.mkdirs()
         out.writeText(renderFlakeSummary(tally))
         if (tally.failed) {
             error("Flake check failed")
