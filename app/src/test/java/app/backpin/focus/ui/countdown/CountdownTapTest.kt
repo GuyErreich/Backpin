@@ -24,7 +24,6 @@ import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performTouchInput
 import androidx.test.core.app.ApplicationProvider
 import app.backpin.focus.data.FocusRepositoryImpl
-import app.backpin.focus.runOffTestThread
 import app.backpin.focus.data.FocusStackDatabase
 import app.backpin.focus.domain.FocusSnapshot
 import app.backpin.focus.domain.FocusUseCases
@@ -45,7 +44,9 @@ import app.backpin.focus.ui.capture.UtteranceRecognizer
 import app.backpin.focus.ui.focus.FocusScreen
 import app.backpin.focus.ui.home.HomeScreen
 import app.backpin.focus.ui.theme.FocusStackTheme
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -494,10 +495,19 @@ class CountdownTapTest {
         title: String,
         today: LocalDate,
     ) {
-        runOffTestThread {
-            useCases.captureCountdown(title, today.toEpochDay())
-            repository.releaseDueCountdowns()
-        }
+        var failure: Throwable? = null
+        val job =
+            CoroutineScope(mainDispatcherRule.dispatcher).launch {
+                try {
+                    useCases.captureCountdown(title, today.toEpochDay())
+                    repository.releaseDueCountdowns()
+                } catch (error: Throwable) {
+                    failure = error
+                    throw error
+                }
+            }
+        await { job.isCompleted }
+        failure?.let { throw it }
     }
 
     private fun parentWaits(snapshot: FocusSnapshot): Boolean {
