@@ -57,7 +57,7 @@ class EditFlowVisualTest {
         val edit = nearest("Edit", "Call the bank about card").getBoundsInRoot()
         val today = nearest("Today", "Call the bank about card").getBoundsInRoot()
         assertTrue("Edit is ${edit.bottom - edit.top} tall", edit.bottom - edit.top >= 48.dp)
-        assertTrue("Today is ${today.bottom - today.top} tall", today.bottom - today.top <= 44.dp)
+        assertTrue("Today touch target is ${today.bottom - today.top} tall", today.bottom - today.top >= 48.dp)
         assertEquals(FocusColors.Text, firstLabelColor("Edit"))
         nearest("Edit", "Call the bank about card").assertIsEnabled().assertHasClickAction()
     }
