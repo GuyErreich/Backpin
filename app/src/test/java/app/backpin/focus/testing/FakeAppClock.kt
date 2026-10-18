@@ -51,7 +51,7 @@ class FakeAppClock(
 
     override fun localDate(): LocalDate = localDateTime().toLocalDate()
 
-    fun localTime(): LocalTime = localDateTime().toLocalTime()
+    override fun localTime(): LocalTime = localDateTime().toLocalTime()
 
     fun localEpochDay(): Long = localDate().toEpochDay()
 

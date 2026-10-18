@@ -113,6 +113,7 @@ class FocusStackViewModel(
                     startRedirect = capture.startRedirect,
                 ),
                 localDate = clock.localDate(),
+                localTime = clock.localTime(),
             )
         }.stateIn(
             viewModelScope,
@@ -402,7 +403,7 @@ class FocusStackViewModel(
     fun tomorrowMissedTask() {
         val id = missedTaskSheetState.value?.taskId ?: return
         dismissMissedTask()
-        scheduleTaskOn(id, LocalDate.now().plusDays(1).toEpochDay())
+        scheduleTaskOn(id, clock.localDate().plusDays(1).toEpochDay())
     }
 
     fun pickDayMissedTask(epochDay: Long) {

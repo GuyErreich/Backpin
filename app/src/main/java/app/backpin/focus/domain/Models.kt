@@ -3,6 +3,7 @@ package app.backpin.focus.domain
 
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.ZoneId
 
 /**
@@ -176,6 +177,8 @@ fun interface AppClock {
         get() = ZoneId.systemDefault()
 
     fun localDate(): LocalDate = Instant.ofEpochMilli(nowEpochMillis()).atZone(zone).toLocalDate()
+
+    fun localTime(): LocalTime = Instant.ofEpochMilli(nowEpochMillis()).atZone(zone).toLocalTime()
 }
 
 object SystemAppClock : AppClock {
