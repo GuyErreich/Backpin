@@ -112,7 +112,35 @@ class FocusRepositoryImpl(
         return outcome
     }
 
-    // keepCaptureInInbox and discardCapture sit at the bottom of this type.
+    /**
+     * Saves a fresh capture to Inbox when Today is full, so it survives whatever the swap
+     * choice turns out to be. Runs inside the caller's transaction.
+     */
+    private suspend fun keepCaptureInInbox(title: String): PromoteOutcome.NeedsSwap {
+        val kept = newTask(title, TaskBucket.INBOX)
+        taskDao.upsert(kept)
+        val today = taskDao.openInBucket(TaskBucket.TODAY.name).map { it.toDomain() }
+        return PromoteOutcome.NeedsSwap(
+            todayTasks = today,
+            incomingTaskId = kept.id,
+            canInterrupt = canInterruptIncoming(kept.id),
+        )
+    }
+
+    override suspend fun discardCapture(taskId: String) {
+        val discarded =
+            database.withTransaction {
+                val task = taskDao.getById(taskId) ?: return@withTransaction false
+                val untouchedInboxCapture =
+                    task.bucket == TaskBucket.INBOX.name &&
+                        task.status == TaskStatus.OPEN.name &&
+                        frameDao.openFrameForTask(taskId) == null
+                if (!untouchedInboxCapture) return@withTransaction false
+                taskDao.deleteById(taskId)
+                true
+            }
+        if (discarded) recordInteraction()
+    }
 
     override suspend fun captureLater(title: String) {
         val trimmed = title.trim()
@@ -1264,35 +1292,5 @@ class FocusRepositoryImpl(
             pausedAtEpochMillis = now,
             accumulatedMillis = frame.accumulatedMillis + segment,
         )
-    }
-
-    /**
-     * Saves a fresh capture to Inbox when Today is full, so it survives whatever the swap
-     * choice turns out to be. Runs inside the caller's transaction.
-     */
-    private suspend fun keepCaptureInInbox(title: String): PromoteOutcome.NeedsSwap {
-        val kept = newTask(title, TaskBucket.INBOX)
-        taskDao.upsert(kept)
-        val today = taskDao.openInBucket(TaskBucket.TODAY.name).map { it.toDomain() }
-        return PromoteOutcome.NeedsSwap(
-            todayTasks = today,
-            incomingTaskId = kept.id,
-            canInterrupt = canInterruptIncoming(kept.id),
-        )
-    }
-
-    override suspend fun discardCapture(taskId: String) {
-        val discarded =
-            database.withTransaction {
-                val task = taskDao.getById(taskId) ?: return@withTransaction false
-                val untouchedInboxCapture =
-                    task.bucket == TaskBucket.INBOX.name &&
-                        task.status == TaskStatus.OPEN.name &&
-                        frameDao.openFrameForTask(taskId) == null
-                if (!untouchedInboxCapture) return@withTransaction false
-                taskDao.deleteById(taskId)
-                true
-            }
-        if (discarded) recordInteraction()
     }
 }
