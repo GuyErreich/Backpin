@@ -215,7 +215,7 @@ class CountdownTapTest {
             compose.onNodeWithText("EVENT").assertExists()
             tap("Later")
             awaitSnapshot(useCases) { snapshot ->
-                snapshot.tasks.single { it.title == "Dentist again" }.bucket == TaskBucket.LATER && parentWaits(snapshot)
+                snapshot.tasks.single { it.title == "Dentist again" }.bucket == TaskBucket.INBOX && parentWaits(snapshot)
             }
 
             arriveAgain(useCases, repository, "Anniversary", today)

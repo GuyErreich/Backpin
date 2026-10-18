@@ -99,7 +99,7 @@ class LostCaptureViewModelTest {
             assertEquals(incomingId, after.frames.single { it.state == FrameState.ACTIVE }.taskId)
             assertEquals(parentFrame, after.frames.single { it.state == FrameState.ACTIVE }.parentFrameId)
             assertEquals(TaskBucket.TODAY, after.tasks.single { it.id == incomingId }.bucket)
-            assertEquals(TaskBucket.LATER, after.tasks.single { it.id == today.first().id }.bucket)
+            assertEquals(TaskBucket.TODAY, after.tasks.single { it.id == today.first().id }.bucket)
             assertEquals(FrameState.PAUSED, after.frames.single { it.id == parentFrame }.state)
         }
     }

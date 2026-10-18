@@ -196,12 +196,12 @@ class CountdownArrivalTest {
         }
 
     @Test
-    fun laterParksTheEventAndReturnsToTheParent() =
+    fun laterSendsTheEventToInboxAndReturnsToTheParent() =
         runBlocking {
             val work = startedToday()
             val event = arrive("Dentist")
             assertEquals(PromoteOutcome.Promoted, repository.detachInterruption(event.id, DetachDestination.Later))
-            assertEquals(TaskBucket.LATER, task(event.id).bucket)
+            assertEquals(TaskBucket.INBOX, task(event.id).bucket)
             assertNull(task(event.id).scheduledOnEpochDay)
             assertParentWaits(work)
         }
@@ -251,7 +251,7 @@ class CountdownArrivalTest {
             val parkedRow = database.taskDao().getById(parked.id) ?: error("Missing parked event")
             database.taskDao().upsert(parkedRow.copy(countdownIntervalDays = 14))
             repository.detachInterruption(parked.id, DetachDestination.Later)
-            assertEquals(TaskBucket.LATER, task(parked.id).bucket)
+            assertEquals(TaskBucket.INBOX, task(parked.id).bucket)
             assertEquals(14, task(parked.id).countdownIntervalDays)
             assertEquals(21, task(event.id).countdownIntervalDays)
             assertEquals(21, repository.preferences.first().lastCountdownDays)
