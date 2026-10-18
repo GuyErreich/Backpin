@@ -15,6 +15,9 @@ val DEFAULT_TEST_INSTANT: Instant = Instant.parse("2026-10-16T16:00:00Z")
 /** Explicit test zone. Never [ZoneId.systemDefault]. */
 val DEFAULT_TEST_ZONE: ZoneId = ZoneId.of("America/New_York")
 
+/** 02:00 UTC: New York is still the previous local date. */
+val DATE_CROSSING_INSTANT: Instant = Instant.parse("2026-10-16T02:00:00Z")
+
 /**
  * Pinned [AppClock] for unit tests. Instant and zone are both explicit so
  * repository code and [app.backpin.focus.repeats.RepeatsService] can share one

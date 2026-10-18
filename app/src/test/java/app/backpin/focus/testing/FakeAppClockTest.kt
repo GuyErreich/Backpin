@@ -11,36 +11,60 @@ import java.time.ZoneId
 
 class FakeAppClockTest {
     @Test
-    fun advancesPinnedInstant() {
-        val clock =
-            FakeAppClock(
-                initial = Instant.parse("2026-10-16T16:00:00Z"),
-                initialZone = ZoneId.of("America/New_York"),
+    fun advancesAndSetsThePinnedInstant() {
+        val start = Instant.parse("2026-10-16T16:00:00Z")
+        val clock = FakeAppClock(start, DEFAULT_TEST_ZONE)
+        val nextMorning = Instant.parse("2026-10-17T08:00:00Z")
+        val rows =
+            listOf(
+                ClockMove("initial", mutate = {}, expected = start),
+                ClockMove("advance two hours", { clock.advanceBy(Duration.ofHours(2)) }, start.plus(Duration.ofHours(2))),
+                ClockMove("set next morning", { clock.set(nextMorning) }, nextMorning),
             )
-        assertEquals(Instant.parse("2026-10-16T16:00:00Z"), clock.instant)
-        clock.advanceBy(Duration.ofHours(2))
-        assertEquals(Instant.parse("2026-10-16T18:00:00Z"), clock.instant)
-        val next = Instant.parse("2026-10-17T08:00:00Z")
-        clock.set(next)
-        assertEquals(next, clock.instant)
-        assertEquals(next.toEpochMilli(), clock.nowEpochMillis())
+        for (row in rows) {
+            row.mutate()
+            assertEquals(row.name, row.expected.toEpochMilli(), clock.nowEpochMillis())
+        }
     }
 
     @Test
-    fun honorsPinnedZoneNotSystemDefault() {
-        val instant = Instant.parse("2026-10-16T02:00:00Z")
-        val newYork = FakeAppClock(instant, ZoneId.of("America/New_York"))
-        val auckland = FakeAppClock(instant, ZoneId.of("Pacific/Auckland"))
-        assertEquals(instant.toEpochMilli(), newYork.nowEpochMillis())
-        assertEquals(newYork.nowEpochMillis(), auckland.nowEpochMillis())
-        assertEquals(LocalDate.of(2026, 10, 15), newYork.localDate())
-        assertEquals(LocalTime.of(22, 0), newYork.localTime())
-        assertEquals(LocalDate.of(2026, 10, 16), auckland.localDate())
-        assertEquals(LocalTime.of(15, 0), auckland.localTime())
-        assertEquals(ZoneId.of("America/New_York"), newYork.zone)
-        newYork.setZone(ZoneId.of("UTC"))
-        assertEquals(ZoneId.of("UTC"), newYork.zoneId())
-        assertEquals(LocalDate.of(2026, 10, 16), newYork.localDate())
-        assertEquals(instant.toEpochMilli(), newYork.nowEpochMillis())
+    fun honorsPinnedZoneForTheSameInstant() {
+        val instant = DATE_CROSSING_INSTANT
+        val rows =
+            listOf(
+                ZoneRow("America/New_York", ZoneId.of("America/New_York"), LocalDate.of(2026, 10, 15), LocalTime.of(22, 0)),
+                ZoneRow("Pacific/Auckland", ZoneId.of("Pacific/Auckland"), LocalDate.of(2026, 10, 16), LocalTime.of(15, 0)),
+                ZoneRow("UTC", ZoneId.of("UTC"), LocalDate.of(2026, 10, 16), LocalTime.of(2, 0)),
+            )
+        for (row in rows) {
+            val clock = FakeAppClock(instant, row.zone)
+            assertEquals(row.name, instant.toEpochMilli(), clock.nowEpochMillis())
+            assertEquals(row.name, row.date, clock.localDate())
+            assertEquals(row.name, row.time, clock.localTime())
+            assertEquals(row.name, row.zone, clock.zoneId())
+        }
     }
+
+    @Test
+    fun setZoneChangesLocalDateWithoutMovingTheInstant() {
+        val clock = FakeAppClock(DATE_CROSSING_INSTANT, ZoneId.of("America/New_York"))
+        assertEquals(LocalDate.of(2026, 10, 15), clock.localDate())
+        clock.setZone(ZoneId.of("UTC"))
+        assertEquals(DATE_CROSSING_INSTANT.toEpochMilli(), clock.nowEpochMillis())
+        assertEquals(LocalDate.of(2026, 10, 16), clock.localDate())
+        assertEquals(ZoneId.of("UTC"), clock.zoneId())
+    }
+
+    private data class ClockMove(
+        val name: String,
+        val mutate: () -> Unit,
+        val expected: Instant,
+    )
+
+    private data class ZoneRow(
+        val name: String,
+        val zone: ZoneId,
+        val date: LocalDate,
+        val time: LocalTime,
+    )
 }

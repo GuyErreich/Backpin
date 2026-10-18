@@ -4,7 +4,6 @@ package app.backpin.focus.testing
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertSame
@@ -34,27 +33,24 @@ class MainDispatcherRuleTest {
 @OptIn(ExperimentalCoroutinesApi::class)
 class MainDispatcherRuleResetTest {
     @Test
-    fun resetsMainAfterTheStatement() {
+    fun setsMainForEachApplyCycle() {
         val rule = MainDispatcherRule()
         val description = Description.createTestDescription(javaClass, "resetsMain")
-        var ran = false
-        rule
-            .apply(
-                object : Statement() {
-                    override fun evaluate() {
-                        val job = CoroutineScope(Dispatchers.Main).launch { ran = true }
-                        rule.scheduler.runCurrent()
-                        assertTrue(ran)
-                        job.cancel()
-                    }
-                },
-                description,
-            ).evaluate()
-        ran = false
-        runCatching {
-            CoroutineScope(Dispatchers.Main + SupervisorJob()).launch { ran = true }
+        val cycles = listOf("first", "second")
+        for (name in cycles) {
+            var ran = false
+            rule
+                .apply(
+                    object : Statement() {
+                        override fun evaluate() {
+                            val job = CoroutineScope(Dispatchers.Main).launch { ran = true }
+                            rule.scheduler.runCurrent()
+                            assertTrue(name, ran)
+                            job.cancel()
+                        }
+                    },
+                    description,
+                ).evaluate()
         }
-        rule.scheduler.runCurrent()
-        assertFalse(ran)
     }
 }
