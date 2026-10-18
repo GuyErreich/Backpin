@@ -183,7 +183,7 @@ class ScheduleCalendarTapTest {
                         ScheduledScreen(
                             tasks = state.scheduledTasks,
                             ready = state.ready,
-                            canInterrupt = false,
+                            canInterrupt = false, today = clock.localDate(),
                             onBack = {},
                             onToday = {},
                             onStart = {},

@@ -133,6 +133,7 @@ class InterruptButtonTapTest {
                                 tasks = state.scheduledTasks,
                                 ready = state.ready,
                                 canInterrupt = state.canInterrupt,
+                                today = clock.localDate(),
                                 onBack = {},
                                 onToday = {},
                                 onStart = {},
