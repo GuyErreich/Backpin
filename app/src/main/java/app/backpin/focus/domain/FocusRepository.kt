@@ -83,6 +83,9 @@ interface FocusRepository {
      * [FrameState.AWAITING_RESUME], and moves the task to [destination]. Nothing resumes on its own.
      * [DetachDestination.Today] places it without starting it. When Today is full it
      * waits in Inbox and returns [PromoteOutcome.NeedsSwap], so Replace can place it.
+     * A nested child already on Today is treated the same once its parent frame is
+     * closed: if it now exceeds the cap, Inbox and [PromoteOutcome.NeedsSwap].
+     * [DetachDestination.Later] waits in Inbox. Later is not a placement anymore.
      * [DetachDestination.Countdown] needs a day after today.
      */
     suspend fun detachInterruption(
@@ -178,11 +181,11 @@ interface FocusRepository {
     /**
      * Pauses the active Today frame and makes [taskId] the active child.
      * Reuses [taskId]; does not create another task.
-     * When [taskId] is already in Today, both tasks stay in Today. A paused frame
-     * for [taskId] is reactivated as the child. A frame waiting for an explicit
-     * resume is not hijacked.
-     * When [taskId] is not in Today, the previous Now moves to Later and stays the
-     * parent frame, so Today stays within the cap and [taskId] is in Today.
+     * The paused parent keeps its Today slot. When [taskId] is not already in
+     * Today, it moves onto Today as the child. That child does not count toward
+     * the Today cap while it remains an open child of the current frame.
+     * A paused frame for [taskId] is reactivated as the child. A frame waiting
+     * for an explicit resume is not hijacked.
      */
     suspend fun interruptWith(taskId: String)
 

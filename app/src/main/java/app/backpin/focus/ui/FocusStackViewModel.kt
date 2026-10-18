@@ -645,8 +645,8 @@ class FocusStackViewModel(
     fun confirmInterrupt() {
         val incoming = swapIncomingId.value ?: return
         viewModelScope.launch {
-            // Fresh captures land in Inbox first; interruptWith parks the current Today
-            // task in Later and nests the incoming task in that slot.
+            // Fresh captures land in Inbox first; interruptWith keeps the current Today
+            // task paused on Today and nests the incoming task under it.
             useCases.interruptWith(incoming)
             endSwap()
         }
