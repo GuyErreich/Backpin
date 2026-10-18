@@ -296,55 +296,6 @@ class FocusRepositoryImpl(
         return outcome
     }
 
-    override suspend fun captureReplacing(
-        title: String,
-        outgoingTaskId: String,
-    ): UndoToken {
-        val trimmed = title.trim()
-        check(trimmed.isNotEmpty()) { "Blank title" }
-        val limit = todayLimit()
-        val token =
-            database.withTransaction {
-                val outgoing = taskDao.getById(outgoingTaskId) ?: error("Missing outgoing task")
-                val valid =
-                    outgoing.bucket == TaskBucket.TODAY.name &&
-                        outgoing.status == TaskStatus.OPEN.name
-                if (!valid) error("Swap rejected")
-                val slot = outgoing.sortOrder
-                val parked = parkInLater(outgoing.id)
-                val created = newTask(trimmed, TaskBucket.TODAY).copy(sortOrder = slot)
-                taskDao.upsert(created)
-                if (taskDao.countOpenToday() > limit) error("Swap rejected")
-                requireInvariants(limit)
-                UndoToken(
-                    tasks = parked.tasks,
-                    frames = parked.frames,
-                    createdTaskIds = listOf(created.id),
-                )
-            }
-        recordInteraction()
-        return token
-    }
-
-    override suspend fun interruptWithNew(title: String) {
-        val resolved = title.trim().ifEmpty { UNTITLED_INTERRUPTION }
-        val limit = todayLimit()
-        database.withTransaction {
-            val active = frameDao.getActive() ?: error("Nothing is active")
-            val activeTask = taskDao.getById(active.taskId) ?: error("Missing task")
-            check(activeTask.status == TaskStatus.OPEN.name) { "Active task is done" }
-            check(activeTask.bucket == TaskBucket.TODAY.name) { "Current task is not in Today" }
-            val slot = activeTask.sortOrder
-            frameDao.upsert(pause(active))
-            taskDao.upsert(activeTask.movedTo(TaskBucket.LATER))
-            val created = newTask(resolved, TaskBucket.TODAY).copy(sortOrder = slot)
-            taskDao.upsert(created)
-            frameDao.upsert(newFrame(created.id, parentFrameId = active.id))
-            requireInvariants(limit)
-        }
-        recordInteraction()
-    }
-
     override suspend fun moveToInbox(taskId: String) {
         val moved =
             database.withTransaction {
