@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+@file:Suppress("ktlint:standard:indent", "ktlint:standard:no-consecutive-blank-lines")
+
 package app.backpin.focus.ui.focus
 
 import androidx.compose.foundation.BorderStroke
@@ -27,6 +29,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
@@ -35,6 +38,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import app.backpin.focus.R
 import app.backpin.focus.domain.elapsedMillis
 import app.backpin.focus.domain.suggestedCountdownDays
 import app.backpin.focus.domain.timeInFocusLabel
@@ -233,7 +237,10 @@ internal fun RecoveryCard(
                     AccentTone.Mint,
                     onClick = { viewModel.resume(recovery.frameId) },
                 )
-                QuietButton(androidx.compose.ui.res.stringResource(app.backpin.focus.R.string.action_bring_back), onClick = { viewModel.openBringBack(recovery.taskId, recovery.title) })
+                QuietButton(
+                    stringResource(R.string.action_bring_back),
+                    onClick = { viewModel.openBringBack(recovery.taskId, recovery.title) },
+                )
             }
         }
     }
