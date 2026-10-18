@@ -36,11 +36,10 @@ import java.util.UUID
  * Robolectric unit tests call Room from the test thread via `runTest` or
  * `runBlocking`.
  */
-fun inMemoryFocusDatabase(context: Context): FocusStackDatabase =
-    Room
-        .inMemoryDatabaseBuilder(context, FocusStackDatabase::class.java)
-        .allowMainThreadQueries()
-        .build()
+fun inMemoryFocusDatabase(context: Context): FocusStackDatabase = Room
+    .inMemoryDatabaseBuilder(context, FocusStackDatabase::class.java)
+    .allowMainThreadQueries()
+    .build()
 
 /**
  * One fixture clock and zone for the real repository, use-cases, repeats
@@ -62,19 +61,17 @@ class TestFocusFixture private constructor(
 
     fun zoneProvider(): () -> ZoneId = clock::zoneId
 
-    fun viewModelFactory(): FocusStackViewModelFactory =
-        FocusStackViewModelFactory(
-            useCases = useCases,
-            repeatsApi = repeats,
-            clock = clock,
-        )
+    fun viewModelFactory(): FocusStackViewModelFactory = FocusStackViewModelFactory(
+        useCases = useCases,
+        repeatsApi = repeats,
+        clock = clock,
+    )
 
-    fun viewModel(): FocusStackViewModel =
-        FocusStackViewModel(
-            useCases = useCases,
-            repeatsApi = repeats,
-            clock = clock,
-        )
+    fun viewModel(): FocusStackViewModel = FocusStackViewModel(
+        useCases = useCases,
+        repeatsApi = repeats,
+        clock = clock,
+    )
 
     /**
      * Builds the ViewModel through its factory and clears the store after
@@ -94,44 +91,39 @@ class TestFocusFixture private constructor(
     fun bandScheduler(
         scope: CoroutineScope,
         workManager: WorkManager,
-    ): BandScheduler =
-        BandScheduler(
-            context = context,
-            repository = repository,
-            scope = scope,
-            clock = clock,
-            workManager = workManager,
-            zone = clock::zoneId,
-        )
+    ): BandScheduler = BandScheduler(
+        context = context,
+        repository = repository,
+        scope = scope,
+        clock = clock,
+        workManager = workManager,
+        zone = clock::zoneId,
+    )
 
-    fun repeatNotifications(scheduler: BandScheduler): RepeatNotificationCoordinator =
-        RepeatNotificationCoordinator(
-            context = context,
-            repository = repository,
-            scheduler = scheduler,
-            clock = clock,
-            zone = clock::zoneId,
-        )
+    fun repeatNotifications(scheduler: BandScheduler): RepeatNotificationCoordinator = RepeatNotificationCoordinator(
+        context = context,
+        repository = repository,
+        scheduler = scheduler,
+        clock = clock,
+        zone = clock::zoneId,
+    )
 
-    fun scheduleReleaseScheduler(workManager: WorkManager): ScheduleReleaseScheduler =
-        ScheduleReleaseScheduler(
-            workManager = workManager,
-            nowEpochMillis = clock::nowEpochMillis,
-        )
+    fun scheduleReleaseScheduler(workManager: WorkManager): ScheduleReleaseScheduler = ScheduleReleaseScheduler(
+        workManager = workManager,
+        nowEpochMillis = clock::nowEpochMillis,
+    )
 
-    fun deriveUi(
+    internal fun deriveUi(
         snapshot: FocusSnapshot,
         chrome: ChromeState = sampleChrome(),
-    ): FocusUiState =
-        deriveFocusUi(
-            snapshot = snapshot,
-            chrome = chrome,
-            localDate = clock.localDate(),
-            localTime = clock.localTime(),
-        )
+    ): FocusUiState = deriveFocusUi(
+        snapshot = snapshot,
+        chrome = chrome,
+        localDate = clock.localDate(),
+        localTime = clock.localTime(),
+    )
 
-    suspend fun seedFullToday(titles: List<String> = defaultTodayTitles()): List<Task> =
-        repository.seedFullToday(titles)
+    suspend fun seedFullToday(titles: List<String> = defaultTodayTitles()): List<Task> = repository.seedFullToday(titles)
 
     override fun close() {
         database.close()

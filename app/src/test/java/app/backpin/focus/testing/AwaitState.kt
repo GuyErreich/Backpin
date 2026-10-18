@@ -12,6 +12,10 @@ import kotlin.time.Duration.Companion.seconds
  * Waits until [predicate] matches a value. Skips stale emissions. Does not
  * count events. On timeout, fails with the last value seen. No
  * [Thread.sleep] and no fixed [kotlinx.coroutines.delay].
+ *
+ * Inside [kotlinx.coroutines.test.runTest], [timeout] is virtual time. Room
+ * and DataStore emit on real threads, so those tests should collect from
+ * [kotlinx.coroutines.runBlocking] instead.
  */
 suspend fun <T> Flow<T>.awaitState(
     timeout: Duration = 5.seconds,

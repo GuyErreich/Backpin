@@ -31,20 +31,19 @@ fun sampleTask(
     scheduledOnEpochDay: Long? = null,
     scheduledAtMinuteOfDay: Int? = null,
     countdownIntervalDays: Int? = null,
-): Task =
-    Task(
-        id = id,
-        title = title,
-        bucket = bucket,
-        status = status,
-        returnCue = returnCue,
-        sortOrder = sortOrder,
-        createdAtEpochMillis = createdAtEpochMillis,
-        completedAtEpochMillis = completedAtEpochMillis,
-        scheduledOnEpochDay = scheduledOnEpochDay,
-        scheduledAtMinuteOfDay = scheduledAtMinuteOfDay,
-        countdownIntervalDays = countdownIntervalDays,
-    )
+): Task = Task(
+    id = id,
+    title = title,
+    bucket = bucket,
+    status = status,
+    returnCue = returnCue,
+    sortOrder = sortOrder,
+    createdAtEpochMillis = createdAtEpochMillis,
+    completedAtEpochMillis = completedAtEpochMillis,
+    scheduledOnEpochDay = scheduledOnEpochDay,
+    scheduledAtMinuteOfDay = scheduledAtMinuteOfDay,
+    countdownIntervalDays = countdownIntervalDays,
+)
 
 fun sampleRepeat(
     id: String = "repeat-1",
@@ -56,18 +55,17 @@ fun sampleRepeat(
     sortOrder: Long = 0L,
     createdAtEpochMillis: Long = DEFAULT_TEST_INSTANT.toEpochMilli(),
     archivedAtEpochMillis: Long? = null,
-): Repeat =
-    Repeat(
-        id = id,
-        title = title,
-        band = band,
-        everyNDays = everyNDays,
-        anchorEpochDay = anchorEpochDay,
-        reminderOn = reminderOn,
-        sortOrder = sortOrder,
-        createdAtEpochMillis = createdAtEpochMillis,
-        archivedAtEpochMillis = archivedAtEpochMillis,
-    )
+): Repeat = Repeat(
+    id = id,
+    title = title,
+    band = band,
+    everyNDays = everyNDays,
+    anchorEpochDay = anchorEpochDay,
+    reminderOn = reminderOn,
+    sortOrder = sortOrder,
+    createdAtEpochMillis = createdAtEpochMillis,
+    archivedAtEpochMillis = archivedAtEpochMillis,
+)
 
 fun sampleFrame(
     id: String = "frame-1",
@@ -77,23 +75,22 @@ fun sampleFrame(
     startedAtEpochMillis: Long = DEFAULT_TEST_INSTANT.toEpochMilli(),
     pausedAtEpochMillis: Long? = null,
     accumulatedMillis: Long = 0L,
-): FocusFrame =
-    FocusFrame(
-        id = id,
-        taskId = taskId,
-        parentFrameId = parentFrameId,
-        state = state,
-        startedAtEpochMillis = startedAtEpochMillis,
-        pausedAtEpochMillis = pausedAtEpochMillis,
-        accumulatedMillis = accumulatedMillis,
-    )
+): FocusFrame = FocusFrame(
+    id = id,
+    taskId = taskId,
+    parentFrameId = parentFrameId,
+    state = state,
+    startedAtEpochMillis = startedAtEpochMillis,
+    pausedAtEpochMillis = pausedAtEpochMillis,
+    accumulatedMillis = accumulatedMillis,
+)
 
 fun sampleSnapshot(
     tasks: List<Task> = emptyList(),
     frames: List<FocusFrame> = emptyList(),
 ): FocusSnapshot = FocusSnapshot(tasks = tasks, frames = frames)
 
-fun sampleChrome(
+internal fun sampleChrome(
     captureOpen: Boolean = false,
     captureInterrupts: Boolean = false,
     swapIncomingId: String? = null,
@@ -102,17 +99,16 @@ fun sampleChrome(
     undo: PendingUndo? = null,
     preferences: UserPreferences = UserPreferences(),
     editingTaskId: String? = null,
-): ChromeState =
-    ChromeState(
-        captureOpen = captureOpen,
-        captureInterrupts = captureInterrupts,
-        swapIncomingId = swapIncomingId,
-        freshSwapTitle = freshSwapTitle,
-        switchOpen = switchOpen,
-        undo = undo,
-        preferences = preferences,
-        editingTaskId = editingTaskId,
-    )
+): ChromeState = ChromeState(
+    captureOpen = captureOpen,
+    captureInterrupts = captureInterrupts,
+    swapIncomingId = swapIncomingId,
+    freshSwapTitle = freshSwapTitle,
+    switchOpen = switchOpen,
+    undo = undo,
+    preferences = preferences,
+    editingTaskId = editingTaskId,
+)
 
 /**
  * Places [titles] on Today through the real repository. Defaults to three

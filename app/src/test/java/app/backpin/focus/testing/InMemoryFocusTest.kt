@@ -5,7 +5,7 @@ import app.backpin.focus.domain.PromoteOutcome
 import app.backpin.focus.domain.TaskBucket
 import app.backpin.focus.domain.TaskStatus
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertSame
@@ -23,9 +23,6 @@ import java.time.ZoneId
 @Config(sdk = [36])
 class InMemoryFocusTest {
     @get:Rule
-    val mainDispatcherRule = MainDispatcherRule()
-
-    @get:Rule
     val focus =
         InMemoryFocusRule {
             FakeAppClock(
@@ -35,52 +32,49 @@ class InMemoryFocusTest {
         }
 
     @Test
-    fun repositoryRoundTripUsesTheFixtureClock() =
-        runTest {
-            val written = focus.repository.seedInbox("Write the brief").single()
-            val snapshot =
-                focus.repository.observeSnapshot().awaitState { state ->
-                    state.tasks.any { it.id == written.id }
-                }
-            val task = snapshot.tasks.single()
-            assertEquals("Write the brief", task.title)
-            assertEquals(TaskBucket.INBOX, task.bucket)
-            assertEquals(focus.clock.nowEpochMillis(), task.createdAtEpochMillis)
-        }
+    fun repositoryRoundTripUsesTheFixtureClock() = runBlocking {
+        val written = focus.repository.seedInbox("Write the brief").single()
+        val snapshot =
+            focus.repository.observeSnapshot().awaitState { state ->
+                state.tasks.any { it.id == written.id }
+            }
+        val task = snapshot.tasks.single()
+        assertEquals("Write the brief", task.title)
+        assertEquals(TaskBucket.INBOX, task.bucket)
+        assertEquals(focus.clock.nowEpochMillis(), task.createdAtEpochMillis)
+    }
 
     @Test
-    fun repositoryAndRepeatsShareOneClockAndZone() =
-        runTest {
-            assertEquals(ZoneId.of("America/New_York"), focus.fixture.zone)
-            assertEquals(focus.clock.zoneId(), focus.fixture.zoneProvider().invoke())
-            assertEquals(LocalDate.of(2026, 10, 15), focus.clock.localDate())
-            assertEquals(
-                focus.clock.localEpochDay(),
-                focus.repeats.observeLocalEpochDay().first(),
+    fun repositoryAndRepeatsShareOneClockAndZone() = runBlocking {
+        assertEquals(ZoneId.of("America/New_York"), focus.fixture.zone)
+        assertEquals(focus.clock.zoneId(), focus.fixture.zoneProvider().invoke())
+        assertEquals(LocalDate.of(2026, 10, 15), focus.clock.localDate())
+        assertEquals(
+            focus.clock.localEpochDay(),
+            focus.repeats.observeLocalEpochDay().first(),
+        )
+        val repeat =
+            focus.repository.seedRepeat(
+                title = "Take meds",
+                anchorEpochDay = focus.clock.localEpochDay(),
             )
-            val repeat =
-                focus.repository.seedRepeat(
-                    title = "Take meds",
-                    anchorEpochDay = focus.clock.localEpochDay(),
-                )
-            assertEquals(focus.clock.nowEpochMillis(), repeat.createdAtEpochMillis)
-            val rows =
-                focus.repeats.observeTodaysRepeats().awaitState { today ->
-                    today.morning.any { it.repeat.id == repeat.id }
-                }
-            assertEquals("Take meds", rows.morning.single().repeat.title)
-        }
+        assertEquals(focus.clock.nowEpochMillis(), repeat.createdAtEpochMillis)
+        val rows =
+            focus.repeats.observeTodaysRepeats().awaitState { today ->
+                today.morning.any { it.repeat.id == repeat.id }
+            }
+        assertEquals("Take meds", rows.morning.single().repeat.title)
+    }
 
     @Test
-    fun seedFullTodayFillsTheCapThroughRealQueries() =
-        runTest {
-            val today = focus.repository.seedFullToday()
-            assertEquals(listOf("Write the brief", "Call Dana", "File the form"), today.map { it.title })
-            assertTrue(today.all { it.bucket == TaskBucket.TODAY && it.status == TaskStatus.OPEN })
-            val blocked = focus.repository.captureIntoToday("Extra")
-            assertTrue(blocked is PromoteOutcome.NeedsSwap)
-            assertEquals(3, (blocked as PromoteOutcome.NeedsSwap).todayTasks.size)
-        }
+    fun seedFullTodayFillsTheCapThroughRealQueries() = runBlocking {
+        val today = focus.repository.seedFullToday()
+        assertEquals(listOf("Write the brief", "Call Dana", "File the form"), today.map { it.title })
+        assertTrue(today.all { it.bucket == TaskBucket.TODAY && it.status == TaskStatus.OPEN })
+        val blocked = focus.repository.captureIntoToday("Extra")
+        assertTrue(blocked is PromoteOutcome.NeedsSwap)
+        assertEquals(3, (blocked as PromoteOutcome.NeedsSwap).todayTasks.size)
+    }
 
     @Test
     fun deriveUiUsesTheFixtureLocalDate() {
@@ -96,20 +90,31 @@ class InMemoryFocusTest {
     }
 
     @Test
+    fun useClosesTheDatabase() = runBlocking {
+        val fixture = TestFocusFixture.open()
+        val database = fixture.database
+        fixture.use { opened ->
+            assertSame(database, opened.database)
+            opened.repository.seedInbox("Write the brief")
+            assertTrue(opened.database.isOpen)
+        }
+        assertFalse(database.isOpen)
+    }
+}
+
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [36])
+class InMemoryFocusViewModelTest {
+    @get:Rule
+    val mainDispatcherRule = MainDispatcherRule()
+
+    @get:Rule
+    val focus = InMemoryFocusRule()
+
+    @Test
     fun withViewModelBuildsThroughTheFactory() {
         focus.fixture.withViewModel { viewModel ->
             assertEquals(false, viewModel.uiState.value.captureOpen)
         }
-    }
-
-    @Test
-    fun useClosesTheDatabase() {
-        val fixture = TestFocusFixture.open()
-        val database = fixture.database
-        assertTrue(database.isOpen)
-        fixture.use { opened ->
-            assertSame(database, opened.database)
-        }
-        assertFalse(database.isOpen)
     }
 }

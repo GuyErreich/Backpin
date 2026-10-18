@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package app.backpin.focus.testing
 
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.test.TestDispatcher
-import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
@@ -20,18 +20,15 @@ class MainDispatcherRuleTest {
     val mainDispatcherRule = MainDispatcherRule()
 
     @Test
-    fun runTestSharesTheRuleScheduler() =
-        runTest {
-            assertSame(mainDispatcherRule.scheduler, testScheduler)
-            assertTrue(Dispatchers.Main is TestDispatcher)
-            assertSame(mainDispatcherRule.dispatcher.scheduler, testScheduler)
-            var ran = false
-            val job = launch(Dispatchers.Main) { ran = true }
-            assertFalse(ran)
-            testScheduler.runCurrent()
-            job.join()
-            assertTrue(ran)
-        }
+    fun runTestSharesTheRuleScheduler() = mainDispatcherRule.runTest {
+        assertSame(mainDispatcherRule.scheduler, testScheduler)
+        var ran = false
+        val job = launch(Dispatchers.Main) { ran = true }
+        assertFalse(ran)
+        testScheduler.runCurrent()
+        job.join()
+        assertTrue(ran)
+    }
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -40,15 +37,24 @@ class MainDispatcherRuleResetTest {
     fun resetsMainAfterTheStatement() {
         val rule = MainDispatcherRule()
         val description = Description.createTestDescription(javaClass, "resetsMain")
+        var ran = false
         rule
             .apply(
                 object : Statement() {
                     override fun evaluate() {
-                        assertTrue(Dispatchers.Main is TestDispatcher)
+                        val job = CoroutineScope(Dispatchers.Main).launch { ran = true }
+                        rule.scheduler.runCurrent()
+                        assertTrue(ran)
+                        job.cancel()
                     }
                 },
                 description,
             ).evaluate()
-        assertFalse(Dispatchers.Main is TestDispatcher)
+        ran = false
+        runCatching {
+            CoroutineScope(Dispatchers.Main + SupervisorJob()).launch { ran = true }
+        }
+        rule.scheduler.runCurrent()
+        assertFalse(ran)
     }
 }
