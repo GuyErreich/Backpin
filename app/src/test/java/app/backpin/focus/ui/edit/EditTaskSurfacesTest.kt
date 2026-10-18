@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package app.backpin.focus.ui.edit
 
-import android.content.Context
 import android.os.Looper
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.Composable
@@ -24,26 +23,16 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onAllNodesWithText
-import androidx.compose.ui.test.onNodeWithContentDescription
-import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeRight
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.ViewModelStore
-import androidx.room.Room
-import androidx.test.core.app.ApplicationProvider
-import app.backpin.focus.data.FocusRepositoryImpl
-import app.backpin.focus.data.FocusStackDatabase
-import app.backpin.focus.data.PreferencesDataStore
-import app.backpin.focus.domain.AppClock
 import app.backpin.focus.domain.CountdownUnit
 import app.backpin.focus.domain.FocusSnapshot
 import app.backpin.focus.domain.FocusUseCases
 import app.backpin.focus.domain.TaskBucket
 import app.backpin.focus.domain.UNTITLED_INTERRUPTION
+import app.backpin.focus.testing.FakeAppClock
+import app.backpin.focus.testing.useTestFocus
 import app.backpin.focus.ui.FocusStackViewModel
 import app.backpin.focus.ui.SlotRole
 import app.backpin.focus.ui.capture.CaptureEdit
@@ -66,8 +55,6 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
-import java.time.LocalDate
-import java.util.UUID
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36], qualifiers = "w411dp-h891dp")
@@ -77,8 +64,8 @@ class EditTaskSurfacesTest {
 
     @Test
     fun editOpensFromEachOpenSurfaceAndSaveRenames() {
-        withHarness { viewModel, useCases ->
-            seedOpenTasks(useCases)
+        withHarness { viewModel, useCases, clock ->
+            seedOpenTasks(useCases, clock)
             var screen by mutableStateOf("home")
             compose.setContent {
                 val state by viewModel.uiState.collectAsState()
@@ -110,7 +97,7 @@ class EditTaskSurfacesTest {
                                 scheduledTasks = state.scheduledTasks,
                                 countdowns = state.countdowns,
                                 ready = state.ready,
-                                today = state.today,
+                                today = clock.localDate(),
                                 countdownUnit = CountdownUnit.DAYS,
                                 onEdit = viewModel::openEdit,
                                 onOpenSheet = {},
@@ -126,6 +113,7 @@ class EditTaskSurfacesTest {
                                 onChangeDate = { _, _ -> },
                                 onRemove = {},
                                 onEdit = viewModel::openEdit,
+                                today = clock.localDate(),
                                 recognizer = SilentRecognizer,
                             )
                         else ->
@@ -166,7 +154,7 @@ class EditTaskSurfacesTest {
             compose.runOnIdle { screen = "coming" }
             compose.waitForIdle()
             await { compose.onAllNodesWithText("From scheduled").fetchSemanticsNodes().isNotEmpty() }
-            compose.onNodeWithText("From scheduled").performTouchInput { longClick() }
+            compose.onNode(hasText("From scheduled")).performTouchInput { longClick() }
             await { compose.onAllNodes(hasSetTextAction()).fetchSemanticsNodes().isNotEmpty() }
             saveTitleAs("Scheduled renamed")
             awaitSnapshot(useCases) { hasTask(it, "Scheduled renamed", TaskBucket.SCHEDULED) }
@@ -179,15 +167,15 @@ class EditTaskSurfacesTest {
 
             compose.runOnIdle { screen = "done" }
             compose.waitForIdle()
-            compose.onNodeWithText("From done").assertExists()
-            compose.onNodeWithText("Edit").assertDoesNotExist()
+            compose.onNode(hasText("From done")).assertExists()
+            compose.onNode(hasText("Edit")).assertDoesNotExist()
         }
     }
 
     @Test
     fun longPressDoesNotEditPilesAndTodayStillReorders() {
-        withHarness { viewModel, useCases ->
-            seedOpenTasks(useCases)
+        withHarness { viewModel, useCases, clock ->
+            seedOpenTasks(useCases, clock)
             var screen by mutableStateOf("inbox")
             compose.setContent {
                 val state by viewModel.uiState.collectAsState()
@@ -219,10 +207,10 @@ class EditTaskSurfacesTest {
             }
             await { viewModel.uiState.value.inboxTasks.any { it.title == "From inbox" } }
 
-            compose.onNodeWithText("From inbox").performTouchInput { longClick() }
+            compose.onNode(hasText("From inbox")).performTouchInput { longClick() }
             compose.waitForIdle()
             assertNull(viewModel.uiState.value.editing)
-            compose.onNodeWithText("Done").assertDoesNotExist()
+            compose.onNode(hasText("Done")).assertDoesNotExist()
 
             invokeCustomAction("Edit", "From inbox")
             await { viewModel.uiState.value.editing?.title == "From inbox" }
@@ -265,7 +253,7 @@ class EditTaskSurfacesTest {
 
     @Test
     fun untitledInterruptionUsesTheEditSheet() {
-        withHarness { viewModel, useCases ->
+        withHarness { viewModel, useCases, clock ->
             runBlocking {
                 useCases.capture("Hold this")
                 useCases.start(idOf(useCases, "Hold this"))
@@ -279,7 +267,7 @@ class EditTaskSurfacesTest {
                 }
             }
             await { viewModel.uiState.value.now?.title == UNTITLED_INTERRUPTION }
-            compose.onNodeWithText("Save title").assertDoesNotExist()
+            compose.onNode(hasText("Save title")).assertDoesNotExist()
             tap("Edit")
             await { viewModel.uiState.value.editing?.title == UNTITLED_INTERRUPTION }
             saveTitleAs("Name this")
@@ -289,8 +277,8 @@ class EditTaskSurfacesTest {
 
     @Test
     fun backSavesABlankKeepsTheTitleAndPlaceChangesMoveTheTask() {
-        withHarness { viewModel, useCases ->
-            seedOpenTasks(useCases)
+        withHarness { viewModel, useCases, clock ->
+            seedOpenTasks(useCases, clock)
             compose.setContent {
                 val state by viewModel.uiState.collectAsState()
                 FocusStackTheme {
@@ -311,7 +299,7 @@ class EditTaskSurfacesTest {
 
             tapEditNear("From inbox")
             titleField().performTextReplacement("Inbox kept by back")
-            compose.onNodeWithContentDescription("Close").performTouchInput { click() }
+            compose.onNode(hasContentDescription("Close")).performTouchInput { click() }
             compose.waitForIdle()
             awaitSnapshot(useCases) { hasTask(it, "Inbox kept by back", TaskBucket.INBOX) }
             await { compose.onAllNodesWithText("Inbox kept by back").fetchSemanticsNodes().isNotEmpty() }
@@ -331,7 +319,7 @@ class EditTaskSurfacesTest {
             await { viewModel.uiState.value.editing?.title == "From later" }
             tap("Schedule")
             tap("Tomorrow")
-            val tomorrow = LocalDate.now().plusDays(1).toEpochDay()
+            val tomorrow = clock.localDate().plusDays(1).toEpochDay()
             awaitSnapshot(useCases) {
                 it.tasks.any { task ->
                     task.title == "From later" &&
@@ -368,41 +356,18 @@ class EditTaskSurfacesTest {
         }
     }
 
-    private fun withHarness(block: (FocusStackViewModel, FocusUseCases) -> Unit) {
-        val context: Context = ApplicationProvider.getApplicationContext()
-        val database =
-            Room
-                .inMemoryDatabaseBuilder(context, FocusStackDatabase::class.java)
-                .allowMainThreadQueries()
-                .build()
-        val useCases =
-            FocusUseCases(
-                FocusRepositoryImpl(
-                    database = database,
-                    preferencesStore = PreferencesDataStore(context, "edit-surfaces-${UUID.randomUUID()}"),
-                    clock = AppClock { System.currentTimeMillis() },
-                ),
-            )
-        val store = ViewModelStore()
-        val viewModel =
-            ViewModelProvider(
-                store,
-                object : ViewModelProvider.Factory {
-                    override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                        @Suppress("UNCHECKED_CAST")
-                        return FocusStackViewModel(useCases) as T
-                    }
-                },
-            )[FocusStackViewModel::class.java]
-        try {
-            block(viewModel, useCases)
-        } finally {
-            store.clear()
-            database.close()
+    private fun withHarness(block: (FocusStackViewModel, FocusUseCases, FakeAppClock) -> Unit) {
+        useTestFocus { fixture ->
+            fixture.withViewModel { viewModel ->
+                block(viewModel, fixture.useCases, fixture.clock)
+            }
         }
     }
 
-    private fun seedOpenTasks(useCases: FocusUseCases) {
+    private fun seedOpenTasks(
+        useCases: FocusUseCases,
+        clock: FakeAppClock,
+    ) {
         runBlocking {
             useCases.capture("Hold this")
             useCases.start(idOf(useCases, "Hold this"))
@@ -410,8 +375,8 @@ class EditTaskSurfacesTest {
             useCases.promote(idOf(useCases, "Park me"))
             useCases.capture("From inbox")
             useCases.captureLater("From later")
-            useCases.captureScheduled("From scheduled", LocalDate.now().plusDays(3).toEpochDay())
-            useCases.captureCountdown("From countdown", LocalDate.now().plusDays(12).toEpochDay())
+            useCases.captureScheduled("From scheduled", clock.localDate().plusDays(3).toEpochDay())
+            useCases.captureCountdown("From countdown", clock.localDate().plusDays(12).toEpochDay())
             useCases.capture("From done")
             useCases.completeTask(idOf(useCases, "From done"))
         }
@@ -458,8 +423,8 @@ class EditTaskSurfacesTest {
     )
 
     private fun tap(label: String) {
-        compose.onNodeWithText(label).assertIsEnabled().assertHasClickAction()
-        compose.onNodeWithText(label).performTouchInput { click() }
+        compose.onNode(hasText(label)).assertIsEnabled().assertHasClickAction()
+        compose.onNode(hasText(label)).performTouchInput { click() }
         compose.waitForIdle()
     }
 

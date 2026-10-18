@@ -2,6 +2,7 @@
 package app.backpin.focus.data
 
 import app.backpin.focus.domain.DetachDestination
+import app.backpin.focus.domain.FrameState
 import app.backpin.focus.domain.PromoteOutcome
 import app.backpin.focus.domain.Task
 import app.backpin.focus.domain.TaskBucket
@@ -80,6 +81,47 @@ class CountdownRearmTest {
                         )
                     }
                 }
+            }
+        }
+    }
+
+    @Test
+    fun detachCountdownClampsLastInterval500To365() {
+        useTestFocus { fixture ->
+            runBlocking {
+                val today = todayOn(fixture.clock)
+                val event = arriveToday(fixture, today)
+                val row = fixture.database.taskDao().getById(event.id) ?: error("missing ${event.id}")
+                fixture.database.taskDao().upsert(row.copy(countdownIntervalDays = 500))
+                val tooFar = today.plusDays(500).toEpochDay()
+                assertEquals(false, isCountdownRearmDay(tooFar, today))
+                val rejected =
+                    fixture.useCases.detachInterruption(
+                        event.id,
+                        DetachDestination.Countdown(tooFar),
+                    )
+                assertTrue(rejected is PromoteOutcome.Rejected)
+                assertEquals(
+                    500,
+                    fixture.database.taskDao().getById(event.id)?.countdownIntervalDays,
+                )
+                assertEquals(
+                    FrameState.ACTIVE,
+                    fixture.useCases.observeSnapshot().first().frames.single { it.taskId == event.id }.state,
+                )
+                val clamped = today.plusDays(365).toEpochDay()
+                assertEquals(true, isCountdownRearmDay(clamped, today))
+                assertEquals(
+                    PromoteOutcome.Promoted,
+                    fixture.useCases.detachInterruption(
+                        event.id,
+                        DetachDestination.Countdown(clamped),
+                    ),
+                )
+                val stored =
+                    fixture.useCases.observeSnapshot().first().tasks.single { it.id == event.id }
+                assertEquals(clamped, stored.scheduledOnEpochDay)
+                assertEquals(365, stored.countdownIntervalDays)
             }
         }
     }
