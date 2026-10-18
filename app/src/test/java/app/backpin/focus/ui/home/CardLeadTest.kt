@@ -72,6 +72,7 @@ class CardLeadTest {
                         ),
                     ready = true,
                     canInterrupt = true,
+                    today = app.backpin.focus.testing.FakeAppClock().localDate(),
                     onBack = {},
                     onToday = {},
                     onStart = {},

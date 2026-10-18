@@ -45,9 +45,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
-import java.time.Instant
 import java.time.LocalDate
-import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import java.util.UUID
@@ -62,8 +60,8 @@ class MissedTaskSheetQaTest {
 
     @Test
     fun tappingADueScheduledCardOpensDoneNowTomorrowAndPickADay() {
-        withHarness { viewModel, useCases, _ ->
-            val today = LocalDate.now()
+        withHarness { viewModel, useCases, clock ->
+            val today = clock.localDate()
             runBlocking {
                 useCases.captureScheduled("Call Dana", today.toEpochDay())
             }
@@ -84,9 +82,9 @@ class MissedTaskSheetQaTest {
 
     @Test
     fun doneNowCompletesTheDueTaskAndClosesTheSheet() {
-        withHarness { viewModel, useCases, _ ->
+        withHarness { viewModel, useCases, clock ->
             runBlocking {
-                useCases.captureScheduled("Call Dana", LocalDate.now().toEpochDay())
+                useCases.captureScheduled("Call Dana", clock.localDate().toEpochDay())
             }
             showScheduled(viewModel)
             await { viewModel.uiState.value.scheduledTasks.any { it.title == "Call Dana" && it.due } }
@@ -102,7 +100,7 @@ class MissedTaskSheetQaTest {
     @Test
     fun tomorrowSchedulesTheNextLocalDayOnTheInjectedClock() {
         withHarness { viewModel, useCases, clock ->
-            val today = LocalDate.ofInstant(Instant.ofEpochMilli(clock.nowEpochMillis()), ZoneId.systemDefault())
+            val today = clock.localDate()
             runBlocking {
                 useCases.captureScheduled("Call Dana", today.toEpochDay())
             }
@@ -126,7 +124,7 @@ class MissedTaskSheetQaTest {
     @Test
     fun pickADayOpensACalendarWhoseEarliestDayIsTomorrow() {
         var picked: LocalDate? = null
-        val today = LocalDate.now()
+        val today = app.backpin.focus.testing.FakeAppClock().localDate()
         val tomorrow = today.plusDays(1)
         compose.setContent {
             FocusStackTheme {
@@ -146,7 +144,7 @@ class MissedTaskSheetQaTest {
     @Test
     fun pickADayFromTheSheetSchedulesTomorrowAndRejectsToday() {
         withHarness { viewModel, useCases, clock ->
-            val today = LocalDate.ofInstant(Instant.ofEpochMilli(clock.nowEpochMillis()), ZoneId.systemDefault())
+            val today = clock.localDate()
             val tomorrow = today.plusDays(1)
             runBlocking {
                 useCases.captureScheduled("Call Dana", today.toEpochDay())
@@ -175,6 +173,7 @@ class MissedTaskSheetQaTest {
                     tasks = state.scheduledTasks,
                     ready = state.ready,
                     canInterrupt = state.canInterrupt,
+                    today = viewModel.localDate(),
                     onBack = {},
                     onToday = {},
                     onStart = {},
@@ -190,6 +189,7 @@ class MissedTaskSheetQaTest {
                 missed?.let { pending ->
                     MissedTaskSheet(
                         state = pending,
+                        today = viewModel.localDate(),
                         onDismiss = viewModel::dismissMissedTask,
                         onDoneNow = viewModel::doneMissedTask,
                         onTomorrow = viewModel::tomorrowMissedTask,
@@ -201,7 +201,7 @@ class MissedTaskSheetQaTest {
     }
 
     private fun withHarness(block: (FocusStackViewModel, FocusUseCases, AppClock) -> Unit) {
-        val clock = AppClock { System.currentTimeMillis() }
+        val clock: AppClock = app.backpin.focus.testing.FakeAppClock()
         val database =
             Room
                 .inMemoryDatabaseBuilder(context, FocusStackDatabase::class.java)
@@ -222,7 +222,7 @@ class MissedTaskSheetQaTest {
                 object : ViewModelProvider.Factory {
                     override fun <T : ViewModel> create(modelClass: Class<T>): T {
                         @Suppress("UNCHECKED_CAST")
-                        return FocusStackViewModel(useCases) as T
+                        return FocusStackViewModel(useCases, clock = clock) as T
                     }
                 },
             )[FocusStackViewModel::class.java]
