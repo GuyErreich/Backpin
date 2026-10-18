@@ -94,21 +94,6 @@ interface FocusRepository {
     ): PromoteOutcome
 
     /**
-     * Creates a task in the slot freed by parking [outgoingTaskId] in Later.
-     * Does not start the new task. Used when a new capture finds Today full and Replace is chosen.
-     */
-    suspend fun captureReplacing(
-        title: String,
-        outgoingTaskId: String,
-    ): UndoToken
-
-    /**
-     * Pauses the active Today task, parks it in Later, and starts a new nested task in that slot.
-     * Used when a new capture finds Today full and Interrupt is chosen.
-     */
-    suspend fun interruptWithNew(title: String)
-
-    /**
      * Moves an open task to Inbox without starting it. Parks an open frame the same
      * way Later does. A schedule is cleared. Already-Inbox tasks are left alone.
      */
