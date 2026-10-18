@@ -16,7 +16,6 @@ import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
-import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performTextInput
@@ -40,6 +39,7 @@ import app.backpin.focus.domain.TaskBucket
 import app.backpin.focus.domain.backInDaysLabel
 import app.backpin.focus.domain.scheduleMomentLabel
 import app.backpin.focus.domain.TaskStatus
+import app.backpin.focus.testing.FakeAppClock
 import app.backpin.focus.ui.FocusStackViewModel
 import app.backpin.focus.ui.capture.SpeechProblem
 import app.backpin.focus.ui.capture.UtteranceRecognizer
@@ -70,6 +70,7 @@ class CountdownTapTest {
     val compose = createAndroidComposeRule<ComponentActivity>()
 
     private val context: Context = ApplicationProvider.getApplicationContext()
+    private val clock = FakeAppClock()
 
     @Test
     fun enteringTwentyFiveDaysWithANameSavesOneCountdownAndCloses() {
@@ -103,9 +104,9 @@ class CountdownTapTest {
 
             tap("Change date")
             tap("Pick a date")
-            tapCalendarDay(LocalDate.now().plusDays(4))
+            val pickedDay = calendarTarget(4).also { tapCalendarDay(it) }
             tap("OK")
-            val picked = awaitCountdown(useCases, "Dana's birthday", LocalDate.now().plusDays(4).toEpochDay())
+            val picked = awaitCountdown(useCases, "Dana's birthday", pickedDay.toEpochDay())
             assertEquals(created.id, picked.id)
             await { viewModel.uiState.value.countdowns.singleOrNull()?.dayLabel == "4 days" }
             compose.onNodeWithText("4 days", useUnmergedTree = true).assertExists()
@@ -122,10 +123,10 @@ class CountdownTapTest {
             compose.onNodeWithText("Save countdown").assertDoesNotExist()
             nameField().performTextInput("Dana's birthday")
             tap("Pick a date")
-            tapCalendarDay(LocalDate.now().plusDays(7))
+            val eventDay = calendarTarget(7).also { tapCalendarDay(it) }
             tap("OK")
-            val eventDay = LocalDate.now().plusDays(7).toEpochDay()
-            awaitCountdown(useCases, "Dana's birthday", eventDay)
+            val eventEpoch = eventDay.toEpochDay()
+            awaitCountdown(useCases, "Dana's birthday", eventEpoch)
             assertEquals(1, taskCount(useCases))
             compose.onNodeWithText("Count down to").assertDoesNotExist()
             compose.onNodeWithText("Save countdown").assertDoesNotExist()
@@ -157,15 +158,15 @@ class CountdownTapTest {
 
             tap("Add countdown")
             tap("Pick a date")
-            tapCalendarDay(LocalDate.now().plusDays(7))
+            val eventDay = calendarTarget(7).also { tapCalendarDay(it) }
             tap("OK")
             compose.onNodeWithText("Name the event.").assertExists()
             compose.onNodeWithText("Save countdown").assertDoesNotExist()
             assertEquals(1, taskCount(useCases))
 
-            val eventDay = LocalDate.now().plusDays(7).toEpochDay()
+            val eventEpoch = eventDay.toEpochDay()
             nameField().performTextInput("Anniversary")
-            awaitCountdown(useCases, "Anniversary", eventDay)
+            awaitCountdown(useCases, "Anniversary", eventEpoch)
             assertEquals(2, taskCount(useCases))
             compose.onNodeWithText("Count down to").assertDoesNotExist()
         }
@@ -214,7 +215,7 @@ class CountdownTapTest {
             compose.onNodeWithText("Resume").assertExists()
 
             compose.runOnIdle { screen = "focus" }
-            arriveAgain(useCases, repository, "Dentist again", today)
+            arriveAgain(useCases, repository, "Dentist again")
             await { viewModel.uiState.value.now?.title == "Dentist again" }
             compose.onNodeWithText("EVENT").assertExists()
             tap("Later")
@@ -222,7 +223,7 @@ class CountdownTapTest {
                 snapshot.tasks.single { it.title == "Dentist again" }.bucket == TaskBucket.INBOX && parentWaits(snapshot)
             }
 
-            arriveAgain(useCases, repository, "Anniversary", today)
+            arriveAgain(useCases, repository, "Anniversary")
             await { viewModel.uiState.value.now?.title == "Anniversary" }
             compose.onNodeWithText("EVENT").assertExists()
             tap("Count down again")
@@ -239,7 +240,7 @@ class CountdownTapTest {
             await { viewModel.uiState.value.undo?.message == backInDaysLabel(1, today) }
             await { viewModel.uiState.value.countdowns.any { it.title == "Anniversary" && it.dayLabel == "Tomorrow" } }
 
-            arriveAgain(useCases, repository, "Checkup", today)
+            arriveAgain(useCases, repository, "Checkup")
             await { viewModel.uiState.value.now?.title == "Checkup" }
             tap("Done")
             awaitSnapshot(useCases) { snapshot ->
@@ -338,7 +339,7 @@ class CountdownTapTest {
             compose.onNodeWithText(againLabel(12, today)).assertDoesNotExist()
 
             compose.runOnIdle { screen = "focus" }
-            arriveAgain(useCases, repository, "Checkup", today)
+            arriveAgain(useCases, repository, "Checkup")
             await { viewModel.uiState.value.now?.title == "Checkup" }
             tap("Count down again")
             compose.onNodeWithText(againLabel(12, today)).assertExists()
@@ -486,10 +487,9 @@ class CountdownTapTest {
         useCases: FocusUseCases,
         repository: FocusRepositoryImpl,
         title: String,
-        today: LocalDate,
     ) {
         runOffTestThread {
-            useCases.captureCountdown(title, today.toEpochDay())
+            useCases.captureCountdown(title, LocalDate.now().toEpochDay())
             repository.releaseDueCountdowns()
         }
     }
@@ -626,6 +626,83 @@ class CountdownTapTest {
     ) {
         await { runBlocking { predicate(useCases.observeSnapshot().first()) } }
     }
+
+    private fun calendarTarget(daysAhead: Int): LocalDate {
+        compose.waitForIdle()
+        val pinned = clock.localDate()
+        val pickerToday = readPickerToday()
+        return if (pickerToday == pinned) {
+            pinned.plusDays(daysAhead.toLong())
+        } else {
+            pickerToday.plusDays(daysAhead.toLong())
+        }
+    }
+
+    private fun readPickerToday(): LocalDate {
+        val month = readPickerMonth()
+        todayFromDays(readPickerDays(), month)?.let { return it }
+        compose
+            .onNode(hasContentDescription("Change to previous month", substring = true))
+            .performTouchInput { click() }
+        compose.waitForIdle()
+        return todayFromDays(readPickerDays(), readPickerMonth())
+            ?: error("The picker did not show today. Rendered month is $month.")
+    }
+
+    private fun todayFromDays(
+        days: List<PickerDay>,
+        month: java.time.YearMonth,
+    ): LocalDate? {
+        days.firstOrNull { it.markedToday }?.let { return it.date }
+        return days.filter { it.disabled && java.time.YearMonth.from(it.date) == month }.maxByOrNull { it.date }?.date
+    }
+
+    private fun readPickerMonth(): java.time.YearMonth {
+        val formatter = DateTimeFormatter.ofPattern("MMMM uuuu", Locale.getDefault())
+        for (node in pickerNodes()) {
+            for (text in node.config.pickerText()) {
+                val parsed = runCatching { java.time.YearMonth.parse(text, formatter) }.getOrNull()
+                if (parsed != null) return parsed
+            }
+        }
+        error("The picker did not show a month")
+    }
+
+    private fun readPickerDays(): List<PickerDay> {
+        val spoken = DateTimeFormatter.ofPattern("EEEE, MMMM d, yyyy", Locale.getDefault())
+        val days = mutableListOf<PickerDay>()
+        for (node in pickerNodes()) {
+            val disabled = node.config.pickerDisabled()
+            for (text in node.config.pickerText()) {
+                val markedToday = text.startsWith("Today")
+                val datePart = if (markedToday) text.substringAfter("Today").trimStart(',', ' ') else text
+                val parsed = runCatching { LocalDate.parse(datePart, spoken) }.getOrNull() ?: continue
+                days += PickerDay(parsed, disabled, markedToday)
+            }
+        }
+        return days
+    }
+
+    private fun pickerNodes() = compose.onAllNodes(
+        androidx.compose.ui.test.SemanticsMatcher("any") { true },
+        useUnmergedTree = true,
+    ).fetchSemanticsNodes()
+
+    private fun androidx.compose.ui.semantics.SemanticsConfiguration.pickerText(): List<String> {
+        val key = androidx.compose.ui.semantics.SemanticsProperties.Text
+        return if (contains(key)) this[key].map { it.text } else emptyList()
+    }
+
+    private fun androidx.compose.ui.semantics.SemanticsConfiguration.pickerDisabled(): Boolean {
+        val key = androidx.compose.ui.semantics.SemanticsProperties.Disabled
+        return contains(key)
+    }
+
+    private data class PickerDay(
+        val date: LocalDate,
+        val disabled: Boolean,
+        val markedToday: Boolean,
+    )
 }
 
 /** Digits for the Material date field, in the same order as its localized pattern. */
