@@ -35,7 +35,7 @@ import java.util.UUID
 class CountdownArrivalTest {
     private val zone: ZoneId = app.backpin.focus.testing.DEFAULT_TEST_ZONE
     private val today: LocalDate = LocalDate.of(2026, 9, 28)
-    private val clock = FakeAppClock(java.time.Instant.EPOCH, zone)
+    private val clock = FakeAppClock(java.time.Instant.EPOCH, pinArrivalZone(zone))
     private val context: Context = ApplicationProvider.getApplicationContext()
     private lateinit var database: FocusStackDatabase
     private lateinit var repository: FocusRepository
@@ -344,7 +344,7 @@ class CountdownArrivalTest {
         date: LocalDate,
         hour: Int,
         minute: Int,
-    ): Long = date.atTime(hour, minute).atZone(zone).toInstant().toEpochMilli()
+    ): Long = date.atTime(hour, minute).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
 
     private suspend fun fillToday(count: Int): List<String> =
         (1..count).map { index ->
@@ -363,4 +363,10 @@ class CountdownArrivalTest {
     private suspend fun task(id: String) = snapshot().tasks.single { it.id == id }
 
     private suspend fun taskNamed(title: String) = snapshot().tasks.single { it.title == title }
+}
+
+/** [FocusRepositoryImpl.localNow] uses [ZoneId.systemDefault], not [FakeAppClock.zone]. */
+private fun pinArrivalZone(zone: ZoneId): ZoneId {
+    java.util.TimeZone.setDefault(java.util.TimeZone.getTimeZone(zone.id))
+    return zone
 }
