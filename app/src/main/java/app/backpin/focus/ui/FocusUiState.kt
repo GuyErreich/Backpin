@@ -17,6 +17,7 @@ data class TaskUi(
     val id: String,
     val title: String,
     val returnCue: String?,
+    val scheduledAtMinuteOfDay: Int? = null,
 )
 
 /** The open task currently in the edit sheet. [place] is null for a nested interruption. */

@@ -196,7 +196,12 @@ internal fun deriveFocusUi(
     )
 }
 
-private fun Task.toUi(): TaskUi = TaskUi(id = id, title = title, returnCue = returnCue)
+private fun Task.toUi(): TaskUi = TaskUi(
+    id = id,
+    title = title,
+    returnCue = returnCue,
+    scheduledAtMinuteOfDay = scheduledAtMinuteOfDay,
+)
 
 private fun Task.toEditing(): EditingUi =
     EditingUi(

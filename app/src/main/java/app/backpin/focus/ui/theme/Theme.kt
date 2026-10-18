@@ -106,8 +106,8 @@ val Space = 8.dp
  */
 val ButtonMinHeight = 56.dp
 
-/** A list-card action: shorter than a choice button, and only as wide as its label. */
-val CardActionHeight = 40.dp
+/** A list-card action: 48dp so a thumb lands on the one you meant. */
+val CardActionHeight = 48.dp
 
 /** Space between list-card actions. Choice rows keep [ButtonGap]. */
 val CardActionGap = 8.dp

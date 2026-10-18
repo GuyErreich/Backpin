@@ -596,7 +596,7 @@ private fun CapturePlace.tone(): ChoiceTone =
     when (this) {
         CapturePlace.INBOX -> ChoiceTone.Mint
         CapturePlace.INTERRUPT -> ChoiceTone.Lavender
-        CapturePlace.SCHEDULE -> ChoiceTone.Amber
+        CapturePlace.SCHEDULE -> ChoiceTone.Quiet
         CapturePlace.TODAY,
         CapturePlace.START,
         CapturePlace.LATER,

@@ -23,13 +23,13 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.unit.dp
 import app.backpin.focus.R
 import app.backpin.focus.domain.BandPhase
 import app.backpin.focus.domain.HomeBand
 import app.backpin.focus.domain.HomeBandCounts
 import app.backpin.focus.domain.HomeBandGroup
 import app.backpin.focus.domain.HomeBands
+import app.backpin.focus.domain.HomeLayout
 import app.backpin.focus.domain.Repeat
 import app.backpin.focus.domain.RepeatRow
 import app.backpin.focus.domain.Task
@@ -39,7 +39,6 @@ import app.backpin.focus.ui.TaskUi
 import app.backpin.focus.ui.motion.pressScale
 import app.backpin.focus.ui.motion.rememberPressSource
 import app.backpin.focus.ui.theme.FocusColors
-import app.backpin.focus.ui.theme.Space
 
 @Composable
 internal fun HomeBandsSection(
@@ -61,7 +60,7 @@ internal fun HomeBandsSection(
     onOpenMissedRepeat: (RepeatRow) -> Unit = {},
     onEditRepeat: (Repeat) -> Unit,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
+    Column {
         bands.inOrder().forEach { group ->
             key(group.band) {
                 HomeBandBlock(
@@ -114,7 +113,7 @@ private fun HomeBandBlock(
         mutableStateOf(startsExpanded)
     }
     val showRows = if (toggleable) expanded else true
-    Column(verticalArrangement = Arrangement.spacedBy(Space)) {
+    Column {
         HomeBandHeader(
             group = group,
             expanded = showRows,
@@ -139,6 +138,8 @@ private fun HomeBandBlock(
                 onEdit = onEditTask,
                 onOpenSheet = onOpenSheet,
                 showHeader = false,
+                layout = HomeLayout.BANDS,
+                todayTaskIds = filled.map { it.second.id }.toSet(),
             )
             group.repeats.forEach { row ->
                 key(row.repeat.id) {
@@ -148,6 +149,7 @@ private fun HomeBandBlock(
                         onCheckOff = { onCheckOffRepeat(row) },
                         onOpenMissed = { onOpenMissedRepeat(row) },
                         onEdit = { onEditRepeat(row.repeat) },
+                        layout = HomeLayout.BANDS,
                     )
                 }
             }
@@ -204,7 +206,7 @@ private fun HomeBandHeader(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = 40.dp)
+            .heightIn(min = HomeMetrics.HomeTouchTarget)
             .then(clickModifier),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
@@ -269,6 +271,12 @@ private fun List<Pair<SlotUi, TaskUi>>.forBand(group: HomeBandGroup): List<Pair<
 }
 
 private fun Task.asOpenSlot(): Pair<SlotUi, TaskUi> {
-    val ui = TaskUi(id = id, title = title, returnCue = returnCue)
+    val ui =
+        TaskUi(
+            id = id,
+            title = title,
+            returnCue = returnCue,
+            scheduledAtMinuteOfDay = scheduledAtMinuteOfDay,
+        )
     return SlotUi(SlotRole.OPEN, ui) to ui
 }

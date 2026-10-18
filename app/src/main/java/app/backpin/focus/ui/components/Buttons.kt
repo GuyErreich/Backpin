@@ -47,7 +47,7 @@ import app.backpin.focus.ui.theme.CardActionGap
 import app.backpin.focus.ui.theme.CardActionHeight
 import app.backpin.focus.ui.theme.FocusColors
 
-/** Mint is Done, Resume, and Inbox. Lavender is Interrupt and events. Amber is Schedule. */
+/** Mint is the one primary action. Lavender is Interrupt and events. Amber is missed or due. */
 internal enum class AccentTone {
     Mint,
     Lavender,
@@ -123,7 +123,7 @@ internal fun choiceContainerColor(
 
 /**
  * The one button shape: outlined, 16dp corners, no ripple.
- * Choice buttons are at least 56dp. [CardActions] locks its buttons to 40dp.
+ * Choice buttons are at least 56dp. [CardActions] locks its buttons to 48dp.
  * The label color is set on the text itself; theme typography would otherwise win over the content color.
  */
 @Composable
@@ -228,7 +228,7 @@ private fun LabelWidthButton(
     }
 }
 
-/** Colored outline for Done, Resume, Inbox, Interrupt, events, and Schedule. Scales while pressed. */
+/** Colored outline for Done, Resume, Inbox, Interrupt, events, and missed or due. Scales while pressed. */
 @Composable
 internal fun AccentButton(
     label: String,
@@ -380,7 +380,7 @@ internal fun ActionRow(
 }
 
 /**
- * Actions on a list card. They wrap, each only as wide as its label, 40dp tall, with 8dp between them.
+ * Actions on a list card. They wrap, each only as wide as its label, 48dp tall, with 8dp between them.
  * The title stays the first thing you read.
  */
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
