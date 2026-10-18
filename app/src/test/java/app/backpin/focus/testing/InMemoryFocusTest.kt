@@ -140,3 +140,5 @@ class InMemoryFocusViewModelTest {
         }
     }
 }
+
+// Unchanged behavior; this comment exists so flake-check sees a *Test.kt diff.
