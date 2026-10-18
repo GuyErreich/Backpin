@@ -246,7 +246,7 @@ internal fun RepeatRow(
                 }
             }
             Box(
-                modifier = Modifier.height(HomeMetrics.RowVisualHeight),
+                modifier = Modifier.height(HomeMetrics.HomeTouchTarget),
                 contentAlignment = Alignment.Center,
             ) {
                 if (done) {

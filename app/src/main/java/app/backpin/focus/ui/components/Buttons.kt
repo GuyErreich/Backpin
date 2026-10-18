@@ -2,6 +2,7 @@
 package app.backpin.focus.ui.components
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -29,6 +30,7 @@ import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
@@ -391,14 +393,34 @@ internal fun RowDonePill(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val interaction = rememberPressSource()
     CompositionLocalProvider(
         LocalButtonMinHeight provides RowDoneHeight,
         LocalLockButtonHeight provides true,
         LocalButtonPadding provides CardActionPadding,
         LocalButtonVerticalPadding provides 0.dp,
-        LocalMinimumInteractiveComponentSize provides 0.dp,
     ) {
-        AccentButton(stringResource(R.string.action_done), AccentTone.Mint, onClick, modifier)
+        WithoutRipple {
+            Box(
+                modifier =
+                modifier
+                    .heightIn(min = 48.dp)
+                    .clickable(
+                        interactionSource = interaction,
+                        indication = null,
+                        role = androidx.compose.ui.semantics.Role.Button,
+                        onClick = onClick,
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                AccentButton(
+                    stringResource(R.string.action_done),
+                    AccentTone.Mint,
+                    onClick,
+                    modifier = Modifier.clearAndSetSemantics { },
+                )
+            }
+        }
     }
 }
 
