@@ -21,6 +21,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import app.backpin.focus.R
 import app.backpin.focus.domain.DetachDestination
+import app.backpin.focus.domain.MAX_COUNTDOWN_REARM_DAYS
 import app.backpin.focus.domain.MIN_COUNTDOWN_DAYS
 import app.backpin.focus.domain.scheduleMomentLabel
 import app.backpin.focus.ui.calendar.PickDateDialog
@@ -79,7 +80,6 @@ internal fun EventResumeHost(
 }
 
 private const val DEFAULT_RESUME_DAYS = 7
-private const val MAX_TYPED_RESUME_DAYS = 365
 
 /**
  * One mint Again in N days choice, a typed days field, and Pick a date.
@@ -96,7 +96,8 @@ internal fun ResumeCountdownSheet(
     var picking by remember { mutableStateOf(false) }
     var daysText by rememberSaveable { mutableStateOf("") }
     val sent = remember { booleanArrayOf(false) }
-    val interval = suggestedDays?.takeIf { it > 0 } ?: DEFAULT_RESUME_DAYS
+    val interval =
+        suggestedDays?.takeIf { it in MIN_COUNTDOWN_DAYS..MAX_COUNTDOWN_REARM_DAYS } ?: DEFAULT_RESUME_DAYS
     val landing = today.plusDays(interval.toLong())
 
     fun commit(day: Long) {
@@ -111,7 +112,7 @@ internal fun ResumeCountdownSheet(
 
     fun commitTyped() {
         val days = daysText.toIntOrNull() ?: return
-        if (days !in MIN_COUNTDOWN_DAYS..MAX_TYPED_RESUME_DAYS) return
+        if (days !in MIN_COUNTDOWN_DAYS..MAX_COUNTDOWN_REARM_DAYS) return
         commitInDays(days)
     }
 
@@ -157,8 +158,8 @@ internal fun ResumeCountdownSheet(
     }
     if (picking) {
         PickDateDialog(
-            initial = landing.coerceAtLeast(today),
-            earliest = today,
+            initial = landing,
+            earliest = today.plusDays(MIN_COUNTDOWN_DAYS.toLong()),
             onPick = { date ->
                 picking = false
                 commit(date.toEpochDay())
