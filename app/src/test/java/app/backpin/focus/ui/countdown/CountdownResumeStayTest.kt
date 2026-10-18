@@ -9,6 +9,7 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.click
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
@@ -57,7 +58,7 @@ class CountdownResumeStayTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
 
     @Test
-    fun resumeFromHomeStaysOnHomeShowsBackInAndUndoRestoresTheEvent() {
+    fun startsOnHomeOpensFocusToResumeShowsBackInAndUndoRestoresTheEvent() {
         withViewModel { viewModel, useCases, repository, database, clock ->
             val today = clock.localDate()
             seedArrivedEvent(useCases, repository, database, clock, intervalDays = 180)
@@ -72,6 +73,7 @@ class CountdownResumeStayTest {
             compose.onNodeWithText("Coming up").assertIsNotSelected()
             compose.onNodeWithText("Countdown").assertDoesNotExist()
 
+            tapHomeNowCardOpensFocus()
             tapDetachCountDownAgain()
             assertResumeSheet(intervalDays = 180, today = today)
             typeDaysAndCommit(3)
@@ -85,8 +87,6 @@ class CountdownResumeStayTest {
                     event.countdownIntervalDays == 3 &&
                     parentWaits(snapshot)
             }
-            compose.onNodeWithText("Keep your place.").assertExists()
-            compose.onNodeWithText("Home").assertIsSelected()
             compose.onNodeWithText("Coming up").assertIsNotSelected()
             compose.onNodeWithText("Countdown").assertDoesNotExist()
             compose.onNodeWithText("Add countdown").assertDoesNotExist()
@@ -105,8 +105,6 @@ class CountdownResumeStayTest {
                     snapshot.frames.any { it.taskId == event.id && it.state == FrameState.ACTIVE } &&
                     snapshot.frames.any { it.taskId == work.id && it.state == FrameState.PAUSED }
             }
-            compose.onNodeWithText("Keep your place.").assertExists()
-            compose.onNodeWithText("Home").assertIsSelected()
             compose.onNodeWithText("EVENT").assertExists()
             compose.onNodeWithText(expected).assertDoesNotExist()
             val restored = runBlocking { useCases.observeSnapshot().first() }
@@ -126,10 +124,7 @@ class CountdownResumeStayTest {
                 }
             }
             await { viewModel.uiState.value.now?.title == "Dentist checkup" }
-            tap("Focus")
-            compose.onNodeWithText("Focus").assertIsSelected()
-            compose.onNodeWithText("EVENT").assertExists()
-
+            tapFocusTabOpensFocus()
             tapDetachCountDownAgain()
             assertResumeSheet(intervalDays = 180, today = today)
             typeDaysAndCommit(3)
@@ -148,10 +143,31 @@ class CountdownResumeStayTest {
         }
     }
 
-    private fun tapDetachCountDownAgain() {
+    private fun tapHomeNowCardOpensFocus() {
+        compose.waitForIdle()
+        val now = compose.onNode(hasContentDescription("Opens focus.", substring = true))
+        now.assertHasClickAction()
+        now.performTouchInput { click(center) }
+        compose.waitForIdle()
+        shadowOf(Looper.getMainLooper()).idle()
+        awaitFocusEventDetach()
+    }
+
+    private fun tapFocusTabOpensFocus() {
+        tap("Focus")
+        awaitFocusEventDetach()
+    }
+
+    private fun awaitFocusEventDetach() {
         await {
             compose.onAllNodesWithText("Count down again").fetchSemanticsNodes().isNotEmpty()
         }
+        compose.onNodeWithText("Focus").assertIsSelected()
+        compose.onNodeWithText("Count down again").assertIsEnabled().assertHasClickAction()
+    }
+
+    private fun tapDetachCountDownAgain() {
+        awaitFocusEventDetach()
         tap("Count down again")
     }
 

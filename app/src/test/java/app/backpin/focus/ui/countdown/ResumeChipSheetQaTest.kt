@@ -6,7 +6,9 @@ import android.os.Looper
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.click
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
@@ -48,9 +50,10 @@ class ResumeChipSheetQaTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
 
     @Test
-    fun homeDetachCountDownAgainOpensResumeSheetInOrder() {
+    fun startsOnHomeOpensFocusDetachCountDownAgainOpensResumeSheetInOrder() {
         withArrivedEvent { _, _, clock ->
-            compose.onNodeWithText("Home").assertExists()
+            compose.onNodeWithText("Home").assertIsSelected()
+            tapHomeNowCardOpensFocus()
             tapDetachCountDownAgain()
             assertResumeSheet(intervalDays = 180, today = clock.localDate())
         }
@@ -59,17 +62,37 @@ class ResumeChipSheetQaTest {
     @Test
     fun focusDetachCountDownAgainOpensResumeSheetInOrder() {
         withArrivedEvent { _, _, clock ->
-            tap("Focus")
-            compose.onNodeWithText("EVENT").assertExists()
+            tapFocusTabOpensFocus()
             tapDetachCountDownAgain()
             assertResumeSheet(intervalDays = 180, today = clock.localDate())
         }
     }
 
-    private fun tapDetachCountDownAgain() {
+    private fun tapHomeNowCardOpensFocus() {
+        compose.waitForIdle()
+        val now = compose.onNode(hasContentDescription("Opens focus.", substring = true))
+        now.assertHasClickAction()
+        now.performTouchInput { click(center) }
+        compose.waitForIdle()
+        shadowOf(Looper.getMainLooper()).idle()
+        awaitFocusEventDetach()
+    }
+
+    private fun tapFocusTabOpensFocus() {
+        tap("Focus")
+        awaitFocusEventDetach()
+    }
+
+    private fun awaitFocusEventDetach() {
         await {
             compose.onAllNodesWithText("Count down again").fetchSemanticsNodes().isNotEmpty()
         }
+        compose.onNodeWithText("Focus").assertIsSelected()
+        compose.onNodeWithText("Count down again").assertIsEnabled().assertHasClickAction()
+    }
+
+    private fun tapDetachCountDownAgain() {
+        awaitFocusEventDetach()
         tap("Count down again")
     }
 
