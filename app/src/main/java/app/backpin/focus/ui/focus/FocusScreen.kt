@@ -161,6 +161,7 @@ private fun ActiveCard(
                         now.countdownIntervalDays,
                         state.preferences.lastCountdownDays,
                     ),
+                today = viewModel.localDate(),
                 onDetach = viewModel::detachEvent,
             ) { onCountDownAgain ->
                 CardActions {

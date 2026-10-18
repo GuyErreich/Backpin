@@ -65,6 +65,7 @@ import java.time.LocalDate
 internal fun CountdownScreen(
     countdowns: List<CountdownUi>,
     ready: Boolean,
+    today: LocalDate,
     onAdd: (String, Long) -> Unit,
     onChangeDate: (String, Long) -> Unit,
     onRemove: (String) -> Unit,
@@ -126,6 +127,7 @@ internal fun CountdownScreen(
     if (changing != null) {
         ChangeCountdownSheet(
             epochDay = changing.epochDay,
+            today = today,
             onDismiss = { changingId = null },
             onCommit = { day ->
                 val id = changing.id
@@ -136,6 +138,7 @@ internal fun CountdownScreen(
     }
     if (adding) {
         AddCountdownSheet(
+            today = today,
             onDismiss = { adding = false },
             onAdd = { title, day ->
                 adding = false
@@ -194,6 +197,7 @@ private object CountdownField
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AddCountdownSheet(
+    today: LocalDate,
     onDismiss: () -> Unit,
     onAdd: (String, Long) -> Unit,
     recognizer: UtteranceRecognizer?,
@@ -208,7 +212,6 @@ private fun AddCountdownSheet(
     var askForName by remember { mutableStateOf(false) }
     val saved = remember { booleanArrayOf(false) }
     val speech = rememberSpeechInput<CountdownField>(recognizer, onSystemSpeech) { draft }
-    val today = LocalDate.now()
     val title = draft.text.trim()
     val typedDay = countdownDays(daysText)?.let { today.plusDays(it.toLong()).toEpochDay() }
     val shownDay = typedDay ?: committedDay
@@ -335,6 +338,7 @@ private fun AddCountdownSheet(
 @Composable
 private fun ChangeCountdownSheet(
     epochDay: Long,
+    today: LocalDate,
     onDismiss: () -> Unit,
     onCommit: (Long) -> Unit,
 ) {
@@ -342,7 +346,6 @@ private fun ChangeCountdownSheet(
     var daysText by rememberSaveable { mutableStateOf("") }
     var picking by remember { mutableStateOf(false) }
     val sent = remember { booleanArrayOf(false) }
-    val today = LocalDate.now()
     val tomorrow = today.plusDays(1)
     val current = LocalDate.ofEpochDay(epochDay)
     val typedDay = countdownDays(daysText)?.let { today.plusDays(it.toLong()).toEpochDay() }
