@@ -84,6 +84,7 @@ fun TodayFullSwapDialog(
                     tone = ChoiceTone.Mint,
                     filled = true,
                     onClick = onKeepInInbox,
+                    modifier = Modifier.fillMaxWidth(),
                 )
             } else {
                 ActionRow {
