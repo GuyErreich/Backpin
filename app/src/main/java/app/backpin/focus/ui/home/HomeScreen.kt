@@ -722,14 +722,14 @@ private fun TodayRow(
                         horizontal = layout.taskPaddingHorizontal(),
                         vertical = layout.taskPaddingVertical(),
                     ),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
                     task.title,
                     style = layout.taskTitleStyle(),
                     color = FocusColors.Live.Text,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f, fill = false),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -738,6 +738,8 @@ private fun TodayRow(
                     trailing.text,
                     style = if (layout == HomeLayout.FLAT) HomeMetrics.SlotChevron else HomeMetrics.RowTag,
                     color = trailing.color,
+                    maxLines = 1,
+                    softWrap = false,
                 )
             }
         }
