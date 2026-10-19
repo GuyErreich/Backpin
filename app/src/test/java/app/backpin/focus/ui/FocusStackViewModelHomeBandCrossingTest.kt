@@ -4,7 +4,6 @@ package app.backpin.focus.ui
 import android.os.Looper
 import androidx.test.core.app.ApplicationProvider
 import app.backpin.focus.domain.BandPhase
-import app.backpin.focus.domain.BandTimes
 import app.backpin.focus.domain.HomeBand
 import app.backpin.focus.domain.HomeBands
 import app.backpin.focus.domain.PromoteOutcome
