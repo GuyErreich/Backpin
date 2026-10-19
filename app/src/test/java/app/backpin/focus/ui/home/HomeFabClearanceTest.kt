@@ -3,9 +3,10 @@ package app.backpin.focus.ui.home
 
 import android.os.Looper
 import androidx.activity.ComponentActivity
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsNode
 import androidx.compose.ui.semantics.getOrNull
-import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
@@ -106,21 +107,22 @@ class HomeFabClearanceTest {
 
     private fun invokeCustomAction(
         label: String,
-        nearTitle: String,
+        title: String,
     ) {
-        val titles = compose.onAllNodesWithText(nearTitle).fetchSemanticsNodes()
-        check(titles.isNotEmpty()) { "No title $nearTitle" }
-        val titleTop = titles.minBy { it.boundsInRoot.top }.boundsInRoot.top
-        val matcher =
-            SemanticsMatcher("has $label") { node ->
-                node.config.getOrNull(SemanticsActions.CustomActions).orEmpty().any { it.label == label }
+        val titleNode = compose.onNodeWithText(title, useUnmergedTree = true).fetchSemanticsNode()
+        var row: SemanticsNode? = titleNode
+        var dones = emptyList<CustomAccessibilityAction>()
+        while (row != null) {
+            val actions =
+                row.config.getOrNull(SemanticsActions.CustomActions).orEmpty().filter { it.label == label }
+            if (actions.isNotEmpty()) {
+                dones = actions
+                break
             }
-        val nodes = compose.onAllNodes(matcher, useUnmergedTree = true)
-        val found = nodes.fetchSemanticsNodes()
-        check(found.isNotEmpty()) { "No $label action near $nearTitle" }
-        val index = found.indices.minBy { kotlin.math.abs(found[it].boundsInRoot.top - titleTop) }
-        val action = found[index].config[SemanticsActions.CustomActions].first { it.label == label }
-        compose.runOnIdle { check(action.action()) }
+            row = row.parent
+        }
+        check(dones.isNotEmpty()) { "No $label on the $title row" }
+        compose.runOnIdle { check(dones.first().action()) }
         pump()
     }
 
