@@ -19,10 +19,8 @@ import app.backpin.focus.ui.FocusApp
 import app.backpin.focus.ui.components.AppTab
 import app.backpin.focus.ui.components.AppTabBar
 import app.backpin.focus.ui.theme.FocusStackTheme
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.launch
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -88,15 +86,15 @@ class AppTabBarQaTest {
                         FocusApp(viewModel)
                     }
                 }
-                await { viewModel.uiState.value.ready }
+                await("FocusApp ready") { viewModel.uiState.value.ready }
                 assertTrue("no Inbox badge at 0", !inboxBadge("0"))
-                seedOnDispatcher { fixture.useCases.capture("Note one") }
-                await { viewModel.uiState.value.inboxCount == 1 }
+                mainDispatcherRule.runTest { fixture.useCases.capture("Note one") }
+                await("inbox count 1") { viewModel.uiState.value.inboxCount == 1 }
                 assertTrue("Inbox badge 1 after capture", inboxBadge("1"))
-                seedOnDispatcher { fixture.useCases.capture("Note two") }
-                await { viewModel.uiState.value.inboxCount == 2 }
+                mainDispatcherRule.runTest { fixture.useCases.capture("Note two") }
+                await("inbox count 2") { viewModel.uiState.value.inboxCount == 2 }
                 assertTrue("Inbox badge 2 after second capture", inboxBadge("2"))
-                seedOnDispatcher {
+                mainDispatcherRule.runTest {
                     val id =
                         fixture.useCases
                             .observeSnapshot()
@@ -106,10 +104,10 @@ class AppTabBarQaTest {
                             .id
                     fixture.useCases.promote(id)
                 }
-                await { viewModel.uiState.value.inboxCount == 1 }
+                await("inbox count 1 after promote") { viewModel.uiState.value.inboxCount == 1 }
                 assertTrue("Inbox badge 1 after promote", inboxBadge("1"))
                 assertTrue("stale Inbox badge 2 after promote", !inboxBadge("2"))
-                seedOnDispatcher {
+                mainDispatcherRule.runTest {
                     val id =
                         fixture.useCases
                             .observeSnapshot()
@@ -119,7 +117,7 @@ class AppTabBarQaTest {
                             .id
                     fixture.useCases.promote(id)
                 }
-                await { viewModel.uiState.value.inboxCount == 0 }
+                await("inbox count 0 after emptying") { viewModel.uiState.value.inboxCount == 0 }
                 assertTrue("no Inbox badge at 0 after emptying", !inboxBadge("0"))
                 assertTrue("stale Inbox badge 1 after emptying", !inboxBadge("1"))
             }
@@ -140,23 +138,11 @@ class AppTabBarQaTest {
         }
     }
 
-    private fun seedOnDispatcher(block: suspend () -> Unit) {
-        var failure: Throwable? = null
-        val job =
-            CoroutineScope(mainDispatcherRule.dispatcher).launch {
-                try {
-                    block()
-                } catch (error: Throwable) {
-                    failure = error
-                    throw error
-                }
-            }
-        await { job.isCompleted }
-        failure?.let { throw it }
-    }
-
-    private fun await(predicate: () -> Boolean) {
-        compose.waitUntil(timeoutMillis = 5_000) {
+    private fun await(
+        step: String,
+        predicate: () -> Boolean,
+    ) {
+        compose.waitUntil(conditionDescription = step, timeoutMillis = 5_000) {
             pump()
             predicate()
         }

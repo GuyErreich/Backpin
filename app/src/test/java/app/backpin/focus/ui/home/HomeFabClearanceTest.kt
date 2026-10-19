@@ -62,14 +62,14 @@ class HomeFabClearanceTest {
                         FocusApp(viewModel)
                     }
                 }
-                await {
+                await("ready with $lastRepeat") {
                     viewModel.uiState.value.ready &&
                         viewModel.repeatRows.value.rows.any { it.repeat.title == lastRepeat }
                 }
                 val doneTitle = defaultTodayTitles().last()
                 invokeCustomAction("Done", doneTitle)
                 val checkedOff = compose.activity.getString(R.string.undo_checked_off)
-                await {
+                await("undo snackbar $checkedOff") {
                     nodes(checkedOff, unmerged = false).isNotEmpty() ||
                         nodes(checkedOff, unmerged = true).isNotEmpty()
                 }
@@ -129,8 +129,11 @@ class HomeFabClearanceTest {
         unmerged: Boolean,
     ) = compose.onAllNodesWithText(text, useUnmergedTree = unmerged).fetchSemanticsNodes()
 
-    private fun await(predicate: () -> Boolean) {
-        compose.waitUntil(timeoutMillis = 5_000) {
+    private fun await(
+        step: String,
+        predicate: () -> Boolean,
+    ) {
+        compose.waitUntil(conditionDescription = step, timeoutMillis = 5_000) {
             pump()
             predicate()
         }

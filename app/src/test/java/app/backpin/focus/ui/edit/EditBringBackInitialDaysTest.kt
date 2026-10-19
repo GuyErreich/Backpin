@@ -73,14 +73,14 @@ class EditBringBackInitialDaysTest {
                         FocusApp(viewModel)
                     }
                 }
-                await { viewModel.uiState.value.ready }
+                await("FocusApp ready") { viewModel.uiState.value.ready }
                 CASES.forEach { case ->
                     compose.runOnIdle { viewModel.openEdit(ids.getValue(case.title)) }
-                    await { viewModel.uiState.value.editing?.title == case.title }
+                    await("editing ${case.title}") { viewModel.uiState.value.editing?.title == case.title }
                     tap(compose.activity.getString(R.string.action_bring_back))
-                    await { viewModel.bringBack.value?.title == case.title }
+                    await("Bring back ${case.title}") { viewModel.bringBack.value?.title == case.title }
                     val saveLabel = saveInDays(case.initialDays)
-                    await {
+                    await("Save label $saveLabel") {
                         compose.onAllNodesWithText(saveLabel).fetchSemanticsNodes().isNotEmpty() ||
                             compose.onAllNodesWithText(saveLabel, useUnmergedTree = true)
                                 .fetchSemanticsNodes()
@@ -88,7 +88,7 @@ class EditBringBackInitialDaysTest {
                     }
                     compose.onNodeWithText(saveLabel).assertExists()
                     compose.runOnIdle { viewModel.dismissBringBack() }
-                    await { viewModel.bringBack.value == null }
+                    await("Bring back dismissed after ${case.title}") { viewModel.bringBack.value == null }
                 }
             }
         }
@@ -102,8 +102,11 @@ class EditBringBackInitialDaysTest {
         pump()
     }
 
-    private fun await(predicate: () -> Boolean) {
-        compose.waitUntil(timeoutMillis = 5_000) {
+    private fun await(
+        step: String,
+        predicate: () -> Boolean,
+    ) {
+        compose.waitUntil(conditionDescription = step, timeoutMillis = 5_000) {
             pump()
             predicate()
         }
