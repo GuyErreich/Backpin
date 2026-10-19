@@ -2,47 +2,38 @@
 package app.backpin.focus.ui.capture
 
 import android.Manifest
-import android.content.Context
 import android.content.Intent
-import android.speech.RecognizerIntent
 import android.graphics.Insets
 import android.os.Build
 import android.os.Looper
+import android.speech.RecognizerIntent
 import android.view.WindowInsets
 import androidx.activity.ComponentActivity
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.click
+import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.semantics.SemanticsActions
-import androidx.compose.ui.test.hasScrollAction
-import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performTouchInput
-import androidx.room.Room
-import androidx.test.core.app.ApplicationProvider
-import app.backpin.focus.data.FocusRepositoryImpl
-import app.backpin.focus.runOffTestThread
-import app.backpin.focus.data.FocusStackDatabase
-import app.backpin.focus.data.PreferencesDataStore
-import app.backpin.focus.domain.AppClock
 import app.backpin.focus.domain.FocusSnapshot
 import app.backpin.focus.domain.FocusUseCases
 import app.backpin.focus.domain.FrameState
 import app.backpin.focus.domain.TaskBucket
+import app.backpin.focus.testing.MainDispatcherRule
+import app.backpin.focus.testing.useTestFocus
 import app.backpin.focus.ui.FocusStackViewModel
 import app.backpin.focus.ui.theme.FocusStackTheme
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -53,141 +44,78 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowDialog
-import java.time.LocalDate
-import java.util.UUID
 
+@OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36], qualifiers = "w411dp-h891dp")
 class CaptureSheetActionsTest {
-    @get:Rule
+    @get:Rule(order = 0)
+    val mainDispatcherRule = MainDispatcherRule()
+
+    @get:Rule(order = 1)
     val compose = createAndroidComposeRule<ComponentActivity>()
 
     @Test
-    fun todayStartLaterAndSchedulePlaceTheTypedTitle() {
+    fun todayStartNowAndBringBackPlaceTheTypedTitle() {
         val placed = mutableListOf<String>()
         var dismissed = 0
-        show(frameActive = true, placed = placed, onDismiss = { dismissed += 1 })
+        show(placed = placed, onDismiss = { dismissed += 1 })
         typeTitle("Call Dana")
-        tap("Today")
-        tap("Start")
-        tap("Interrupt now")
-        tap("Later")
-        tap("Schedule")
-        tap("Tomorrow")
-        assertEquals(1, dismissed)
-        assertEquals(
-            listOf(
-                "today:Call Dana",
-                "start:Call Dana",
-                "interrupt:Call Dana",
-                "later:Call Dana",
-            ),
-            placed.dropLast(1),
-        )
-        val scheduled = placed.last()
-        assertTrue(scheduled.startsWith("schedule:Call Dana:"))
-        assertTrue(scheduled.substringAfterLast(":").toLong() > clock.localDate().toEpochDay())
+        DESTINATIONS.forEach { case -> tap(case.label) }
+        assertEquals(0, dismissed)
+        assertEquals(DESTINATIONS.map { "${it.recorded}:Call Dana" }, placed)
     }
 
     @Test
-    fun touchWritesEachDestinationThroughTheViewModel() {
-        val context: Context = ApplicationProvider.getApplicationContext()
-        val database =
-            Room
-                .inMemoryDatabaseBuilder(context, FocusStackDatabase::class.java)
-                .allowMainThreadQueries()
-                .build()
-        val useCases =
-            FocusUseCases(
-                FocusRepositoryImpl(
-                    database = database,
-                    preferencesStore = PreferencesDataStore(context, "capture-touch-${UUID.randomUUID()}"),
-                    clock = clock,
-                ),
-            )
-        val viewModel = FocusStackViewModel(useCases, clock = clock)
-        var dismissed = 0
-        try {
-            compose.setContent {
-                val state by viewModel.uiState.collectAsState()
-                FocusStackTheme {
-                    CaptureSheet(
-                        phrases = emptyList(),
-                        frameActive = state.now != null,
-                        today = clock.localDate(),
-                        onDismiss = { dismissed += 1 },
-                        onSaveToInbox = viewModel::saveToInbox,
-                        onInterruptNow = viewModel::interruptNow,
-                        onPlaceToday = viewModel::placeOnToday,
-                        onPlaceStart = viewModel::placeAndStart,
-                        onPlaceLater = viewModel::placeLater,
-                        onSchedule = viewModel::placeScheduled,
-                        recognizer = AllowAllRecognizer,
-                    )
+    fun touchWritesTodayAndStartNowThroughTheViewModel() {
+        useTestFocus { fixture ->
+            fixture.withViewModel { viewModel ->
+                var dismissed = 0
+                compose.setContent {
+                    FocusStackTheme {
+                        CaptureSheet(
+                            phrases = emptyList(),
+                            onDismiss = { dismissed += 1 },
+                            onSaveToInbox = viewModel::saveToInbox,
+                            onInterruptNow = viewModel::interruptNow,
+                            onPlaceToday = viewModel::placeOnToday,
+                            onPlaceStart = viewModel::placeAndStart,
+                            onBringBack = viewModel::captureThenBringBack,
+                            recognizer = AllowAllRecognizer,
+                        )
+                    }
                 }
-            }
-            typeTitle("Write the notes")
-            tap("Today")
-            awaitSnapshot(useCases) { snapshot ->
-                snapshot.tasks.any { it.title == "Write the notes" && it.bucket == TaskBucket.TODAY } &&
-                    snapshot.frames.isEmpty()
-            }
-            assertEquals(0, dismissed)
-
-            val current =
-                runOffTestThread {
-                    useCases.observeSnapshot().first().tasks.single { it.title == "Write the notes" }.id
+                typeTitle("Write the notes")
+                tap("Today")
+                awaitSnapshot(fixture.useCases, "Write the notes on Today") { snapshot ->
+                    snapshot.tasks.any { it.title == "Write the notes" && it.bucket == TaskBucket.TODAY } &&
+                        snapshot.frames.isEmpty()
                 }
-            runOffTestThread { useCases.start(current) }
-            awaitNow(viewModel) { it.taskId == current }
+                assertEquals(0, dismissed)
 
-            replaceTitle("Call Dana")
-            tap("Start")
-            awaitSnapshot(useCases) { snapshot ->
-                val started = snapshot.frames.singleOrNull { it.state == FrameState.ACTIVE }
-                started != null &&
-                    started.parentFrameId == null &&
-                    snapshot.tasks.any { it.title == "Call Dana" && it.id == started.taskId }
-            }
-            assertEquals(0, dismissed)
-            awaitNow(viewModel) { it.title == "Call Dana" }
+                mainDispatcherRule.runTest {
+                    val current =
+                        fixture.useCases
+                            .observeSnapshot()
+                            .first()
+                            .tasks
+                            .single { it.title == "Write the notes" }
+                            .id
+                    fixture.useCases.start(current)
+                }
+                awaitNow(viewModel, "Write the notes is NOW") { it.title == "Write the notes" }
 
-            replaceTitle("Ping the vendor")
-            tap("Interrupt now")
-            awaitSnapshot(useCases) { snapshot ->
-                val child = snapshot.frames.singleOrNull { it.state == FrameState.ACTIVE }
-                val danaId = snapshot.tasks.singleOrNull { it.title == "Call Dana" }?.id
-                val parent = snapshot.frames.singleOrNull { it.taskId == danaId }
-                child != null &&
-                    parent != null &&
-                    child.parentFrameId == parent.id &&
-                    parent.state == FrameState.PAUSED &&
-                    snapshot.tasks.any { it.title == "Ping the vendor" && it.bucket == TaskBucket.INBOX }
+                replaceTitle("Call Dana")
+                tap("Start now")
+                awaitSnapshot(fixture.useCases, "Call Dana started") { snapshot ->
+                    val started = snapshot.frames.singleOrNull { it.state == FrameState.ACTIVE }
+                    started != null &&
+                        started.parentFrameId == null &&
+                        snapshot.tasks.any { it.title == "Call Dana" && it.id == started.taskId }
+                }
+                assertEquals(0, dismissed)
+                awaitNow(viewModel, "Call Dana is NOW") { it.title == "Call Dana" }
             }
-            assertEquals(0, dismissed)
-
-            replaceTitle("Call the vendor")
-            tap("Later")
-            awaitSnapshot(useCases) { snapshot ->
-                val parked = snapshot.tasks.singleOrNull { it.title == "Call the vendor" }
-                parked != null && parked.bucket == TaskBucket.LATER && snapshot.frames.none { it.taskId == parked.id }
-            }
-            assertEquals(0, dismissed)
-
-            replaceTitle("Talk to Dana")
-            tap("Schedule")
-            tap("Tomorrow")
-            val tomorrow = clock.localDate().plusDays(1).toEpochDay()
-            awaitSnapshot(useCases) { snapshot ->
-                val scheduled = snapshot.tasks.singleOrNull { it.title == "Talk to Dana" }
-                scheduled != null &&
-                    scheduled.bucket == TaskBucket.SCHEDULED &&
-                    scheduled.scheduledOnEpochDay == tomorrow &&
-                    snapshot.frames.none { it.taskId == scheduled.id }
-            }
-            assertEquals(1, dismissed)
-        } finally {
-            database.close()
         }
     }
 
@@ -195,7 +123,6 @@ class CaptureSheetActionsTest {
     fun filledBlankAndDestinationsOnScreenEachTapRuns() {
         val placed = mutableListOf<String>()
         show(
-            frameActive = true,
             placed = placed,
             phrases = listOf("Talk to my wife", "Talk to <name>"),
         )
@@ -205,26 +132,19 @@ class CaptureSheetActionsTest {
         compose.onNodeWithText("Talk to GUY").assertExists()
         compose.onNodeWithText("Next").assertExists()
         compose.onNodeWithText("Save to Inbox").assertExists()
+        compose.onNodeWithText("OR, WHEN?").assertExists()
         compose.onNodeWithContentDescription("Speak the missing word").performTouchInput { click() }
         compose.onNodeWithText("Speech isn't available on this phone. You can still type.").assertExists()
         tap("Save to Inbox")
-        tap("Today")
-        tap("Start")
-        tap("Interrupt now")
-        tap("Later")
-        tap("Next")
-        compose.onNodeWithText("Where does this go?").assertExists()
-        tap("Schedule")
-        tap("Tomorrow")
-        val tomorrow = clock.localDate().plusDays(1).toEpochDay()
+        DESTINATIONS.drop(1).forEach { case -> tap(case.label) }
+        compose.onNodeWithText("Where does this go?").assertDoesNotExist()
+        compose.onNodeWithText("One line. Choose where it goes…").assertDoesNotExist()
         assertEquals(
             listOf(
                 "inbox:Talk to GUY",
                 "today:Talk to GUY",
                 "start:Talk to GUY",
-                "interrupt:Talk to GUY",
-                "later:Talk to GUY",
-                "schedule:Talk to GUY:$tomorrow",
+                "bringBack:Talk to GUY",
             ),
             placed,
         )
@@ -235,15 +155,12 @@ class CaptureSheetActionsTest {
     fun visibleCentersPlaceEachDestinationWhenTheKeyboardIsOpen() {
         val placed = mutableListOf<String>()
         show(
-            frameActive = true,
             placed = placed,
             phrases = listOf("Talk to my wife", "Talk to <name>"),
         )
         typeTitle("Call Dana")
         val dialog = ShadowDialog.getLatestDialog()
         check(dialog != null && Build.VERSION.SDK_INT >= 30)
-        // A tall keyboard leaves a short sheet. Inbox used to keep a sliver and
-        // accept the tap; every button under it was measured at height 0.
         dialog.window!!.decorView.dispatchApplyWindowInsets(
             WindowInsets.Builder()
                 .setInsets(WindowInsets.Type.statusBars(), Insets.of(0, 48, 0, 0))
@@ -253,31 +170,41 @@ class CaptureSheetActionsTest {
         )
         compose.waitForIdle()
         tapVisibleCenter("Save to Inbox")
-        tapVisibleCenter("Today")
-        tapVisibleCenter("Start")
-        tapVisibleCenter("Interrupt now")
-        tapVisibleCenter("Later")
-        tapVisibleCenter("Schedule")
-        if (compose.onAllNodes(hasText("Tomorrow")).fetchSemanticsNodes().isNotEmpty()) {
-            tapVisibleCenter("Tomorrow")
-        }
+        DESTINATIONS.drop(1).forEach { case -> tapVisibleCenter(case.label) }
         assertEquals(
             listOf(
                 "inbox:Call Dana",
                 "today:Call Dana",
                 "start:Call Dana",
-                "interrupt:Call Dana",
-                "later:Call Dana",
+                "bringBack:Call Dana",
             ),
-            placed.filterNot { it.startsWith("schedule:") },
+            placed,
         )
-        assertTrue(placed.lastOrNull()?.startsWith("schedule:Call Dana:") == true)
+    }
+
+    @Test
+    fun createSheetShowsOrWhenAndDropsOldDestinations() {
+        val placed = mutableListOf<String>()
+        show(placed = placed)
+        compose.onNodeWithText("OR, WHEN?").assertExists()
+        compose.onNodeWithText("Save to Inbox").assertExists()
+        compose.onNodeWithText("Today").assertExists()
+        compose.onNodeWithText("Start now").assertExists()
+        compose.onNodeWithText("Bring back…").assertExists()
+        compose.onNodeWithText("Later").assertDoesNotExist()
+        compose.onNodeWithText("Schedule").assertDoesNotExist()
+        compose.onNodeWithText("Interrupt now").assertDoesNotExist()
+        compose.onNodeWithText("Interrupt · do this now").assertDoesNotExist()
+        compose.onNodeWithText("Repeat").assertDoesNotExist()
+        compose.onNodeWithText("One line. Choose where it goes…").assertDoesNotExist()
+        compose.onNodeWithText("Where does this go?").assertDoesNotExist()
+        compose.onNodeWithText("Start").assertDoesNotExist()
     }
 
     @Test
     fun inboxStillSaves() {
         val placed = mutableListOf<String>()
-        show(frameActive = false, placed = placed)
+        show(placed = placed)
         typeTitle("Buy milk")
         tap("Save to Inbox")
         assertEquals(listOf("inbox:Buy milk"), placed)
@@ -287,31 +214,41 @@ class CaptureSheetActionsTest {
     fun emptyTitleCreatesNothing() {
         val placed = mutableListOf<String>()
         var dismissed = 0
-        show(frameActive = true, placed = placed, onDismiss = { dismissed += 1 })
+        show(placed = placed, onDismiss = { dismissed += 1 })
         tap("Save to Inbox")
-        tap("Today")
-        tap("Start")
-        tap("Interrupt now")
-        tap("Later")
-        tap("Schedule")
+        DESTINATIONS.drop(1).forEach { case -> tap(case.label) }
         assertTrue(placed.isEmpty())
         assertEquals(0, dismissed)
         compose.onNodeWithText("Save to Inbox").assertExists()
     }
 
     @Test
-    fun interruptIsAbsentWhenNothingIsActive() {
+    fun interruptModeShowsDoThisNowAndHidesOrWhen() {
         val placed = mutableListOf<String>()
-        show(frameActive = false, placed = placed)
+        show(
+            placed = placed,
+            interrupts = true,
+            pausedTitle = "Hold this",
+        )
+        compose.onNodeWithText("What came up?").assertExists()
+        compose.onNodeWithText("“Hold this” is paused and waits at the top.").assertExists()
+        compose.onNodeWithText("Interrupt · do this now").assertExists()
+        compose.onNodeWithText("OR, WHEN?").assertDoesNotExist()
+        compose.onNodeWithText("Today").assertDoesNotExist()
+        compose.onNodeWithText("Start now").assertDoesNotExist()
+        compose.onNodeWithText("Bring back…").assertDoesNotExist()
+        compose.onNodeWithText("Save to Inbox").assertDoesNotExist()
         compose.onNodeWithText("Interrupt now").assertDoesNotExist()
-        compose.onNodeWithText("Today").assertExists()
+        typeTitle("Quick note")
+        tap("Interrupt · do this now")
+        assertEquals(listOf("interrupt:Quick note"), placed)
     }
 
     @Test
     fun speechResultLandsInTheTitleAndDoesNotSave() {
         val placed = mutableListOf<String>()
         val fake = FakeRecognizer()
-        show(frameActive = false, placed = placed, recognizer = fake)
+        show(placed = placed, recognizer = fake)
         shadowOf(compose.activity).grantPermissions(Manifest.permission.RECORD_AUDIO)
         compose.onNodeWithContentDescription("Speak the title").performClick()
         compose.runOnIdle { fake.deliver("Buy milk") }
@@ -324,7 +261,7 @@ class CaptureSheetActionsTest {
     @Test
     fun unavailableSpeechIsToldInTheSheet() {
         val placed = mutableListOf<String>()
-        show(frameActive = false, placed = placed, recognizer = FakeRecognizer(available = false))
+        show(placed = placed, recognizer = FakeRecognizer(available = false))
         compose.onNodeWithContentDescription("Speak the title").performClick()
         compose.onNodeWithText("Speech isn't available on this phone. You can still type.").assertExists()
         assertTrue(placed.isEmpty())
@@ -335,7 +272,6 @@ class CaptureSheetActionsTest {
         val placed = mutableListOf<String>()
         var launched: Intent? = null
         show(
-            frameActive = false,
             placed = placed,
             recognizer = ProblemRecognizer(SpeechProblem.NoNetwork),
             onSystemSpeech = { intent, deliver ->
@@ -356,7 +292,6 @@ class CaptureSheetActionsTest {
         val placed = mutableListOf<String>()
         var launched: Intent? = null
         show(
-            frameActive = false,
             placed = placed,
             recognizer = ProblemRecognizer(SpeechProblem.NoService, available = false),
             onSystemSpeech = { intent, deliver ->
@@ -364,6 +299,7 @@ class CaptureSheetActionsTest {
                 deliver("Call Dana")
             },
         )
+        shadowOf(compose.activity).grantPermissions(Manifest.permission.RECORD_AUDIO)
         compose.onNodeWithContentDescription("Speak the title").performTouchInput { click() }
         assertEquals(RecognizerIntent.ACTION_RECOGNIZE_SPEECH, launched?.action)
         compose.onNodeWithText("Call Dana").assertExists()
@@ -389,7 +325,7 @@ class CaptureSheetActionsTest {
     @Test
     fun networkFailureWithoutASystemScreenSaysWhy() {
         val placed = mutableListOf<String>()
-        show(frameActive = false, placed = placed, recognizer = ProblemRecognizer(SpeechProblem.NoNetwork))
+        show(placed = placed, recognizer = ProblemRecognizer(SpeechProblem.NoNetwork))
         shadowOf(compose.activity).grantPermissions(Manifest.permission.RECORD_AUDIO)
         compose.onNodeWithContentDescription("Speak the title").performTouchInput { click() }
         compose.onNodeWithText("No network for speech. You can still type.").assertExists()
@@ -402,7 +338,6 @@ class CaptureSheetActionsTest {
     ) {
         var launches = 0
         show(
-            frameActive = false,
             placed = mutableListOf(),
             recognizer = ProblemRecognizer(problem),
             onSystemSpeech = { _, _ -> launches += 1 },
@@ -414,29 +349,26 @@ class CaptureSheetActionsTest {
     }
 
     private fun show(
-        frameActive: Boolean,
         placed: MutableList<String>,
         recognizer: UtteranceRecognizer? = AllowAllRecognizer,
         phrases: List<String> = emptyList(),
         onDismiss: () -> Unit = {},
         onSystemSpeech: ((Intent, (String) -> Unit) -> Unit)? = null,
+        interrupts: Boolean = false,
+        pausedTitle: String? = null,
     ) {
-        val today: LocalDate = clock.localDate()
         compose.setContent {
             FocusStackTheme {
                 CaptureSheet(
                     phrases = phrases,
-                    frameActive = frameActive,
-                    today = today,
                     onDismiss = onDismiss,
                     onSaveToInbox = { placed += "inbox:$it" },
                     onInterruptNow = { placed += "interrupt:$it" },
                     onPlaceToday = { placed += "today:$it" },
                     onPlaceStart = { placed += "start:$it" },
-                    onPlaceLater = { placed += "later:$it" },
-                    onSchedule = { title, day, minute ->
-                        placed += if (minute == null) "schedule:$title:$day" else "schedule:$title:$day:$minute"
-                    },
+                    onBringBack = { placed += "bringBack:$it" },
+                    interrupts = interrupts,
+                    pausedTitle = pausedTitle,
                     recognizer = recognizer,
                     onSystemSpeech = onSystemSpeech,
                 )
@@ -491,27 +423,46 @@ class CaptureSheetActionsTest {
 
     private fun awaitSnapshot(
         useCases: FocusUseCases,
+        step: String,
         predicate: (FocusSnapshot) -> Boolean,
     ) {
-        compose.waitUntil(timeoutMillis = 5_000) {
-            compose.waitForIdle()
-            shadowOf(Looper.getMainLooper()).idle()
-            runBlocking { predicate(useCases.observeSnapshot().first()) }
+        compose.waitUntil(conditionDescription = step, timeoutMillis = 5_000) {
+            pump()
+            kotlinx.coroutines.runBlocking { predicate(useCases.observeSnapshot().first()) }
         }
     }
 
     private fun awaitNow(
         viewModel: FocusStackViewModel,
+        step: String,
         predicate: (app.backpin.focus.ui.NowUi) -> Boolean,
     ) {
-        compose.waitUntil(timeoutMillis = 5_000) {
-            compose.waitForIdle()
-            shadowOf(Looper.getMainLooper()).idle()
+        compose.waitUntil(conditionDescription = step, timeoutMillis = 5_000) {
+            pump()
             viewModel.uiState.value.now?.let(predicate) == true
         }
     }
 
-    private val clock: AppClock = app.backpin.focus.testing.FakeAppClock()
+    private fun pump() {
+        compose.waitForIdle()
+        shadowOf(Looper.getMainLooper()).idle()
+        mainDispatcherRule.scheduler.advanceUntilIdle()
+    }
+
+    private companion object {
+        val DESTINATIONS =
+            listOf(
+                Destination("Save to Inbox", "inbox"),
+                Destination("Today", "today"),
+                Destination("Start now", "start"),
+                Destination("Bring back…", "bringBack"),
+            )
+    }
+
+    private data class Destination(
+        val label: String,
+        val recorded: String,
+    )
 }
 
 private class FakeRecognizer(

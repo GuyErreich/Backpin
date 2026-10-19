@@ -86,19 +86,12 @@ class EditFlowVisualTest {
                     editTitle?.let { title ->
                         CaptureSheet(
                             phrases = emptyList(),
-                            frameActive = false, today = app.backpin.focus.testing.FakeAppClock().localDate(),
                             onDismiss = {},
-                            onSaveToInbox = {},
-                            onInterruptNow = {},
-                            onPlaceToday = {},
-                            onPlaceStart = {},
-                            onPlaceLater = {},
-                            onSchedule = { _, _, _ -> },
                             edit =
-                                CaptureEdit(
-                                    title = title,
-                                    place = CapturePlace.INBOX,
-                                ),
+                            CaptureEdit(
+                                title = title,
+                                place = CapturePlace.INBOX,
+                            ),
                             onCommitEdit = { _, _, _ -> },
                             recognizer = SilentRecognizer,
                         )
@@ -130,10 +123,10 @@ class EditFlowVisualTest {
                 Surface(color = FocusColors.Midnight, modifier = Modifier.fillMaxSize()) {
                     InboxScreen(
                         tasks =
-                            listOf(
-                                TaskUi(id = "1", title = first, returnCue = null),
-                                TaskUi(id = "2", title = second, returnCue = null),
-                            ),
+                        listOf(
+                            TaskUi(id = "1", title = first, returnCue = null),
+                            TaskUi(id = "2", title = second, returnCue = null),
+                        ),
                         ready = true,
                         canInterrupt = false,
                         onBack = {},

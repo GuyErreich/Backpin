@@ -154,15 +154,7 @@ class EditTaskSheetTest {
             FocusStackTheme {
                 CaptureSheet(
                     phrases = listOf("Talk to my wife", "Talk to <name>"),
-                    frameActive = true,
-                    today = clock.localDate(),
                     onDismiss = { dismissed += 1 },
-                    onSaveToInbox = {},
-                    onInterruptNow = {},
-                    onPlaceToday = {},
-                    onPlaceStart = {},
-                    onPlaceLater = {},
-                    onSchedule = { _, _, _ -> },
                     edit =
                     CaptureEdit(
                         title = "Hold this",
