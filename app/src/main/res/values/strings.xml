@@ -147,6 +147,22 @@
     <string name="home_row_desc">Today position %1$d. %2$s. %3$s. Swipe right for done, swipe left to bring back. Long press for more actions.</string>
     <string name="home_missed_footer">Missed repeats don\'t pile up. Tomorrow starts fresh.</string>
     <string name="action_add">+ Add</string>
+    <string name="add_fab_menu_add_subtitle">Same as a tap</string>
+    <string name="add_fab_menu_interrupt">Interrupt now</string>
+    <string name="add_fab_menu_interrupt_subtitle">Pause the NOW task, do this</string>
+    <string name="capture_field_title">Title</string>
+    <string name="capture_field_task">Task</string>
+    <string name="capture_field_placeholder">A stray thought</string>
+    <string name="capture_phrase_next">Next</string>
+    <string name="capture_phrase_word">word</string>
+    <string name="capture_stop_listening">Stop listening</string>
+    <string name="capture_speak_title">Speak the title</string>
+    <string name="capture_speak_missing_word">Speak the missing word</string>
+    <string name="capture_place_inbox">Inbox</string>
+    <string name="capture_place_start">Start</string>
+    <string name="undo_converted_to_repeat">Converted to repeat</string>
+    <string name="action_repeat_row">Repeat</string>
+    <string name="action_repeat_chevron" translatable="false">›</string>
     <string name="action_plan_ahead">+ Plan ahead</string>
     <string name="action_add_countdown">Add countdown</string>
     <string name="tab_home">Home</string>

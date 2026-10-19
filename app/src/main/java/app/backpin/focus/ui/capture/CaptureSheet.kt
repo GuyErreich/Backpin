@@ -48,11 +48,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
@@ -75,6 +76,7 @@ import app.backpin.focus.ui.motion.motionSpec
 import app.backpin.focus.ui.motion.rememberPressSource
 import app.backpin.focus.ui.motion.rememberReducedMotion
 import app.backpin.focus.ui.theme.ButtonGap
+import app.backpin.focus.ui.theme.ButtonMinHeight
 import app.backpin.focus.ui.theme.ButtonRadius
 import app.backpin.focus.ui.theme.FocusColors
 import app.backpin.focus.ui.theme.Space
@@ -88,6 +90,7 @@ private val PhraseChipHeight = 32.dp
 
 /** Prefill for the same sheet in edit mode. [place] is null for a nested interruption. */
 internal data class CaptureEdit(
+    val taskId: String,
     val title: String,
     val place: CapturePlace?,
     val scheduledEpochDay: Long? = null,
@@ -95,7 +98,6 @@ internal data class CaptureEdit(
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-@Suppress("ktlint:standard:indent")
 internal fun CaptureSheet(
     phrases: List<String>,
     onDismiss: () -> Unit,
@@ -106,7 +108,7 @@ internal fun CaptureSheet(
     edit: CaptureEdit? = null,
     onCommitEdit: ((String, CapturePlace?, Long?) -> Unit)? = null,
     onBringBack: ((String) -> Unit)? = null,
-    onRepeat: ((String) -> Unit)? = null,
+    onRepeat: ((String, String) -> Unit)? = null,
     interrupts: Boolean = false,
     pausedTitle: String? = null,
     recognizer: UtteranceRecognizer? = null,
@@ -195,12 +197,8 @@ internal fun CaptureSheet(
         if (!editing) return
         if (place == CapturePlace.SCHEDULE) {
             val titleText = titleDraft.text.trim().ifEmpty { edit.title }
-            val openBringBack = onBringBack
-            if (openBringBack != null) {
-                openBringBack(titleText)
-                return
-            }
-            selectedPlace = place
+            val openBringBack = onBringBack ?: return
+            openBringBack(titleText)
             return
         }
         selectedPlace = place
@@ -212,7 +210,7 @@ internal fun CaptureSheet(
         val titleText = titleDraft.text.trim().ifEmpty { current.title }
         editCommitted = true
         stopListening()
-        openRepeat(titleText)
+        openRepeat(current.taskId, titleText)
     }
 
     val atFirstStep = activeBlank == null
@@ -242,11 +240,11 @@ internal fun CaptureSheet(
         val sheetGap = if (editing) ButtonGap else Space
         Column(
             modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .then(if (editing) Modifier else Modifier.fillMaxHeight())
-                    .padding(horizontal = 16.dp)
-                    .padding(bottom = 24.dp),
+            Modifier
+                .fillMaxWidth()
+                .then(if (editing) Modifier else Modifier.fillMaxHeight())
+                .padding(horizontal = 16.dp)
+                .padding(bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(sheetGap),
         ) {
             // One scrolling column, not a fixed stack under the title. A finite-height
@@ -254,138 +252,146 @@ internal fun CaptureSheet(
             // Inbox a zero-height hit target once the keyboard has taken the room.
             Column(
                 modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .then(
-                            if (editing) {
-                                Modifier
-                            } else {
-                                Modifier
-                                    .weight(1f)
-                                    .verticalScroll(rememberScrollState())
-                            },
-                        ),
+                Modifier
+                    .fillMaxWidth()
+                    .then(
+                        if (editing) {
+                            Modifier
+                        } else {
+                            Modifier
+                                .weight(1f)
+                                .verticalScroll(rememberScrollState())
+                        },
+                    ),
                 verticalArrangement = Arrangement.spacedBy(sheetGap),
             ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                BackArrow(
-                    label = if (atFirstStep) CLOSE_LABEL else BACK_LABEL,
-                    onClick = ::stepBack,
-                    inSheet = true,
-                )
-                Text(
-                    when {
-                        editing -> stringResource(R.string.capture_edit_heading)
-                        interruptNow -> stringResource(R.string.capture_interrupt_heading)
-                        else -> stringResource(R.string.capture_heading)
-                    },
-                    style = MaterialTheme.typography.headlineMedium,
-                    modifier = Modifier.weight(1f).semantics { heading() },
-                )
-            }
-            if (!editing && phrases.isNotEmpty()) {
-                FlowRow(
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    phrases.forEach { phrase ->
-                        key(phrase) {
-                            PhraseChip(
-                                label = phraseChipLabel(phrase),
-                                onClick = {
-                                    stopListening()
-                                    when (val action = phraseChipAction(phrase)) {
-                                        is PhraseChipAction.AskFill -> {
-                                            activeBlank = phrase
-                                            fillDraft.edit("")
+                    BackArrow(
+                        label = if (atFirstStep) CLOSE_LABEL else BACK_LABEL,
+                        onClick = ::stepBack,
+                        inSheet = true,
+                    )
+                    Text(
+                        when {
+                            editing -> stringResource(R.string.capture_edit_heading)
+                            interruptNow -> stringResource(R.string.capture_interrupt_heading)
+                            else -> stringResource(R.string.capture_heading)
+                        },
+                        style = MaterialTheme.typography.headlineMedium,
+                        modifier = Modifier.weight(1f).semantics { heading() },
+                    )
+                }
+                if (!editing && phrases.isNotEmpty()) {
+                    FlowRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        phrases.forEach { phrase ->
+                            key(phrase) {
+                                PhraseChip(
+                                    label = phraseChipLabel(phrase),
+                                    onClick = {
+                                        stopListening()
+                                        when (val action = phraseChipAction(phrase)) {
+                                            is PhraseChipAction.AskFill -> {
+                                                activeBlank = phrase
+                                                fillDraft.edit("")
+                                            }
+                                            is PhraseChipAction.AskPlace -> {
+                                                activeBlank = null
+                                                fillDraft.edit("")
+                                                titleDraft.edit(action.title)
+                                            }
                                         }
-                                        is PhraseChipAction.AskPlace -> {
-                                            activeBlank = null
-                                            fillDraft.edit("")
-                                            titleDraft.edit(action.title)
-                                        }
-                                    }
-                                },
-                            )
+                                    },
+                                )
+                            }
                         }
                     }
                 }
-            }
-            activeBlank?.let { template ->
-                val prompt = phrasePrompt(template) ?: "word"
-                OutlinedTextField(
-                    value = fillWord,
-                    onValueChange = { incoming ->
-                        if (speech.isListening(ListenField.Fill)) return@OutlinedTextField
-                        fillDraft.edit(incoming)
-                    },
-                    modifier = Modifier.fillMaxWidth().focusRequester(fillFocusRequester),
-                    label = { Text(prompt) },
-                    placeholder = { Text(prompt) },
-                    singleLine = true,
-                    trailingIcon = {
-                        SpeakMic(
-                            listening = speech.isListening(ListenField.Fill),
-                            reducedMotion = reducedMotion,
-                            contentDescription =
+                activeBlank?.let { template ->
+                    val prompt = phrasePrompt(template) ?: stringResource(R.string.capture_phrase_word)
+                    OutlinedTextField(
+                        value = fillWord,
+                        onValueChange = { incoming ->
+                            if (speech.isListening(ListenField.Fill)) return@OutlinedTextField
+                            fillDraft.edit(incoming)
+                        },
+                        modifier = Modifier.fillMaxWidth().focusRequester(fillFocusRequester),
+                        label = { Text(prompt) },
+                        placeholder = { Text(prompt) },
+                        singleLine = true,
+                        trailingIcon = {
+                            SpeakMic(
+                                listening = speech.isListening(ListenField.Fill),
+                                reducedMotion = reducedMotion,
+                                contentDescription =
                                 if (speech.isListening(ListenField.Fill)) {
-                                    "Stop listening"
+                                    stringResource(R.string.capture_stop_listening)
                                 } else {
-                                    "Speak the missing word"
+                                    stringResource(R.string.capture_speak_missing_word)
                                 },
-                            onClick = { speech.toggle(ListenField.Fill) },
-                        )
+                                onClick = { speech.toggle(ListenField.Fill) },
+                            )
+                        },
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                        keyboardActions = KeyboardActions(onDone = { commitFill() }),
+                    )
+                    LaunchedEffect(fillFocusRequester) {
+                        fillFocusRequester.requestFocus()
+                    }
+                    fillPhraseBlank(template, fillWord)?.let { preview ->
+                        Text(preview, style = MaterialTheme.typography.bodyLarge, color = FocusColors.Live.Text)
+                    }
+                    CaptureChoice(
+                        label = stringResource(R.string.capture_phrase_next),
+                        onClick = { commitFill() },
+                        enabled = fillPhraseBlank(template, fillWord) != null,
+                    )
+                }
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { incoming ->
+                        if (speech.isListening(ListenField.Title)) return@OutlinedTextField
+                        titleDraft.edit(incoming)
                     },
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                    keyboardActions = KeyboardActions(onDone = { commitFill() }),
-                )
-                LaunchedEffect(fillFocusRequester) {
-                    fillFocusRequester.requestFocus()
-                }
-                fillPhraseBlank(template, fillWord)?.let { preview ->
-                    Text(preview, style = MaterialTheme.typography.bodyLarge, color = FocusColors.Live.Text)
-                }
-                CaptureChoice(
-                    label = "Next",
-                    onClick = { commitFill() },
-                    enabled = fillPhraseBlank(template, fillWord) != null,
-                )
-            }
-            OutlinedTextField(
-                value = title,
-                onValueChange = { incoming ->
-                    if (speech.isListening(ListenField.Title)) return@OutlinedTextField
-                    titleDraft.edit(incoming)
-                },
-                modifier =
+                    modifier =
                     Modifier
                         .fillMaxWidth()
                         .focusRequester(focusRequester),
-                shape = RoundedCornerShape(ButtonRadius),
-                colors = titleFieldColors(),
-                label = { Text(if (editing) "Task" else "Title") },
-                placeholder = { Text("A stray thought") },
-                singleLine = true,
-                trailingIcon = {
-                    SpeakMic(
-                        listening = speech.isListening(ListenField.Title),
-                        reducedMotion = reducedMotion,
-                        contentDescription =
-                            if (speech.isListening(ListenField.Title)) {
-                                "Stop listening"
+                    shape = RoundedCornerShape(8.dp),
+                    colors = titleFieldColors(),
+                    label = {
+                        Text(
+                            if (editing) {
+                                stringResource(R.string.capture_field_task)
                             } else {
-                                "Speak the title"
+                                stringResource(R.string.capture_field_title)
                             },
-                        onClick = { speech.toggle(ListenField.Title) },
-                    )
-                },
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                keyboardActions =
+                        )
+                    },
+                    placeholder = { Text(stringResource(R.string.capture_field_placeholder)) },
+                    singleLine = true,
+                    trailingIcon = {
+                        SpeakMic(
+                            listening = speech.isListening(ListenField.Title),
+                            reducedMotion = reducedMotion,
+                            contentDescription =
+                            if (speech.isListening(ListenField.Title)) {
+                                stringResource(R.string.capture_stop_listening)
+                            } else {
+                                stringResource(R.string.capture_speak_title)
+                            },
+                            onClick = { speech.toggle(ListenField.Title) },
+                        )
+                    },
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions =
                     KeyboardActions(
                         onDone = {
                             if (editing) {
@@ -395,78 +401,75 @@ internal fun CaptureSheet(
                             }
                         },
                     ),
-            )
-            LaunchedEffect(focusRequester, activeBlank) {
-                if (activeBlank == null) focusRequester.requestFocus()
-            }
-            speech.note?.let { note ->
-                Text(note, style = MaterialTheme.typography.bodyMedium, color = FocusColors.Live.Muted)
-            }
-            if (editing) {
-                val bringBackLabel = stringResource(R.string.action_bring_back)
-                PlaceChoices(
-                    places = editPlaces().filter { it != CapturePlace.LATER },
-                    labelFor = { place ->
-                        if (place == CapturePlace.SCHEDULE) bringBackLabel else place.label()
-                    },
-                    selected = selectedPlace,
-                    onPlace = ::placeTyped,
                 )
-                if (onRepeat != null) {
-                    Text(
-                        text = stringResource(R.string.capture_edit_repeat_subline),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = FocusColors.Live.Muted,
-                    )
-                    CaptureChoice(
-                        label = stringResource(R.string.action_repeat),
-                        onClick = ::openRepeatFromEdit,
-                    )
+                LaunchedEffect(focusRequester, activeBlank) {
+                    if (activeBlank == null) focusRequester.requestFocus()
                 }
-                PrimaryButton(
-                    label = stringResource(R.string.action_save),
-                    onClick = ::commitEditAndClose,
-                )
-            } else if (interruptNow) {
-                pausedTitle?.let { nowTitle ->
-                    Text(
-                        text = stringResource(R.string.capture_interrupt_paused, nowTitle),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = FocusColors.Live.Muted,
-                    )
+                speech.note?.let { note ->
+                    Text(note, style = MaterialTheme.typography.bodyMedium, color = FocusColors.Live.Muted)
                 }
-                PrimaryButton(
-                    label = stringResource(R.string.action_interrupt_do_this_now),
-                    onClick = { runWithTitle(onInterruptNow) },
-                )
-            } else {
-                Column(modifier = Modifier.fillMaxWidth()) {
+                if (editing) {
+                    val bringBackLabel = stringResource(R.string.action_bring_back)
+                    PlaceChoices(
+                        places = editPlaces().filter { it != CapturePlace.LATER },
+                        labelFor = { place ->
+                            if (place == CapturePlace.SCHEDULE) bringBackLabel else place.label()
+                        },
+                        selected = selectedPlace,
+                        onPlace = ::placeTyped,
+                    )
+                    if (onRepeat != null) {
+                        Text(
+                            text = stringResource(R.string.capture_edit_repeat_subline),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = FocusColors.Live.Muted,
+                        )
+                        RepeatSettingsRow(onClick = ::openRepeatFromEdit)
+                    }
                     PrimaryButton(
-                        label = stringResource(R.string.action_save_to_inbox),
-                        onClick = { runWithTitle(onSaveToInbox) },
+                        label = stringResource(R.string.action_save),
+                        onClick = ::commitEditAndClose,
                     )
-                    Text(
-                        text = stringResource(R.string.capture_or_when),
-                        style = HomeMetrics.Eyebrow,
-                        color = FocusColors.Live.Muted,
-                        modifier = Modifier.padding(top = 16.dp, bottom = 8.dp),
-                    )
-                    SecondaryActionRow {
-                        QuietButton(
-                            label = stringResource(R.string.action_today),
-                            onClick = { runWithTitle(onPlaceToday) },
-                        )
-                        QuietButton(
-                            label = stringResource(R.string.action_start_now),
-                            onClick = { runWithTitle(onPlaceStart) },
-                        )
-                        QuietButton(
-                            label = stringResource(R.string.action_bring_back),
-                            onClick = { onBringBack?.let(::runWithTitle) },
+                } else if (interruptNow) {
+                    pausedTitle?.let { nowTitle ->
+                        Text(
+                            text = stringResource(R.string.capture_interrupt_paused, nowTitle),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = FocusColors.Live.Muted,
                         )
                     }
+                    PrimaryButton(
+                        label = stringResource(R.string.action_interrupt_do_this_now),
+                        onClick = { runWithTitle(onInterruptNow) },
+                    )
+                } else {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        PrimaryButton(
+                            label = stringResource(R.string.action_save_to_inbox),
+                            onClick = { runWithTitle(onSaveToInbox) },
+                        )
+                        Text(
+                            text = stringResource(R.string.capture_or_when),
+                            style = HomeMetrics.Eyebrow,
+                            color = FocusColors.Live.Muted,
+                            modifier = Modifier.padding(top = 16.dp, bottom = 8.dp),
+                        )
+                        SecondaryActionRow {
+                            QuietButton(
+                                label = stringResource(R.string.action_today),
+                                onClick = { runWithTitle(onPlaceToday) },
+                            )
+                            QuietButton(
+                                label = stringResource(R.string.action_start_now),
+                                onClick = { runWithTitle(onPlaceStart) },
+                            )
+                            QuietButton(
+                                label = stringResource(R.string.action_bring_back),
+                                onClick = { onBringBack?.let(::runWithTitle) },
+                            )
+                        }
+                    }
                 }
-            }
             }
         }
     }
@@ -498,7 +501,7 @@ private fun PhraseChip(
                     modifier =
                     Modifier
                         .fillMaxHeight()
-                        .padding(horizontal = 16.dp),
+                        .padding(horizontal = 14.dp),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
@@ -517,7 +520,7 @@ private fun PhraseChip(
 private fun PlaceChoices(
     places: List<CapturePlace>,
     onPlace: (CapturePlace) -> Unit,
-    labelFor: (CapturePlace) -> String = { it.label() },
+    labelFor: @Composable (CapturePlace) -> String = { it.label() },
     selected: CapturePlace? = null,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(ButtonGap)) {
@@ -534,48 +537,85 @@ private fun PlaceChoices(
     }
 }
 
-@Suppress("ktlint:standard:function-signature")
-private fun CapturePlace.tone(): ChoiceTone =
-    when (this) {
-        CapturePlace.INBOX -> ChoiceTone.Mint
-        CapturePlace.INTERRUPT -> ChoiceTone.Lavender
-        CapturePlace.SCHEDULE -> ChoiceTone.Quiet
-        CapturePlace.TODAY,
-        CapturePlace.START,
-        CapturePlace.LATER,
-        -> ChoiceTone.Quiet
-    }
-
-@Suppress("ktlint:standard:function-signature")
-private fun CapturePlace.label(): String =
-    when (this) {
-        CapturePlace.INBOX -> "Inbox"
-        CapturePlace.TODAY -> "Today"
-        CapturePlace.START -> "Start"
-        CapturePlace.INTERRUPT -> "Interrupt"
-        CapturePlace.LATER -> "Later"
-        CapturePlace.SCHEDULE -> "Schedule"
-    }
+@Composable
+private fun CapturePlace.tone(): ChoiceTone = when (this) {
+    CapturePlace.INBOX -> ChoiceTone.Mint
+    CapturePlace.TODAY,
+    CapturePlace.START,
+    CapturePlace.SCHEDULE,
+    CapturePlace.LATER,
+    CapturePlace.INTERRUPT,
+    -> ChoiceTone.Quiet
+}
 
 @Composable
-@Suppress("ktlint:standard:function-signature")
-private fun titleFieldColors() =
-    OutlinedTextFieldDefaults.colors(
-        focusedTextColor = FocusColors.Live.Text,
-        unfocusedTextColor = FocusColors.Live.Text,
-        cursorColor = FocusColors.Live.Mint,
-        focusedBorderColor = FocusColors.Live.Outline,
-        unfocusedBorderColor = FocusColors.Live.Outline,
-        focusedLabelColor = FocusColors.Live.Muted,
-        unfocusedLabelColor = FocusColors.Live.Muted,
-        focusedPlaceholderColor = FocusColors.Live.Muted,
-        unfocusedPlaceholderColor = FocusColors.Live.Muted,
-        focusedContainerColor = Color.Transparent,
-        unfocusedContainerColor = Color.Transparent,
-    )
+private fun CapturePlace.label(): String = when (this) {
+    CapturePlace.INBOX -> stringResource(R.string.capture_place_inbox)
+    CapturePlace.TODAY -> stringResource(R.string.action_today)
+    CapturePlace.START -> stringResource(R.string.capture_place_start)
+    CapturePlace.SCHEDULE -> stringResource(R.string.action_bring_back)
+    CapturePlace.LATER -> stringResource(R.string.action_later)
+    CapturePlace.INTERRUPT -> stringResource(R.string.action_interrupt)
+}
 
 @Composable
-@Suppress("ktlint:standard:indent")
+private fun titleFieldColors() = OutlinedTextFieldDefaults.colors(
+    focusedTextColor = FocusColors.Live.Text,
+    unfocusedTextColor = FocusColors.Live.Text,
+    cursorColor = FocusColors.Live.Mint,
+    focusedBorderColor = FocusColors.Live.Outline,
+    unfocusedBorderColor = FocusColors.Live.Outline,
+    focusedLabelColor = FocusColors.Live.Muted,
+    unfocusedLabelColor = FocusColors.Live.Muted,
+    focusedPlaceholderColor = FocusColors.Live.Muted,
+    unfocusedPlaceholderColor = FocusColors.Live.Muted,
+    focusedContainerColor = FocusColors.Live.Surface,
+    unfocusedContainerColor = FocusColors.Live.Surface,
+)
+
+@Composable
+private fun RepeatSettingsRow(onClick: () -> Unit) {
+    val interaction = rememberPressSource()
+    val label = stringResource(R.string.action_repeat_row)
+    Surface(
+        modifier =
+        Modifier
+            .fillMaxWidth()
+            .height(ButtonMinHeight)
+            .clickable(
+                interactionSource = interaction,
+                indication = null,
+                role = Role.Button,
+                onClick = onClick,
+            )
+            .semantics { contentDescription = label },
+        shape = RoundedCornerShape(ButtonRadius),
+        color = FocusColors.Live.Surface,
+    ) {
+        Row(
+            modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.titleMedium,
+                color = FocusColors.Live.Text,
+            )
+            Text(
+                text = stringResource(R.string.action_repeat_chevron),
+                style = MaterialTheme.typography.titleMedium,
+                color = FocusColors.Live.Muted,
+                modifier = Modifier.clearAndSetSemantics { },
+            )
+        }
+    }
+}
+
+@Composable
 internal fun SpeakMic(
     listening: Boolean,
     reducedMotion: Boolean,
@@ -590,13 +630,13 @@ internal fun SpeakMic(
     IconButton(
         onClick = onClick,
         modifier =
-            Modifier
-                .size(48.dp)
-                .focusProperties { canFocus = false }
-                .graphicsLayer {
-                    scaleX = scale
-                    scaleY = scale
-                },
+        Modifier
+            .size(48.dp)
+            .focusProperties { canFocus = false }
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            },
     ) {
         Icon(
             painter = painterResource(R.drawable.ic_mic),

@@ -126,8 +126,15 @@ class RepeatsService(
 
     override fun observePendingUndo(): Flow<RepeatUndo?> = pendingUndo
 
-    override fun openCreate(title: String) {
-        editing.value = RepeatDraft(title = title.trim())
+    override fun openCreate(
+        title: String,
+        convertsTaskId: String?,
+    ) {
+        editing.value =
+            RepeatDraft(
+                title = title.trim(),
+                convertsTaskId = convertsTaskId,
+            )
     }
 
     override fun openEdit(repeat: Repeat) {

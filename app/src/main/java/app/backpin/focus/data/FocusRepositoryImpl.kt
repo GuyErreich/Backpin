@@ -24,6 +24,7 @@ import app.backpin.focus.domain.Task
 import app.backpin.focus.domain.TaskBucket
 import app.backpin.focus.domain.TaskStatus
 import app.backpin.focus.domain.TodaysRepeats
+import app.backpin.focus.domain.UNTITLED_INTERRUPTION
 import app.backpin.focus.domain.UndoToken
 import app.backpin.focus.domain.UserPreferences
 import app.backpin.focus.domain.bandWindow
@@ -141,15 +142,6 @@ class FocusRepositoryImpl(
                 true
             }
         if (discarded) recordInteraction()
-    }
-
-    override suspend fun captureLater(title: String) {
-        val trimmed = title.trim()
-        if (trimmed.isEmpty()) return
-        database.withTransaction {
-            taskDao.upsert(newTask(trimmed, TaskBucket.LATER))
-        }
-        recordInteraction()
     }
 
     override suspend fun captureScheduled(
@@ -554,7 +546,7 @@ class FocusRepositoryImpl(
             if (active != null) {
                 frameDao.upsert(pause(active))
             }
-            val resolved = title?.trim()?.takeIf { it.isNotEmpty() } ?: app.backpin.focus.domain.UNTITLED_INTERRUPTION
+            val resolved = title?.trim()?.takeIf { it.isNotEmpty() } ?: UNTITLED_INTERRUPTION
             val task = newTask(resolved, TaskBucket.INBOX)
             taskDao.upsert(task)
             frameDao.upsert(newFrame(task.id, parentFrameId = active?.id))
@@ -1347,9 +1339,23 @@ class FocusRepositoryImpl(
                 if (frameDao.openFrameForTask(taskId) != null) {
                     return@withTransaction ConvertToRepeatResult.Rejected
                 }
-                val repeatId =
-                    createRepeat(title, band, everyNDays, anchorEpochDay, reminderOn)
-                        ?: return@withTransaction ConvertToRepeatResult.Rejected
+                val trimmed = title.trim()
+                if (trimmed.isEmpty()) return@withTransaction ConvertToRepeatResult.Rejected
+                val now = clock.nowEpochMillis()
+                val repeatId = ids()
+                repeatDao.upsert(
+                    RepeatEntity(
+                        id = repeatId,
+                        title = trimmed,
+                        band = band.name,
+                        everyNDays = everyNDays.coerceAtLeast(1),
+                        anchorEpochDay = anchorEpochDay,
+                        reminderOn = reminderOn,
+                        sortOrder = now,
+                        createdAtEpochMillis = now,
+                        archivedAtEpochMillis = null,
+                    ),
+                )
                 frameDao.deleteForTask(taskId)
                 taskDao.deleteById(taskId)
                 ConvertToRepeatResult.Converted(repeatId = repeatId, task = task.toDomain())

@@ -13,8 +13,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.SemanticsActions
-import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertHasClickAction
+import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
@@ -71,10 +71,10 @@ class EditFlowVisualTest {
                 Surface(color = FocusColors.Midnight, modifier = Modifier.fillMaxSize()) {
                     InboxScreen(
                         tasks =
-                            listOf(
-                                TaskUi(id = "1", title = first, returnCue = null),
-                                TaskUi(id = "2", title = "Buy printer ink", returnCue = null),
-                            ),
+                        listOf(
+                            TaskUi(id = "1", title = first, returnCue = null),
+                            TaskUi(id = "2", title = "Buy printer ink", returnCue = null),
+                        ),
                         ready = true,
                         canInterrupt = false,
                         onBack = {},
@@ -89,6 +89,7 @@ class EditFlowVisualTest {
                             onDismiss = {},
                             edit =
                             CaptureEdit(
+                                taskId = "task-1",
                                 title = title,
                                 place = CapturePlace.INBOX,
                             ),

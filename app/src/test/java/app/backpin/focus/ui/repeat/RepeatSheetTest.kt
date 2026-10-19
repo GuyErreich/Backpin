@@ -51,7 +51,7 @@ class RepeatSheetTest {
                 CaptureSheet(
                     phrases = emptyList(),
                     onDismiss = {},
-                    edit = CaptureEdit(title = "Water plants", place = CapturePlace.INBOX),
+                    edit = CaptureEdit(taskId = "task-1", title = "Water plants", place = CapturePlace.INBOX),
                     onCommitEdit = { _, _, _ -> },
                     recognizer = SilentRecognizer,
                 )

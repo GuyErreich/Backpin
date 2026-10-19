@@ -157,6 +157,7 @@ class EditTaskSheetTest {
                     onDismiss = { dismissed += 1 },
                     edit =
                     CaptureEdit(
+                        taskId = "task-1",
                         title = "Hold this",
                         place = CapturePlace.INBOX,
                     ),
