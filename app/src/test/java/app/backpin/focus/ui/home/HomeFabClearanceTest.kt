@@ -15,11 +15,14 @@ import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.dp
 import app.backpin.focus.R
 import app.backpin.focus.domain.RepeatBand
-import app.backpin.focus.runOffTestThread
+import app.backpin.focus.testing.MainDispatcherRule
 import app.backpin.focus.testing.defaultTodayTitles
 import app.backpin.focus.testing.useTestFocus
 import app.backpin.focus.ui.FocusApp
 import app.backpin.focus.ui.theme.FocusStackTheme
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -28,17 +31,21 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
+@OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36], qualifiers = "w411dp-h640dp")
 class HomeFabClearanceTest {
-    @get:Rule
+    @get:Rule(order = 0)
+    val mainDispatcherRule = MainDispatcherRule()
+
+    @get:Rule(order = 1)
     val compose = createAndroidComposeRule<ComponentActivity>()
 
     @Test
     fun lastListItemAndSnackbarStayClearOfTheFab() {
         useTestFocus { fixture ->
             val lastRepeat = "Fill row 12"
-            runOffTestThread {
+            seedOnDispatcher {
                 fixture.seedFullToday()
                 val day = fixture.clock.localDate().toEpochDay()
                 for (index in 1..12) {
@@ -116,8 +123,22 @@ class HomeFabClearanceTest {
         val index = found.indices.minBy { kotlin.math.abs(found[it].boundsInRoot.top - titleTop) }
         val action = found[index].config[SemanticsActions.CustomActions].single { it.label == label }
         compose.runOnIdle { check(action.action()) }
-        compose.waitForIdle()
-        shadowOf(Looper.getMainLooper()).idle()
+        pump()
+    }
+
+    private fun seedOnDispatcher(block: suspend () -> Unit) {
+        var failure: Throwable? = null
+        val job =
+            CoroutineScope(mainDispatcherRule.dispatcher).launch {
+                try {
+                    block()
+                } catch (error: Throwable) {
+                    failure = error
+                    throw error
+                }
+            }
+        await { job.isCompleted }
+        failure?.let { throw it }
     }
 
     private fun nodes(
@@ -127,9 +148,14 @@ class HomeFabClearanceTest {
 
     private fun await(predicate: () -> Boolean) {
         compose.waitUntil(timeoutMillis = 5_000) {
-            compose.waitForIdle()
-            shadowOf(Looper.getMainLooper()).idle()
+            pump()
             predicate()
         }
+    }
+
+    private fun pump() {
+        compose.waitForIdle()
+        shadowOf(Looper.getMainLooper()).idle()
+        mainDispatcherRule.scheduler.advanceUntilIdle()
     }
 }

@@ -13,13 +13,16 @@ import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
-import app.backpin.focus.runOffTestThread
+import app.backpin.focus.testing.MainDispatcherRule
 import app.backpin.focus.testing.useTestFocus
 import app.backpin.focus.ui.FocusApp
 import app.backpin.focus.ui.components.AppTab
 import app.backpin.focus.ui.components.AppTabBar
 import app.backpin.focus.ui.theme.FocusStackTheme
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -28,10 +31,14 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
+@OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36], qualifiers = "w411dp-h891dp")
 class AppTabBarQaTest {
-    @get:Rule
+    @get:Rule(order = 0)
+    val mainDispatcherRule = MainDispatcherRule()
+
+    @get:Rule(order = 1)
     val compose = createAndroidComposeRule<ComponentActivity>()
 
     @Test
@@ -83,13 +90,13 @@ class AppTabBarQaTest {
                 }
                 await { viewModel.uiState.value.ready }
                 assertTrue("no Inbox badge at 0", !inboxBadge("0"))
-                runOffTestThread { fixture.useCases.capture("Note one") }
+                seedOnDispatcher { fixture.useCases.capture("Note one") }
                 await { viewModel.uiState.value.inboxCount == 1 }
                 assertTrue("Inbox badge 1 after capture", inboxBadge("1"))
-                runOffTestThread { fixture.useCases.capture("Note two") }
+                seedOnDispatcher { fixture.useCases.capture("Note two") }
                 await { viewModel.uiState.value.inboxCount == 2 }
                 assertTrue("Inbox badge 2 after second capture", inboxBadge("2"))
-                runOffTestThread {
+                seedOnDispatcher {
                     val id =
                         fixture.useCases
                             .observeSnapshot()
@@ -102,7 +109,7 @@ class AppTabBarQaTest {
                 await { viewModel.uiState.value.inboxCount == 1 }
                 assertTrue("Inbox badge 1 after promote", inboxBadge("1"))
                 assertTrue("stale Inbox badge 2 after promote", !inboxBadge("2"))
-                runOffTestThread {
+                seedOnDispatcher {
                     val id =
                         fixture.useCases
                             .observeSnapshot()
@@ -133,11 +140,31 @@ class AppTabBarQaTest {
         }
     }
 
+    private fun seedOnDispatcher(block: suspend () -> Unit) {
+        var failure: Throwable? = null
+        val job =
+            CoroutineScope(mainDispatcherRule.dispatcher).launch {
+                try {
+                    block()
+                } catch (error: Throwable) {
+                    failure = error
+                    throw error
+                }
+            }
+        await { job.isCompleted }
+        failure?.let { throw it }
+    }
+
     private fun await(predicate: () -> Boolean) {
         compose.waitUntil(timeoutMillis = 5_000) {
-            compose.waitForIdle()
-            shadowOf(Looper.getMainLooper()).idle()
+            pump()
             predicate()
         }
+    }
+
+    private fun pump() {
+        compose.waitForIdle()
+        shadowOf(Looper.getMainLooper()).idle()
+        mainDispatcherRule.scheduler.advanceUntilIdle()
     }
 }
