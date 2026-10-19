@@ -1,6 +1,31 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [0.1.24-dev] - 19-10-2026
+
+### Features & Enhancements
+- theme tokens and theme setting (#29)
+- band headers on Home with layout switch (#32)
+- Today notification matches option B (#59)
+
+
+### Infrastructure & Tooling
+- run CI on pull requests to any branch (#71)
+- rerun changed tests to catch flakes (#74)
+
+
+### Bug Fixes & Resolutions
+- midnight and foreground refresh (#30)
+- keep captured task in Inbox when Today is full (#57)
+
+
+### Testing
+- QA coverage for theme tokens and settings (#33)
+- fix flaky Today swap wait and HomeBands boundary emissions (#42) (#49)
+- wait for Auckland day in RepeatsServiceDayRefreshTest (fixes #44) (#45)
+- fix flaky RepeatHomeSpecTest header assert (#46) (#53)
+- add shared test-fixtures kit (clock, dispatcher, in-memory Room, awaitState, factories) (#50)
+
 ## [0.1.20-dev] - 18-10-2026
 
 ### Features & Enhancements
