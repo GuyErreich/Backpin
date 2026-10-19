@@ -322,7 +322,11 @@ class EditTaskSurfacesTest {
                     .fetchSemanticsNodes()
                     .isNotEmpty()
             }
-            tap(compose.activity.resources.getQuantityString(R.plurals.bring_back_save_in_days, 5, 5))
+            val saveInFiveDays =
+                compose.activity.resources.getQuantityString(R.plurals.bring_back_save_in_days, 5, 5)
+            await { compose.onAllNodesWithText(saveInFiveDays).fetchSemanticsNodes().isNotEmpty() }
+            compose.onNode(hasText(saveInFiveDays)).assertExists()
+            tap(saveInFiveDays)
             val inFiveDays = clock.localDate().plusDays(5).toEpochDay()
             awaitSnapshot(useCases) {
                 it.tasks.any { task ->

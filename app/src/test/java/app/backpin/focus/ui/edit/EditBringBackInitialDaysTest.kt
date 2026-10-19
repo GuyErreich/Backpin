@@ -1,0 +1,120 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+package app.backpin.focus.ui.edit
+
+import android.os.Looper
+import androidx.activity.ComponentActivity
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.click
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performTouchInput
+import app.backpin.focus.R
+import app.backpin.focus.runOffTestThread
+import app.backpin.focus.testing.useTestFocus
+import app.backpin.focus.ui.FocusApp
+import app.backpin.focus.ui.capture.BRING_BACK_DEFAULT_DAYS
+import app.backpin.focus.ui.capture.BRING_BACK_MAX_DAYS
+import app.backpin.focus.ui.theme.FocusStackTheme
+import kotlinx.coroutines.flow.first
+import org.junit.Rule
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows.shadowOf
+import org.robolectric.annotation.Config
+
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [36], qualifiers = "w411dp-h891dp")
+class EditBringBackInitialDaysTest {
+    @get:Rule
+    val compose = createAndroidComposeRule<ComponentActivity>()
+
+    @Test
+    fun bringBackFromEditStartsOnCurrentDaysAwayOrFive() {
+        useTestFocus { fixture ->
+            val today = fixture.clock.localDate()
+            val ids =
+                runOffTestThread {
+                    CASES.associate { case ->
+                        if (case.offsetDays == null) {
+                            fixture.useCases.capture(case.title)
+                        } else {
+                            fixture.useCases.captureScheduled(
+                                case.title,
+                                today.plusDays(case.offsetDays.toLong()).toEpochDay(),
+                            )
+                        }
+                        val id =
+                            fixture.useCases
+                                .observeSnapshot()
+                                .first()
+                                .tasks
+                                .single { it.title == case.title }
+                                .id
+                        case.title to id
+                    }
+                }
+            fixture.withViewModel { viewModel ->
+                compose.setContent {
+                    FocusStackTheme {
+                        FocusApp(viewModel)
+                    }
+                }
+                await { viewModel.uiState.value.ready }
+                CASES.forEach { case ->
+                    compose.runOnIdle { viewModel.openEdit(ids.getValue(case.title)) }
+                    await { viewModel.uiState.value.editing?.title == case.title }
+                    tap(compose.activity.getString(R.string.action_bring_back))
+                    await { viewModel.bringBack.value?.title == case.title }
+                    val saveLabel = saveInDays(case.initialDays)
+                    await {
+                        compose.onAllNodesWithText(saveLabel).fetchSemanticsNodes().isNotEmpty() ||
+                            compose.onAllNodesWithText(saveLabel, useUnmergedTree = true)
+                                .fetchSemanticsNodes()
+                                .isNotEmpty()
+                    }
+                    compose.onNodeWithText(saveLabel).assertExists()
+                    compose.runOnIdle { viewModel.dismissBringBack() }
+                    await { viewModel.bringBack.value == null }
+                }
+            }
+        }
+    }
+
+    private fun saveInDays(days: Int): String = compose.activity.resources.getQuantityString(R.plurals.bring_back_save_in_days, days, days)
+
+    private fun tap(label: String) {
+        compose.onNode(hasText(label)).assertIsEnabled()
+        compose.onNode(hasText(label)).performTouchInput { click() }
+        compose.waitForIdle()
+        shadowOf(Looper.getMainLooper()).idle()
+    }
+
+    private fun await(predicate: () -> Boolean) {
+        compose.waitUntil(timeoutMillis = 5_000) {
+            compose.waitForIdle()
+            shadowOf(Looper.getMainLooper()).idle()
+            predicate()
+        }
+    }
+
+    private data class Case(
+        val title: String,
+        val offsetDays: Int?,
+        val initialDays: Int,
+    )
+
+    private companion object {
+        val CASES: List<Case> =
+            listOf(
+                Case("No date", null, BRING_BACK_DEFAULT_DAYS),
+                Case("Due today", 0, BRING_BACK_DEFAULT_DAYS),
+                Case("Due yesterday", -1, BRING_BACK_DEFAULT_DAYS),
+                Case("Due tomorrow", 1, 1),
+                Case("Due in 12 days", 12, 12),
+                Case("Due in a year", BRING_BACK_MAX_DAYS, BRING_BACK_MAX_DAYS),
+            )
+    }
+}
