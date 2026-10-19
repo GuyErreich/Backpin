@@ -9,6 +9,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
@@ -26,6 +27,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeRight
+import app.backpin.focus.R
 import app.backpin.focus.domain.CountdownUnit
 import app.backpin.focus.domain.FocusSnapshot
 import app.backpin.focus.domain.FocusUseCases
@@ -35,6 +37,7 @@ import app.backpin.focus.testing.FakeAppClock
 import app.backpin.focus.testing.useTestFocus
 import app.backpin.focus.ui.FocusStackViewModel
 import app.backpin.focus.ui.SlotRole
+import app.backpin.focus.ui.capture.BringBackSheet
 import app.backpin.focus.ui.capture.CaptureEdit
 import app.backpin.focus.ui.capture.CaptureSheet
 import app.backpin.focus.ui.capture.SpeechProblem
@@ -210,11 +213,11 @@ class EditTaskSurfacesTest {
             compose.onNode(hasText("From inbox")).performTouchInput { longClick() }
             compose.waitForIdle()
             assertNull(viewModel.uiState.value.editing)
-            compose.onNode(hasText("Done")).assertDoesNotExist()
+            compose.onNode(hasText("Save")).assertDoesNotExist()
 
             invokeCustomAction("Edit", "From inbox")
             await { viewModel.uiState.value.editing?.title == "From inbox" }
-            tapDone()
+            tapSave()
             await { viewModel.uiState.value.editing == null }
 
             compose.onNode(hasContentDescription("Inbox. From inbox.", substring = true)).performTouchInput {
@@ -276,7 +279,7 @@ class EditTaskSurfacesTest {
     }
 
     @Test
-    fun backSavesABlankKeepsTheTitleAndPlaceChangesMoveTheTask() {
+    fun backSavesABlankKeepsTheTitleAndBringBackMovesTheTask() {
         withHarness { viewModel, useCases, clock ->
             seedOpenTasks(useCases, clock)
             compose.setContent {
@@ -306,25 +309,26 @@ class EditTaskSurfacesTest {
 
             tapEditNear("Inbox kept by back")
             titleField().performTextReplacement("   ")
-            tapDone()
+            tapSave()
             awaitSnapshot(useCases) { it.tasks.any { task -> task.title == "Inbox kept by back" } }
             awaitSnapshot(useCases) { it.tasks.none { task -> task.title.isBlank() } }
 
-            tapEditNear("Inbox kept by back")
-            tap("Later")
-            tapDone()
-            awaitSnapshot(useCases) { hasTask(it, "Inbox kept by back", TaskBucket.LATER) }
-
             compose.runOnIdle { viewModel.openEdit(runBlocking { idOf(useCases, "From later") }) }
             await { viewModel.uiState.value.editing?.title == "From later" }
-            tap("Schedule")
-            tap("Tomorrow")
-            val tomorrow = clock.localDate().plusDays(1).toEpochDay()
+            tap(compose.activity.getString(R.string.action_bring_back))
+            await { viewModel.bringBack.value?.title == "From later" }
+            await {
+                compose.onAllNodesWithText("Bring it back in…", useUnmergedTree = true)
+                    .fetchSemanticsNodes()
+                    .isNotEmpty()
+            }
+            tap(compose.activity.resources.getQuantityString(R.plurals.bring_back_save_in_days, 5, 5))
+            val inFiveDays = clock.localDate().plusDays(5).toEpochDay()
             awaitSnapshot(useCases) {
                 it.tasks.any { task ->
                     task.title == "From later" &&
                         task.bucket == TaskBucket.SCHEDULED &&
-                        task.scheduledOnEpochDay == tomorrow
+                        task.scheduledOnEpochDay == inFiveDays
                 }
             }
         }
@@ -333,6 +337,9 @@ class EditTaskSurfacesTest {
     @Composable
     private fun EditHost(viewModel: FocusStackViewModel) {
         val state by viewModel.uiState.collectAsState()
+        val bringBack by viewModel.bringBack.collectAsState()
+        val movedComingUp = stringResource(R.string.moved_to_coming_up)
+        val movedInbox = stringResource(R.string.moved_to_inbox)
         state.editing?.let { editing ->
             CaptureSheet(
                 phrases = emptyList(),
@@ -352,7 +359,25 @@ class EditTaskSurfacesTest {
                     scheduledEpochDay = editing.scheduledOnEpochDay,
                 ),
                 onCommitEdit = viewModel::saveEdit,
+                onBringBack = viewModel::saveEditThenBringBack,
                 recognizer = SilentRecognizer,
+            )
+        }
+        bringBack?.let { target ->
+            val today = viewModel.localDate()
+            val isEvent = state.now?.let { it.taskId == target.taskId && it.isEvent } == true
+            BringBackSheet(
+                onDismiss = viewModel::dismissBringBack,
+                onDate = { date ->
+                    viewModel.dismissBringBack()
+                    viewModel.bringBackOnDate(target.taskId, date.toEpochDay(), movedComingUp)
+                },
+                onKeepInInbox = {
+                    viewModel.dismissBringBack()
+                    viewModel.bringBackToInbox(target.taskId, movedInbox)
+                },
+                today = today,
+                earliest = if (isEvent) today.plusDays(1) else null,
             )
         }
     }
@@ -404,15 +429,15 @@ class EditTaskSurfacesTest {
 
     private fun saveTitleAs(title: String) {
         titleField().performTextReplacement(title)
-        tapDone()
+        tapSave()
     }
 
     private fun titleField() = compose.onNode(hasSetTextAction() and hasText("Task"))
 
-    private fun tapDone() {
-        val nodes = compose.onAllNodesWithText("Done")
+    private fun tapSave() {
+        val nodes = compose.onAllNodesWithText("Save")
         val found = nodes.fetchSemanticsNodes()
-        check(found.isNotEmpty()) { "No Done button" }
+        check(found.isNotEmpty()) { "No Save button" }
         val index = found.indices.maxBy { found[it].boundsInRoot.height }
         nodes[index].assertIsEnabled().assertHasClickAction().performTouchInput { click() }
         compose.waitForIdle()
