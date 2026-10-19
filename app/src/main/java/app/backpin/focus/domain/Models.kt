@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package app.backpin.focus.domain
 
+import java.time.Instant
+import java.time.LocalDate
+import java.time.LocalTime
+import java.time.ZoneId
+
 /**
  * Where a task sits. Placement is independent of which frame is in focus.
  * [SCHEDULED] waits outside Inbox, Today, and Later until its local date.
@@ -114,15 +119,34 @@ data class UndoToken(
 )
 
 /**
+ * Result of [FocusRepository.start].
+ * Today-slot results stay [PromoteOutcome] values.
+ * Starting a parent that still has an open interruption activates the
+ * deepest open child and returns [RedirectedToInterruption]. The parent
+ * fields are that child's direct parent.
+ */
+sealed interface StartOutcome {
+    data class RedirectedToInterruption(
+        val interruptionId: String,
+        val parentId: String,
+        val interruptionTitle: String,
+        val parentTitle: String,
+    ) : StartOutcome
+}
+
+/**
  * Result of trying to move a task into Today, or of starting one that needs a Today slot.
  * [NeedsSwap.canInterrupt] is true when an open Today task is the active frame, so the
  * full list can offer Interrupt as well as Replace.
+ * [NeedsSwap.incomingTaskId] is the task waiting for a slot. For a fresh capture it is the
+ * Inbox task the capture was saved as, so dismissing the swap never loses it.
  */
-sealed interface PromoteOutcome {
+sealed interface PromoteOutcome : StartOutcome {
     data object Promoted : PromoteOutcome
 
     data class NeedsSwap(
         val todayTasks: List<Task>,
+        val incomingTaskId: String,
         val canInterrupt: Boolean = false,
     ) : PromoteOutcome
 
@@ -148,6 +172,13 @@ sealed interface DetachDestination {
 /** Time source so elapsed segments and tests share one clock. */
 fun interface AppClock {
     fun nowEpochMillis(): Long
+
+    val zone: ZoneId
+        get() = ZoneId.systemDefault()
+
+    fun localDate(): LocalDate = Instant.ofEpochMilli(nowEpochMillis()).atZone(zone).toLocalDate()
+
+    fun localTime(): LocalTime = Instant.ofEpochMilli(nowEpochMillis()).atZone(zone).toLocalTime()
 }
 
 object SystemAppClock : AppClock {

@@ -230,7 +230,7 @@ internal fun BringBackDaysPane(
         )
         ActionRow {
             QuietButton(
-                label = stringResource(R.string.action_keep_in_inbox),
+                label = stringResource(R.string.bring_back_keep_in_inbox),
                 onClick = onKeepInInbox,
             )
         }

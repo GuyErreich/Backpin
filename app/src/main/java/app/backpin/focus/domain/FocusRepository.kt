@@ -18,16 +18,24 @@ interface FocusRepository {
     /**
      * Places a new task on Today without starting it.
      * A blank title changes nothing.
-     * When Today is full, returns [PromoteOutcome.NeedsSwap] and writes nothing.
+     * When Today is full, saves the task to Inbox in the same transaction and returns
+     * [PromoteOutcome.NeedsSwap] with its id, so the capture is never lost.
      */
     suspend fun captureIntoToday(title: String): PromoteOutcome
 
     /**
      * Starts a new task now. Nothing active means it just starts.
      * An active frame is paused and this one starts with no parent: a switch, not a nested interruption.
-     * When Today has no free slot, returns [PromoteOutcome.NeedsSwap] and writes nothing.
+     * When Today has no free slot, saves the task to Inbox in the same transaction and returns
+     * [PromoteOutcome.NeedsSwap] with its id. It is not started.
      */
     suspend fun captureAndStart(title: String): PromoteOutcome
+
+    /**
+     * Undo for a capture kept in Inbox: deletes [taskId] only while it is still an open Inbox
+     * task with no open frame. Anything else is a no-op.
+     */
+    suspend fun discardCapture(taskId: String)
 
     /** Parks a new task in Later. Does not start it. A blank title changes nothing. */
     suspend fun captureLater(title: String)
@@ -75,27 +83,15 @@ interface FocusRepository {
      * [FrameState.AWAITING_RESUME], and moves the task to [destination]. Nothing resumes on its own.
      * [DetachDestination.Today] places it without starting it. When Today is full it
      * waits in Inbox and returns [PromoteOutcome.NeedsSwap], so Replace can place it.
+     * A nested child already on Today is treated the same once its parent frame is
+     * closed: if it now exceeds the cap, Inbox and [PromoteOutcome.NeedsSwap].
+     * [DetachDestination.Later] waits in Inbox. Later is not a placement anymore.
      * [DetachDestination.Countdown] needs a day from tomorrow through today plus 365 days.
      */
     suspend fun detachInterruption(
         taskId: String,
         destination: DetachDestination,
     ): PromoteOutcome
-
-    /**
-     * Creates a task in the slot freed by parking [outgoingTaskId] in Later.
-     * Does not start the new task. Used when a new capture finds Today full and Replace is chosen.
-     */
-    suspend fun captureReplacing(
-        title: String,
-        outgoingTaskId: String,
-    ): UndoToken
-
-    /**
-     * Pauses the active Today task, parks it in Later, and starts a new nested task in that slot.
-     * Used when a new capture finds Today full and Interrupt is chosen.
-     */
-    suspend fun interruptWithNew(title: String)
 
     /**
      * Moves an open task to Inbox without starting it. Parks an open frame the same
@@ -164,17 +160,21 @@ interface FocusRepository {
      * A task that is not already in Today takes a free slot in the same transaction.
      * When that slot is missing because Today is full, returns [PromoteOutcome.NeedsSwap]
      * and writes nothing. Refuses a frame that is waiting for an explicit resume.
+     * When [taskId] still has an open interruption, the deepest open child
+     * becomes NOW and the result is [StartOutcome.RedirectedToInterruption].
+     * The parent in that outcome is that child's direct parent, not [taskId]
+     * when the nest is deeper.
      */
-    suspend fun start(taskId: String): PromoteOutcome
+    suspend fun start(taskId: String): StartOutcome
 
     /**
      * Pauses the active Today frame and makes [taskId] the active child.
      * Reuses [taskId]; does not create another task.
-     * When [taskId] is already in Today, both tasks stay in Today. A paused frame
-     * for [taskId] is reactivated as the child. A frame waiting for an explicit
-     * resume is not hijacked.
-     * When [taskId] is not in Today, the previous Now moves to Later and stays the
-     * parent frame, so Today stays within the cap and [taskId] is in Today.
+     * The paused parent keeps its Today slot. When [taskId] is not already in
+     * Today, it moves onto Today as the child. That child does not count toward
+     * the Today cap while it remains an open child of the current frame.
+     * A paused frame for [taskId] is reactivated as the child. A frame waiting
+     * for an explicit resume is not hijacked.
      */
     suspend fun interruptWith(taskId: String)
 
@@ -211,7 +211,11 @@ interface FocusRepository {
      */
     suspend fun demote(taskId: String): UndoToken
 
-    /** Parks the active frame without pushing a child or opening recovery. */
+    /**
+     * Pauses the active frame without pushing a child or opening recovery.
+     * A nested interruption stays nested under its parent. Start brings that
+     * interruption back first. The parent waits until Done or an explicit stop.
+     */
     suspend fun pauseActive()
 
     suspend fun updateReturnCue(

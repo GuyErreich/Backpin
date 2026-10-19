@@ -64,4 +64,23 @@ class UndoSnackbarMessageTest {
             )
         assertEquals("Added to Today", undoSnackbarMessage(undo, context.getString(R.string.undo_checked_off)))
     }
+
+    @Test
+    fun discardedCaptureUsesKeptInInboxResource() {
+        val undo =
+            PendingUndo(
+                id = 4L,
+                message = "",
+                target = UndoTarget.DiscardCapture("task-1"),
+            )
+        val kept = context.getString(R.string.kept_in_inbox)
+        assertEquals("Kept in Inbox", kept)
+        assertEquals(
+            kept,
+            undoSnackbarMessage(undo, context.getString(R.string.undo_checked_off), kept),
+        )
+        assertTrue(
+            undoSnackbarMessage(undo, context.getString(R.string.undo_checked_off), kept).isNotBlank(),
+        )
+    }
 }
