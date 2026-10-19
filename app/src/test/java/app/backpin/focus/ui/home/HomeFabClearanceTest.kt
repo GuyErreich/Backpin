@@ -3,23 +3,22 @@ package app.backpin.focus.ui.home
 
 import android.os.Looper
 import androidx.activity.ComponentActivity
-import androidx.compose.ui.semantics.CustomAccessibilityAction
-import androidx.compose.ui.semantics.SemanticsActions
-import androidx.compose.ui.semantics.SemanticsNode
-import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.ComposeTimeoutException
+import androidx.compose.ui.test.click
 import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.dp
 import app.backpin.focus.R
 import app.backpin.focus.domain.RepeatBand
 import app.backpin.focus.testing.MainDispatcherRule
-import app.backpin.focus.testing.defaultTodayTitles
 import app.backpin.focus.testing.useTestFocus
 import app.backpin.focus.ui.FocusApp
+import app.backpin.focus.ui.UndoTarget
 import app.backpin.focus.ui.theme.FocusStackTheme
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import org.junit.Assert.assertTrue
@@ -44,6 +43,7 @@ class HomeFabClearanceTest {
     fun lastListItemAndSnackbarStayClearOfTheFab() {
         useTestFocus { fixture ->
             val lastRepeat = "Fill row 12"
+            val checkOff = "Fill row 1"
             mainDispatcherRule.runTest {
                 fixture.seedFullToday()
                 val day = fixture.clock.localDate().toEpochDay()
@@ -67,8 +67,11 @@ class HomeFabClearanceTest {
                     viewModel.uiState.value.ready &&
                         viewModel.repeatRows.value.rows.any { it.repeat.title == lastRepeat }
                 }
-                val doneTitle = defaultTodayTitles().last()
-                invokeCustomAction("Done", doneTitle)
+                compose.onNodeWithText(checkOff, useUnmergedTree = true).performScrollTo()
+                compose.onNodeWithText(checkOff, useUnmergedTree = true).performTouchInput { click(center) }
+                await("repeat check-off undo") {
+                    viewModel.uiState.value.undo?.target is UndoTarget.RepeatCheckOff
+                }
                 val checkedOff = compose.activity.getString(R.string.undo_checked_off)
                 await("undo snackbar $checkedOff") {
                     nodes(checkedOff, unmerged = false).isNotEmpty() ||
@@ -105,27 +108,6 @@ class HomeFabClearanceTest {
             a.bottom > b.top + slop
     }
 
-    private fun invokeCustomAction(
-        label: String,
-        title: String,
-    ) {
-        val titleNode = compose.onNodeWithText(title, useUnmergedTree = true).fetchSemanticsNode()
-        var row: SemanticsNode? = titleNode
-        var dones = emptyList<CustomAccessibilityAction>()
-        while (row != null) {
-            val actions =
-                row.config.getOrNull(SemanticsActions.CustomActions).orEmpty().filter { it.label == label }
-            if (actions.isNotEmpty()) {
-                dones = actions
-                break
-            }
-            row = row.parent
-        }
-        check(dones.isNotEmpty()) { "No $label on the $title row" }
-        compose.runOnIdle { check(dones.first().action()) }
-        pump()
-    }
-
     private fun nodes(
         text: String,
         unmerged: Boolean,
@@ -135,9 +117,13 @@ class HomeFabClearanceTest {
         step: String,
         predicate: () -> Boolean,
     ) {
-        compose.waitUntil(conditionDescription = step, timeoutMillis = 5_000) {
-            pump()
-            predicate()
+        try {
+            compose.waitUntil(conditionDescription = step, timeoutMillis = 5_000) {
+                pump()
+                predicate()
+            }
+        } catch (error: ComposeTimeoutException) {
+            throw AssertionError("$step: ${error.message}", error)
         }
     }
 
