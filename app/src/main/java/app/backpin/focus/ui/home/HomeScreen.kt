@@ -729,7 +729,7 @@ private fun TodayRow(
                     task.title,
                     style = layout.taskTitleStyle(),
                     color = FocusColors.Live.Text,
-                    modifier = Modifier.weight(1f, fill = false),
+                    modifier = Modifier.weight(1f),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )

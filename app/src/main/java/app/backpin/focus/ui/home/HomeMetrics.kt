@@ -46,9 +46,10 @@ internal object HomeMetrics {
 
     val CountsTop = 6.dp
     val HomeTouchTarget = 48.dp
+    val SnackbarHeight = 48.dp
 
     /** Scroll padding so the last row and footer clear the FAB, a snackbar, and 16dp. */
-    val ListBottom = ButtonMinHeight + 48.dp + 16.dp
+    val ListBottom = ButtonMinHeight + SnackbarHeight + 16.dp
     val TabBarHeight = 64.dp
 
     val Eyebrow =
