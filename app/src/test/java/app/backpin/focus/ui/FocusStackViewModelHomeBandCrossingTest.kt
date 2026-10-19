@@ -2,7 +2,6 @@
 package app.backpin.focus.ui
 
 import android.os.Looper
-import androidx.lifecycle.ViewModelStore
 import androidx.test.core.app.ApplicationProvider
 import app.backpin.focus.domain.BandPhase
 import app.backpin.focus.domain.BandTimes
@@ -13,6 +12,7 @@ import app.backpin.focus.domain.millisUntilNextBandBoundary
 import app.backpin.focus.testing.DEFAULT_TEST_ZONE
 import app.backpin.focus.testing.FakeAppClock
 import app.backpin.focus.testing.TestFocusFixture
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
@@ -23,6 +23,8 @@ import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestCoroutineScheduler
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.setMain
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.yield
 import org.junit.Assert.assertEquals
@@ -32,6 +34,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.util.TimeZone
@@ -39,9 +42,9 @@ import java.util.concurrent.CopyOnWriteArrayList
 
 /**
  * Band-boundary crossing used to poll with [yield] and a real 5s timeout on
- * [ZoneId.systemDefault]. Pin [FakeAppClock] and its zone, drive the
- * RepeatsService boundary loop on a [TestCoroutineScheduler], and await the
- * emission list instead of a shared Main dispatcher spin.
+ * [ZoneId.systemDefault]. Pin [FakeAppClock] and its zone, put RepeatsService
+ * and [Dispatchers.Main] on one [TestCoroutineScheduler], and await the
+ * emission list.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
@@ -51,19 +54,22 @@ class FocusStackViewModelHomeBandCrossingTest {
     fun crossingABoundMovesOpenBandAndTheMainThreeWithNoExtraEmissions() {
         val previousZone = TimeZone.getDefault()
         TimeZone.setDefault(TimeZone.getTimeZone(DEFAULT_TEST_ZONE.id))
+        val scheduler = TestCoroutineScheduler()
+        val dispatcher = StandardTestDispatcher(scheduler)
+        Dispatchers.setMain(dispatcher)
         try {
-            runCrossing()
+            runCrossing(scheduler)
         } finally {
+            Dispatchers.resetMain()
             TimeZone.setDefault(previousZone)
         }
     }
 
-    private fun runCrossing() = runBlocking {
+    private fun runCrossing(scheduler: TestCoroutineScheduler) = runBlocking {
         val noon = atLocal(12, 0)
         val beforeNoon = noon.minusMillis(500)
         val clock = FakeAppClock(beforeNoon, DEFAULT_TEST_ZONE)
-        val serviceScheduler = TestCoroutineScheduler()
-        val serviceScope = TestScope(StandardTestDispatcher(serviceScheduler))
+        val serviceScope = TestScope(StandardTestDispatcher(scheduler))
         TestFocusFixture
             .open(
                 clock = clock,
@@ -71,11 +77,9 @@ class FocusStackViewModelHomeBandCrossingTest {
                 repeatsScope = serviceScope,
             ).use { fixture ->
                 fixture.repository.preferences.first()
-                fixture.repeats.observeBandTimes().first()
-                serviceScheduler.runCurrent()
-                val store = ViewModelStore()
-                try {
-                    val viewModel = fixture.viewModel()
+                val times = fixture.repeats.observeBandTimes().first()
+                scheduler.runCurrent()
+                fixture.withViewModel { viewModel ->
                     val emissions = CopyOnWriteArrayList<HomeBands>()
                     val collectJob = SupervisorJob()
                     val collector =
@@ -83,34 +87,34 @@ class FocusStackViewModelHomeBandCrossingTest {
                             viewModel.homeBands.collect { emissions += it }
                         }
                     try {
-                        awaitBands(emissions, serviceScheduler) { true }
-                        captureToday(fixture, serviceScheduler, "One")
-                        clock.advanceBy(java.time.Duration.ofMillis(1))
-                        captureToday(fixture, serviceScheduler, "Two")
-                        clock.advanceBy(java.time.Duration.ofMillis(1))
-                        captureToday(fixture, serviceScheduler, "Three")
+                        awaitBands(emissions, scheduler) { true }
+                        captureToday(fixture, scheduler, "One")
+                        clock.advanceBy(Duration.ofMillis(1))
+                        captureToday(fixture, scheduler, "Two")
+                        clock.advanceBy(Duration.ofMillis(1))
+                        captureToday(fixture, scheduler, "Three")
                         clock.set(beforeNoon)
-                        drain(serviceScheduler)
+                        drain(scheduler)
                         val before =
-                            awaitBands(emissions, serviceScheduler) { state ->
+                            awaitBands(emissions, scheduler) { state ->
                                 state.openBand == HomeBand.MORNING &&
                                     state.morning.tasks.map { it.title } ==
                                     listOf("One", "Two", "Three")
                             }
                         assertEquals(HomeBand.MORNING, before.openBand)
-                        drain(serviceScheduler)
+                        drain(scheduler)
                         val settled = emissions.size
-                        clock.set(noon)
                         val waitToNoon =
                             millisUntilNextBandBoundary(
                                 beforeNoon.toEpochMilli(),
-                                BandTimes.DEFAULT,
+                                times,
                                 clock.zone,
                             )
-                        serviceScheduler.advanceTimeBy(waitToNoon)
-                        drain(serviceScheduler)
+                        clock.set(noon)
+                        scheduler.advanceTimeBy(waitToNoon)
+                        drain(scheduler)
                         val after =
-                            awaitBands(emissions, serviceScheduler) { state ->
+                            awaitBands(emissions, scheduler) { state ->
                                 state.openBand == HomeBand.NOON &&
                                     state.noon.tasks.map { it.title } ==
                                     listOf("One", "Two", "Three")
@@ -121,53 +125,54 @@ class FocusStackViewModelHomeBandCrossingTest {
                         assertEquals(BandPhase.OPEN, after.noon.phase)
                         val afterCross = emissions.size
                         assertTrue(afterCross > settled)
-                        serviceScheduler.advanceTimeBy(250)
-                        drain(serviceScheduler)
+                        scheduler.advanceTimeBy(250)
+                        drain(scheduler)
                         assertEquals(describeEmissions(emissions), afterCross, emissions.size)
                     } finally {
                         collector.cancel()
                         collectJob.cancel()
                     }
-                } finally {
-                    serviceScope.cancel()
-                    drain(serviceScheduler)
-                    store.clear()
-                    drain(serviceScheduler)
                 }
+                serviceScope.cancel()
+                drain(scheduler)
             }
     }
 
     private suspend fun captureToday(
         fixture: TestFocusFixture,
-        serviceScheduler: TestCoroutineScheduler,
+        scheduler: TestCoroutineScheduler,
         title: String,
     ) {
         val outcome = fixture.useCases.captureIntoToday(title)
         assertEquals(PromoteOutcome.Promoted, outcome)
-        drain(serviceScheduler)
+        drain(scheduler)
     }
 
     private suspend fun awaitBands(
         emissions: List<HomeBands>,
-        serviceScheduler: TestCoroutineScheduler,
+        scheduler: TestCoroutineScheduler,
         predicate: (HomeBands) -> Boolean,
     ): HomeBands {
         withTimeout(5_000) {
             while (emissions.none(predicate)) {
-                drain(serviceScheduler)
+                drain(scheduler)
                 yield()
             }
         }
-        drain(serviceScheduler)
+        drain(scheduler)
         return emissions.last(predicate)
     }
 
-    private fun drain(serviceScheduler: TestCoroutineScheduler) {
+    private fun drain(scheduler: TestCoroutineScheduler) {
         shadowOf(Looper.getMainLooper()).idle()
-        serviceScheduler.runCurrent()
+        scheduler.runCurrent()
+        shadowOf(Looper.getMainLooper()).idle()
     }
 
-    private fun atLocal(hour: Int, minute: Int): Instant = DAY.atTime(hour, minute).atZone(DEFAULT_TEST_ZONE).toInstant()
+    private fun atLocal(
+        hour: Int,
+        minute: Int,
+    ): Instant = DAY.atTime(hour, minute).atZone(DEFAULT_TEST_ZONE).toInstant()
 
     private fun describeEmissions(emissions: List<HomeBands>): String = emissions
         .mapIndexed { index, bands ->
