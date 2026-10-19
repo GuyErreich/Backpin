@@ -43,6 +43,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
@@ -84,6 +85,7 @@ internal data class CaptureEdit(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
+@Suppress("ktlint:standard:indent")
 internal fun CaptureSheet(
     phrases: List<String>,
     frameActive: Boolean,
@@ -97,6 +99,7 @@ internal fun CaptureSheet(
     onSchedule: (String, Long, Int?) -> Unit,
     edit: CaptureEdit? = null,
     onCommitEdit: ((String, CapturePlace?, Long?) -> Unit)? = null,
+    onBringBack: ((String) -> Unit)? = null,
     recognizer: UtteranceRecognizer? = null,
     onSystemSpeech: ((Intent, (String) -> Unit) -> Unit)? = null,
     onRepeat: ((String) -> Unit)? = null,
@@ -229,6 +232,12 @@ internal fun CaptureSheet(
     fun placeTyped(place: CapturePlace) {
         if (editing) {
             if (place == CapturePlace.SCHEDULE) {
+                val titleText = titleDraft.text.trim().ifEmpty { edit.title }
+                val openBringBack = onBringBack
+                if (openBringBack != null) {
+                    openBringBack(titleText)
+                    return
+                }
                 beginSchedule(titleDraft.text, fromPhrase = false)
                 return
             }
@@ -498,15 +507,19 @@ internal fun CaptureSheet(
                     }
                 }
                 editing -> {
+                    val bringBackLabel = stringResource(R.string.action_bring_back)
                     PlaceChoices(
-                        places = editPlaces(),
-                        labelFor = { it.label() },
+                        places = editPlaces().filter { it != CapturePlace.LATER },
+                        labelFor = { place ->
+                            if (place == CapturePlace.SCHEDULE) bringBackLabel else place.label()
+                        },
                         selected = selectedPlace,
                         onPlace = ::placeTyped,
                     )
                     CaptureChoice(
-                        label = "Done",
+                        label = stringResource(R.string.action_save),
                         tone = ChoiceTone.Mint,
+                        filled = true,
                         onClick = ::commitEditAndClose,
                     )
                 }
@@ -592,6 +605,7 @@ private fun ScheduleChoices(
     }
 }
 
+@Suppress("ktlint:standard:function-signature")
 private fun CapturePlace.tone(): ChoiceTone =
     when (this) {
         CapturePlace.INBOX -> ChoiceTone.Mint
@@ -603,6 +617,7 @@ private fun CapturePlace.tone(): ChoiceTone =
         -> ChoiceTone.Quiet
     }
 
+@Suppress("ktlint:standard:function-signature")
 private fun CapturePlace.label(): String =
     when (this) {
         CapturePlace.INBOX -> "Inbox"
@@ -613,6 +628,7 @@ private fun CapturePlace.label(): String =
         CapturePlace.SCHEDULE -> "Schedule"
     }
 
+@Suppress("ktlint:standard:function-signature")
 private fun CapturePlace.typedLabel(): String =
     when (this) {
         CapturePlace.INBOX -> "Save to Inbox"
@@ -621,6 +637,7 @@ private fun CapturePlace.typedLabel(): String =
     }
 
 @Composable
+@Suppress("ktlint:standard:function-signature")
 private fun titleFieldColors() =
     OutlinedTextFieldDefaults.colors(
         focusedTextColor = FocusColors.Live.Text,
@@ -637,6 +654,7 @@ private fun titleFieldColors() =
     )
 
 @Composable
+@Suppress("ktlint:standard:indent")
 internal fun SpeakMic(
     listening: Boolean,
     reducedMotion: Boolean,

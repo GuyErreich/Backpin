@@ -326,6 +326,7 @@ fun FocusApp(
                 scheduledEpochDay = editing.scheduledOnEpochDay,
             ),
             onCommitEdit = viewModel::saveEdit,
+            onBringBack = viewModel::saveEditThenBringBack,
         )
     } else if (openTaskSheet != null) {
         TaskSheet(
