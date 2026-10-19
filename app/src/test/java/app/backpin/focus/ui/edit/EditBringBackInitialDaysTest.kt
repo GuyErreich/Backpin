@@ -44,13 +44,18 @@ class EditBringBackInitialDaysTest {
             mainDispatcherRule.runTest {
                 ids =
                     CASES.associate { case ->
-                        if (case.offsetDays == null) {
-                            fixture.useCases.capture(case.title)
-                        } else {
-                            fixture.useCases.captureScheduled(
-                                case.title,
-                                today.plusDays(case.offsetDays.toLong()).toEpochDay(),
-                            )
+                        when {
+                            case.offsetDays == null -> fixture.useCases.capture(case.title)
+                            case.countdown ->
+                                fixture.useCases.captureCountdown(
+                                    case.title,
+                                    today.plusDays(case.offsetDays.toLong()).toEpochDay(),
+                                )
+                            else ->
+                                fixture.useCases.captureScheduled(
+                                    case.title,
+                                    today.plusDays(case.offsetDays.toLong()).toEpochDay(),
+                                )
                         }
                         val id =
                             fixture.useCases
@@ -114,6 +119,7 @@ class EditBringBackInitialDaysTest {
         val title: String,
         val offsetDays: Int?,
         val initialDays: Int,
+        val countdown: Boolean = false,
     )
 
     private companion object {
@@ -126,6 +132,7 @@ class EditBringBackInitialDaysTest {
                 Case("Due in 12 days", 12, 12),
                 Case("Due in a year", BRING_BACK_MAX_DAYS, BRING_BACK_MAX_DAYS),
                 Case("Due in 400 days", 400, BRING_BACK_MAX_DAYS),
+                Case("Countdown in 400 days", 400, BRING_BACK_MAX_DAYS, countdown = true),
             )
     }
 }
