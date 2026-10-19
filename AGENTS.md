@@ -7,18 +7,18 @@ Read this before changing code. One line per rule.
 Buttons
 - Use only `QuietButton`, `AccentButton`, or `CaptureChoice` from [Buttons.kt](app/src/main/java/app/backpin/focus/ui/components/Buttons.kt). No raw `Button`, `OutlinedButton`, `TextButton`, chips, or filled buttons.
 - Sheets, Settings, and dialogs stay 56dp minimum height, 16dp radius, 12dp gaps, `ButtonLabel` text, equal width in `ActionRow`. The tokens live in [Theme.kt](app/src/main/java/app/backpin/focus/ui/theme/Theme.kt).
-- List cards lead with a `titleLarge` title. Their actions sit in `CardActions`: 40dp tall and only as wide as the label.
+- List cards lead with a `titleLarge` title. Their actions sit in `CardActions`: 48dp tall and only as wide as the label.
 
 Colors
 - Accent buttons are outlined, with the label in the same color as the border.
-- Mint is Done, Resume, and Inbox. Lavender is Interrupt and events, everywhere. Amber is Schedule. Everything else is quiet.
+- Mint is Done, Resume, and Inbox. Lavender is Interrupt and events, everywhere. Amber is missed or due. Everything else is quiet.
 - Use only the theme colors in `FocusColors`.
 - No red, no alarm look.
 
 Navigation
 - One top-left back arrow, [BackArrow](app/src/main/java/app/backpin/focus/ui/components/BackArrow.kt), in every screen and sheet. It steps back, and on the first step it closes.
 - No X and no text Back. The system back does the same as the arrow.
-- Dialogs use Cancel.
+- Dialogs use Cancel. Exception: when dismissing is itself the safe choice, the safe button replaces Cancel.
 
 Motion
 - Quiet motion from [ui/motion](app/src/main/java/app/backpin/focus/ui/motion): no ripple, no bounce, no sound.

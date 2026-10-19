@@ -4,7 +4,6 @@ package app.backpin.focus.data
 import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
-import app.backpin.focus.domain.AppClock
 import app.backpin.focus.domain.DetachDestination
 import app.backpin.focus.domain.FocusRepository
 import app.backpin.focus.domain.FocusSnapshot
@@ -14,6 +13,7 @@ import app.backpin.focus.domain.Task
 import app.backpin.focus.domain.TaskBucket
 import app.backpin.focus.domain.TaskStatus
 import app.backpin.focus.domain.UndoToken
+import app.backpin.focus.testing.FakeAppClock
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -33,16 +33,16 @@ import java.util.UUID
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
 class CountdownArrivalTest {
-    private val zone: ZoneId = ZoneId.systemDefault()
+    private val zone: ZoneId = app.backpin.focus.testing.DEFAULT_TEST_ZONE
     private val today: LocalDate = LocalDate.of(2026, 9, 28)
-    private val clock = SettableClock(0L)
+    private val clock = FakeAppClock(java.time.Instant.EPOCH, zone)
     private val context: Context = ApplicationProvider.getApplicationContext()
     private lateinit var database: FocusStackDatabase
     private lateinit var repository: FocusRepository
 
     @Before
     fun setUp() {
-        clock.now = epochAt(today, 10, 0)
+        clock.set(java.time.Instant.ofEpochMilli(epochAt(today, 10, 0)))
         database =
             Room
                 .inMemoryDatabaseBuilder(context, FocusStackDatabase::class.java)
@@ -115,10 +115,10 @@ class CountdownArrivalTest {
         runBlocking {
             repository.setQuietHours("22:00", "08:00")
             repository.captureCountdown("Dentist", today.toEpochDay())
-            clock.now = epochAt(today, 6, 30)
+            clock.set(java.time.Instant.ofEpochMilli(epochAt(today, 6, 30)))
             assertNull(repository.releaseDueCountdowns())
             assertTrue(snapshot().frames.isEmpty())
-            clock.now = epochAt(today, 8, 0)
+            clock.set(java.time.Instant.ofEpochMilli(epochAt(today, 8, 0)))
             assertEquals("Dentist", repository.releaseDueCountdowns()?.title)
             assertEquals(FrameState.ACTIVE, snapshot().frames.single().state)
         }
@@ -127,7 +127,7 @@ class CountdownArrivalTest {
     fun itDoesNotArriveLateAtNightOnItsDay() =
         runBlocking {
             repository.setQuietHours("22:00", "08:00")
-            clock.now = epochAt(today, 23, 0)
+            clock.set(java.time.Instant.ofEpochMilli(epochAt(today, 23, 0)))
             repository.captureCountdown("Dentist", today.toEpochDay())
             assertNull(repository.releaseDueCountdowns())
             assertTrue(snapshot().frames.isEmpty())
@@ -137,7 +137,7 @@ class CountdownArrivalTest {
     fun onlyOneCountdownInterruptsAtATime() =
         runBlocking {
             repository.captureCountdown("First", today.minusDays(1).toEpochDay())
-            clock.now += 1_000
+            clock.advanceBy(java.time.Duration.ofMillis(1_000))
             repository.captureCountdown("Second", today.toEpochDay())
             assertEquals("First", repository.releaseDueCountdowns()?.title)
             assertNull(repository.releaseDueCountdowns())
@@ -196,12 +196,12 @@ class CountdownArrivalTest {
         }
 
     @Test
-    fun laterParksTheEventAndReturnsToTheParent() =
+    fun laterSendsTheEventToInboxAndWaitsParent() =
         runBlocking {
             val work = startedToday()
             val event = arrive("Dentist")
             assertEquals(PromoteOutcome.Promoted, repository.detachInterruption(event.id, DetachDestination.Later))
-            assertEquals(TaskBucket.LATER, task(event.id).bucket)
+            assertEquals(TaskBucket.INBOX, task(event.id).bucket)
             assertNull(task(event.id).scheduledOnEpochDay)
             assertParentWaits(work)
         }
@@ -251,7 +251,7 @@ class CountdownArrivalTest {
             val parkedRow = database.taskDao().getById(parked.id) ?: error("Missing parked event")
             database.taskDao().upsert(parkedRow.copy(countdownIntervalDays = 14))
             repository.detachInterruption(parked.id, DetachDestination.Later)
-            assertEquals(TaskBucket.LATER, task(parked.id).bucket)
+            assertEquals(TaskBucket.INBOX, task(parked.id).bucket)
             assertEquals(14, task(parked.id).countdownIntervalDays)
             assertEquals(21, task(event.id).countdownIntervalDays)
             assertEquals(21, repository.preferences.first().lastCountdownDays)
@@ -363,10 +363,4 @@ class CountdownArrivalTest {
     private suspend fun task(id: String) = snapshot().tasks.single { it.id == id }
 
     private suspend fun taskNamed(title: String) = snapshot().tasks.single { it.title == title }
-
-    private class SettableClock(
-        var now: Long,
-    ) : AppClock {
-        override fun nowEpochMillis(): Long = now
-    }
 }

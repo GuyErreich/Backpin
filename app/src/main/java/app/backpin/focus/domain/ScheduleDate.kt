@@ -122,7 +122,7 @@ fun isCountdownDue(
 
 /** Days from today a countdown may be set. Typed and stored counts stay in this range. */
 const val MIN_COUNTDOWN_DAYS: Int = 1
-
+const val MAX_COUNTDOWN_REARM_DAYS: Int = 365
 const val MAX_COUNTDOWN_DAYS: Int = 999
 
 /**
@@ -147,5 +147,17 @@ fun suggestedCountdownDays(
 ): Int? =
     taskInterval?.takeIf { it in MIN_COUNTDOWN_DAYS..MAX_COUNTDOWN_DAYS }
         ?: lastCountdownDays?.takeIf { it in MIN_COUNTDOWN_DAYS..MAX_COUNTDOWN_DAYS }
+
+/**
+ * True when [epochDay] is tomorrow through [today] plus [MAX_COUNTDOWN_REARM_DAYS].
+ * [FocusRepository.detachInterruption] rejects any other countdown day without writing.
+ */
+fun isCountdownRearmDay(
+    epochDay: Long,
+    today: LocalDate,
+): Boolean {
+    val days = epochDay - today.toEpochDay()
+    return days in MIN_COUNTDOWN_DAYS.toLong()..MAX_COUNTDOWN_REARM_DAYS.toLong()
+}
 
 const val MINUTES_PER_DAY: Int = 24 * 60

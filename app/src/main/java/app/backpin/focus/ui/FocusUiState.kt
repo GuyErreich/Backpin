@@ -5,6 +5,8 @@ import app.backpin.focus.domain.CapturePlace
 import app.backpin.focus.domain.RepeatDayStatus
 import app.backpin.focus.domain.UndoToken
 import app.backpin.focus.domain.UserPreferences
+import java.time.LocalDate
+import java.time.LocalTime
 
 enum class SlotRole {
     NOW,
@@ -17,6 +19,7 @@ data class TaskUi(
     val id: String,
     val title: String,
     val returnCue: String?,
+    val scheduledAtMinuteOfDay: Int? = null,
 )
 
 /** The open task currently in the edit sheet. [place] is null for a nested interruption. */
@@ -41,6 +44,12 @@ data class TaskSheetUi(
     val role: TaskSheetRole,
     val canInterrupt: Boolean,
     val frameId: String? = null,
+)
+
+/** Home item waiting on the shared Bring back sheet. */
+data class BringBackUi(
+    val taskId: String,
+    val title: String,
 )
 
 /** A missed repeat in the chip-row missed sheet. */
@@ -117,6 +126,11 @@ sealed interface UndoTarget {
         val epochDay: Long,
         val restore: RepeatDayStatus = RepeatDayStatus.OPEN,
     ) : UndoTarget
+
+    /** Fresh capture kept in Inbox. Undo deletes it only while it is still an open Inbox task. */
+    data class DiscardCapture(
+        val taskId: String,
+    ) : UndoTarget
 }
 
 data class PendingUndo(
@@ -126,15 +140,33 @@ data class PendingUndo(
 )
 
 /**
+ * Start on a parent that still has an open interruption made that interruption NOW.
+ * The composable formats [interruptionTitle] and [parentTitle] into a snackbar,
+ * then calls [FocusStackViewModel.dismissStartRedirect].
+ */
+data class StartRedirectUi(
+    val interruptionId: String,
+    val parentId: String,
+    val interruptionTitle: String,
+    val parentTitle: String,
+)
+
+/**
  * Snackbar text for [undo]. Repeat check-off always uses [checkedOffLabel]
  * (`R.string.undo_checked_off`) so an empty ViewModel message cannot go blank.
+ * A kept fresh capture uses [keptInInboxLabel] (`R.string.kept_in_inbox`).
  */
 fun undoSnackbarMessage(
     undo: PendingUndo,
     checkedOffLabel: String,
+    keptInInboxLabel: String = "",
 ): String {
     val preferred =
-        if (undo.target is UndoTarget.RepeatCheckOff) checkedOffLabel else undo.message
+        when (undo.target) {
+            is UndoTarget.DiscardCapture -> keptInInboxLabel
+            is UndoTarget.RepeatCheckOff -> checkedOffLabel
+            is UndoTarget.Tasks -> undo.message
+        }
     return preferred.ifBlank { checkedOffLabel }.ifBlank { undo.message }
 }
 
@@ -158,10 +190,12 @@ data class FocusUiState(
     val captureInterrupts: Boolean = false,
     val editing: EditingUi? = null,
     val swapIncoming: TaskUi? = null,
-    val freshSwapTitle: String? = null,
     val swapChoices: List<TaskUi> = emptyList(),
     val switchOpen: Boolean = false,
     val switchTargets: List<TaskUi> = emptyList(),
     val undo: PendingUndo? = null,
+    val startRedirect: StartRedirectUi? = null,
     val preferences: UserPreferences = UserPreferences(),
+    val today: LocalDate = LocalDate.ofEpochDay(0),
+    val localTime: LocalTime = LocalTime.MIN,
 )

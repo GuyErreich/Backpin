@@ -1,12 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package app.backpin.focus.ui.home
 
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,13 +17,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
@@ -54,31 +50,24 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.backpin.focus.R
-import app.backpin.focus.domain.DetachDestination
 import app.backpin.focus.domain.HomeLayout
 import app.backpin.focus.domain.MAX_TODAY_LIMIT
 import app.backpin.focus.domain.MIN_TODAY_LIMIT
 import app.backpin.focus.domain.RepeatDayStatus
 import app.backpin.focus.domain.elapsedMillis
 import app.backpin.focus.domain.formatElapsed
-import app.backpin.focus.domain.suggestedCountdownDays
 import app.backpin.focus.ui.FocusStackViewModel
 import app.backpin.focus.ui.FocusUiState
 import app.backpin.focus.ui.NowUi
 import app.backpin.focus.ui.SlotRole
 import app.backpin.focus.ui.SlotUi
 import app.backpin.focus.ui.TaskUi
-import app.backpin.focus.ui.components.AccentButton
-import app.backpin.focus.ui.components.AccentTone
-import app.backpin.focus.ui.components.CardActions
-import app.backpin.focus.ui.components.QuietButton
-import app.backpin.focus.ui.countdown.EventDetachButtons
-import app.backpin.focus.ui.countdown.EventResumeHost
 import app.backpin.focus.ui.focus.RecoveryCard
 import app.backpin.focus.ui.motion.MotionSpec
 import app.backpin.focus.ui.motion.motionSpec
@@ -98,45 +87,53 @@ fun HomeScreen(
     state: FocusUiState,
     viewModel: FocusStackViewModel,
     onOpenFocus: () -> Unit,
-    onOpenInbox: () -> Unit,
-    onOpenLater: () -> Unit,
-    onOpenScheduled: () -> Unit,
-    onOpenDone: () -> Unit,
+    @Suppress("UNUSED_PARAMETER") onOpenInbox: () -> Unit,
+    @Suppress("UNUSED_PARAMETER") onOpenScheduled: () -> Unit,
+    @Suppress("UNUSED_PARAMETER") onOpenDone: () -> Unit,
     modifier: Modifier = Modifier,
     homeLayout: HomeLayout = HomeLayout.FLAT,
 ) {
     val grouped = homeLayout == HomeLayout.BANDS
     val reducedMotion = rememberReducedMotion()
-    val repeatRows by viewModel.repeatRows.collectAsState()
-    val homeBands by viewModel.homeBands.collectAsState()
+    val repeatRows by viewModel.repeatRows.collectAsStateWithLifecycle()
+    val homeBands by viewModel.homeBands.collectAsStateWithLifecycle()
     val todayLimit = state.preferences.todayLimit.coerceIn(MIN_TODAY_LIMIT, MAX_TODAY_LIMIT)
     val filled = state.todaySlots.mapNotNull { slot -> slot.task?.let { slot to it } }
     val hasRoom = filled.size < todayLimit
+    val openBringBack: (String, String) -> Unit = viewModel::openBringBack
 
     Column(
         modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp),
+            .padding(
+                start = HomeMetrics.PageHorizontal,
+                end = HomeMetrics.PageHorizontal,
+                top = HomeMetrics.PageVertical,
+                bottom = HomeMetrics.ListBottom,
+            ),
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(Space)) {
+        Column {
             Text(
-                text = "FOCUS STACK",
-                style = MaterialTheme.typography.labelLarge,
+                text = stringResource(R.string.home_eyebrow),
+                style = HomeMetrics.Eyebrow,
                 color = FocusColors.Live.Muted,
-                letterSpacing = 1.4.sp,
+                modifier = Modifier.padding(top = HomeMetrics.EyebrowTop, bottom = HomeMetrics.EyebrowBottom),
             )
             Text(
-                text = "Keep your place.",
-                style = MaterialTheme.typography.headlineLarge,
-                modifier = Modifier.semantics { heading() },
+                text = stringResource(R.string.home_title),
+                style = HomeMetrics.ScreenTitle,
+                color = FocusColors.Live.Text,
+                modifier =
+                Modifier
+                    .padding(bottom = HomeMetrics.TitleBottom)
+                    .semantics { heading() },
             )
         }
         if (!state.ready) {
-            Text("Loading your place…", style = MaterialTheme.typography.bodyLarge)
+            Text(stringResource(R.string.home_loading), style = MaterialTheme.typography.bodyLarge)
         } else {
-            NowCard(state, viewModel, onOpenFocus, reducedMotion)
+            NowCard(state, viewModel, onOpenFocus, reducedMotion, openBringBack)
             if (grouped) {
                 HomeBandsSection(
                     bands = homeBands,
@@ -148,7 +145,7 @@ fun HomeScreen(
                     onOpenFocus = onOpenFocus,
                     onStart = viewModel::start,
                     onDone = viewModel::markDone,
-                    onLater = viewModel::demote,
+                    onBringBack = openBringBack,
                     onInterrupt = viewModel::interruptWith,
                     onReorder = viewModel::reorderToday,
                     onEditTask = viewModel::openEdit,
@@ -160,6 +157,9 @@ fun HomeScreen(
                     },
                     onOpenMissedRepeat = { row ->
                         viewModel.openMissedRepeat(row.repeat.id, row.epochDay)
+                    },
+                    onUndoRepeat = { row ->
+                        viewModel.undoRepeatDone(row.repeat.id, row.epochDay)
                     },
                     onEditRepeat = viewModel::openRepeatEdit,
                 )
@@ -173,7 +173,7 @@ fun HomeScreen(
                     somethingCurrent = state.now != null,
                     onStart = viewModel::start,
                     onDone = viewModel::markDone,
-                    onLater = viewModel::demote,
+                    onBringBack = openBringBack,
                     onInterrupt = viewModel::interruptWith,
                     onReorder = viewModel::reorderToday,
                     onEdit = viewModel::openEdit,
@@ -190,17 +190,19 @@ fun HomeScreen(
                     onOpenMissed = { row ->
                         viewModel.openMissedRepeat(row.repeat.id, row.epochDay)
                     },
+                    onUndo = { row ->
+                        viewModel.undoRepeatDone(row.repeat.id, row.epochDay)
+                    },
                     onEdit = viewModel::openRepeatEdit,
                     onCreate = { viewModel.openRepeatCreate() },
                 )
             }
-            HorizontalDivider(color = FocusColors.Live.Outline)
-            Column(verticalArrangement = Arrangement.spacedBy(Space)) {
-                PileCountRow(title = "Inbox", count = state.inboxCount, onClick = onOpenInbox)
-                PileCountRow(title = "Later", count = state.laterCount, onClick = onOpenLater)
-                PileCountRow(title = "Scheduled", count = state.scheduledCount, onClick = onOpenScheduled)
-                PileCountRow(title = "Done", count = state.archiveCount, onClick = onOpenDone)
-            }
+            Text(
+                text = stringResource(R.string.home_missed_footer),
+                style = HomeMetrics.NowTime,
+                color = FocusColors.Live.Muted,
+                modifier = Modifier.padding(top = HomeMetrics.FlatHeaderTop),
+            )
         }
     }
 }
@@ -223,6 +225,7 @@ private fun NowCard(
     viewModel: FocusStackViewModel,
     onOpenFocus: () -> Unit,
     reducedMotion: Boolean,
+    onBringBack: (String, String) -> Unit,
 ) {
     val now = state.now
     val recovery = state.recovery
@@ -231,20 +234,26 @@ private fun NowCard(
             val accent = FocusColors.Live.Lavender
             val label = nowLabel(now)
             val openInteraction = rememberPressSource()
+            val bringBackLabel = stringResource(R.string.action_bring_back)
             SwipeRevealCard(
                 towardStart = doneSwipe(viewModel::completeActive),
                 towardEnd =
-                laterSwipe {
-                    if (now.isEvent) {
-                        viewModel.detachEvent(now.taskId, DetachDestination.Later)
-                    } else {
-                        viewModel.demote(now.taskId)
-                    }
+                bringBackSwipe {
+                    onBringBack(now.taskId, now.title)
                 },
                 reducedMotion = reducedMotion,
+                onLongPress = { viewModel.openTaskSheet(now.taskId) },
                 extraActions =
                 listOf(
-                    CustomAccessibilityAction("Edit") {
+                    CustomAccessibilityAction(stringResource(R.string.action_done)) {
+                        viewModel.completeActive()
+                        true
+                    },
+                    CustomAccessibilityAction(bringBackLabel) {
+                        onBringBack(now.taskId, now.title)
+                        true
+                    },
+                    CustomAccessibilityAction(stringResource(R.string.action_edit)) {
                         viewModel.openEdit(now.taskId)
                         true
                     },
@@ -263,56 +272,34 @@ private fun NowCard(
                             role = Role.Button,
                             onClick = onOpenFocus,
                         ),
-                    shape = RoundedCornerShape(CardRadius),
+                    shape = RoundedCornerShape(HomeMetrics.NowRadius),
                     color = FocusColors.Live.Surface,
-                    border = BorderStroke(2.dp, accent),
+                    border = BorderStroke(HomeMetrics.NowBorder, accent),
                 ) {
-                    Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(Space)) {
-                        Text(label, color = accent, style = MaterialTheme.typography.labelLarge, letterSpacing = 1.2.sp)
-                        Text(now.title, style = MaterialTheme.typography.titleLarge)
+                    Column(
+                        Modifier.padding(
+                            horizontal = HomeMetrics.NowPaddingHorizontal,
+                            vertical = HomeMetrics.NowPaddingVertical,
+                        ),
+                    ) {
+                        Text(
+                            label,
+                            color = accent,
+                            style = HomeMetrics.NowLabel,
+                            modifier = Modifier.padding(bottom = HomeMetrics.NowLabelBottom),
+                        )
+                        Text(
+                            now.title,
+                            style = HomeMetrics.NowTitle,
+                            color = FocusColors.Live.Text,
+                            modifier = Modifier.padding(bottom = HomeMetrics.NowTitleBottom),
+                        )
                         ElapsedText(
                             accumulatedMillis = now.accumulatedMillis,
                             startedAtEpochMillis = now.startedAtEpochMillis,
                             running = true,
                             clock = true,
                         )
-                        if (!now.returnCue.isNullOrBlank()) {
-                            Text(
-                                "Return note",
-                                color = FocusColors.Live.Muted,
-                                style = MaterialTheme.typography.labelLarge,
-                            )
-                            Text(now.returnCue, style = MaterialTheme.typography.bodyLarge)
-                        }
-                        EventResumeHost(
-                            taskId = now.taskId,
-                            title = now.title,
-                            suggestedDays =
-                            suggestedCountdownDays(
-                                now.countdownIntervalDays,
-                                state.preferences.lastCountdownDays,
-                            ),
-                            onDetach = viewModel::detachEvent,
-                        ) { onCountDownAgain ->
-                            CardActions {
-                                AccentButton("Done", AccentTone.Mint, onClick = viewModel::completeActive)
-                                if (now.isEvent) {
-                                    EventDetachButtons(
-                                        taskId = now.taskId,
-                                        onDetach = viewModel::detachEvent,
-                                        onCountDownAgain = onCountDownAgain,
-                                    )
-                                } else {
-                                    AccentButton(
-                                        "Interrupt",
-                                        AccentTone.Lavender,
-                                        onClick = { viewModel.openCapture(interrupts = true) },
-                                    )
-                                    QuietButton("Later", onClick = { viewModel.demote(now.taskId) })
-                                }
-                                QuietButton("Edit", onClick = { viewModel.openEdit(now.taskId) })
-                            }
-                        }
                     }
                 }
             }
@@ -321,21 +308,40 @@ private fun NowCard(
         else -> {
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(CardRadius),
+                shape = RoundedCornerShape(HomeMetrics.NowRadius),
                 color = FocusColors.Live.Surface,
+                border = BorderStroke(HomeMetrics.NowBorder, FocusColors.Live.Muted),
             ) {
-                Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(Space)) {
-                    Text("NOW", color = FocusColors.Live.Muted, style = MaterialTheme.typography.labelLarge, letterSpacing = 1.2.sp)
-                    Text("Nothing in focus.", style = MaterialTheme.typography.headlineMedium)
+                Column(
+                    Modifier.padding(
+                        horizontal = HomeMetrics.NowPaddingHorizontal,
+                        vertical = HomeMetrics.NowPaddingVertical,
+                    ),
+                ) {
                     Text(
-                        "Capture a thought, or add one to Today.",
-                        style = MaterialTheme.typography.bodyLarge,
+                        stringResource(R.string.home_now),
+                        color = FocusColors.Live.Muted,
+                        style = HomeMetrics.NowLabel,
+                        modifier = Modifier.padding(bottom = HomeMetrics.NowLabelBottom),
+                    )
+                    Text(
+                        stringResource(R.string.home_now_empty_title),
+                        style = HomeMetrics.NowTitle,
+                        color = FocusColors.Live.Text,
+                        modifier = Modifier.padding(bottom = HomeMetrics.NowTitleBottom),
+                    )
+                    Text(
+                        stringResource(R.string.home_now_empty_body),
+                        style = HomeMetrics.NowTime,
+                        color = FocusColors.Live.Muted,
                     )
                     state.paused?.let { paused ->
-                        Text("Paused: ${paused.title}", style = MaterialTheme.typography.titleLarge)
-                        CardActions {
-                            QuietButton("Start", onClick = { viewModel.start(paused.taskId) })
-                        }
+                        Text(
+                            stringResource(R.string.home_now_paused, paused.title),
+                            style = HomeMetrics.NowTitle,
+                            color = FocusColors.Live.Text,
+                            modifier = Modifier.padding(top = HomeMetrics.NowLabelBottom),
+                        )
                     }
                 }
             }
@@ -344,10 +350,11 @@ private fun NowCard(
 }
 
 /** "EVENT" for an arrived countdown, "INTERRUPTED" for a nested task, otherwise "NOW". */
+@Composable
 internal fun nowLabel(now: NowUi): String = when {
-    now.isEvent -> "EVENT"
-    now.isInterruption -> "INTERRUPTED"
-    else -> "NOW"
+    now.isEvent -> stringResource(R.string.home_now_event)
+    now.isInterruption -> stringResource(R.string.home_now_interrupted)
+    else -> stringResource(R.string.home_now)
 }
 
 @Composable
@@ -360,12 +367,14 @@ internal fun TodaySection(
     onOpenFocus: () -> Unit,
     onStart: (String) -> Unit,
     onDone: (String) -> Unit,
-    onLater: (String) -> Unit,
+    onBringBack: (String, String) -> Unit,
     onInterrupt: (String) -> Unit,
     onReorder: (List<String>) -> Unit,
     onEdit: (String) -> Unit,
     onOpenSheet: (String) -> Unit,
     showHeader: Boolean = true,
+    layout: HomeLayout = HomeLayout.FLAT,
+    todayTaskIds: Set<String> = filled.map { it.second.id }.toSet(),
 ) {
     val drag = remember { TodayDragState() }
     var rows by remember { mutableStateOf(filled) }
@@ -405,9 +414,14 @@ internal fun TodaySection(
         }
     }
     val slotLabel = if (todayLimit == 1) "1 slot" else "$todayLimit slots"
-    Column(verticalArrangement = Arrangement.spacedBy(Space)) {
+    Column(verticalArrangement = Arrangement.spacedBy(layout.taskGap())) {
         if (showHeader) {
-            SectionLabel("TODAY", slotLabel)
+            SectionLabel(
+                stringResource(R.string.home_today).uppercase(),
+                slotLabel,
+                modifier =
+                Modifier.padding(top = HomeMetrics.FlatHeaderTop),
+            )
         }
         rows.forEachIndexed { index, (slot, task) ->
             key(task.id) {
@@ -474,10 +488,13 @@ internal fun TodaySection(
                         reducedMotion = reducedMotion,
                         somethingCurrent = somethingCurrent,
                         reorderActions = reorderActions,
+                        layout = layout,
+                        todayLimit = todayLimit,
+                        pinnedToToday = task.id in todayTaskIds,
                         onOpen = onOpenFocus,
                         onStart = { onStart(task.id) },
                         onDone = { onDone(task.id) },
-                        onLater = { onLater(task.id) },
+                        onBringBack = { onBringBack(task.id, task.title) },
                         onInterrupt = { onInterrupt(task.id) },
                         onEdit = { onEdit(task.id) },
                         onOpenSheet = { onOpenSheet(task.id) },
@@ -490,7 +507,7 @@ internal fun TodaySection(
             }
         }
         if (hasRoom) {
-            EmptyTodaySlot()
+            EmptyTodaySlot(layout = layout)
         }
     }
 }
@@ -598,10 +615,13 @@ private fun TodayRow(
     reducedMotion: Boolean,
     somethingCurrent: Boolean,
     reorderActions: List<CustomAccessibilityAction>,
+    layout: HomeLayout,
+    todayLimit: Int,
+    pinnedToToday: Boolean,
     onOpen: () -> Unit,
     onStart: () -> Unit,
     onDone: () -> Unit,
-    onLater: () -> Unit,
+    onBringBack: () -> Unit,
     onInterrupt: () -> Unit,
     onEdit: () -> Unit,
     onOpenSheet: () -> Unit,
@@ -610,37 +630,54 @@ private fun TodayRow(
     onDragEnd: () -> Unit,
     onDragCancel: () -> Unit,
 ) {
-    val rightSwipe = todayRightSwipe(slot.role, somethingCurrent)
-    val rightWord =
-        when (rightSwipe) {
-            TodayRightSwipe.Done -> "done"
-            TodayRightSwipe.Start -> "start"
-            TodayRightSwipe.Interrupt -> "interrupt"
-        }
     val opensSheet = slot.role == SlotRole.OPEN || slot.role == SlotRole.WAITING
+    val roleName = slot.role.name.lowercase()
     val description =
         if (opensSheet) {
-            "Today position ${index + 1}. ${slot.role.name.lowercase()}. ${task.title}. Opens the task sheet. Swipe right for $rightWord, swipe left for later. Long press and drag to reorder within Today."
+            stringResource(R.string.home_row_desc_opens_sheet, index + 1, roleName, task.title)
         } else {
-            "Today position ${index + 1}. ${slot.role.name.lowercase()}. ${task.title}. Swipe right for $rightWord, swipe left for later. Long press and drag to reorder within Today."
+            stringResource(R.string.home_row_desc, index + 1, roleName, task.title)
         }
     val openInteraction = rememberPressSource()
+    val bringBackLabel = stringResource(R.string.action_bring_back)
     SwipeRevealCard(
-        towardStart =
-        when (rightSwipe) {
-            TodayRightSwipe.Done -> doneSwipe(onDone)
-            TodayRightSwipe.Start -> startSwipe(onStart)
-            TodayRightSwipe.Interrupt -> interruptSwipe(onInterrupt)
-        },
-        towardEnd = laterSwipe(onLater),
+        towardStart = doneSwipe(onDone),
+        towardEnd = bringBackSwipe(onBringBack),
         reducedMotion = reducedMotion,
         onReorderDragStart = onDragStart,
         onReorderDrag = onDragBy,
         onReorderDragEnd = onDragEnd,
         onReorderDragCancel = onDragCancel,
+        onLongPress = onOpenSheet,
         extraActions =
         reorderActions +
-            CustomAccessibilityAction("Edit") {
+            CustomAccessibilityAction(stringResource(R.string.action_done)) {
+                onDone()
+                true
+            } +
+            listOfNotNull(
+                if (slot.role == SlotRole.OPEN) {
+                    CustomAccessibilityAction(stringResource(R.string.action_start)) {
+                        onStart()
+                        true
+                    }
+                } else {
+                    null
+                },
+                if (slot.role == SlotRole.OPEN && somethingCurrent) {
+                    CustomAccessibilityAction(stringResource(R.string.action_interrupt)) {
+                        onInterrupt()
+                        true
+                    }
+                } else {
+                    null
+                },
+            ) +
+            CustomAccessibilityAction(bringBackLabel) {
+                onBringBack()
+                true
+            } +
+            CustomAccessibilityAction(stringResource(R.string.action_edit)) {
                 onEdit()
                 true
             },
@@ -672,65 +709,75 @@ private fun TodayRow(
                         Modifier
                     },
                 ),
-            shape = RoundedCornerShape(CardRadius),
+            shape = RoundedCornerShape(layout.taskRadius()),
             color = FocusColors.Live.Surface,
             shadowElevation = 8.dp * lift,
         ) {
-            Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(Space)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        task.title,
-                        style = MaterialTheme.typography.titleLarge,
-                        modifier = Modifier.weight(1f),
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    RoleLabel(slot.role)
-                }
-                CardActions {
-                    if (slot.role == SlotRole.OPEN) {
-                        QuietButton("Start", onClick = onStart)
-                    }
-                    AccentButton("Done", AccentTone.Mint, onClick = onDone)
-                    QuietButton("Later", onClick = onLater)
-                    QuietButton("Edit", onClick = onEdit)
-                }
+            Row(
+                modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = HomeMetrics.HomeTouchTarget)
+                    .padding(
+                        horizontal = layout.taskPaddingHorizontal(),
+                        vertical = layout.taskPaddingVertical(),
+                    ),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    task.title,
+                    style = layout.taskTitleStyle(),
+                    color = FocusColors.Live.Text,
+                    modifier = Modifier.weight(1f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                val trailing = compactTrailing(layout, task, todayLimit, pinnedToToday)
+                Text(
+                    trailing.text,
+                    style = if (layout == HomeLayout.FLAT) HomeMetrics.SlotChevron else HomeMetrics.RowTag,
+                    color = trailing.color,
+                )
             }
         }
     }
 }
 
 @Composable
-private fun EmptyTodaySlot() {
+private fun EmptyTodaySlot(layout: HomeLayout) {
     Box(
         modifier =
         Modifier
             .fillMaxWidth()
-            .heightIn(min = 72.dp)
+            .heightIn(min = HomeMetrics.HomeTouchTarget)
             .semantics { contentDescription = "Empty Today slot." }
-            .dashedSlot(FocusColors.Live.Outline),
+            .dashedSlot(FocusColors.Live.Outline, layout.taskRadius()),
         contentAlignment = Alignment.CenterStart,
     ) {
         Text(
-            "Empty slot",
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 22.dp),
-            style = MaterialTheme.typography.bodyLarge,
+            stringResource(R.string.home_empty_slot),
+            modifier =
+            Modifier.padding(
+                horizontal = layout.taskPaddingHorizontal(),
+                vertical = layout.taskPaddingVertical(),
+            ),
+            style = layout.taskTitleStyle(),
             color = FocusColors.Live.Muted,
         )
     }
 }
 
-internal fun Modifier.dashedSlot(color: Color): Modifier = this.drawBehind {
+internal fun Modifier.dashedSlot(
+    color: Color,
+    radius: Dp = CardRadius,
+): Modifier = this.drawBehind {
     val stroke = 1.5.dp.toPx()
     drawRoundRect(
         color = color,
         topLeft = Offset(stroke / 2f, stroke / 2f),
         size = Size(size.width - stroke, size.height - stroke),
-        cornerRadius = CornerRadius(CardRadius.toPx(), CardRadius.toPx()),
+        cornerRadius = CornerRadius(radius.toPx(), radius.toPx()),
         style =
         Stroke(
             width = stroke,
@@ -739,96 +786,51 @@ internal fun Modifier.dashedSlot(color: Color): Modifier = this.drawBehind {
     )
 }
 
+private data class CompactTrailing(
+    val text: String,
+    val color: Color,
+)
+
 @Composable
-private fun RoleLabel(role: SlotRole) {
-    val (text, color) =
-        when (role) {
-            SlotRole.NOW -> "NOW" to FocusColors.Live.Lavender
-            SlotRole.WAITING -> "Waiting" to FocusColors.Live.Lavender
-            SlotRole.OPEN -> "" to FocusColors.Live.Muted
-            SlotRole.EMPTY -> "" to FocusColors.Live.Muted
-        }
-    if (text.isNotEmpty()) {
-        Text(text, color = color, style = MaterialTheme.typography.labelLarge, letterSpacing = 1.sp)
+private fun compactTrailing(
+    layout: HomeLayout,
+    task: TaskUi,
+    todayLimit: Int,
+    pinnedToToday: Boolean,
+): CompactTrailing {
+    if (layout == HomeLayout.FLAT) {
+        return CompactTrailing("›", FocusColors.Live.Lavender)
     }
+    if (pinnedToToday) {
+        return CompactTrailing(stringResource(R.string.home_task_pin, todayLimit), FocusColors.Live.Lavender)
+    }
+    val minute = task.scheduledAtMinuteOfDay
+    if (minute != null) {
+        val hours = minute / 60
+        val mins = minute % 60
+        return CompactTrailing("%02d:%02d".format(hours, mins), FocusColors.Live.Muted)
+    }
+    return CompactTrailing("›", FocusColors.Live.Muted)
 }
 
 @Composable
 internal fun SectionLabel(
     title: String,
     trailing: String,
+    modifier: Modifier = Modifier,
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
             title,
-            style = MaterialTheme.typography.labelLarge,
+            style = HomeMetrics.Eyebrow,
             color = FocusColors.Live.Muted,
-            letterSpacing = 1.2.sp,
             modifier = Modifier.semantics { heading() },
         )
-        Text(trailing, style = MaterialTheme.typography.bodyMedium, color = FocusColors.Live.Muted)
-    }
-}
-
-/**
- * A count-only row for a pile that lives on its own screen.
- * The row is not a Today slot and does not expand a list.
- */
-@Composable
-private fun PileCountRow(
-    title: String,
-    count: Int,
-    onClick: () -> Unit,
-) {
-    val interaction = rememberPressSource()
-    val pressed by interaction.collectIsPressedAsState()
-    val reducedMotion = rememberReducedMotion()
-    val color by animateColorAsState(
-        targetValue = if (pressed) FocusColors.Live.SurfaceHigh else FocusColors.Live.Surface,
-        animationSpec = motionSpec(MotionSpec.PressMillis, reducedMotion),
-        label = "countPress",
-    )
-    Surface(
-        modifier =
-        Modifier
-            .fillMaxWidth()
-            .heightIn(min = 56.dp)
-            .pressScale(interaction)
-            .clickable(
-                interactionSource = interaction,
-                indication = null,
-                role = Role.Button,
-                onClickLabel = "Open $title",
-                onClick = onClick,
-            ),
-        shape = RoundedCornerShape(CardRadius),
-        color = color,
-        border = BorderStroke(1.dp, FocusColors.Live.Outline),
-    ) {
-        Row(
-            modifier =
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 14.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                title.uppercase(),
-                style = MaterialTheme.typography.labelLarge,
-                color = FocusColors.Live.Muted,
-                letterSpacing = 1.2.sp,
-            )
-            Text(
-                count.toString(),
-                style = MaterialTheme.typography.titleMedium,
-                color = FocusColors.Live.Mint,
-            )
-        }
+        Text(trailing, style = HomeMetrics.Eyebrow, color = FocusColors.Live.Muted)
     }
 }
 
@@ -857,10 +859,10 @@ internal fun ElapsedText(
     val minutes = elapsed.coerceAtLeast(0) / 60_000L
     val hours = minutes / 60L
     val remainder = minutes % 60L
-    val shown = if (clock) "${hours}h ${remainder}m" else formatElapsed(elapsed)
+    val shown = if (clock) "%d:%02d".format(hours, remainder) else formatElapsed(elapsed)
     Text(
         shown,
-        style = MaterialTheme.typography.bodyLarge,
+        style = if (clock) HomeMetrics.NowTime else MaterialTheme.typography.bodyLarge,
         color = FocusColors.Live.Muted,
         modifier =
         Modifier.semantics {

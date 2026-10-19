@@ -2,6 +2,7 @@
 package app.backpin.focus.ui.components
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -28,12 +29,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import app.backpin.focus.R
 import app.backpin.focus.ui.motion.WithoutRipple
 import app.backpin.focus.ui.motion.pressScale
 import app.backpin.focus.ui.motion.rememberPressSource
@@ -46,8 +50,9 @@ import app.backpin.focus.ui.theme.ButtonRadius
 import app.backpin.focus.ui.theme.CardActionGap
 import app.backpin.focus.ui.theme.CardActionHeight
 import app.backpin.focus.ui.theme.FocusColors
+import app.backpin.focus.ui.theme.RowDoneHeight
 
-/** Mint is Done, Resume, and Inbox. Lavender is Interrupt and events. Amber is Schedule. */
+/** Mint is the one primary action. Lavender is Interrupt and events. Amber is missed or due. */
 internal enum class AccentTone {
     Mint,
     Lavender,
@@ -123,7 +128,7 @@ internal fun choiceContainerColor(
 
 /**
  * The one button shape: outlined, 16dp corners, no ripple.
- * Choice buttons are at least 56dp. [CardActions] locks its buttons to 40dp.
+ * Choice buttons are at least 56dp. [CardActions] locks its buttons to 48dp.
  * The label color is set on the text itself; theme typography would otherwise win over the content color.
  */
 @Composable
@@ -228,7 +233,7 @@ private fun LabelWidthButton(
     }
 }
 
-/** Colored outline for Done, Resume, Inbox, Interrupt, events, and Schedule. Scales while pressed. */
+/** Colored outline for Done, Resume, Inbox, Interrupt, events, and missed or due. Scales while pressed. */
 @Composable
 internal fun AccentButton(
     label: String,
@@ -295,6 +300,7 @@ internal fun QuietButton(
 internal fun CaptureChoice(
     label: String,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
     tone: ChoiceTone = ChoiceTone.Quiet,
     enabled: Boolean = true,
     filled: Boolean = false,
@@ -326,7 +332,7 @@ internal fun CaptureChoice(
         borderColor = borderColor,
         onClick = onClick,
         modifier =
-        Modifier
+        modifier
             .fillMaxWidth()
             .focusProperties { canFocus = false }
             .then(if (selected) Modifier.semantics { this.selected = true } else Modifier),
@@ -380,7 +386,47 @@ internal fun ActionRow(
 }
 
 /**
- * Actions on a list card. They wrap, each only as wide as its label, 40dp tall, with 8dp between them.
+ * Mint outline Done on a compact Home row. Same size on every upcoming and missed row.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun RowDonePill(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val interaction = rememberPressSource()
+    CompositionLocalProvider(
+        LocalButtonMinHeight provides RowDoneHeight,
+        LocalLockButtonHeight provides true,
+        LocalButtonPadding provides CardActionPadding,
+        LocalButtonVerticalPadding provides 0.dp,
+    ) {
+        WithoutRipple {
+            Box(
+                modifier =
+                modifier
+                    .heightIn(min = 48.dp)
+                    .clickable(
+                        interactionSource = interaction,
+                        indication = null,
+                        role = androidx.compose.ui.semantics.Role.Button,
+                        onClick = onClick,
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                AccentButton(
+                    stringResource(R.string.action_done),
+                    AccentTone.Mint,
+                    onClick,
+                    modifier = Modifier.clearAndSetSemantics { },
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Actions on a list card. They wrap, each only as wide as its label, 48dp tall, with 8dp between them.
  * The title stays the first thing you read.
  */
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)

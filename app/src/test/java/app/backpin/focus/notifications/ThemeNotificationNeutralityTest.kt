@@ -4,6 +4,7 @@ package app.backpin.focus.notifications
 import android.app.Notification
 import android.content.Context
 import android.graphics.drawable.ColorDrawable
+import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.TextView
@@ -14,6 +15,7 @@ import app.backpin.focus.domain.RepeatBand
 import app.backpin.focus.domain.ThemeId
 import app.backpin.focus.ui.theme.paletteFor
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -48,9 +50,11 @@ class ThemeNotificationNeutralityTest {
                 offersInterrupt = true,
             )
         val applied = current.bigContentView.apply(context, FrameLayout(context)) as ViewGroup
-        val currentRow = applied.findViewById<TextView>(R.id.today_row_0)
-        assertEquals(xmlMint, (currentRow.background as ColorDrawable).color)
-        assertEquals(xmlOnMint, currentRow.currentTextColor)
+        assertNoMintFill(applied.findViewById(R.id.today_row_0), xmlMint, xmlOnMint)
+        assertNoMintFill(applied.findViewById(R.id.today_row_1), xmlMint, xmlOnMint)
+        assertEquals(xmlMint, applied.findViewById<TextView>(R.id.today_done_0).currentTextColor)
+        val actions = current.actions.orEmpty().map { it.title.toString() }
+        assertFalse(actions.contains(context.getString(R.string.action_interrupt)))
 
         val summary =
             buildRepeatSummaryNotification(
@@ -73,5 +77,19 @@ class ThemeNotificationNeutralityTest {
         assertEquals(Notification.COLOR_DEFAULT, summary.color)
         assertEquals(Notification.COLOR_DEFAULT, child.color)
         assertEquals(Notification.COLOR_DEFAULT, current.color)
+    }
+
+    private fun assertNoMintFill(
+        view: View,
+        xmlMint: Int,
+        xmlOnMint: Int,
+    ) {
+        val background = view.background
+        if (background is ColorDrawable) {
+            assertNotEquals(xmlMint, background.color)
+        }
+        if (view is TextView) {
+            assertNotEquals(xmlOnMint, view.currentTextColor)
+        }
     }
 }

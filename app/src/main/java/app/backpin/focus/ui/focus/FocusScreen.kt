@@ -161,19 +161,16 @@ private fun ActiveCard(
                         now.countdownIntervalDays,
                         state.preferences.lastCountdownDays,
                     ),
+                today = viewModel.localDate(),
                 onDetach = viewModel::detachEvent,
-            ) { onCountDownAgain ->
+            ) { onCountDownAgain, resumeOpen ->
                 CardActions {
-                    AccentButton(
-                        "Done",
-                        AccentTone.Mint,
-                        onClick = viewModel::completeActive,
-                    )
                     if (now.isEvent) {
                         EventDetachButtons(
                             taskId = now.taskId,
                             onDetach = viewModel::detachEvent,
                             onCountDownAgain = onCountDownAgain,
+                            showCountDownAgain = !resumeOpen,
                         )
                     } else {
                         QuietButton("Pause", onClick = viewModel::pause)
@@ -185,6 +182,11 @@ private fun ActiveCard(
                         QuietButton("Switch", onClick = viewModel::openSwitch)
                     }
                     QuietButton("Edit", onClick = { viewModel.openEdit(now.taskId) })
+                    AccentButton(
+                        "Done",
+                        AccentTone.Mint,
+                        onClick = viewModel::completeActive,
+                    )
                 }
             }
         }
@@ -233,7 +235,10 @@ internal fun RecoveryCard(
                     AccentTone.Mint,
                     onClick = { viewModel.resume(recovery.frameId) },
                 )
-                QuietButton("Later", onClick = { viewModel.demote(recovery.taskId) })
+                QuietButton(
+                    androidx.compose.ui.res.stringResource(app.backpin.focus.R.string.action_bring_back),
+                    onClick = { viewModel.openBringBack(recovery.taskId, recovery.title) },
+                )
             }
         }
     }
@@ -269,6 +274,7 @@ private fun TimeInFocus(
 }
 
 @Composable
+@Suppress("ktlint:standard:indent")
 private fun ReturnNoteField(
     taskId: String,
     cue: String,
@@ -311,4 +317,3 @@ private fun ReturnNoteField(
         keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus(force = true) }),
     )
 }
-

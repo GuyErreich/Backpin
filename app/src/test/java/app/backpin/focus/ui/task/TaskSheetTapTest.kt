@@ -26,19 +26,18 @@ import androidx.test.core.app.ApplicationProvider
 import app.backpin.focus.data.FocusRepositoryImpl
 import app.backpin.focus.data.FocusStackDatabase
 import app.backpin.focus.data.PreferencesDataStore
-import app.backpin.focus.domain.AppClock
 import app.backpin.focus.domain.FocusSnapshot
 import app.backpin.focus.domain.FocusUseCases
 import app.backpin.focus.domain.FrameState
 import app.backpin.focus.domain.TaskBucket
 import app.backpin.focus.domain.TaskStatus
+import app.backpin.focus.testing.FakeAppClock
 import app.backpin.focus.ui.FocusStackViewModel
 import app.backpin.focus.ui.SlotRole
 import app.backpin.focus.ui.TaskSheetRole
 import app.backpin.focus.ui.TaskSheetUi
 import app.backpin.focus.ui.home.HomeScreen
 import app.backpin.focus.ui.home.InboxScreen
-import app.backpin.focus.ui.home.LaterScreen
 import app.backpin.focus.ui.theme.FocusStackTheme
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -61,14 +60,15 @@ class TaskSheetTapTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
 
     @Test
-    fun tappingTodayOpenWithoutFocusShowsStartDoneLaterEditAndStartCloses() {
+    fun tappingTodayOpenWithoutFocusShowsStartBringBackEditDoneAndStartCloses() {
         withHarness { viewModel, useCases, _ ->
             runBlocking { todayTask(useCases, "Park me") }
             showHome(viewModel)
             await { viewModel.uiState.value.todaySlots.any { it.task?.title == "Park me" } }
             tapRow("open. Park me. Opens the task sheet")
             await { viewModel.taskSheet.value?.role == TaskSheetRole.TODAY_OPEN }
-            assertEquals(listOf("Start", "Done", "Later", "Edit"), sheetActions())
+            assertEquals(listOf("Start", "Bring back…", "Edit", "Done"), sheetActions())
+            compose.onNodeWithText("Later").assertDoesNotExist()
             tapSheet("Start")
             await { viewModel.taskSheet.value == null && viewModel.uiState.value.now?.title == "Park me" }
             compose.onNodeWithText("This task.").assertDoesNotExist()
@@ -87,7 +87,7 @@ class TaskSheetTapTest {
             await { viewModel.uiState.value.now?.title == "Hold this" }
             tapRow("open. Park me. Opens the task sheet")
             await { viewModel.taskSheet.value?.canInterrupt == true }
-            assertEquals(listOf("Start", "Done", "Later", "Interrupt", "Edit"), sheetActions())
+            assertEquals(listOf("Start", "Bring back…", "Interrupt", "Edit", "Done"), sheetActions())
             tapSheet("Interrupt")
             await {
                 viewModel.taskSheet.value == null && viewModel.uiState.value.now?.title == "Park me"
@@ -100,7 +100,7 @@ class TaskSheetTapTest {
     }
 
     @Test
-    fun todayOpenDoneLaterAndEditEachRunAndCloseTheSheet() {
+    fun todayOpenDoneBringBackAndEditEachRunAndCloseTheSheet() {
         withHarness { viewModel, useCases, _ ->
             runBlocking {
                 todayTask(useCases, "Finish me")
@@ -118,9 +118,15 @@ class TaskSheetTapTest {
 
             tapRow("open. Park me. Opens the task sheet")
             await { viewModel.taskSheet.value?.title == "Park me" }
-            tapSheet("Later")
-            awaitSnapshot(useCases) { task(it, "Park me").bucket == TaskBucket.LATER }
-            assertNull(viewModel.taskSheet.value)
+            tapSheet("Bring back…")
+            await {
+                viewModel.taskSheet.value == null &&
+                    viewModel.bringBack.value?.title == "Park me"
+            }
+            compose.onNodeWithText("Later").assertDoesNotExist()
+            awaitSnapshot(useCases) { task(it, "Park me").bucket != TaskBucket.LATER }
+            viewModel.dismissBringBack()
+            await { viewModel.bringBack.value == null }
 
             tapRow("open. Rename me. Opens the task sheet")
             await { viewModel.taskSheet.value?.title == "Rename me" }
@@ -131,17 +137,22 @@ class TaskSheetTapTest {
     }
 
     @Test
-    fun waitingRowShowsResumeLaterEditAndNeverInterrupt() {
+    fun waitingRowShowsResumeBringBackEditAndNeverInterrupt() {
         withHarness { viewModel, useCases, _ ->
             runBlocking { seedWaitingToday(useCases) }
             showHome(viewModel)
             awaitWaiting(viewModel)
             tapRow("waiting. Hold this. Opens the task sheet")
             await { viewModel.taskSheet.value?.role == TaskSheetRole.TODAY_WAITING }
-            assertEquals(listOf("Resume", "Later", "Edit"), sheetActions())
-            tapSheet("Later")
-            awaitSnapshot(useCases) { task(it, "Hold this").bucket == TaskBucket.LATER }
-            assertNull(viewModel.taskSheet.value)
+            assertEquals(listOf("Resume", "Bring back…", "Edit"), sheetActions())
+            compose.onNodeWithText("Later").assertDoesNotExist()
+            compose.onNodeWithText("Interrupt").assertDoesNotExist()
+            tapSheet("Bring back…")
+            await {
+                viewModel.taskSheet.value == null &&
+                    viewModel.bringBack.value?.title == "Hold this"
+            }
+            awaitSnapshot(useCases) { task(it, "Hold this").bucket != TaskBucket.LATER }
         }
     }
 
@@ -191,21 +202,21 @@ class TaskSheetTapTest {
     }
 
     @Test
-    fun laterInFocusInterruptNestsFromThePileAndCloses() {
+    fun inboxInFocusInterruptNestsFromThePileAndCloses() {
         withHarness { viewModel, useCases, _ ->
             runBlocking {
                 todayTask(useCases, "Hold this")
                 useCases.start(idOf(useCases, "Hold this"))
-                useCases.captureLater("From later")
+                useCases.capture("Nest me")
             }
-            showLater(viewModel)
-            await { viewModel.uiState.value.laterTasks.any { it.title == "From later" } }
-            tapRow("Later. From later. Opens the task sheet")
+            showInbox(viewModel)
+            await { viewModel.uiState.value.inboxTasks.any { it.title == "Nest me" } }
+            tapRow("Inbox. Nest me. Opens the task sheet")
             await { viewModel.taskSheet.value?.role == TaskSheetRole.PILE }
             assertEquals(listOf("Today", "Start", "Interrupt", "Edit"), sheetActions())
             tapSheet("Interrupt")
             awaitSnapshot(useCases) { snapshot ->
-                activeTitle(snapshot) == "From later" &&
+                activeTitle(snapshot) == "Nest me" &&
                     snapshot.frames.any { it.taskId == idOfBlocking(useCases, "Hold this") && it.state == FrameState.PAUSED }
             }
             assertNull(viewModel.taskSheet.value)
@@ -213,25 +224,25 @@ class TaskSheetTapTest {
     }
 
     @Test
-    fun laterStartAndEditEachRunAndCloseTheSheet() {
+    fun inboxStartAndEditEachRunAndCloseTheSheet() {
         withHarness { viewModel, useCases, _ ->
             runBlocking {
-                useCases.captureLater("Start later")
-                useCases.captureLater("Edit later")
+                useCases.capture("Start from pile")
+                useCases.capture("Edit from pile")
             }
-            showLater(viewModel)
-            await { viewModel.uiState.value.laterTasks.size == 2 }
+            showInbox(viewModel)
+            await { viewModel.uiState.value.inboxTasks.size == 2 }
 
-            tapRow("Later. Start later. Opens the task sheet")
-            await { viewModel.taskSheet.value?.title == "Start later" }
+            tapRow("Inbox. Start from pile. Opens the task sheet")
+            await { viewModel.taskSheet.value?.title == "Start from pile" }
             tapSheet("Start")
-            awaitSnapshot(useCases) { activeTitle(it) == "Start later" }
+            awaitSnapshot(useCases) { activeTitle(it) == "Start from pile" }
             assertNull(viewModel.taskSheet.value)
 
-            tapRow("Later. Edit later. Opens the task sheet")
-            await { viewModel.taskSheet.value?.title == "Edit later" }
+            tapRow("Inbox. Edit from pile. Opens the task sheet")
+            await { viewModel.taskSheet.value?.title == "Edit from pile" }
             tapSheet("Edit")
-            await { viewModel.uiState.value.editing?.title == "Edit later" }
+            await { viewModel.uiState.value.editing?.title == "Edit from pile" }
             assertNull(viewModel.taskSheet.value)
         }
     }
@@ -246,7 +257,6 @@ class TaskSheetTapTest {
                     viewModel = viewModel,
                     onOpenFocus = {},
                     onOpenInbox = {},
-                    onOpenLater = {},
                     onOpenScheduled = {},
                     onOpenDone = {},
                 )
@@ -276,27 +286,6 @@ class TaskSheetTapTest {
         }
     }
 
-    private fun showLater(viewModel: FocusStackViewModel) {
-        compose.setContent {
-            val state by viewModel.uiState.collectAsState()
-            val sheet by viewModel.taskSheet.collectAsState()
-            FocusStackTheme {
-                LaterScreen(
-                    tasks = state.laterTasks,
-                    ready = state.ready,
-                    canInterrupt = state.canInterrupt,
-                    onBack = {},
-                    onToday = viewModel::promote,
-                    onStart = viewModel::start,
-                    onInterrupt = viewModel::interruptFromPile,
-                    onEdit = viewModel::openEdit,
-                    onOpenSheet = viewModel::openTaskSheet,
-                )
-                sheet?.let { pending -> hostedTaskSheet(pending, viewModel) }
-            }
-        }
-    }
-
     @Composable
     private fun hostedTaskSheet(
         pending: TaskSheetUi,
@@ -307,15 +296,16 @@ class TaskSheetTapTest {
             onDismiss = viewModel::dismissTaskSheet,
             onStart = viewModel::startFromTaskSheet,
             onDone = viewModel::doneFromTaskSheet,
-            onLater = viewModel::laterFromTaskSheet,
             onEdit = viewModel::editFromTaskSheet,
             onInterrupt = viewModel::interruptFromTaskSheet,
             onToday = viewModel::todayFromTaskSheet,
             onResume = viewModel::resumeFromTaskSheet,
+            onBringBack = viewModel::bringBackFromTaskSheet,
         )
     }
 
     private fun withHarness(block: (FocusStackViewModel, FocusUseCases, FocusStackDatabase) -> Unit) {
+        val clock = FakeAppClock()
         val database =
             Room
                 .inMemoryDatabaseBuilder(context, FocusStackDatabase::class.java)
@@ -326,7 +316,7 @@ class TaskSheetTapTest {
                 FocusRepositoryImpl(
                     database = database,
                     preferencesStore = PreferencesDataStore(context, "task-sheet-${UUID.randomUUID()}"),
-                    clock = AppClock { System.currentTimeMillis() },
+                    clock = clock,
                 ),
             )
         val store = ViewModelStore()
@@ -336,7 +326,7 @@ class TaskSheetTapTest {
                 object : ViewModelProvider.Factory {
                     override fun <T : ViewModel> create(modelClass: Class<T>): T {
                         @Suppress("UNCHECKED_CAST")
-                        return FocusStackViewModel(useCases) as T
+                        return FocusStackViewModel(useCases, clock = clock) as T
                     }
                 },
             )[FocusStackViewModel::class.java]
@@ -464,7 +454,7 @@ class TaskSheetTapTest {
             listOf(
                 "Start",
                 "Done",
-                "Later",
+                "Bring back…",
                 "Edit",
                 "Interrupt",
                 "Resume",

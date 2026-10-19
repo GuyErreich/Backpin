@@ -33,9 +33,11 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             val initialTheme = preferences.themeId.first()
             val initialLayout = preferences.homeLayout.first()
+            val initialCountdownUnit = preferences.countdownUnit.first()
             setContent {
                 val themeId by preferences.themeId.collectAsStateWithLifecycle(initialTheme)
                 val homeLayout by preferences.homeLayout.collectAsStateWithLifecycle(initialLayout)
+                val countdownUnit by preferences.countdownUnit.collectAsStateWithLifecycle(initialCountdownUnit)
                 val scope = rememberCoroutineScope()
                 FocusStackTheme(themeId = themeId) {
                     val viewModel: FocusStackViewModel = viewModel(factory = factory)
@@ -48,6 +50,8 @@ class MainActivity : ComponentActivity() {
                         homeLayout = homeLayout,
                         onHomeLayout = { layout -> scope.launch { preferences.setHomeLayout(layout) } },
                         showHomeLayout = BuildConfig.DEBUG || BuildConfig.BUILD_TYPE == "preview",
+                        countdownUnit = countdownUnit,
+                        onCountdownUnit = { unit -> scope.launch { preferences.setCountdownUnit(unit) } },
                     )
                 }
             }

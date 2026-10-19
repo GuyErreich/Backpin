@@ -4,20 +4,21 @@ package app.backpin.focus.ui.home
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationVector2D
 import androidx.compose.animation.core.VectorConverter
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -31,12 +32,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.StrokeJoin
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathFillType
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalContext
@@ -46,29 +46,25 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.round
-import androidx.compose.ui.unit.sp
 import app.backpin.focus.R
+import app.backpin.focus.domain.HomeLayout
 import app.backpin.focus.domain.Repeat
 import app.backpin.focus.domain.RepeatDayStatus
 import app.backpin.focus.domain.RepeatRowsState
 import app.backpin.focus.ui.components.QuietButton
+import app.backpin.focus.ui.components.RowDonePill
 import app.backpin.focus.ui.motion.MotionSpec
-import app.backpin.focus.ui.motion.motionSpec
 import app.backpin.focus.ui.motion.pressScale
 import app.backpin.focus.ui.motion.rememberPressSource
 import app.backpin.focus.ui.repeat.everyNDaysLabel
 import app.backpin.focus.ui.repeat.missedRepeatCopy
-import app.backpin.focus.ui.repeat.repeatBandMark
 import app.backpin.focus.ui.repeat.repeatRowDescription
 import app.backpin.focus.ui.repeat.repeatsLeftLabel
-import app.backpin.focus.ui.theme.CardRadius
 import app.backpin.focus.ui.theme.FocusColors
-import app.backpin.focus.ui.theme.Space
 import kotlinx.coroutines.launch
 import app.backpin.focus.domain.RepeatRow as RepeatRowModel
 
@@ -78,12 +74,18 @@ internal fun RepeatSection(
     reducedMotion: Boolean,
     onCheckOff: (RepeatRowModel) -> Unit,
     onOpenMissed: (RepeatRowModel) -> Unit = {},
+    onUndo: (RepeatRowModel) -> Unit = {},
     onEdit: (Repeat) -> Unit,
     onCreate: () -> Unit,
 ) {
     val resources = LocalContext.current.resources
-    Column(verticalArrangement = Arrangement.spacedBy(Space)) {
-        SectionLabel(stringResource(R.string.repeat_section), repeatsLeftLabel(rows, resources))
+    Column(verticalArrangement = Arrangement.spacedBy(HomeLayout.FLAT.taskGap())) {
+        SectionLabel(
+            stringResource(R.string.repeat_section),
+            repeatsLeftLabel(rows, resources),
+            modifier =
+            Modifier.padding(top = HomeMetrics.FlatHeaderTop),
+        )
         if (rows.rows.isEmpty()) {
             Text(
                 stringResource(R.string.repeat_empty),
@@ -96,16 +98,41 @@ internal fun RepeatSection(
                 modifier = Modifier.fillMaxWidth(),
             )
         } else {
-            rows.rows.forEach { row ->
-                key(row.repeat.id) {
-                    RepeatRow(
-                        row = row,
-                        reducedMotion = reducedMotion,
-                        onCheckOff = { onCheckOff(row) },
-                        onOpenMissed = { onOpenMissed(row) },
-                        onEdit = { onEdit(row.repeat) },
-                    )
-                }
+            RepeatRowGroup(
+                rows = rows.rows,
+                reducedMotion = reducedMotion,
+                layout = HomeLayout.FLAT,
+                onCheckOff = onCheckOff,
+                onOpenMissed = onOpenMissed,
+                onUndo = onUndo,
+                onEdit = onEdit,
+            )
+        }
+    }
+}
+
+@Composable
+internal fun RepeatRowGroup(
+    rows: List<RepeatRowModel>,
+    reducedMotion: Boolean,
+    layout: HomeLayout,
+    onCheckOff: (RepeatRowModel) -> Unit,
+    onOpenMissed: (RepeatRowModel) -> Unit,
+    onUndo: (RepeatRowModel) -> Unit,
+    onEdit: (Repeat) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(layout.taskGap())) {
+        rows.forEach { row ->
+            key(row.repeat.id) {
+                RepeatRow(
+                    row = row,
+                    reducedMotion = reducedMotion,
+                    onCheckOff = { onCheckOff(row) },
+                    onOpenMissed = { onOpenMissed(row) },
+                    onUndo = { onUndo(row) },
+                    onEdit = { onEdit(row.repeat) },
+                    layout = layout,
+                )
             }
         }
     }
@@ -117,81 +144,30 @@ internal fun RepeatRow(
     reducedMotion: Boolean,
     onCheckOff: () -> Unit,
     onOpenMissed: () -> Unit,
+    onUndo: () -> Unit = {},
     onEdit: () -> Unit,
+    layout: HomeLayout = HomeLayout.FLAT,
 ) {
-    val open = row.status == RepeatDayStatus.OPEN
     val done = row.status == RepeatDayStatus.DONE
     val missed = row.status == RepeatDayStatus.MISSED
-    val checkable = open || missed
-    val targetAlpha =
-        when (row.status) {
-            RepeatDayStatus.DONE -> 0.45f
-            RepeatDayStatus.MISSED -> 0.72f
-            RepeatDayStatus.OPEN -> 1f
-        }
-    val alpha by animateFloatAsState(
-        targetValue = targetAlpha,
-        animationSpec = motionSpec(MotionSpec.SettleMillis, reducedMotion),
-        label = "repeatFade",
-    )
     val interaction = rememberPressSource()
     val resources = LocalContext.current.resources
     val description = repeatRowDescription(row, resources)
-    val interval = everyNDaysLabel(row.cadenceDays, resources)
-    val cadence =
-        interval?.let { resources.getString(R.string.repeat_title_cadence_gap, it).trim() }
-    val shape = RoundedCornerShape(CardRadius)
-    val content: @Composable () -> Unit = {
-        Row(
-            modifier =
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 14.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            RepeatMark(done = done, missed = missed, color = if (done) FocusColors.Live.Muted else FocusColors.Live.Text)
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(
-                    row.repeat.title,
-                    style = MaterialTheme.typography.titleLarge,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    textDecoration = if (done) TextDecoration.LineThrough else TextDecoration.None,
-                    color = if (missed) FocusColors.Live.Muted else FocusColors.Live.Text,
-                )
-                if (missed) {
-                    Text(
-                        missedRepeatCopy(row.repeat.band, resources),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = FocusColors.Live.Amber,
-                    )
-                }
-            }
-            if (cadence != null) {
-                Text(
-                    cadence,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = FocusColors.Live.Muted,
-                    maxLines = 1,
-                    softWrap = false,
-                    overflow = TextOverflow.Visible,
-                )
-            }
-            Text(
-                repeatBandMark(row.repeat.band),
-                style = MaterialTheme.typography.labelLarge,
-                color = FocusColors.Live.Muted,
-                letterSpacing = 1.sp,
-            )
+    val cadence = everyNDaysLabel(row.cadenceDays, resources)
+    val missedCopy = if (missed) missedRepeatCopy(row.repeat.band, resources) else null
+    val titleColor = if (done) FocusColors.Live.Muted else FocusColors.Live.Text
+    val onClickLabel =
+        when {
+            done -> resources.getString(R.string.repeat_row_undo)
+            missed -> resources.getString(R.string.missed_repeat_sheet_open)
+            else -> resources.getString(R.string.repeat_row_check_off)
         }
-    }
-    val rowModifier =
+    Surface(
+        modifier =
         Modifier
             .fillMaxWidth()
-            .heightIn(min = 56.dp)
+            .heightIn(min = HomeMetrics.HomeTouchTarget)
             .animateRepeatPlacement(reducedMotion)
-            .graphicsLayer { this.alpha = alpha }
             .semantics(mergeDescendants = true) {
                 contentDescription = description
                 customActions =
@@ -202,88 +178,128 @@ internal fun RepeatRow(
                         },
                     )
             }
-            .then(
-                if (checkable) {
-                    Modifier
-                        .pressScale(interaction)
-                        .combinedClickable(
-                            interactionSource = interaction,
-                            indication = null,
-                            role = Role.Button,
-                            onClickLabel =
-                            if (missed) {
-                                resources.getString(R.string.missed_repeat_sheet_open)
-                            } else {
-                                resources.getString(R.string.repeat_row_check_off)
-                            },
-                            onLongClickLabel = resources.getString(R.string.repeat_row_edit),
-                            onClick = if (missed) onOpenMissed else onCheckOff,
-                            onLongClick = onEdit,
-                        )
-                } else {
-                    Modifier.combinedClickable(
-                        interactionSource = interaction,
-                        indication = null,
-                        onClick = {},
-                        onLongClick = onEdit,
-                        onLongClickLabel = resources.getString(R.string.repeat_row_edit),
-                    )
+            .pressScale(interaction)
+            .combinedClickable(
+                interactionSource = interaction,
+                indication = null,
+                role = Role.Button,
+                onClickLabel = onClickLabel,
+                onLongClickLabel = resources.getString(R.string.repeat_row_edit),
+                onClick =
+                when {
+                    done -> onUndo
+                    missed -> onOpenMissed
+                    else -> onCheckOff
                 },
-            )
-    if (missed) {
-        Box(
-            modifier = rowModifier.dashedSlot(FocusColors.Live.Outline),
-            contentAlignment = Alignment.CenterStart,
+                onLongClick = onEdit,
+            ),
+        shape = RoundedCornerShape(layout.taskRadius()),
+        color = FocusColors.Live.Surface,
+    ) {
+        Row(
+            modifier =
+            Modifier
+                .fillMaxWidth()
+                .height(HomeMetrics.HomeTouchTarget)
+                .padding(horizontal = layout.taskPaddingHorizontal()),
+            horizontalArrangement = Arrangement.spacedBy(HomeMetrics.RepeatTagGap),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            content()
-        }
-    } else {
-        Surface(
-            modifier = rowModifier,
-            shape = shape,
-            color = FocusColors.Live.Surface,
-            border = BorderStroke(1.dp, FocusColors.Live.Outline),
-        ) {
-            content()
+            Row(
+                modifier =
+                Modifier
+                    .weight(1f)
+                    .height(HomeMetrics.RowVisualHeight),
+                horizontalArrangement = Arrangement.spacedBy(HomeMetrics.RepeatGlyphGap),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    imageVector = RepeatIcon,
+                    contentDescription = null,
+                    modifier = Modifier.size(HomeMetrics.RepeatIconSize),
+                    tint = FocusColors.Live.Muted,
+                )
+                Text(
+                    row.repeat.title,
+                    modifier = Modifier.weight(1f, fill = false),
+                    style = HomeMetrics.RepeatTitle,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    color = titleColor,
+                )
+                if (missedCopy != null) {
+                    Text(
+                        missedCopy,
+                        style = HomeMetrics.RepeatCadence,
+                        color = FocusColors.Live.Amber,
+                        maxLines = 1,
+                        softWrap = false,
+                    )
+                } else if (cadence != null) {
+                    Text(
+                        cadence,
+                        style = HomeMetrics.RepeatCadence,
+                        color = FocusColors.Live.Muted,
+                        maxLines = 1,
+                        softWrap = false,
+                    )
+                }
+            }
+            Box(
+                modifier = Modifier.height(HomeMetrics.HomeTouchTarget),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (done) {
+                    Icon(
+                        imageVector = Icons.Filled.Check,
+                        contentDescription = null,
+                        modifier = Modifier.size(HomeMetrics.RepeatIconSize),
+                        tint = FocusColors.Live.Mint,
+                    )
+                } else {
+                    RowDonePill(onClick = onCheckOff)
+                }
+            }
         }
     }
 }
 
-@Composable
-private fun RepeatMark(
-    done: Boolean,
-    missed: Boolean,
-    color: androidx.compose.ui.graphics.Color,
-) {
-    if (missed) {
-        Box(Modifier.size(18.dp))
-        return
-    }
-    Canvas(Modifier.size(18.dp)) {
-        val stroke = 1.5.dp.toPx()
-        val radius = size.minDimension / 2f - stroke
-        if (done) {
-            val path =
-                Path().apply {
-                    moveTo(size.width * 0.22f, size.height * 0.52f)
-                    lineTo(size.width * 0.42f, size.height * 0.72f)
-                    lineTo(size.width * 0.78f, size.height * 0.28f)
-                }
-            drawPath(
-                path = path,
-                color = color,
-                style = Stroke(width = stroke, cap = StrokeCap.Round, join = StrokeJoin.Round),
-            )
-        } else {
-            drawCircle(
-                color = color,
-                radius = radius,
-                center = Offset(size.width / 2f, size.height / 2f),
-                style = Stroke(width = stroke),
-            )
+private val RepeatIcon: ImageVector =
+    ImageVector.Builder(
+        name = "Repeat",
+        defaultWidth = 24.dp,
+        defaultHeight = 24.dp,
+        viewportWidth = 24f,
+        viewportHeight = 24f,
+    ).apply {
+        path(
+            fill = SolidColor(Color.Black),
+            pathFillType = PathFillType.NonZero,
+        ) {
+            moveTo(7f, 7f)
+            horizontalLineTo(17f)
+            verticalLineTo(10f)
+            lineTo(21f, 6f)
+            lineTo(17f, 2f)
+            verticalLineTo(5f)
+            horizontalLineTo(5f)
+            verticalLineTo(11f)
+            horizontalLineTo(7f)
+            verticalLineTo(7f)
+            close()
+            moveTo(17f, 17f)
+            horizontalLineTo(7f)
+            verticalLineTo(14f)
+            lineTo(3f, 18f)
+            lineTo(7f, 22f)
+            verticalLineTo(19f)
+            horizontalLineTo(19f)
+            verticalLineTo(13f)
+            horizontalLineTo(17f)
+            verticalLineTo(17f)
+            close()
         }
-    }
-}
+    }.build()
 
 /**
  * After a check-off, the row's layout index jumps to the bottom.

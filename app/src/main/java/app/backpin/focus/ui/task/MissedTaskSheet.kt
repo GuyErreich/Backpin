@@ -24,13 +24,13 @@ import java.time.LocalDate
 @Composable
 internal fun MissedTaskSheet(
     state: MissedTaskSheetUi,
+    today: LocalDate,
     onDismiss: () -> Unit,
     onDoneNow: () -> Unit,
     onTomorrow: () -> Unit,
     onPickDay: (Long) -> Unit,
 ) {
     var picking by remember { mutableStateOf(false) }
-    val today = LocalDate.now()
     val tomorrow = today.plusDays(1)
     ChipSheet(
         title = stringResource(R.string.missed_task_sheet_title),

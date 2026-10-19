@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -17,20 +16,19 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.unit.dp
 import app.backpin.focus.R
 import app.backpin.focus.domain.BandPhase
 import app.backpin.focus.domain.HomeBand
-import app.backpin.focus.domain.HomeBandCounts
 import app.backpin.focus.domain.HomeBandGroup
 import app.backpin.focus.domain.HomeBands
+import app.backpin.focus.domain.HomeLayout
 import app.backpin.focus.domain.Repeat
+import app.backpin.focus.domain.RepeatDayStatus
 import app.backpin.focus.domain.RepeatRow
 import app.backpin.focus.domain.Task
 import app.backpin.focus.ui.SlotRole
@@ -39,7 +37,6 @@ import app.backpin.focus.ui.TaskUi
 import app.backpin.focus.ui.motion.pressScale
 import app.backpin.focus.ui.motion.rememberPressSource
 import app.backpin.focus.ui.theme.FocusColors
-import app.backpin.focus.ui.theme.Space
 
 @Composable
 internal fun HomeBandsSection(
@@ -52,16 +49,17 @@ internal fun HomeBandsSection(
     onOpenFocus: () -> Unit,
     onStart: (String) -> Unit,
     onDone: (String) -> Unit,
-    onLater: (String) -> Unit,
+    onBringBack: (String, String) -> Unit,
     onInterrupt: (String) -> Unit,
     onReorder: (List<String>) -> Unit,
     onEditTask: (String) -> Unit,
     onOpenSheet: (String) -> Unit = {},
     onCheckOffRepeat: (RepeatRow) -> Unit,
     onOpenMissedRepeat: (RepeatRow) -> Unit = {},
+    onUndoRepeat: (RepeatRow) -> Unit = {},
     onEditRepeat: (Repeat) -> Unit,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
+    Column {
         bands.inOrder().forEach { group ->
             key(group.band) {
                 HomeBandBlock(
@@ -74,13 +72,14 @@ internal fun HomeBandsSection(
                     onOpenFocus = onOpenFocus,
                     onStart = onStart,
                     onDone = onDone,
-                    onLater = onLater,
+                    onBringBack = onBringBack,
                     onInterrupt = onInterrupt,
                     onReorder = onReorder,
                     onEditTask = onEditTask,
                     onOpenSheet = onOpenSheet,
                     onCheckOffRepeat = onCheckOffRepeat,
                     onOpenMissedRepeat = onOpenMissedRepeat,
+                    onUndoRepeat = onUndoRepeat,
                     onEditRepeat = onEditRepeat,
                 )
             }
@@ -99,13 +98,14 @@ private fun HomeBandBlock(
     onOpenFocus: () -> Unit,
     onStart: (String) -> Unit,
     onDone: (String) -> Unit,
-    onLater: (String) -> Unit,
+    onBringBack: (String, String) -> Unit,
     onInterrupt: (String) -> Unit,
     onReorder: (List<String>) -> Unit,
     onEditTask: (String) -> Unit,
     onOpenSheet: (String) -> Unit,
     onCheckOffRepeat: (RepeatRow) -> Unit,
     onOpenMissedRepeat: (RepeatRow) -> Unit,
+    onUndoRepeat: (RepeatRow) -> Unit,
     onEditRepeat: (Repeat) -> Unit,
 ) {
     val toggleable = group.phase != BandPhase.ALWAYS_OPEN
@@ -114,7 +114,7 @@ private fun HomeBandBlock(
         mutableStateOf(startsExpanded)
     }
     val showRows = if (toggleable) expanded else true
-    Column(verticalArrangement = Arrangement.spacedBy(Space)) {
+    Column {
         HomeBandHeader(
             group = group,
             expanded = showRows,
@@ -131,7 +131,7 @@ private fun HomeBandBlock(
                 onOpenFocus = onOpenFocus,
                 onStart = onStart,
                 onDone = onDone,
-                onLater = onLater,
+                onBringBack = onBringBack,
                 onInterrupt = onInterrupt,
                 onReorder = { order ->
                     if (group.phase == BandPhase.OPEN) onReorder(order)
@@ -139,17 +139,19 @@ private fun HomeBandBlock(
                 onEdit = onEditTask,
                 onOpenSheet = onOpenSheet,
                 showHeader = false,
+                layout = HomeLayout.BANDS,
+                todayTaskIds = filled.map { it.second.id }.toSet(),
             )
-            group.repeats.forEach { row ->
-                key(row.repeat.id) {
-                    RepeatRow(
-                        row = row,
-                        reducedMotion = reducedMotion,
-                        onCheckOff = { onCheckOffRepeat(row) },
-                        onOpenMissed = { onOpenMissedRepeat(row) },
-                        onEdit = { onEditRepeat(row.repeat) },
-                    )
-                }
+            if (group.repeats.isNotEmpty()) {
+                RepeatRowGroup(
+                    rows = group.repeats,
+                    reducedMotion = reducedMotion,
+                    layout = HomeLayout.BANDS,
+                    onCheckOff = onCheckOffRepeat,
+                    onOpenMissed = onOpenMissedRepeat,
+                    onUndo = onUndoRepeat,
+                    onEdit = onEditRepeat,
+                )
             }
         }
     }
@@ -162,24 +164,12 @@ private fun HomeBandHeader(
     toggleable: Boolean,
     onToggle: () -> Unit,
 ) {
-    val name = stringResource(group.band.titleRes())
-    val counts = bandCountsLabel(group.counts)
-    val muted = group.phase == BandPhase.PAST || group.phase == BandPhase.FUTURE
-    val color = if (muted) FocusColors.Live.Muted else FocusColors.Live.Text
-    val summary =
-        when {
-            !expanded && group.phase == BandPhase.PAST ->
-                if (counts.isEmpty()) name else stringResource(R.string.home_band_summary, name, counts)
-            else -> null
-        }
-    val trailing =
-        when {
-            summary != null -> null
-            !expanded && group.phase == BandPhase.FUTURE ->
-                stringResource(R.string.home_band_count, group.counts.left)
-            counts.isNotEmpty() -> counts
-            else -> null
-        }
+    val name = stringResource(group.band.titleRes()).uppercase()
+    val current = group.phase == BandPhase.OPEN
+    val title =
+        if (current) stringResource(R.string.home_band_current, name) else name
+    val color = if (current) FocusColors.Live.Lavender else FocusColors.Live.Muted
+    val trailing = bandCountCopy(group)
     val interaction = rememberPressSource()
     val clickModifier =
         if (toggleable) {
@@ -202,56 +192,45 @@ private fun HomeBandHeader(
             Modifier
         }
     Row(
-        modifier = Modifier
+        modifier =
+        Modifier
             .fillMaxWidth()
-            .heightIn(min = 40.dp)
+            .heightIn(min = HomeMetrics.HomeTouchTarget)
             .then(clickModifier),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            text = colorMissedSegment(summary ?: name, group.counts.missed),
-            style = if (summary != null) MaterialTheme.typography.bodyLarge else MaterialTheme.typography.titleMedium,
+            text = title,
+            style = HomeMetrics.Eyebrow,
             color = color,
             modifier = Modifier.semantics { heading() },
         )
-        if (trailing != null) {
+        if (trailing.isNotEmpty()) {
             Text(
-                text = colorMissedSegment(trailing, group.counts.missed),
-                style = MaterialTheme.typography.bodyMedium,
-                color = FocusColors.Live.Muted,
+                text = trailing,
+                style = HomeMetrics.Eyebrow,
+                color = color,
             )
         }
     }
 }
 
+/**
+ * Current band: "N things". A band with done repeats: "X of Y done".
+ * Otherwise a plain remaining count.
+ */
 @Composable
-private fun colorMissedSegment(
-    text: String,
-    missedCount: Int,
-) = if (missedCount <= 0) {
-    buildAnnotatedString { append(text) }
-} else {
-    val missed = stringResource(R.string.home_band_count_missed, missedCount)
-    buildAnnotatedString {
-        append(text)
-        val start = text.indexOf(missed)
-        if (start >= 0) {
-            addStyle(SpanStyle(color = FocusColors.Live.Amber), start, start + missed.length)
-        }
+internal fun bandCountCopy(group: HomeBandGroup): String {
+    val counts = group.counts
+    val total = counts.done + counts.left
+    val hasDoneRepeats = group.repeats.any { it.status == RepeatDayStatus.DONE }
+    return when {
+        group.phase == BandPhase.OPEN ->
+            pluralStringResource(R.plurals.home_band_count_things, counts.left, counts.left)
+        hasDoneRepeats -> stringResource(R.string.home_band_count_of_done, counts.done, total)
+        else -> stringResource(R.string.home_band_count, counts.left)
     }
-}
-
-@Composable
-private fun bandCountsLabel(counts: HomeBandCounts): String {
-    val parts =
-        buildList {
-            if (counts.done > 0) add(stringResource(R.string.home_band_count_done, counts.done))
-            if (counts.missed > 0) add(stringResource(R.string.home_band_count_missed, counts.missed))
-            if (counts.left > 0) add(stringResource(R.string.home_band_count_left, counts.left))
-        }
-    val separator = stringResource(R.string.home_band_count_separator)
-    return parts.joinToString(separator)
 }
 
 private fun HomeBand.titleRes(): Int = when (this) {
@@ -269,6 +248,12 @@ private fun List<Pair<SlotUi, TaskUi>>.forBand(group: HomeBandGroup): List<Pair<
 }
 
 private fun Task.asOpenSlot(): Pair<SlotUi, TaskUi> {
-    val ui = TaskUi(id = id, title = title, returnCue = returnCue)
+    val ui =
+        TaskUi(
+            id = id,
+            title = title,
+            returnCue = returnCue,
+            scheduledAtMinuteOfDay = scheduledAtMinuteOfDay,
+        )
     return SlotUi(SlotRole.OPEN, ui) to ui
 }

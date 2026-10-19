@@ -47,33 +47,33 @@ class HomeBandsCollapseTest {
     @Test
     fun pastIsCollapsedSummaryOpenIsExpandedFutureIsHeaderAndCountAnytimeHasNoToggle() {
         show(noonBands())
-        val pastSummary = morningPastSummary()
-        compose.onNodeWithText(pastSummary).assertIsDisplayed()
-        compose.onNodeWithText(pastSummary).assertHasClickAction()
+        compose.onNodeWithText("MORNING").assertIsDisplayed()
+        compose.onNodeWithText("MORNING").assertHasClickAction()
         compose.onNodeWithText("Morning pills", useUnmergedTree = true).assertDoesNotExist()
+        compose.onNodeWithText(doneOf(1, 1)).assertIsDisplayed()
 
-        compose.onNodeWithText("Noon").assertIsDisplayed()
-        compose.onNodeWithText("Noon").assertHasClickAction()
+        compose.onNodeWithText("NOON · NOW").assertIsDisplayed()
+        compose.onNodeWithText("NOON · NOW").assertHasClickAction()
         compose.onNodeWithText("Noon walk", useUnmergedTree = true).assertIsDisplayed()
-        compose.onNodeWithText(leftCount(1)).assertIsDisplayed()
+        compose.onNodeWithText(things(1)).assertIsDisplayed()
 
-        compose.onNodeWithText("Night").assertIsDisplayed()
-        compose.onNodeWithText("Night").assertHasClickAction()
+        compose.onNodeWithText("NIGHT").assertIsDisplayed()
+        compose.onNodeWithText("NIGHT").assertHasClickAction()
         compose.onNodeWithText(futureCount(2), useUnmergedTree = true).assertIsDisplayed()
         compose.onNodeWithText("Night stretch", useUnmergedTree = true).assertDoesNotExist()
 
-        compose.onNodeWithText("Anytime").assertIsDisplayed()
-        compose.onNodeWithText("Anytime").assertHasNoClickAction()
+        compose.onNodeWithText("ANYTIME").assertIsDisplayed()
+        compose.onNodeWithText("ANYTIME").assertHasNoClickAction()
         compose.onNodeWithText("Loose thread", useUnmergedTree = true).assertIsDisplayed()
     }
 
     @Test
     fun tappingPastSummaryAndFutureHeaderExpandsRows() {
         show(noonBands())
-        tap(morningPastSummary())
-        compose.onNodeWithText("Morning").assertIsDisplayed()
+        tap("MORNING")
+        compose.onNodeWithText("MORNING").assertIsDisplayed()
         compose.onNodeWithText("Morning pills", useUnmergedTree = true).assertIsDisplayed()
-        tap("Night")
+        tap("NIGHT")
         compose.onNodeWithText("Night stretch", useUnmergedTree = true).assertIsDisplayed()
         compose.onNodeWithText("Noon walk", useUnmergedTree = true).assertIsDisplayed()
         compose.onNodeWithText("Loose thread", useUnmergedTree = true).assertIsDisplayed()
@@ -94,7 +94,7 @@ class HomeBandsCollapseTest {
                     onOpenFocus = {},
                     onStart = {},
                     onDone = {},
-                    onLater = {},
+                    onBringBack = { _, _ -> },
                     onInterrupt = {},
                     onReorder = {},
                     onEditTask = {},
@@ -104,9 +104,9 @@ class HomeBandsCollapseTest {
             }
         }
         compose.waitForIdle()
-        tap("Night")
+        tap("NIGHT")
         compose.onNodeWithText("Night stretch", useUnmergedTree = true).assertIsDisplayed()
-        tap("Noon")
+        tap("NOON · NOW")
         compose.onNodeWithText("Noon walk", useUnmergedTree = true).assertDoesNotExist()
         compose.waitForIdle()
         compose.onNodeWithText("Night stretch", useUnmergedTree = true).assertIsDisplayed()
@@ -114,9 +114,9 @@ class HomeBandsCollapseTest {
         compose.runOnIdle { bands = nightBands() }
         compose.waitForIdle()
         compose.onNodeWithText("Noon walk", useUnmergedTree = true).assertDoesNotExist()
-        compose.onNodeWithText(noonPastSummary()).assertIsDisplayed()
+        compose.onNodeWithText("NOON").assertIsDisplayed()
         compose.onNodeWithText("Night stretch", useUnmergedTree = true).assertIsDisplayed()
-        compose.onNodeWithText("Night").assertIsDisplayed()
+        compose.onNodeWithText("NIGHT · NOW").assertIsDisplayed()
         compose.onNodeWithText("Loose thread", useUnmergedTree = true).assertIsDisplayed()
     }
 
@@ -133,7 +133,7 @@ class HomeBandsCollapseTest {
                     onOpenFocus = {},
                     onStart = {},
                     onDone = {},
-                    onLater = {},
+                    onBringBack = { _, _ -> },
                     onInterrupt = {},
                     onReorder = {},
                     onEditTask = {},
@@ -153,22 +153,12 @@ class HomeBandsCollapseTest {
         compose.waitForIdle()
     }
 
-    private fun morningPastSummary(): String = compose.activity.getString(
-        R.string.home_band_summary,
-        compose.activity.getString(R.string.home_band_morning),
-        listOf(
-            compose.activity.getString(R.string.home_band_count_done, 1),
-            compose.activity.getString(R.string.home_band_count_missed, 1),
-        ).joinToString(compose.activity.getString(R.string.home_band_count_separator)),
-    )
+    private fun doneOf(
+        done: Int,
+        total: Int,
+    ): String = compose.activity.getString(R.string.home_band_count_of_done, done, total)
 
-    private fun noonPastSummary(): String = compose.activity.getString(
-        R.string.home_band_summary,
-        compose.activity.getString(R.string.home_band_noon),
-        leftCount(1),
-    )
-
-    private fun leftCount(left: Int): String = compose.activity.getString(R.string.home_band_count_left, left)
+    private fun things(count: Int): String = compose.activity.resources.getQuantityString(R.plurals.home_band_count_things, count, count)
 
     private fun futureCount(left: Int): String = compose.activity.getString(R.string.home_band_count, left)
 

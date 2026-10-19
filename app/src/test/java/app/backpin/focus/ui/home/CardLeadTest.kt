@@ -34,7 +34,7 @@ import app.backpin.focus.domain.FocusUseCases
 import app.backpin.focus.domain.FrameState
 import app.backpin.focus.domain.TaskBucket
 import app.backpin.focus.ui.FocusStackViewModel
-import app.backpin.focus.ui.ScheduledTaskUi
+import app.backpin.focus.ui.TaskUi
 import app.backpin.focus.ui.capture.CaptureSheet
 import app.backpin.focus.ui.theme.FocusStackTheme
 import kotlinx.coroutines.flow.first
@@ -59,15 +59,13 @@ class CardLeadTest {
     fun pileCardTitleIsTitleLargeAndActionsStayShort() {
         compose.setContent {
             FocusStackTheme {
-                ScheduledScreen(
+                InboxScreen(
                     tasks =
                         listOf(
-                            ScheduledTaskUi(
+                            TaskUi(
                                 id = "1",
                                 title = "Call Dana",
-                                whenLabel = "In 12 days",
-                                due = false,
-                                epochDay = 20_000,
+                                returnCue = null,
                             ),
                         ),
                     ready = true,
@@ -76,22 +74,16 @@ class CardLeadTest {
                     onToday = {},
                     onStart = {},
                     onInterrupt = {},
-                    onInbox = {},
-                    onLater = {},
-                    onRemove = {},
-                    onChangeDate = { _, _ -> },
-                    onChangeTime = { _, _ -> },
                     onEdit = {},
                 )
             }
         }
         assertEquals(22.sp, fontSizeOf("Call Dana"))
-        assertEquals(14.sp, fontSizeOf("In 12 days"))
         val today = boundsOf("Today")
         val interrupt = boundsOf("Interrupt")
-        listOf("Today", "Start", "Interrupt", "Inbox", "Later", "Remove", "Change date", "Add a time", "Edit").forEach { label ->
+        listOf("Today", "Start", "Interrupt", "Edit").forEach { label ->
             val height = boundsOf(label).let { it.bottom - it.top }
-            assertTrue("$label is $height tall", height <= 44.dp && height >= 40.dp - 0.5.dp)
+            assertTrue("$label is $height tall", height <= 48.dp + 0.5.dp && height >= 48.dp - 0.5.dp)
         }
         assertTrue(
             "Interrupt is ${interrupt.right - interrupt.left}, Today is ${today.right - today.left}",
@@ -106,6 +98,7 @@ class CardLeadTest {
                 CaptureSheet(
                     phrases = emptyList(),
                     frameActive = true,
+                    today = app.backpin.focus.testing.FakeAppClock().localDate(),
                     onDismiss = {},
                     onSaveToInbox = {},
                     onInterruptNow = {},

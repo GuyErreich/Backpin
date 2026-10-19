@@ -65,7 +65,6 @@ class ThemeLiveFollowTest {
                                 viewModel = env.viewModel,
                                 onOpenFocus = onOpen,
                                 onOpenInbox = onOpen,
-                                onOpenLater = onOpen,
                                 onOpenScheduled = onOpen,
                                 onOpenDone = onOpen,
                             )
