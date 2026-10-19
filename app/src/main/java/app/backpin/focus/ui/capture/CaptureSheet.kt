@@ -604,53 +604,45 @@ private fun ScheduleChoices(
     }
 }
 
-@Suppress("ktlint:standard:function-signature")
-private fun CapturePlace.tone(): ChoiceTone =
-    when (this) {
-        CapturePlace.INBOX -> ChoiceTone.Mint
-        CapturePlace.INTERRUPT -> ChoiceTone.Lavender
-        CapturePlace.SCHEDULE -> ChoiceTone.Quiet
-        CapturePlace.TODAY,
-        CapturePlace.START,
-        CapturePlace.LATER,
-        -> ChoiceTone.Quiet
-    }
+private fun CapturePlace.tone(): ChoiceTone = when (this) {
+    CapturePlace.INBOX -> ChoiceTone.Mint
+    CapturePlace.INTERRUPT -> ChoiceTone.Lavender
+    CapturePlace.SCHEDULE -> ChoiceTone.Quiet
+    CapturePlace.TODAY,
+    CapturePlace.START,
+    CapturePlace.LATER,
+    -> ChoiceTone.Quiet
+}
 
-@Suppress("ktlint:standard:function-signature")
-private fun CapturePlace.label(): String =
-    when (this) {
-        CapturePlace.INBOX -> "Inbox"
-        CapturePlace.TODAY -> "Today"
-        CapturePlace.START -> "Start"
-        CapturePlace.INTERRUPT -> "Interrupt"
-        CapturePlace.LATER -> "Later"
-        CapturePlace.SCHEDULE -> "Schedule"
-    }
+private fun CapturePlace.label(): String = when (this) {
+    CapturePlace.INBOX -> "Inbox"
+    CapturePlace.TODAY -> "Today"
+    CapturePlace.START -> "Start"
+    CapturePlace.INTERRUPT -> "Interrupt"
+    CapturePlace.LATER -> "Later"
+    CapturePlace.SCHEDULE -> "Schedule"
+}
 
-@Suppress("ktlint:standard:function-signature")
-private fun CapturePlace.typedLabel(): String =
-    when (this) {
-        CapturePlace.INBOX -> "Save to Inbox"
-        CapturePlace.INTERRUPT -> "Interrupt now"
-        else -> label()
-    }
+private fun CapturePlace.typedLabel(): String = when (this) {
+    CapturePlace.INBOX -> "Save to Inbox"
+    CapturePlace.INTERRUPT -> "Interrupt now"
+    else -> label()
+}
 
 @Composable
-@Suppress("ktlint:standard:function-signature")
-private fun titleFieldColors() =
-    OutlinedTextFieldDefaults.colors(
-        focusedTextColor = FocusColors.Live.Text,
-        unfocusedTextColor = FocusColors.Live.Text,
-        cursorColor = FocusColors.Live.Mint,
-        focusedBorderColor = FocusColors.Live.Outline,
-        unfocusedBorderColor = FocusColors.Live.Outline,
-        focusedLabelColor = FocusColors.Live.Muted,
-        unfocusedLabelColor = FocusColors.Live.Muted,
-        focusedPlaceholderColor = FocusColors.Live.Muted,
-        unfocusedPlaceholderColor = FocusColors.Live.Muted,
-        focusedContainerColor = Color.Transparent,
-        unfocusedContainerColor = Color.Transparent,
-    )
+private fun titleFieldColors() = OutlinedTextFieldDefaults.colors(
+    focusedTextColor = FocusColors.Live.Text,
+    unfocusedTextColor = FocusColors.Live.Text,
+    cursorColor = FocusColors.Live.Mint,
+    focusedBorderColor = FocusColors.Live.Outline,
+    unfocusedBorderColor = FocusColors.Live.Outline,
+    focusedLabelColor = FocusColors.Live.Muted,
+    unfocusedLabelColor = FocusColors.Live.Muted,
+    focusedPlaceholderColor = FocusColors.Live.Muted,
+    unfocusedPlaceholderColor = FocusColors.Live.Muted,
+    focusedContainerColor = Color.Transparent,
+    unfocusedContainerColor = Color.Transparent,
+)
 
 @Composable
 @Suppress("ktlint:standard:indent")
