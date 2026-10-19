@@ -89,6 +89,17 @@ internal const val BRING_BACK_MIN_DAYS = 1
 internal const val BRING_BACK_MAX_DAYS = 365
 internal const val BRING_BACK_DEFAULT_DAYS = 5
 
+/** Wheel start for a task that already has a date after [today]; otherwise 5. */
+internal fun bringBackInitialDays(
+    scheduledEpochDay: Long?,
+    today: LocalDate,
+): Int {
+    if (scheduledEpochDay == null) return BRING_BACK_DEFAULT_DAYS
+    val daysAway = (scheduledEpochDay - today.toEpochDay()).toInt()
+    if (daysAway <= 0) return BRING_BACK_DEFAULT_DAYS
+    return daysAway.coerceIn(BRING_BACK_MIN_DAYS, BRING_BACK_MAX_DAYS)
+}
+
 private val WHEEL_ITEM_HEIGHT = 48.dp
 private const val WHEEL_VISIBLE_COUNT = 5
 private const val WHEEL_PAD_COUNT = 2
@@ -111,11 +122,13 @@ internal fun BringBackSheet(
     today: LocalDate,
     locale: Locale = Locale.getDefault(),
     earliest: LocalDate? = null,
+    initialDays: Int = BRING_BACK_DEFAULT_DAYS,
 ) {
     val minDate = earliest ?: today
+    val startDays = initialDays.coerceIn(BRING_BACK_MIN_DAYS, BRING_BACK_MAX_DAYS)
     var page by remember { mutableStateOf(BringBackPage.Days) }
-    var days by remember { mutableIntStateOf(BRING_BACK_DEFAULT_DAYS) }
-    var picked by remember { mutableStateOf(today.plusDays(BRING_BACK_DEFAULT_DAYS.toLong())) }
+    var days by remember { mutableIntStateOf(startDays) }
+    var picked by remember { mutableStateOf(today.plusDays(startDays.toLong())) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     ModalBottomSheet(
