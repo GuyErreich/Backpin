@@ -4,10 +4,12 @@ package app.backpin.focus.ui.repeat
 import android.content.Context
 import android.os.Looper
 import androidx.activity.ComponentActivity
+import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTouchInput
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStore
@@ -59,7 +61,7 @@ class RepeatCaptureFlowTest {
     }
 
     @Test
-    fun taskEditSheetFromFocusAppDoesNotOfferRepeat() {
+    fun taskEditSheetFromFocusAppOffersRepeatThatOpensTheRepeatSheet() {
         val env = env()
         try {
             val id =
@@ -76,8 +78,10 @@ class RepeatCaptureFlowTest {
             env.viewModel.openEdit(id)
             await { env.viewModel.uiState.value.editing?.id == id }
             compose.onNodeWithText("Edit task").assertExists()
-            compose.onNodeWithText("Repeat").assertDoesNotExist()
-            compose.onNodeWithText("A small repeating thing.").assertDoesNotExist()
+            compose.onNodeWithText("Repeat").assertExists().performTouchInput { click() }
+            await { env.viewModel.editingRepeat.value != null }
+            compose.onNodeWithText("A small repeating thing.").assertExists()
+            compose.onNodeWithText("Water plants").assertExists()
         } finally {
             env.close()
         }
