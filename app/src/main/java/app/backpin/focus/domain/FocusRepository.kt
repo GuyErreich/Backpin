@@ -12,8 +12,11 @@ interface FocusRepository {
 
     val preferences: Flow<UserPreferences>
 
-    /** Adds an Inbox task. A blank title changes nothing and does not touch the active frame. */
-    suspend fun capture(title: String)
+    /**
+     * Adds an Inbox task and returns its id. A blank title changes nothing, does not
+     * touch the active frame, and returns null.
+     */
+    suspend fun capture(title: String): String?
 
     /**
      * Places a new task on Today without starting it.

@@ -64,13 +64,13 @@ class FocusRepositoryImpl(
 
     override val preferences: Flow<UserPreferences> = preferencesStore.preferences
 
-    override suspend fun capture(title: String) {
+    override suspend fun capture(title: String): String? {
         val trimmed = title.trim()
-        if (trimmed.isEmpty()) return
-        database.withTransaction {
-            taskDao.upsert(newTask(trimmed, TaskBucket.INBOX))
-        }
+        if (trimmed.isEmpty()) return null
+        val task = newTask(trimmed, TaskBucket.INBOX)
+        database.withTransaction { taskDao.upsert(task) }
         recordInteraction()
+        return task.id
     }
 
     override suspend fun captureIntoToday(title: String): PromoteOutcome {

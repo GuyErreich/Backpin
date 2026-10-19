@@ -16,9 +16,7 @@ class FocusUseCases(
 
     val preferences: Flow<UserPreferences> = repository.preferences
 
-    suspend fun capture(title: String) {
-        repository.capture(title)
-    }
+    suspend fun capture(title: String): String? = repository.capture(title)
 
     suspend fun captureIntoToday(title: String): PromoteOutcome = repository.captureIntoToday(title)
 

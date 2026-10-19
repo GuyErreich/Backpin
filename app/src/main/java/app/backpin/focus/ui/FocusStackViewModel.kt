@@ -499,13 +499,7 @@ class FocusStackViewModel(
         viewModelScope.launch {
             val trimmed = title.trim()
             if (trimmed.isEmpty()) return@launch
-            useCases.capture(trimmed)
-            val snapshot = useCases.observeSnapshot().first()
-            val id =
-                snapshot.tasks
-                    .filter { it.title == trimmed && it.bucket == TaskBucket.INBOX }
-                    .maxByOrNull { it.createdAtEpochMillis }
-                    ?.id
+            val id = useCases.capture(trimmed)
             closeCapture()
             if (id != null) openBringBack(id, trimmed)
         }
