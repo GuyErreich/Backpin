@@ -38,6 +38,7 @@ import app.backpin.focus.notifications.NotificationContract
 import app.backpin.focus.ui.capture.BringBackSheet
 import app.backpin.focus.ui.capture.CaptureEdit
 import app.backpin.focus.ui.capture.CaptureSheet
+import app.backpin.focus.ui.capture.bringBackInitialDays
 import app.backpin.focus.ui.components.AddFab
 import app.backpin.focus.ui.components.AppTab
 import app.backpin.focus.ui.components.AppTabBar
@@ -375,6 +376,9 @@ fun FocusApp(
     bringBack?.let { target ->
         val today = viewModel.localDate()
         val isEvent = state.now?.let { it.taskId == target.taskId && it.isEvent } == true
+        val scheduledEpochDay =
+            state.scheduledTasks.firstOrNull { it.id == target.taskId }?.epochDay
+                ?: state.countdowns.firstOrNull { it.id == target.taskId }?.epochDay
         BringBackSheet(
             onDismiss = viewModel::dismissBringBack,
             onDate = { date ->
@@ -387,6 +391,7 @@ fun FocusApp(
             },
             today = today,
             earliest = if (isEvent) today.plusDays(1) else null,
+            initialDays = bringBackInitialDays(scheduledEpochDay, today),
         )
     }
 
