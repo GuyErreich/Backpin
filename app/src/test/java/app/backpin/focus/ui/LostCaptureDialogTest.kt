@@ -20,6 +20,7 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performTouchInput
+import app.backpin.focus.R
 import app.backpin.focus.domain.FrameState
 import app.backpin.focus.domain.TaskBucket
 import app.backpin.focus.runOffTestThread
@@ -51,11 +52,11 @@ class LostCaptureDialogTest {
         awaitText("Today is full")
         awaitText("Swap one out, or keep \"Call the school\" in Inbox. Nothing gets lost.")
         awaitText("Swap one out")
-        awaitText("Keep in Inbox")
+        awaitText(keepInInboxLabel())
         compose.onNodeWithText("Swap one out").assertHasClickAction()
-        compose.onNodeWithText("Keep in Inbox").assertHasClickAction()
+        compose.onNodeWithText(keepInInboxLabel()).assertHasClickAction()
         val swap = compose.onNodeWithText("Swap one out").getBoundsInRoot()
-        val keep = compose.onNodeWithText("Keep in Inbox").getBoundsInRoot()
+        val keep = compose.onNodeWithText(keepInInboxLabel()).getBoundsInRoot()
         assertTrue("Swap one out sits on the left", swap.left < keep.left)
         assertTrue("Keep in Inbox is the default action on the right", keep.left > swap.left)
         assertNoCancel()
@@ -68,7 +69,7 @@ class LostCaptureDialogTest {
         assertNoCancel()
         tap("Swap one out")
         awaitText("Replace “${defaultTodayTitles()[0]}”")
-        awaitText("Keep in Inbox")
+        awaitText(keepInInboxLabel())
         assertNoCancel()
     }
 
@@ -98,7 +99,7 @@ class LostCaptureDialogTest {
         }
         val rows =
             listOf(
-                LeaveRow("Keep in Inbox") { tap("Keep in Inbox") },
+                LeaveRow(keepInInboxLabel()) { tap(keepInInboxLabel()) },
                 LeaveRow("tap outside") { tapOutside() },
                 LeaveRow("back") { pressBack() },
             )
@@ -124,7 +125,7 @@ class LostCaptureDialogTest {
         }
         val rows =
             listOf(
-                LeaveRow("Keep in Inbox") { tap("Keep in Inbox") },
+                LeaveRow(keepInInboxLabel()) { tap(keepInInboxLabel()) },
                 LeaveRow("tap outside") { tapOutside() },
                 LeaveRow("back") { pressBack() },
             )
@@ -175,7 +176,7 @@ class LostCaptureDialogTest {
                     awaitUi(viewModel) { it.swapIncoming?.title == "Call the school" }
                         .swapIncoming!!
                         .id
-                tap("Keep in Inbox")
+                tap(keepInInboxLabel())
                 awaitText("Kept in Inbox")
                 tap("Undo")
                 awaitUi(viewModel) { state ->
@@ -301,6 +302,8 @@ class LostCaptureDialogTest {
             }
         }
     }
+
+    private fun keepInInboxLabel(): String = compose.activity.getString(R.string.action_keep_in_inbox)
 
     private fun tap(label: String) {
         awaitText(label)

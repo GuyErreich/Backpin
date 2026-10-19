@@ -74,7 +74,7 @@ class RepeatCheckOffTest {
                     listOf("Take meds", "Water plants", "Make bed")
             }
             compose.onNodeWithText("2 of 3 left").assertExists()
-            tapDescription("Take meds. Morning. Check off.")
+            tapDescription("Take meds. Morning. daily. Check off.")
             await {
                 val rows = env.viewModel.repeatRows.value.rows
                 rows.map { it.repeat.title } == listOf("Water plants", "Take meds", "Make bed") &&
@@ -94,7 +94,7 @@ class RepeatCheckOffTest {
                         env.viewModel.uiState.value.undo == null
                 }
             }
-            compose.onNodeWithContentDescription("Take meds. Morning. Check off.").assertExists()
+            compose.onNodeWithContentDescription("Take meds. Morning. daily. Check off.").assertExists()
         } finally {
             env.close()
         }
@@ -141,11 +141,11 @@ class RepeatCheckOffTest {
                         ?.status == RepeatDayStatus.MISSED
             }
             compose.onNodeWithText("2 of 2 left").assertExists()
-            compose.onNodeWithText("Missed at morning · muted until end of day").assertExists()
+            compose.onNodeWithText("Missed this morning").assertExists()
             compose
-                .onNodeWithContentDescription("Take meds. Missed at morning · muted until end of day. Check off.")
+                .onNodeWithContentDescription("Take meds. Missed this morning. Check off.")
                 .assertExists()
-            tapDescription("Take meds. Missed at morning · muted until end of day. Check off.")
+            tapDescription("Take meds. Missed this morning. Check off.")
             await {
                 env.viewModel.missedRepeatSheet.value?.title == "Take meds" &&
                     env.viewModel.repeatRows.value.rows
@@ -161,8 +161,8 @@ class RepeatCheckOffTest {
                     env.viewModel.uiState.value.undo?.target is UndoTarget.RepeatCheckOff
             }
             assertEquals("1 of 2 left", repeatsLeftLabel(env.viewModel.repeatRows.value, compose.activity.resources))
-            compose.onNodeWithContentDescription("Take meds. Morning. Done.").assertExists()
-            compose.onNodeWithText("Missed at morning · muted until end of day").assertDoesNotExist()
+            compose.onNodeWithContentDescription("Take meds. Morning. daily. Done.").assertExists()
+            compose.onNodeWithText("Missed this morning").assertDoesNotExist()
             val undo = env.viewModel.uiState.value.undo
             assertNotNull(undo)
             env.viewModel.undo(undo!!.id)
@@ -173,7 +173,7 @@ class RepeatCheckOffTest {
                     env.viewModel.uiState.value.undo == null
             }
             compose
-                .onNodeWithContentDescription("Take meds. Missed at morning · muted until end of day. Check off.")
+                .onNodeWithContentDescription("Take meds. Missed this morning. Check off.")
                 .assertExists()
         } finally {
             env.close()
@@ -190,7 +190,6 @@ class RepeatCheckOffTest {
                     viewModel = viewModel,
                     onOpenFocus = {},
                     onOpenInbox = {},
-                    onOpenLater = {},
                     onOpenScheduled = {},
                     onOpenDone = {},
                 )

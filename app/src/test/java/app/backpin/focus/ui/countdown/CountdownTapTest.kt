@@ -6,16 +6,14 @@ import android.os.Looper
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
-import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performImeAction
@@ -42,9 +40,9 @@ import app.backpin.focus.ui.FocusStackViewModel
 import app.backpin.focus.ui.capture.SpeechProblem
 import app.backpin.focus.ui.capture.UtteranceRecognizer
 import app.backpin.focus.ui.focus.FocusScreen
-import app.backpin.focus.ui.home.HomeScreen
 import app.backpin.focus.ui.theme.FocusStackTheme
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -62,7 +60,7 @@ import java.time.format.DateTimeFormatterBuilder
 import java.time.format.FormatStyle
 import java.util.Locale
 
-@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+@OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36], qualifiers = "w411dp-h891dp")
 class CountdownTapTest {
@@ -132,7 +130,7 @@ class CountdownTapTest {
             assertEquals(1, taskCount(useCases))
             compose.onNodeWithText("Count down to").assertDoesNotExist()
             compose.onNodeWithText("Save countdown").assertDoesNotExist()
-            await { compose.onAllNodesWithText("7 days").fetchSemanticsNodes().isNotEmpty() }
+            await { viewModel.uiState.value.countdowns.singleOrNull()?.dayLabel == "7 days" }
             compose.onNodeWithText("7 days").assertExists()
         }
     }
@@ -186,25 +184,7 @@ class CountdownTapTest {
                 useCases.captureCountdown("Dentist", today.toEpochDay())
                 repository.releaseDueCountdowns()
             }
-            var screen by mutableStateOf("home")
-            compose.setContent {
-                val state by viewModel.uiState.collectAsState()
-                FocusStackTheme {
-                    when (screen) {
-                        "home" ->
-                            HomeScreen(
-                                state = state,
-                                viewModel = viewModel,
-                                onOpenFocus = {},
-                                onOpenInbox = {},
-                                onOpenLater = {},
-                                onOpenScheduled = {},
-                                onOpenDone = {},
-                            )
-                        else -> FocusScreen(state = state, viewModel = viewModel)
-                    }
-                }
-            }
+            showFocus(viewModel)
             await { viewModel.uiState.value.now?.isEvent == true }
             compose.onNodeWithText("EVENT").assertExists()
             compose.mainClock.autoAdvance = false
@@ -218,8 +198,6 @@ class CountdownTapTest {
             repeat(10) { pump() }
             compose.onNodeWithText("Resume").assertExists()
 
-            screen = "focus"
-            repeat(10) { pump() }
             arriveAgain(useCases, repository, "Dentist again", today)
             await { viewModel.uiState.value.now?.title == "Dentist again" }
             repeat(10) { pump() }
@@ -234,6 +212,7 @@ class CountdownTapTest {
             compose.onNodeWithText("EVENT").assertExists()
             tap("Count down again")
             tap("Pick a date")
+            tapCalendarDay(today.plusDays(1))
             tap("OK")
             val tomorrow = today.plusDays(1).toEpochDay()
             awaitSnapshot(useCases) { snapshot ->
@@ -277,12 +256,7 @@ class CountdownTapTest {
                 useCases.captureCountdown("Dentist", clock.localDate().toEpochDay())
                 repository.releaseDueCountdowns()
             }
-            compose.setContent {
-                val state by viewModel.uiState.collectAsState()
-                FocusStackTheme {
-                    FocusScreen(state = state, viewModel = viewModel)
-                }
-            }
+            showFocus(viewModel)
             await { viewModel.uiState.value.now?.isEvent == true }
             tap("Today")
             await { viewModel.uiState.value.swapIncoming?.title == "Dentist" }
@@ -306,34 +280,17 @@ class CountdownTapTest {
                 useCases.captureCountdown("Dentist", today.toEpochDay())
                 repository.releaseDueCountdowns()
             }
-            var screen by mutableStateOf("home")
-            compose.setContent {
-                val state by viewModel.uiState.collectAsState()
-                FocusStackTheme {
-                    when (screen) {
-                        "home" ->
-                            HomeScreen(
-                                state = state,
-                                viewModel = viewModel,
-                                onOpenFocus = {},
-                                onOpenInbox = {},
-                                onOpenLater = {},
-                                onOpenScheduled = {},
-                                onOpenDone = {},
-                            )
-                        else -> FocusScreen(state = state, viewModel = viewModel)
-                    }
-                }
-            }
+            showFocus(viewModel)
             await { viewModel.uiState.value.now?.title == "Dentist" }
             tap("Count down again")
-            compose.onNodeWithText("Tomorrow").assertExists()
-            compose.onNodeWithText("In 3 days").assertExists()
-            compose.onNodeWithText("Next week").assertExists()
+            compose.onNodeWithText(againInDaysLabel(12, today)).assertExists()
+            compose.onNodeWithText("Days from today").assertExists()
             compose.onNodeWithText("Pick a date").assertExists()
             compose.onNodeWithText("Start in 0 days").assertDoesNotExist()
-            compose.onNodeWithText("Again in", substring = true).assertDoesNotExist()
-            tap(againLabel(12, today))
+            compose.onNodeWithText("Tomorrow").assertDoesNotExist()
+            compose.onNodeWithText("In 3 days").assertDoesNotExist()
+            compose.onNodeWithText("Next week").assertDoesNotExist()
+            tap(againInDaysLabel(12, today))
             awaitSnapshot(useCases) { snapshot ->
                 val event = snapshot.tasks.single { it.title == "Dentist" }
                 event.bucket == TaskBucket.COUNTDOWN &&
@@ -342,15 +299,13 @@ class CountdownTapTest {
                     parentWaits(snapshot)
             }
             await { viewModel.uiState.value.undo?.message == backInDaysLabel(12, today) }
-            compose.onNodeWithText(againLabel(12, today)).assertDoesNotExist()
+            compose.onNodeWithText(againInDaysLabel(12, today)).assertDoesNotExist()
 
-            compose.runOnIdle { screen = "focus" }
             arriveAgain(useCases, repository, "Checkup", today)
             await { viewModel.uiState.value.now?.title == "Checkup" }
             tap("Count down again")
-            compose.onNodeWithText(againLabel(12, today)).assertExists()
-            compose.onNodeWithText("Again in", substring = true).assertDoesNotExist()
-            tap("In 3 days")
+            compose.onNodeWithText(againInDaysLabel(12, today)).assertExists()
+            typeResumeDays("3")
             awaitSnapshot(useCases) { snapshot ->
                 val event = snapshot.tasks.single { it.title == "Checkup" }
                 event.bucket == TaskBucket.COUNTDOWN &&
@@ -374,27 +329,15 @@ class CountdownTapTest {
                 useCases.captureCountdown("Dentist", today.toEpochDay())
                 repository.releaseDueCountdowns()
             }
-            compose.setContent {
-                val state by viewModel.uiState.collectAsState()
-                FocusStackTheme {
-                    HomeScreen(
-                        state = state,
-                        viewModel = viewModel,
-                        onOpenFocus = {},
-                        onOpenInbox = {},
-                        onOpenLater = {},
-                        onOpenScheduled = {},
-                        onOpenDone = {},
-                    )
-                }
-            }
+            showFocus(viewModel)
             await { viewModel.uiState.value.now?.isEvent == true }
             tap("Count down again")
-            compose.onNodeWithText("Days from today").assertDoesNotExist()
+            compose.onNodeWithText(againInDaysLabel(7, today)).assertExists()
+            compose.onNodeWithText("Days from today").assertExists()
             compose.onNodeWithText("Start in 0 days").assertDoesNotExist()
-            compose.onNodeWithText("Tomorrow").assertExists()
-            compose.onNodeWithText("In 3 days").assertExists()
-            compose.onNodeWithText("Next week").assertExists()
+            compose.onNodeWithText("Tomorrow").assertDoesNotExist()
+            compose.onNodeWithText("In 3 days").assertDoesNotExist()
+            compose.onNodeWithText("Next week").assertDoesNotExist()
             compose.onNodeWithText("Pick a date").assertExists()
             compose.onNodeWithContentDescription("Close").performTouchInput { click(center) }
             pump()
@@ -424,18 +367,12 @@ class CountdownTapTest {
                 database.taskDao().upsert(row.copy(countdownIntervalDays = 30))
                 repository.releaseDueCountdowns()
             }
-            compose.setContent {
-                val state by viewModel.uiState.collectAsState()
-                FocusStackTheme {
-                    FocusScreen(state = state, viewModel = viewModel)
-                }
-            }
+            showFocus(viewModel)
             await { viewModel.uiState.value.now?.title == "Dentist" }
             tap("Count down again")
-            compose.onNodeWithText(againLabel(30, today)).assertExists()
-            compose.onNodeWithText(againLabel(12, today)).assertDoesNotExist()
-            compose.onNodeWithText("Again in", substring = true).assertDoesNotExist()
-            tap(againLabel(30, today))
+            compose.onNodeWithText(againInDaysLabel(30, today)).assertExists()
+            compose.onNodeWithText(againInDaysLabel(12, today)).assertDoesNotExist()
+            tap(againInDaysLabel(30, today))
             awaitSnapshot(useCases) { snapshot ->
                 val event = snapshot.tasks.single { it.title == "Dentist" }
                 event.bucket == TaskBucket.COUNTDOWN &&
@@ -459,24 +396,12 @@ class CountdownTapTest {
                 useCases.captureCountdown("Dentist", today.toEpochDay())
                 repository.releaseDueCountdowns()
             }
-            compose.setContent {
-                val state by viewModel.uiState.collectAsState()
-                FocusStackTheme {
-                    HomeScreen(
-                        state = state,
-                        viewModel = viewModel,
-                        onOpenFocus = {},
-                        onOpenInbox = {},
-                        onOpenLater = {},
-                        onOpenScheduled = {},
-                        onOpenDone = {},
-                    )
-                }
-            }
+            showFocus(viewModel)
             await { viewModel.uiState.value.now?.title == "Dentist" }
             tap("Count down again")
             compose.onNodeWithText("Start in 0 days").assertDoesNotExist()
-            tap("In 3 days")
+            compose.onNodeWithText(againInDaysLabel(7, today)).assertExists()
+            typeResumeDays("3")
             awaitSnapshot(useCases) { snapshot ->
                 val event = snapshot.tasks.single { it.title == "Dentist" }
                 event.bucket == TaskBucket.COUNTDOWN &&
@@ -527,6 +452,15 @@ class CountdownTapTest {
         }
     }
 
+    private fun showFocus(viewModel: FocusStackViewModel) {
+        compose.setContent {
+            val state by viewModel.uiState.collectAsState()
+            FocusStackTheme {
+                FocusScreen(state = state, viewModel = viewModel)
+            }
+        }
+    }
+
     private fun showCountdown(viewModel: FocusStackViewModel) {
         compose.setContent {
             val state by viewModel.uiState.collectAsState()
@@ -549,12 +483,12 @@ class CountdownTapTest {
 
     private fun daysField(): SemanticsNodeInteraction = compose.onAllNodes(hasSetTextAction())[1]
 
-    private fun againLabel(
-        days: Int,
-        today: LocalDate,
-    ): String {
-        val landing = today.plusDays(days.toLong()).toEpochDay()
-        return "In $days days · ${scheduleMomentLabel(landing, null)}"
+    private fun resumeDaysField() = compose.onNode(hasSetTextAction() and hasText("Days from today"))
+
+    private fun typeResumeDays(days: String) {
+        resumeDaysField().performTextReplacement(days)
+        resumeDaysField().performImeAction()
+        pump()
     }
 
     private fun taskCount(useCases: FocusUseCases): Int = runBlocking { useCases.observeSnapshot().first().tasks.size }

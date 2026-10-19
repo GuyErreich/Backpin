@@ -11,7 +11,6 @@ import app.backpin.focus.domain.RepeatOccurrence
 import app.backpin.focus.domain.RepeatRow
 import app.backpin.focus.domain.RepeatRowsState
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -44,18 +43,13 @@ class RepeatUiTest {
 
     @Test
     fun missedCopyIsQuietAndUsesTheBandName() {
-        assertEquals(
-            "Missed at noon · muted until end of day",
-            missedRepeatCopy(RepeatBand.NOON, resources),
-        )
+        assertEquals("Missed at noon", missedRepeatCopy(RepeatBand.NOON, resources))
+        assertEquals("Missed this morning", missedRepeatCopy(RepeatBand.MORNING, resources))
         val missed = repeatRowDescription(row("Water plants", RepeatBand.NOON, RepeatDayStatus.MISSED), resources)
         assertTrue(missed.contains("Missed"))
+        assertEquals("Water plants. Missed at noon. Check off.", missed)
         assertEquals(
-            "Water plants. Missed at noon · muted until end of day. Check off.",
-            missed,
-        )
-        assertEquals(
-            "Take meds. Morning. Check off.",
+            "Take meds. Morning. daily. Check off.",
             repeatRowDescription(row("Take meds", RepeatBand.MORNING, RepeatDayStatus.OPEN), resources),
         )
         assertEquals(
@@ -66,7 +60,7 @@ class RepeatUiTest {
             ),
         )
         assertEquals("MORNING", repeatBandMark(RepeatBand.MORNING))
-        assertNull(everyNDaysLabel(1, resources))
+        assertEquals("daily", everyNDaysLabel(1, resources))
         assertEquals("every 3 days", everyNDaysLabel(3, resources))
     }
 
@@ -76,25 +70,24 @@ class RepeatUiTest {
         status: RepeatDayStatus,
         cadenceDays: Int = 1,
         id: String = title,
-    ): RepeatRow =
-        RepeatRow(
-            occurrence =
-                RepeatOccurrence(
-                    repeat =
-                        Repeat(
-                            id = id,
-                            title = title,
-                            band = band,
-                            everyNDays = cadenceDays,
-                            anchorEpochDay = 0,
-                            reminderOn = true,
-                            sortOrder = 0,
-                            createdAtEpochMillis = 0,
-                            archivedAtEpochMillis = null,
-                        ),
-                    epochDay = 0,
-                    status = status,
-                ),
-            everyNDays = cadenceDays,
-        )
+    ): RepeatRow = RepeatRow(
+        occurrence =
+        RepeatOccurrence(
+            repeat =
+            Repeat(
+                id = id,
+                title = title,
+                band = band,
+                everyNDays = cadenceDays,
+                anchorEpochDay = 0,
+                reminderOn = true,
+                sortOrder = 0,
+                createdAtEpochMillis = 0,
+                archivedAtEpochMillis = null,
+            ),
+            epochDay = 0,
+            status = status,
+        ),
+        everyNDays = cadenceDays,
+    )
 }

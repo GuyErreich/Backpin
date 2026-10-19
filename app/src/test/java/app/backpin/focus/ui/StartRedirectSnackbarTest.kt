@@ -4,16 +4,16 @@ package app.backpin.focus.ui
 import android.os.Looper
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.semantics.SemanticsActions
-import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.click
-import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isSelected
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeLeft
@@ -67,7 +67,7 @@ class StartRedirectSnackbarTest {
                     viewModel.uiState.value.ready &&
                         viewModel.uiState.value.now?.taskId == chain.last().id
                 }
-                tapStartBeside(chain.first().title)
+                openFocusThenStart(chain.first().title)
                 val message = redirectMessage(titles)
                 awaitText(message)
                 awaitUi(viewModel) { it.startRedirect != null }
@@ -91,8 +91,11 @@ class StartRedirectSnackbarTest {
                     viewModel.uiState.value.ready &&
                         viewModel.uiState.value.now?.taskId == chain.last().id
                 }
+                openFocusFromNowCard()
+                tap("Switch")
+                awaitText(chain.first().title)
                 compose.mainClock.autoAdvance = false
-                tapStartBeside(chain.first().title)
+                tap(chain.first().title)
                 val message = redirectMessage(titles)
                 awaitOnClock { nodes(message, unmerged = true).isNotEmpty() || nodes(message, unmerged = false).isNotEmpty() }
                 awaitUiOnClock(viewModel) { it.startRedirect != null }
@@ -117,7 +120,7 @@ class StartRedirectSnackbarTest {
                     viewModel.uiState.value.ready &&
                         viewModel.uiState.value.now?.taskId == chain.last().id
                 }
-                tapStartBeside(chain.first().title)
+                openFocusThenStart(chain.first().title)
                 val message = redirectMessage(titles)
                 awaitText(message)
                 awaitUi(viewModel) { state ->
@@ -161,24 +164,37 @@ class StartRedirectSnackbarTest {
         shadowOf(Looper.getMainLooper()).idle()
     }
 
-    private fun tapStartBeside(title: String) {
+    private fun openFocusThenStart(title: String) {
+        openFocusFromNowCard()
+        tapStartOnParent(title)
+    }
+
+    private fun openFocusFromNowCard() {
+        compose.waitForIdle()
+        val now = compose.onNode(hasContentDescription("Opens focus.", substring = true))
+        now.assertHasClickAction()
+        now.performTouchInput { click(center) }
+        compose.waitForIdle()
+        shadowOf(Looper.getMainLooper()).idle()
+        await {
+            compose.onAllNodes(hasText("Focus") and isSelected()).fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithText("Focus").assertIsSelected()
+    }
+
+    private fun tapStartOnParent(title: String) {
+        tap("Switch")
         awaitText(title)
-        val node = startBeside(title)
-        node.performScrollTo()
+        tap(title)
+    }
+
+    private fun tap(label: String) {
+        awaitText(label)
+        val node = compose.onNodeWithText(label)
         node.assertIsEnabled().assertHasClickAction()
         node.performTouchInput { click(center) }
         compose.waitForIdle()
         shadowOf(Looper.getMainLooper()).idle()
-    }
-
-    private fun startBeside(title: String): SemanticsNodeInteraction {
-        val titleTop =
-            compose.onNodeWithText(title, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot.top
-        val nodes = compose.onAllNodes(hasText("Start") and hasClickAction())
-        val found = nodes.fetchSemanticsNodes()
-        val below = found.indices.filter { found[it].boundsInRoot.top > titleTop }
-        check(below.isNotEmpty()) { "No Start below $title" }
-        return nodes[below.minBy { found[it].boundsInRoot.top }]
     }
 
     private fun dismissSnackbar(message: String) {

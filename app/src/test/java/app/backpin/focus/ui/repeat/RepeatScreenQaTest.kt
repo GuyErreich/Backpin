@@ -298,7 +298,6 @@ class RepeatScreenQaTest {
                         viewModel = viewModel,
                         onOpenFocus = {},
                         onOpenInbox = {},
-                        onOpenLater = {},
                         onOpenScheduled = {},
                         onOpenDone = {},
                     )

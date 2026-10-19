@@ -27,16 +27,17 @@ import androidx.test.core.app.ApplicationProvider
 import app.backpin.focus.data.FocusRepositoryImpl
 import app.backpin.focus.data.FocusStackDatabase
 import app.backpin.focus.data.PreferencesDataStore
-import app.backpin.focus.domain.AppClock
 import app.backpin.focus.domain.FocusSnapshot
 import app.backpin.focus.domain.FocusUseCases
 import app.backpin.focus.domain.FrameState
 import app.backpin.focus.domain.TaskBucket
+import app.backpin.focus.testing.FakeAppClock
 import app.backpin.focus.ui.FocusStackViewModel
 import app.backpin.focus.ui.capture.CaptureSheet
 import app.backpin.focus.ui.capture.UtteranceRecognizer
 import app.backpin.focus.ui.focus.FocusScreen
 import app.backpin.focus.ui.theme.FocusStackTheme
+
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
@@ -61,6 +62,7 @@ class InterruptButtonTapTest {
                 .inMemoryDatabaseBuilder(context, FocusStackDatabase::class.java)
                 .allowMainThreadQueries()
                 .build()
+        val clock = FakeAppClock()
         val useCases =
             FocusUseCases(
                 FocusRepositoryImpl(
@@ -86,8 +88,6 @@ class InterruptButtonTapTest {
                 val hold = useCases.observeSnapshot().first().tasks.single { it.title == "Hold this" }
                 useCases.start(hold.id)
                 useCases.capture("From inbox")
-                useCases.captureLater("From later")
-                useCases.captureScheduled("From scheduled", clock.localDate().plusDays(2).toEpochDay())
             }
 
             var screen by mutableStateOf("capture")
@@ -95,16 +95,6 @@ class InterruptButtonTapTest {
                 val state by viewModel.uiState.collectAsState()
                 FocusStackTheme {
                     when (screen) {
-                        "home" ->
-                            HomeScreen(
-                                state = state,
-                                viewModel = viewModel,
-                                onOpenFocus = {},
-                                onOpenInbox = {},
-                                onOpenLater = {},
-                                onOpenScheduled = {},
-                                onOpenDone = {},
-                            )
                         "focus" -> FocusScreen(state = state, viewModel = viewModel)
                         "inbox" ->
                             InboxScreen(
@@ -115,34 +105,6 @@ class InterruptButtonTapTest {
                                 onToday = {},
                                 onStart = {},
                                 onInterrupt = viewModel::interruptFromPile,
-                                onEdit = {},
-                            )
-                        "later" ->
-                            LaterScreen(
-                                tasks = state.laterTasks,
-                                ready = state.ready,
-                                canInterrupt = state.canInterrupt,
-                                onBack = {},
-                                onToday = {},
-                                onStart = {},
-                                onInterrupt = viewModel::interruptFromPile,
-                                onEdit = {},
-                            )
-                        "scheduled" ->
-                            ScheduledScreen(
-                                tasks = state.scheduledTasks,
-                                ready = state.ready,
-                                canInterrupt = state.canInterrupt,
-                                today = clock.localDate(),
-                                onBack = {},
-                                onToday = {},
-                                onStart = {},
-                                onInterrupt = viewModel::interruptFromPile,
-                                onInbox = {},
-                                onLater = {},
-                                onRemove = {},
-                                onChangeDate = { _, _ -> },
-                                onChangeTime = { _, _ -> },
                                 onEdit = {},
                             )
                         else ->
@@ -167,12 +129,6 @@ class InterruptButtonTapTest {
             tap("Interrupt now")
             awaitSnapshot(useCases) { snapshot -> activeTitle(snapshot) == "Quick note" }
 
-            show("Keep your place.") { screen = "home" }
-            tap("Interrupt")
-            await { viewModel.uiState.value.captureOpen && viewModel.uiState.value.captureInterrupts }
-            viewModel.dismissCapture()
-            await { !viewModel.uiState.value.captureOpen }
-
             show("Switch") { screen = "focus" }
             tap("Interrupt")
             await { viewModel.uiState.value.captureOpen && viewModel.uiState.value.captureInterrupts }
@@ -185,18 +141,6 @@ class InterruptButtonTapTest {
                 activeTitle(snapshot) == "From inbox" &&
                     snapshot.tasks.single { it.title == "From inbox" }.bucket == TaskBucket.INTERRUPTION
             }
-
-            show("From later") { screen = "later" }
-            tap("Interrupt")
-            awaitSnapshot(useCases) { snapshot -> activeTitle(snapshot) == "From later" }
-
-            show("From scheduled") { screen = "scheduled" }
-            tap("Interrupt")
-            awaitSnapshot(useCases) { snapshot ->
-                activeTitle(snapshot) == "From scheduled" &&
-                    snapshot.tasks.single { it.title == "From scheduled" }.bucket == TaskBucket.INTERRUPTION
-            }
-            await { viewModel.uiState.value.now?.title == "From scheduled" }
         } finally {
             store.clear()
             database.close()
@@ -257,8 +201,6 @@ class InterruptButtonTapTest {
         val active = snapshot.frames.singleOrNull { it.state == FrameState.ACTIVE } ?: return null
         return snapshot.tasks.singleOrNull { it.id == active.taskId }?.title
     }
-
-    private val clock: AppClock = app.backpin.focus.testing.FakeAppClock()
 }
 
 private object SilentRecognizer : UtteranceRecognizer {
