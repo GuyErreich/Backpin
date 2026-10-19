@@ -211,20 +211,20 @@ class DeriveFocusUiTest {
     @Test
     fun aFreshCaptureOnAFullTodayStillListsReplaceChoices() {
         val notes = task("notes", "Write the notes", TaskBucket.TODAY)
+        val incoming = task("incoming", "Call the school", TaskBucket.INBOX)
         val state =
-            deriveFocusUi(
-                FocusSnapshot(tasks = listOf(notes)),
+            datedFocusUi(
+                FocusSnapshot(tasks = listOf(notes, incoming)),
                 ChromeState(
                     captureOpen = false,
-                    swapIncomingId = null,
-                    freshSwapTitle = "Call the school",
+                    swapIncomingId = "incoming",
                     switchOpen = false,
                     undo = null,
                     preferences = UserPreferences(todayLimit = 1),
                 ),
             )
-        assertEquals("Call the school", state.freshSwapTitle)
-        assertNull(state.swapIncoming)
+        assertEquals("Call the school", state.swapIncoming?.title)
+        assertEquals("incoming", state.swapIncoming?.id)
         assertEquals(listOf("Write the notes"), state.swapChoices.map { it.title })
     }
 
@@ -233,7 +233,7 @@ class DeriveFocusUiTest {
         val open = task("open", "Buy milk", TaskBucket.INBOX)
         val done = task("done", "Old work", TaskBucket.INBOX, status = TaskStatus.DONE)
         val shown =
-            deriveFocusUi(
+            datedFocusUi(
                 FocusSnapshot(tasks = listOf(open, done)),
                 ChromeState(
                     captureOpen = false,
@@ -246,7 +246,7 @@ class DeriveFocusUiTest {
             )
         assertEquals("Buy milk", shown.editing?.title)
         val hidden =
-            deriveFocusUi(
+            datedFocusUi(
                 FocusSnapshot(tasks = listOf(open, done)),
                 ChromeState(
                     captureOpen = false,
@@ -263,7 +263,7 @@ class DeriveFocusUiTest {
     @Test
     fun captureReasonAndPhrasesStayOnTheSheetState() {
         val state =
-            deriveFocusUi(
+            datedFocusUi(
                 FocusSnapshot(),
                 ChromeState(
                     captureOpen = true,
@@ -286,7 +286,7 @@ class DeriveFocusUiTest {
         snapshot: FocusSnapshot,
         undo: PendingUndo? = null,
         preferences: UserPreferences = UserPreferences(),
-        localDate: LocalDate = LocalDate.of(2026, 9, 27),
+        localDate: LocalDate = app.backpin.focus.testing.FakeAppClock().localDate(),
     ): FocusUiState =
         deriveFocusUi(
             snapshot,
@@ -298,7 +298,21 @@ class DeriveFocusUiTest {
                 preferences = preferences,
             ),
             localDate = localDate,
+            localTime = app.backpin.focus.testing.FakeAppClock().localTime(),
         )
+
+    private fun datedFocusUi(
+        snapshot: FocusSnapshot,
+        chrome: ChromeState,
+    ): FocusUiState {
+        val clock = app.backpin.focus.testing.FakeAppClock()
+        return deriveFocusUi(
+            snapshot,
+            chrome,
+            localDate = clock.localDate(),
+            localTime = clock.localTime(),
+        )
+    }
 
     private fun task(
         id: String,

@@ -161,6 +161,7 @@ private fun ActiveCard(
                         now.countdownIntervalDays,
                         state.preferences.lastCountdownDays,
                     ),
+                today = viewModel.localDate(),
                 onDetach = viewModel::detachEvent,
             ) { onCountDownAgain ->
                 CardActions {
@@ -269,6 +270,7 @@ private fun TimeInFocus(
 }
 
 @Composable
+@Suppress("ktlint:standard:indent")
 private fun ReturnNoteField(
     taskId: String,
     cue: String,
@@ -311,4 +313,3 @@ private fun ReturnNoteField(
         keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus(force = true) }),
     )
 }
-

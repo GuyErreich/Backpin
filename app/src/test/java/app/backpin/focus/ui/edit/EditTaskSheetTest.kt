@@ -101,8 +101,8 @@ class EditTaskSheetTest {
         show()
         tap("Schedule")
         tap("Tomorrow")
-        val tomorrow = LocalDate.now().plusDays(1).toEpochDay()
-        assertEquals(listOf(EditCommit("Hold this", CapturePlace.SCHEDULE, tomorrow)), saved.toList())
+        val tomorrow: LocalDate = clock.localDate().plusDays(1)
+        assertEquals(listOf(EditCommit("Hold this", CapturePlace.SCHEDULE, tomorrow.toEpochDay())), saved.toList())
         assertEquals(1, dismissed)
     }
 
@@ -159,7 +159,7 @@ class EditTaskSheetTest {
             FocusStackTheme {
                 CaptureSheet(
                     phrases = listOf("Talk to my wife", "Talk to <name>"),
-                    frameActive = true,
+                    frameActive = true, today = clock.localDate(),
                     onDismiss = { dismissed += 1 },
                     onSaveToInbox = {},
                     onInterruptNow = {},
@@ -195,6 +195,8 @@ class EditTaskSheetTest {
         val place: CapturePlace?,
         val scheduledEpochDay: Long?,
     )
+
+    private val clock = app.backpin.focus.testing.FakeAppClock()
 
     private object SilentRecognizer : UtteranceRecognizer {
         override fun available(): Boolean = false
