@@ -12,7 +12,7 @@ import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.graphics.Color
 import app.backpin.focus.domain.ThemeId
 
-/** Soft fill behind a default accent choice, matching the old lavender container. */
+/** Soft fill behind a default accent choice, matching the Now container. */
 internal const val CHOICE_FILL_ALPHA = 0x40 / 255f
 
 /** The twelve color roles every theme fills. */

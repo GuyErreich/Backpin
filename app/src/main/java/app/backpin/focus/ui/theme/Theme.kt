@@ -26,11 +26,11 @@ object FocusColors {
     val OnMint: Color get() = signalPalette.onAccent
     val Amber: Color get() = signalPalette.missed
     val OnAmber: Color get() = signalPalette.onAccent
-    val Lavender: Color get() = signalPalette.now
-    val OnLavender: Color get() = signalPalette.onAccent
+    val Now: Color get() = signalPalette.now
+    val OnNow: Color get() = signalPalette.onAccent
 
-    /** Soft fill for the default lavender choice, such as Again in N days. */
-    val LavenderContainer: Color get() = signalPalette.now.copy(alpha = CHOICE_FILL_ALPHA)
+    /** Soft fill for the default now choice, such as Again in N days. */
+    val NowContainer: Color get() = signalPalette.now.copy(alpha = CHOICE_FILL_ALPHA)
     val Outline: Color get() = signalPalette.outline
     val Danger: Color get() = signalPalette.danger
 
@@ -72,17 +72,17 @@ object FocusColors {
             @Composable
             @ReadOnlyComposable
             get() = LocalFocusPalette.current.onAccent
-        val Lavender: Color
+        val Now: Color
             @Composable
             @ReadOnlyComposable
             get() = LocalFocusPalette.current.now
-        val OnLavender: Color
+        val OnNow: Color
             @Composable
             @ReadOnlyComposable
             get() = LocalFocusPalette.current.onAccent
 
-        /** Soft fill for the default lavender choice, such as Again in N days. */
-        val LavenderContainer: Color
+        /** Soft fill for the default now choice, such as Again in N days. */
+        val NowContainer: Color
             @Composable
             @ReadOnlyComposable
             get() = LocalFocusPalette.current.now.copy(alpha = CHOICE_FILL_ALPHA)

@@ -231,7 +231,7 @@ private fun NowCard(
     val recovery = state.recovery
     when {
         now != null -> {
-            val accent = FocusColors.Live.Lavender
+            val accent = FocusColors.Live.Now
             val label = nowLabel(now)
             val openInteraction = rememberPressSource()
             val bringBackLabel = stringResource(R.string.action_bring_back)
@@ -801,10 +801,10 @@ private fun compactTrailing(
     pinnedToToday: Boolean,
 ): CompactTrailing {
     if (layout == HomeLayout.FLAT) {
-        return CompactTrailing("›", FocusColors.Live.Lavender)
+        return CompactTrailing("›", FocusColors.Live.Now)
     }
     if (pinnedToToday) {
-        return CompactTrailing(stringResource(R.string.home_task_pin, todayLimit), FocusColors.Live.Lavender)
+        return CompactTrailing(stringResource(R.string.home_task_pin, todayLimit), FocusColors.Live.Now)
     }
     val minute = task.scheduledAtMinuteOfDay
     if (minute != null) {

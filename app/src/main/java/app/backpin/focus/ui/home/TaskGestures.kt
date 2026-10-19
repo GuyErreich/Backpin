@@ -108,8 +108,8 @@ internal fun startSwipe(onStart: () -> Unit): SwipeSide = SwipeSide(
 internal fun interruptSwipe(onInterrupt: () -> Unit): SwipeSide = SwipeSide(
     label = "Interrupt",
     accessibilityLabel = "Interrupt",
-    tint = FocusColors.Live.Lavender,
-    onTint = FocusColors.Live.OnLavender,
+    tint = FocusColors.Live.Now,
+    onTint = FocusColors.Live.OnNow,
     onCommit = onInterrupt,
 )
 

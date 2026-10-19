@@ -122,7 +122,7 @@ private fun ActiveCard(
 ) {
     val now = state.now ?: return
     val label = nowLabel(now)
-    val accent = FocusColors.Live.Lavender
+    val accent = FocusColors.Live.Now
     Surface(
         modifier =
             Modifier
@@ -203,12 +203,12 @@ internal fun RecoveryCard(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(CardRadius),
         color = FocusColors.Live.Surface,
-        border = BorderStroke(2.dp, FocusColors.Live.Lavender),
+        border = BorderStroke(2.dp, FocusColors.Live.Now),
     ) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(Space * 2)) {
             Text(
                 "BEFORE THIS",
-                color = FocusColors.Live.Lavender,
+                color = FocusColors.Live.Now,
                 style = MaterialTheme.typography.labelLarge,
                 letterSpacing = 1.2.sp,
             )
