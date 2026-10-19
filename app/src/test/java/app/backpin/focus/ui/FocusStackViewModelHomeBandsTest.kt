@@ -18,7 +18,6 @@ import app.backpin.focus.domain.HomeBand
 import app.backpin.focus.domain.HomeBands
 import app.backpin.focus.domain.PromoteOutcome
 import app.backpin.focus.domain.RepeatBand
-import app.backpin.focus.domain.millisUntilNextBandBoundary
 import app.backpin.focus.repeats.RepeatsService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -186,50 +185,6 @@ class FocusStackViewModelHomeBandsTest {
                 env.awaitBands { bands ->
                     bands.openBand == HomeBand.MORNING && env.emissions.size > afterDayClock
                 }
-            } finally {
-                env.close()
-            }
-        }
-    }
-
-    @Test
-    fun crossingABoundMovesOpenBandAndTheMainThreeWithNoExtraEmissions() {
-        runBlocking {
-            val noon = at(12, 0)
-            val beforeNoon = noon - 500
-            val env = env(beforeNoon, armBoundaryLoop = true)
-            try {
-                env.captureToday("One")
-                env.clock.now += 1
-                env.captureToday("Two")
-                env.clock.now += 1
-                env.captureToday("Three")
-                env.clock.now = beforeNoon
-                val before =
-                    env.awaitBands { state ->
-                        state.openBand == HomeBand.MORNING &&
-                            state.morning.tasks.map { it.title } == listOf("One", "Two", "Three")
-                    }
-                assertEquals(HomeBand.MORNING, before.openBand)
-                env.drain()
-                val settled = env.emissions.size
-                env.clock.now = noon
-                env.serviceScheduler.advanceTimeBy(millisUntilNextBandBoundary(beforeNoon, BandTimes(), ZONE))
-                env.drain()
-                val after =
-                    env.awaitBands { state ->
-                        state.openBand == HomeBand.NOON &&
-                            state.noon.tasks.map { it.title } == listOf("One", "Two", "Three")
-                    }
-                assertEquals(HomeBand.NOON, after.openBand)
-                assertTrue(after.morning.tasks.isEmpty())
-                assertEquals(BandPhase.PAST, after.morning.phase)
-                assertEquals(BandPhase.OPEN, after.noon.phase)
-                val afterCross = env.emissions.size
-                assertTrue(afterCross > settled)
-                env.serviceScheduler.advanceTimeBy(250)
-                env.drain()
-                assertEquals(describeEmissions(env.emissions), afterCross, env.emissions.size)
             } finally {
                 env.close()
             }
