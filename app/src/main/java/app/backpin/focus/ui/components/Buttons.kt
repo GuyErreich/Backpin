@@ -348,8 +348,11 @@ internal fun CaptureChoice(
 }
 
 /**
- * Penpot Button/Primary: solid mint fill, dark label. Sheet Save and Capture reuse this.
- * Same 56dp sheet height and no press-scale as [CaptureChoice], so a tap is not lost.
+ * Penpot Button/Primary: solid mint fill, dark label. The one filled primary per screen
+ * (sheet Save, Capture Save to Inbox). Same 56dp sheet height and no press-scale as
+ * [CaptureChoice], so a tap is not lost. Refuses focus so the keyboard does not resize
+ * the sheet between down and up — keep that for IME taps; keyboard users reach Save via
+ * the field's Done action.
  */
 @Composable
 internal fun PrimaryButton(
