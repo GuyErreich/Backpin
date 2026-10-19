@@ -313,9 +313,5 @@ class FocusStackViewModelHomeBandsTest {
             minute: Int,
             day: LocalDate = DAY,
         ): Long = day.atTime(hour, minute).atZone(ZONE).toInstant().toEpochMilli()
-
-        fun describeEmissions(emissions: List<HomeBands>): String = emissions.mapIndexed { index, bands ->
-            "$index:${bands.openBand}/m${bands.morning.tasks.size}/n${bands.noon.tasks.size}"
-        }.joinToString(separator = ",")
     }
 }
