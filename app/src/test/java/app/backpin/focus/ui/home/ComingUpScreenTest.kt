@@ -49,7 +49,8 @@ class ComingUpScreenTest {
         useTestFocus { fixture ->
             val today = fixture.clock.localDate()
             runBlocking {
-                fixture.useCases.captureLater("Parked later")
+                val parked = fixture.useCases.capture("Parked later")!!
+                fixture.useCases.demote(parked)
                 fixture.useCases.captureScheduled("Book the room", today.plusDays(30).toEpochDay())
                 fixture.useCases.captureCountdown("Dentist", today.plusDays(2).toEpochDay())
                 fixture.useCases.captureScheduled("File the form", today.plusDays(4).toEpochDay())

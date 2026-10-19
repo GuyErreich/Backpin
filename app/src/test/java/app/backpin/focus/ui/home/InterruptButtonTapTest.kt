@@ -110,15 +110,13 @@ class InterruptButtonTapTest {
                         else ->
                             CaptureSheet(
                                 phrases = emptyList(),
-                                frameActive = state.now != null,
-                                today = clock.localDate(),
                                 onDismiss = {},
                                 onSaveToInbox = viewModel::saveToInbox,
                                 onInterruptNow = viewModel::interruptNow,
                                 onPlaceToday = viewModel::placeOnToday,
                                 onPlaceStart = viewModel::placeAndStart,
-                                onPlaceLater = viewModel::placeLater,
-                                onSchedule = viewModel::placeScheduled,
+                                interrupts = true,
+                                pausedTitle = state.now?.title,
                                 recognizer = SilentRecognizer,
                             )
                     }
@@ -126,7 +124,7 @@ class InterruptButtonTapTest {
             }
             await { viewModel.uiState.value.now != null }
             compose.onNode(hasSetTextAction()).performTextInput("Quick note")
-            tap("Interrupt now")
+            tap("Interrupt · do this now")
             awaitSnapshot(useCases) { snapshot -> activeTitle(snapshot) == "Quick note" }
 
             show("Switch") { screen = "focus" }

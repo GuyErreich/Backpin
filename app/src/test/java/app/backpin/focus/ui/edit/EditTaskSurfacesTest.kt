@@ -348,17 +348,10 @@ class EditTaskSurfacesTest {
         state.editing?.let { editing ->
             CaptureSheet(
                 phrases = emptyList(),
-                frameActive = state.now != null,
-                today = viewModel.localDate(),
                 onDismiss = viewModel::dismissEdit,
-                onSaveToInbox = {},
-                onInterruptNow = {},
-                onPlaceToday = {},
-                onPlaceStart = {},
-                onPlaceLater = {},
-                onSchedule = { _, _, _ -> },
                 edit =
                 CaptureEdit(
+                    taskId = editing.id,
                     title = editing.title,
                     place = editing.place,
                     scheduledEpochDay = editing.scheduledOnEpochDay,
@@ -409,7 +402,8 @@ class EditTaskSurfacesTest {
             useCases.capture("Park me")
             useCases.promote(idOf(useCases, "Park me"))
             useCases.capture("From inbox")
-            useCases.captureLater("From later")
+            val laterId = useCases.capture("From later")!!
+            useCases.demote(laterId)
             useCases.captureScheduled("From scheduled", clock.localDate().plusDays(3).toEpochDay())
             useCases.captureCountdown("From countdown", clock.localDate().plusDays(12).toEpochDay())
             useCases.capture("From done")

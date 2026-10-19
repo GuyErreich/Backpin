@@ -12,7 +12,6 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -45,30 +44,30 @@ class CaptureSheetBackTest {
     }
 
     @Test
-    fun scheduleOffersTomorrowInSevenDaysAndPickADate() {
+    fun captureButtonsMatchSaveHeightAndTheWhenRow() {
         show()
-        typeTitle("Call Dana")
-        tap("Schedule")
-        compose.onNodeWithText("When should it come back?").assertExists()
-        compose.onNodeWithText("Tomorrow").assertExists()
-        compose.onNodeWithText("In 7 days").assertExists()
-        compose.onNodeWithText("Pick a date").assertExists()
-        compose.onNodeWithText("In a couple of days").assertDoesNotExist()
-        compose.onNodeWithText("Next week").assertDoesNotExist()
-        compose.onNodeWithText("Schedule for", substring = true).assertDoesNotExist()
-        compose.onNodeWithText("Add a time").assertDoesNotExist()
-        compose.onNodeWithText("Change date").assertDoesNotExist()
-        assertEquals(listOf("Tomorrow", "In 7 days", "Pick a date"), labelsTopToBottom("Tomorrow", "In 7 days", "Pick a date"))
-    }
-
-    @Test
-    fun captureButtonsAreTallAndSpacedApart() {
-        show()
-        val destinations = listOf("Save to Inbox", "Today", "Start", "Interrupt now", "Later", "Schedule")
-        assertTallAndSpaced(destinations)
-        typeTitle("Call Dana")
-        tap("Schedule")
-        assertTallAndSpaced(listOf("Tomorrow", "In 7 days", "Pick a date"))
+        compose.onNodeWithText("OR, WHEN?").assertExists()
+        compose.onNodeWithText("One line. Choose where it goes…").assertDoesNotExist()
+        compose.onNodeWithText("Later").assertDoesNotExist()
+        compose.onNodeWithText("Schedule").assertDoesNotExist()
+        compose.onNodeWithText("Interrupt now").assertDoesNotExist()
+        compose.onNodeWithText("Repeat").assertDoesNotExist()
+        val save = compose.onNodeWithText("Save to Inbox").getBoundsInRoot()
+        assertTrue("Save to Inbox is ${save.bottom - save.top} tall", save.bottom - save.top >= 56.dp - Slack)
+        val today = compose.onNodeWithText("Today").getBoundsInRoot()
+        val startNow = compose.onNodeWithText("Start now").getBoundsInRoot()
+        val bringBack = compose.onNodeWithText("Bring back…").getBoundsInRoot()
+        listOf("Today" to today, "Start now" to startNow, "Bring back…" to bringBack).forEach { (label, rect) ->
+            val height = rect.bottom - rect.top
+            assertTrue("$label is $height tall", height >= 48.dp - Slack && height <= 48.dp + Slack)
+        }
+        assertTrue("Today and Start now share a row", kotlin.math.abs((today.top - startNow.top).value) <= 0.5f)
+        assertTrue("Start now and Bring back share a row", kotlin.math.abs((startNow.top - bringBack.top).value) <= 0.5f)
+        val todayWidth = today.right - today.left
+        val startWidth = startNow.right - startNow.left
+        val bringWidth = bringBack.right - bringBack.left
+        assertTrue("When-row widths match", kotlin.math.abs((todayWidth - startWidth).value) <= 1f)
+        assertTrue("When-row widths match", kotlin.math.abs((startWidth - bringWidth).value) <= 1f)
     }
 
     private fun walkEveryStep(goBack: () -> Unit) {
@@ -84,31 +83,11 @@ class CaptureSheetBackTest {
         assertArrow(CLOSE)
 
         tap("Talk to my wife")
-        compose.onNodeWithText("Where does this go?").assertExists()
-        assertArrow(BACK)
-        goBack()
+        compose.onNode(hasSetTextAction() and hasText("Talk to my wife")).assertExists()
         compose.onNodeWithText("Where does this go?").assertDoesNotExist()
-        compose.onNode(hasSetTextAction()).assertExists()
         assertArrow(CLOSE)
-
-        tap("Talk to my wife")
-        tap("Schedule")
-        compose.onNodeWithText("When should it come back?").assertExists()
-        assertArrow(BACK)
-        goBack()
-        compose.onNodeWithText("Where does this go?").assertExists()
-        goBack()
-        compose.onNodeWithText("Talk to …").assertExists()
-
-        typeTitle("Call Dana")
-        tap("Schedule")
-        compose.onNodeWithText("When should it come back?").assertExists()
-        goBack()
-        compose.onNodeWithText("When should it come back?").assertDoesNotExist()
-        compose.onNode(hasSetTextAction() and hasText("Call Dana")).assertExists()
         assertEquals(0, dismissed)
 
-        assertArrow(CLOSE)
         goBack()
         assertEquals(1, dismissed)
     }
@@ -124,19 +103,6 @@ class CaptureSheetBackTest {
         assertTrue("The arrow sits left of the heading", arrow.right <= heading.left)
         assertTrue("The arrow has a 48dp target", arrow.bottom - arrow.top >= 48.dp - Slack)
     }
-
-    private fun assertTallAndSpaced(labels: List<String>) {
-        val bounds = labels.map { compose.onNodeWithText(it).getBoundsInRoot() }.sortedBy { it.top }
-        bounds.forEachIndexed { index, rect ->
-            assertTrue("${labels[index]} is ${rect.bottom - rect.top} tall", rect.bottom - rect.top >= 56.dp - Slack)
-        }
-        bounds.zipWithNext { above, below ->
-            assertTrue("Gap is ${below.top - above.bottom}", below.top - above.bottom >= 12.dp - Slack)
-        }
-    }
-
-    private fun labelsTopToBottom(vararg labels: String): List<String> =
-        labels.sortedBy { compose.onNodeWithText(it).getBoundsInRoot().top.value }
 
     private fun tapArrow() {
         val label = if (compose.onAllNodes(hasContentDescription(BACK)).fetchSemanticsNodes().isNotEmpty()) BACK else CLOSE
@@ -155,23 +121,16 @@ class CaptureSheetBackTest {
             FocusStackTheme {
                 CaptureSheet(
                     phrases = listOf("Talk to my wife", "Talk to <name>"),
-                    frameActive = true,
-                    today = app.backpin.focus.testing.FakeAppClock().localDate(),
                     onDismiss = { dismissed += 1 },
                     onSaveToInbox = {},
                     onInterruptNow = {},
                     onPlaceToday = {},
                     onPlaceStart = {},
-                    onPlaceLater = {},
-                    onSchedule = { _, _, _ -> },
+                    onBringBack = {},
                     recognizer = SilentRecognizer,
                 )
             }
         }
-    }
-
-    private fun typeTitle(title: String) {
-        compose.onNode(hasSetTextAction()).performTextInput(title)
     }
 
     private fun tap(label: String) {

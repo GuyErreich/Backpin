@@ -4,12 +4,17 @@ package app.backpin.focus.ui.capture
 import android.content.Intent
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -21,14 +26,17 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ModalBottomSheetProperties
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -40,70 +48,71 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import app.backpin.focus.R
 import app.backpin.focus.domain.CapturePlace
-import app.backpin.focus.domain.ScheduleOffset
-import app.backpin.focus.domain.capturePlaces
 import app.backpin.focus.domain.editPlaces
-import app.backpin.focus.domain.scheduleDate
-import app.backpin.focus.ui.calendar.PickDateDialog
-import app.backpin.focus.ui.components.ActionRow
 import app.backpin.focus.ui.components.BACK_LABEL
 import app.backpin.focus.ui.components.BackArrow
 import app.backpin.focus.ui.components.CLOSE_LABEL
 import app.backpin.focus.ui.components.CaptureChoice
 import app.backpin.focus.ui.components.ChoiceTone
 import app.backpin.focus.ui.components.PrimaryButton
+import app.backpin.focus.ui.components.QuietButton
+import app.backpin.focus.ui.components.SecondaryActionRow
+import app.backpin.focus.ui.home.HomeMetrics
 import app.backpin.focus.ui.motion.MotionSpec
+import app.backpin.focus.ui.motion.WithoutRipple
 import app.backpin.focus.ui.motion.motionSpec
+import app.backpin.focus.ui.motion.rememberPressSource
 import app.backpin.focus.ui.motion.rememberReducedMotion
-import app.backpin.focus.ui.repeat.RepeatCaptureChoice
 import app.backpin.focus.ui.theme.ButtonGap
+import app.backpin.focus.ui.theme.ButtonMinHeight
 import app.backpin.focus.ui.theme.ButtonRadius
 import app.backpin.focus.ui.theme.FocusColors
 import app.backpin.focus.ui.theme.Space
-import java.time.LocalDate
 
 private enum class ListenField {
     Title,
     Fill,
 }
 
+private val PhraseChipHeight = 32.dp
+
 /** Prefill for the same sheet in edit mode. [place] is null for a nested interruption. */
 internal data class CaptureEdit(
+    val taskId: String,
     val title: String,
     val place: CapturePlace?,
     val scheduledEpochDay: Long? = null,
 )
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-@Suppress("ktlint:standard:indent")
 internal fun CaptureSheet(
     phrases: List<String>,
-    frameActive: Boolean,
-    today: LocalDate,
     onDismiss: () -> Unit,
-    onSaveToInbox: (String) -> Unit,
-    onInterruptNow: (String) -> Unit,
-    onPlaceToday: (String) -> Unit,
-    onPlaceStart: (String) -> Unit,
-    onPlaceLater: (String) -> Unit,
-    onSchedule: (String, Long, Int?) -> Unit,
+    onSaveToInbox: (String) -> Unit = {},
+    onInterruptNow: (String) -> Unit = {},
+    onPlaceToday: (String) -> Unit = {},
+    onPlaceStart: (String) -> Unit = {},
     edit: CaptureEdit? = null,
     onCommitEdit: ((String, CapturePlace?, Long?) -> Unit)? = null,
     onBringBack: ((String) -> Unit)? = null,
+    onRepeat: ((String, String) -> Unit)? = null,
+    interrupts: Boolean = false,
+    pausedTitle: String? = null,
     recognizer: UtteranceRecognizer? = null,
     onSystemSpeech: ((Intent, (String) -> Unit) -> Unit)? = null,
-    onRepeat: ((String) -> Unit)? = null,
 ) {
     val reducedMotion = rememberReducedMotion()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -115,14 +124,10 @@ internal fun CaptureSheet(
     val title = titleDraft.text
     val fillWord = fillDraft.text
     var activeBlank by remember { mutableStateOf<String?>(null) }
-    var pendingTitle by remember { mutableStateOf<String?>(null) }
-    var schedulingTitle by remember { mutableStateOf<String?>(null) }
-    var scheduleFromPhrase by remember { mutableStateOf(false) }
-    var datePickerOpen by remember { mutableStateOf(false) }
     var selectedPlace by remember(edit) { mutableStateOf(edit?.place) }
-    var selectedDay by remember(edit) { mutableStateOf(edit?.scheduledEpochDay) }
     var editCommitted by remember { mutableStateOf(false) }
     val editing = edit != null
+    val interruptNow = interrupts && !editing
     val focusRequester = remember { FocusRequester() }
     val fillFocusRequester = remember { FocusRequester() }
     val speech =
@@ -149,7 +154,7 @@ internal fun CaptureSheet(
         stopListening()
         val resolved = titleDraft.text.trim().ifEmpty { current.title }
         val place = selectedPlace ?: current.place
-        val day = if (place == CapturePlace.SCHEDULE) selectedDay ?: current.scheduledEpochDay else null
+        val day = if (place == CapturePlace.SCHEDULE) current.scheduledEpochDay else null
         onCommitEdit?.invoke(resolved, place, day)
         onDismiss()
     }
@@ -164,127 +169,59 @@ internal fun CaptureSheet(
         stopListening()
         activeBlank = null
         fillDraft.edit("")
-        pendingTitle = filled
+        titleDraft.edit(filled)
     }
 
-    fun clearSchedulePick() {
-        datePickerOpen = false
-    }
-
-    fun beginSchedule(
-        resolved: String,
-        fromPhrase: Boolean,
-    ) {
-        val trimmed = resolved.trim().ifEmpty { edit?.title.orEmpty() }
-        if (trimmed.isEmpty()) return
-        scheduleFromPhrase = fromPhrase
-        schedulingTitle = trimmed
-        pendingTitle = null
-        activeBlank = null
-        if (editing) selectedPlace = CapturePlace.SCHEDULE
-        clearSchedulePick()
-        stopListening()
-    }
-
-    // Read the title at click time, then call the repository path before stopping
-    // the mic. Stopping first can dispose the sheet and drop the tap.
-    fun placeResolved(
-        place: CapturePlace,
-        resolved: String,
-        fromPhrase: Boolean,
-    ) {
-        val titleText = resolved.trim()
-        if (titleText.isEmpty()) return
-        when (place) {
-            CapturePlace.INBOX -> onSaveToInbox(titleText)
-            CapturePlace.TODAY -> onPlaceToday(titleText)
-            CapturePlace.START -> onPlaceStart(titleText)
-            CapturePlace.INTERRUPT -> {
-                if (!frameActive) return
-                onInterruptNow(titleText)
-            }
-            CapturePlace.LATER -> onPlaceLater(titleText)
-            CapturePlace.SCHEDULE -> {
-                beginSchedule(titleText, fromPhrase)
-                return
-            }
-        }
-        stopListening()
-    }
-
-    fun placePhrase(place: CapturePlace) {
-        placeResolved(place, pendingTitle ?: return, fromPhrase = true)
-    }
-
-    fun chooseRepeat(resolved: String) {
-        val handler = onRepeat ?: return
-        val titleText = resolved.trim()
-        if (titleText.isEmpty()) return
-        handler(titleText)
-        stopListening()
-    }
-
-    fun typedRepeatTitle(): String {
+    fun typedTitle(): String {
         val typed = titleDraft.text.trim()
         val fromBlank = activeBlank?.let { fillPhraseBlank(it, fillDraft.text) }?.trim().orEmpty()
         return typed.ifEmpty { fromBlank }
     }
 
+    fun runWithTitle(place: (String) -> Unit) {
+        val titleText = typedTitle()
+        if (titleText.isEmpty()) return
+        place(titleText)
+        stopListening()
+    }
+
+    fun runPrimary() {
+        if (interruptNow) {
+            runWithTitle(onInterruptNow)
+        } else {
+            runWithTitle(onSaveToInbox)
+        }
+    }
+
     fun placeTyped(place: CapturePlace) {
-        if (editing) {
-            if (place == CapturePlace.SCHEDULE) {
-                val titleText = titleDraft.text.trim().ifEmpty { edit.title }
-                val openBringBack = onBringBack
-                if (openBringBack != null) {
-                    openBringBack(titleText)
-                    return
-                }
-                beginSchedule(titleDraft.text, fromPhrase = false)
-                return
-            }
-            selectedPlace = place
+        if (!editing) return
+        if (place == CapturePlace.SCHEDULE) {
+            val titleText = titleDraft.text.trim().ifEmpty { edit.title }
+            val openBringBack = onBringBack ?: return
+            openBringBack(titleText)
             return
         }
-        // The blank and the destination buttons are on screen together. The words
-        // live in the blank; the title field is still empty. Read the blank before
-        // giving up, or every destination returns without writing.
-        val typed = titleDraft.text.trim()
-        val fromBlank = activeBlank?.let { fillPhraseBlank(it, fillDraft.text) }?.trim().orEmpty()
-        val resolved = typed.ifEmpty { fromBlank }
-        placeResolved(place, resolved, fromPhrase = typed.isEmpty() && fromBlank.isNotEmpty())
+        selectedPlace = place
     }
 
-    fun chooseDate(date: LocalDate) {
-        val resolved = schedulingTitle ?: return
-        if (editing) {
-            selectedPlace = CapturePlace.SCHEDULE
-            selectedDay = date.toEpochDay()
-            commitEditAndClose()
-            return
-        }
-        onSchedule(resolved, date.toEpochDay(), null)
-        dismiss()
+    fun openRepeatFromEdit() {
+        val current = edit ?: return
+        val openRepeat = onRepeat ?: return
+        val titleText = titleDraft.text.trim().ifEmpty { current.title }
+        editCommitted = true
+        stopListening()
+        openRepeat(current.taskId, titleText)
     }
 
-    val atFirstStep = schedulingTitle == null && pendingTitle == null && activeBlank == null
+    val atFirstStep = activeBlank == null
 
-    // One step back: When → Where (for a phrase) or the title, Where → the title,
-    // the phrase blank → the title. From the title it closes the sheet.
     fun stepBack() {
-        val scheduled = schedulingTitle
-        when {
-            scheduled != null -> {
-                if (scheduleFromPhrase) pendingTitle = scheduled
-                schedulingTitle = null
-                clearSchedulePick()
-            }
-            pendingTitle != null -> pendingTitle = null
-            activeBlank != null -> {
-                stopListening()
-                activeBlank = null
-                fillDraft.edit("")
-            }
-            else -> leaveSheet()
+        if (activeBlank != null) {
+            stopListening()
+            activeBlank = null
+            fillDraft.edit("")
+        } else {
+            leaveSheet()
         }
     }
 
@@ -300,145 +237,123 @@ internal fun CaptureSheet(
         properties = ModalBottomSheetProperties(shouldDismissOnBackPress = false),
     ) {
         BackHandler(onBack = ::stepBack)
-        val scheduling = schedulingTitle
-        val placing = pendingTitle
         val sheetGap = if (editing) ButtonGap else Space
         Column(
             modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .then(if (editing) Modifier else Modifier.fillMaxHeight())
-                    .padding(horizontal = 16.dp)
-                    .padding(bottom = 24.dp),
+            Modifier
+                .fillMaxWidth()
+                .then(if (editing) Modifier else Modifier.fillMaxHeight())
+                .padding(horizontal = 16.dp)
+                .padding(bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(sheetGap),
         ) {
             // One scrolling column, not a fixed stack under the title. A finite-height
             // column measures buttons in order and gives every button after Save to
             // Inbox a zero-height hit target once the keyboard has taken the room.
-            // Those taps never reach onClick. Inside the scroll each button keeps
-            // its height, so the visible center is a real click.
-            // Edit wraps the sheet to its fields, like the Figma frame, instead of
-            // stretching to the full window.
             Column(
                 modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .then(
-                            if (editing) {
-                                Modifier
-                            } else {
-                                Modifier
-                                    .weight(1f)
-                                    .verticalScroll(rememberScrollState())
-                            },
-                        ),
+                Modifier
+                    .fillMaxWidth()
+                    .then(
+                        if (editing) {
+                            Modifier
+                        } else {
+                            Modifier
+                                .weight(1f)
+                                .verticalScroll(rememberScrollState())
+                        },
+                    ),
                 verticalArrangement = Arrangement.spacedBy(sheetGap),
             ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                BackArrow(
-                    label = if (atFirstStep) CLOSE_LABEL else BACK_LABEL,
-                    onClick = ::stepBack,
-                    inSheet = true,
-                )
-                Text(
-                    if (editing) "Edit task" else "Get it out of your head.",
-                    style = MaterialTheme.typography.headlineMedium,
-                    modifier = Modifier.weight(1f).semantics { heading() },
-                )
-            }
-            when {
-                scheduling != null -> {
-                    ScheduleFields(title = scheduling)
-                }
-                placing != null -> {
-                    Text(placing, style = MaterialTheme.typography.headlineMedium)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    BackArrow(
+                        label = if (atFirstStep) CLOSE_LABEL else BACK_LABEL,
+                        onClick = ::stepBack,
+                        inSheet = true,
+                    )
                     Text(
-                        "Where does this go?",
-                        style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.semantics { heading() },
+                        when {
+                            editing -> stringResource(R.string.capture_edit_heading)
+                            interruptNow -> stringResource(R.string.capture_interrupt_heading)
+                            else -> stringResource(R.string.capture_heading)
+                        },
+                        style = MaterialTheme.typography.headlineMedium,
+                        modifier = Modifier.weight(1f).semantics { heading() },
                     )
                 }
-                else -> {
-                    if (!editing && phrases.isNotEmpty()) {
-                        ActionRow {
-                            phrases.forEach { phrase ->
-                                key(phrase) {
-                                    CaptureChoice(
-                                        label = phraseChipLabel(phrase),
-                                        onClick = {
-                                            stopListening()
-                                            when (val action = phraseChipAction(phrase)) {
-                                                is PhraseChipAction.AskFill -> {
-                                                    activeBlank = phrase
-                                                    fillDraft.edit("")
-                                                    pendingTitle = null
-                                                }
-                                                is PhraseChipAction.AskPlace -> {
-                                                    activeBlank = null
-                                                    fillDraft.edit("")
-                                                    pendingTitle = action.title
-                                                }
+                if (!editing && phrases.isNotEmpty()) {
+                    FlowRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        phrases.forEach { phrase ->
+                            key(phrase) {
+                                PhraseChip(
+                                    label = phraseChipLabel(phrase),
+                                    onClick = {
+                                        stopListening()
+                                        when (val action = phraseChipAction(phrase)) {
+                                            is PhraseChipAction.AskFill -> {
+                                                activeBlank = phrase
+                                                fillDraft.edit("")
                                             }
-                                        },
-                                    )
-                                }
+                                            is PhraseChipAction.AskPlace -> {
+                                                activeBlank = null
+                                                fillDraft.edit("")
+                                                titleDraft.edit(action.title)
+                                            }
+                                        }
+                                    },
+                                )
                             }
                         }
                     }
-                    activeBlank?.let { template ->
-                        val prompt = phrasePrompt(template) ?: "word"
-                        OutlinedTextField(
-                            value = fillWord,
-                            onValueChange = { incoming ->
-                                if (speech.isListening(ListenField.Fill)) return@OutlinedTextField
-                                fillDraft.edit(incoming)
-                            },
-                            modifier = Modifier.fillMaxWidth().focusRequester(fillFocusRequester),
-                            label = { Text(prompt) },
-                            placeholder = { Text(prompt) },
-                            singleLine = true,
-                            trailingIcon = {
-                                SpeakMic(
-                                    listening = speech.isListening(ListenField.Fill),
-                                    reducedMotion = reducedMotion,
-                                    contentDescription =
-                                        if (speech.isListening(ListenField.Fill)) {
-                                            "Stop listening"
-                                        } else {
-                                            "Speak the missing word"
-                                        },
-                                    onClick = { speech.toggle(ListenField.Fill) },
-                                )
-                            },
-                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                            keyboardActions = KeyboardActions(onDone = { commitFill() }),
-                        )
-                        LaunchedEffect(fillFocusRequester) {
-                            fillFocusRequester.requestFocus()
-                        }
-                        fillPhraseBlank(template, fillWord)?.let { preview ->
-                            Text(preview, style = MaterialTheme.typography.bodyLarge, color = FocusColors.Live.Text)
-                        }
-                        CaptureChoice(
-                            label = "Next",
-                            onClick = { commitFill() },
-                            enabled = fillPhraseBlank(template, fillWord) != null,
-                        )
-                    }
-                    if (!editing) {
-                        Text(
-                            "One line. Choose where it goes. Speaking only fills the title.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = FocusColors.Live.Text,
-                        )
-                    }
                 }
-            }
-            if (scheduling == null && placing == null) {
+                activeBlank?.let { template ->
+                    val prompt = phrasePrompt(template) ?: stringResource(R.string.capture_phrase_word)
+                    OutlinedTextField(
+                        value = fillWord,
+                        onValueChange = { incoming ->
+                            if (speech.isListening(ListenField.Fill)) return@OutlinedTextField
+                            fillDraft.edit(incoming)
+                        },
+                        modifier = Modifier.fillMaxWidth().focusRequester(fillFocusRequester),
+                        label = { Text(prompt) },
+                        placeholder = { Text(prompt) },
+                        singleLine = true,
+                        trailingIcon = {
+                            SpeakMic(
+                                listening = speech.isListening(ListenField.Fill),
+                                reducedMotion = reducedMotion,
+                                contentDescription =
+                                if (speech.isListening(ListenField.Fill)) {
+                                    stringResource(R.string.capture_stop_listening)
+                                } else {
+                                    stringResource(R.string.capture_speak_missing_word)
+                                },
+                                onClick = { speech.toggle(ListenField.Fill) },
+                            )
+                        },
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                        keyboardActions = KeyboardActions(onDone = { commitFill() }),
+                    )
+                    LaunchedEffect(fillFocusRequester) {
+                        fillFocusRequester.requestFocus()
+                    }
+                    fillPhraseBlank(template, fillWord)?.let { preview ->
+                        Text(preview, style = MaterialTheme.typography.bodyLarge, color = FocusColors.Live.Text)
+                    }
+                    CaptureChoice(
+                        label = stringResource(R.string.capture_phrase_next),
+                        onClick = { commitFill() },
+                        enabled = fillPhraseBlank(template, fillWord) != null,
+                    )
+                }
                 OutlinedTextField(
                     value = title,
                     onValueChange = { incoming ->
@@ -446,40 +361,46 @@ internal fun CaptureSheet(
                         titleDraft.edit(incoming)
                     },
                     modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .focusRequester(focusRequester),
-                    shape = RoundedCornerShape(ButtonRadius),
+                    Modifier
+                        .fillMaxWidth()
+                        .focusRequester(focusRequester),
+                    shape = RoundedCornerShape(8.dp),
                     colors = titleFieldColors(),
-                    label = { Text(if (editing) "Task" else "Title") },
-                    placeholder = { Text("A stray thought") },
+                    label = {
+                        Text(
+                            if (editing) {
+                                stringResource(R.string.capture_field_task)
+                            } else {
+                                stringResource(R.string.capture_field_title)
+                            },
+                        )
+                    },
+                    placeholder = { Text(stringResource(R.string.capture_field_placeholder)) },
                     singleLine = true,
                     trailingIcon = {
                         SpeakMic(
                             listening = speech.isListening(ListenField.Title),
                             reducedMotion = reducedMotion,
                             contentDescription =
-                                if (speech.isListening(ListenField.Title)) {
-                                    "Stop listening"
-                                } else {
-                                    "Speak the title"
-                                },
+                            if (speech.isListening(ListenField.Title)) {
+                                stringResource(R.string.capture_stop_listening)
+                            } else {
+                                stringResource(R.string.capture_speak_title)
+                            },
                             onClick = { speech.toggle(ListenField.Title) },
                         )
                     },
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                     keyboardActions =
-                        KeyboardActions(
-                            onDone = {
-                                if (editing) {
-                                    commitEditAndClose()
-                                } else {
-                                    val resolved = titleDraft.text.trim()
-                                    if (resolved.isNotEmpty()) onSaveToInbox(resolved)
-                                    stopListening()
-                                }
-                            },
-                        ),
+                    KeyboardActions(
+                        onDone = {
+                            if (editing) {
+                                commitEditAndClose()
+                            } else {
+                                runPrimary()
+                            }
+                        },
+                    ),
                 )
                 LaunchedEffect(focusRequester, activeBlank) {
                     if (activeBlank == null) focusRequester.requestFocus()
@@ -487,27 +408,7 @@ internal fun CaptureSheet(
                 speech.note?.let { note ->
                     Text(note, style = MaterialTheme.typography.bodyMedium, color = FocusColors.Live.Muted)
                 }
-            }
-            when {
-                scheduling != null -> {
-                    ScheduleChoices(
-                        today = today,
-                        onDate = ::chooseDate,
-                        onPickDate = { datePickerOpen = true },
-                    )
-                }
-                placing != null -> {
-                    Column(verticalArrangement = Arrangement.spacedBy(ButtonGap)) {
-                        PlaceChoices(
-                            places = capturePlaces(frameActive),
-                            onPlace = ::placePhrase,
-                        )
-                        if (!editing && onRepeat != null) {
-                            RepeatCaptureChoice(onClick = { chooseRepeat(pendingTitle.orEmpty()) })
-                        }
-                    }
-                }
-                editing -> {
+                if (editing) {
                     val bringBackLabel = stringResource(R.string.action_bring_back)
                     PlaceChoices(
                         places = editPlaces().filter { it != CapturePlace.LATER },
@@ -517,37 +418,101 @@ internal fun CaptureSheet(
                         selected = selectedPlace,
                         onPlace = ::placeTyped,
                     )
+                    if (onRepeat != null) {
+                        Text(
+                            text = stringResource(R.string.capture_edit_repeat_subline),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = FocusColors.Live.Muted,
+                        )
+                        RepeatSettingsRow(onClick = ::openRepeatFromEdit)
+                    }
                     PrimaryButton(
                         label = stringResource(R.string.action_save),
                         onClick = ::commitEditAndClose,
                     )
-                }
-                else -> {
-                    Column(verticalArrangement = Arrangement.spacedBy(ButtonGap)) {
-                        PlaceChoices(
-                            places = capturePlaces(frameActive),
-                            labelFor = { it.typedLabel() },
-                            onPlace = ::placeTyped,
+                } else if (interruptNow) {
+                    pausedTitle?.let { nowTitle ->
+                        Text(
+                            text = stringResource(R.string.capture_interrupt_paused, nowTitle),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = FocusColors.Live.Muted,
                         )
-                        if (!editing && onRepeat != null) {
-                            RepeatCaptureChoice(onClick = { chooseRepeat(typedRepeatTitle()) })
+                    }
+                    PrimaryButton(
+                        label = stringResource(R.string.action_interrupt_do_this_now),
+                        onClick = { runWithTitle(onInterruptNow) },
+                    )
+                } else {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        PrimaryButton(
+                            label = stringResource(R.string.action_save_to_inbox),
+                            onClick = { runWithTitle(onSaveToInbox) },
+                        )
+                        Text(
+                            text = stringResource(R.string.capture_or_when),
+                            style = HomeMetrics.Eyebrow,
+                            color = FocusColors.Live.Muted,
+                            modifier = Modifier.padding(top = 16.dp, bottom = 8.dp),
+                        )
+                        SecondaryActionRow {
+                            QuietButton(
+                                label = stringResource(R.string.action_today),
+                                onClick = { runWithTitle(onPlaceToday) },
+                            )
+                            QuietButton(
+                                label = stringResource(R.string.action_start_now),
+                                onClick = { runWithTitle(onPlaceStart) },
+                            )
+                            QuietButton(
+                                label = stringResource(R.string.action_bring_back),
+                                onClick = { onBringBack?.let(::runWithTitle) },
+                            )
                         }
                     }
                 }
             }
-            }
         }
     }
-    if (datePickerOpen) {
-        PickDateDialog(
-            initial = today.plusDays(1),
-            earliest = today,
-            onPick = { date ->
-                datePickerOpen = false
-                chooseDate(date)
-            },
-            onDismiss = { datePickerOpen = false },
-        )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun PhraseChip(
+    label: String,
+    onClick: () -> Unit,
+) {
+    val interaction = rememberPressSource()
+    CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
+        WithoutRipple {
+            Surface(
+                modifier =
+                Modifier
+                    .height(PhraseChipHeight)
+                    .clickable(
+                        interactionSource = interaction,
+                        indication = null,
+                        role = Role.Button,
+                        onClick = onClick,
+                    ),
+                shape = RoundedCornerShape(percent = 50),
+                color = FocusColors.Live.SurfaceHigh,
+            ) {
+                Box(
+                    modifier =
+                    Modifier
+                        .fillMaxHeight()
+                        .padding(horizontal = 14.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = FocusColors.Live.Text,
+                        maxLines = 1,
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -555,7 +520,7 @@ internal fun CaptureSheet(
 private fun PlaceChoices(
     places: List<CapturePlace>,
     onPlace: (CapturePlace) -> Unit,
-    labelFor: (CapturePlace) -> String = { it.label() },
+    labelFor: @Composable (CapturePlace) -> String = { it.label() },
     selected: CapturePlace? = null,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(ButtonGap)) {
@@ -573,60 +538,24 @@ private fun PlaceChoices(
 }
 
 @Composable
-private fun ScheduleFields(title: String) {
-    Text(title, style = MaterialTheme.typography.headlineMedium)
-    Text(
-        "When should it come back?",
-        style = MaterialTheme.typography.bodyLarge,
-        modifier = Modifier.semantics { heading() },
-    )
-    Text(
-        "Without a time, it lands on Today any time that day.",
-        style = MaterialTheme.typography.bodyMedium,
-        color = FocusColors.Live.Muted,
-    )
-}
-
-/**
- * Tomorrow, in 7 days, or the day chosen on the calendar schedules at once, with no time,
- * and closes the sheet. The time is set later on the Scheduled row.
- */
-@Composable
-private fun ScheduleChoices(
-    today: LocalDate,
-    onDate: (LocalDate) -> Unit,
-    onPickDate: () -> Unit,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(ButtonGap)) {
-        CaptureChoice("Tomorrow", onClick = { onDate(scheduleDate(today, ScheduleOffset.TOMORROW)) })
-        CaptureChoice("In 7 days", onClick = { onDate(scheduleDate(today, ScheduleOffset.IN_7_DAYS)) })
-        CaptureChoice("Pick a date", onClick = onPickDate)
-    }
-}
-
 private fun CapturePlace.tone(): ChoiceTone = when (this) {
     CapturePlace.INBOX -> ChoiceTone.Mint
-    CapturePlace.INTERRUPT -> ChoiceTone.Lavender
-    CapturePlace.SCHEDULE -> ChoiceTone.Quiet
     CapturePlace.TODAY,
     CapturePlace.START,
+    CapturePlace.SCHEDULE,
     CapturePlace.LATER,
+    CapturePlace.INTERRUPT,
     -> ChoiceTone.Quiet
 }
 
+@Composable
 private fun CapturePlace.label(): String = when (this) {
-    CapturePlace.INBOX -> "Inbox"
-    CapturePlace.TODAY -> "Today"
-    CapturePlace.START -> "Start"
-    CapturePlace.INTERRUPT -> "Interrupt"
-    CapturePlace.LATER -> "Later"
-    CapturePlace.SCHEDULE -> "Schedule"
-}
-
-private fun CapturePlace.typedLabel(): String = when (this) {
-    CapturePlace.INBOX -> "Save to Inbox"
-    CapturePlace.INTERRUPT -> "Interrupt now"
-    else -> label()
+    CapturePlace.INBOX -> stringResource(R.string.capture_place_inbox)
+    CapturePlace.TODAY -> stringResource(R.string.action_today)
+    CapturePlace.START -> stringResource(R.string.capture_place_start)
+    CapturePlace.SCHEDULE -> stringResource(R.string.action_bring_back)
+    CapturePlace.LATER -> stringResource(R.string.action_later)
+    CapturePlace.INTERRUPT -> stringResource(R.string.action_interrupt)
 }
 
 @Composable
@@ -640,12 +569,53 @@ private fun titleFieldColors() = OutlinedTextFieldDefaults.colors(
     unfocusedLabelColor = FocusColors.Live.Muted,
     focusedPlaceholderColor = FocusColors.Live.Muted,
     unfocusedPlaceholderColor = FocusColors.Live.Muted,
-    focusedContainerColor = Color.Transparent,
-    unfocusedContainerColor = Color.Transparent,
+    focusedContainerColor = FocusColors.Live.Surface,
+    unfocusedContainerColor = FocusColors.Live.Surface,
 )
 
 @Composable
-@Suppress("ktlint:standard:indent")
+private fun RepeatSettingsRow(onClick: () -> Unit) {
+    val interaction = rememberPressSource()
+    val label = stringResource(R.string.action_repeat_row)
+    Surface(
+        modifier =
+        Modifier
+            .fillMaxWidth()
+            .height(ButtonMinHeight)
+            .clickable(
+                interactionSource = interaction,
+                indication = null,
+                role = Role.Button,
+                onClick = onClick,
+            )
+            .semantics { contentDescription = label },
+        shape = RoundedCornerShape(ButtonRadius),
+        color = FocusColors.Live.Surface,
+    ) {
+        Row(
+            modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.titleMedium,
+                color = FocusColors.Live.Text,
+            )
+            Text(
+                text = stringResource(R.string.action_repeat_chevron),
+                style = MaterialTheme.typography.titleMedium,
+                color = FocusColors.Live.Muted,
+                modifier = Modifier.clearAndSetSemantics { },
+            )
+        }
+    }
+}
+
+@Composable
 internal fun SpeakMic(
     listening: Boolean,
     reducedMotion: Boolean,
@@ -660,13 +630,13 @@ internal fun SpeakMic(
     IconButton(
         onClick = onClick,
         modifier =
-            Modifier
-                .size(48.dp)
-                .focusProperties { canFocus = false }
-                .graphicsLayer {
-                    scaleX = scale
-                    scaleY = scale
-                },
+        Modifier
+            .size(48.dp)
+            .focusProperties { canFocus = false }
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            },
     ) {
         Icon(
             painter = painterResource(R.drawable.ic_mic),

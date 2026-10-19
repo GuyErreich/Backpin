@@ -4,13 +4,10 @@ package app.backpin.focus.ui.repeat
 import android.content.Context
 import android.os.Looper
 import androidx.activity.ComponentActivity
-import androidx.compose.ui.test.assertHasClickAction
-import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
 import androidx.lifecycle.ViewModel
@@ -21,10 +18,10 @@ import androidx.test.core.app.ApplicationProvider
 import app.backpin.focus.data.FocusRepositoryImpl
 import app.backpin.focus.data.FocusStackDatabase
 import app.backpin.focus.data.PreferencesDataStore
-import app.backpin.focus.domain.AppClock
 import app.backpin.focus.domain.FocusUseCases
 import app.backpin.focus.repeats.RepeatsService
 import app.backpin.focus.runOffTestThread
+import app.backpin.focus.testing.FakeAppClock
 import app.backpin.focus.ui.FocusApp
 import app.backpin.focus.ui.FocusStackViewModel
 import app.backpin.focus.ui.theme.FocusStackTheme
@@ -44,7 +41,7 @@ class RepeatCaptureFlowTest {
     val compose = createAndroidComposeRule<ComponentActivity>()
 
     @Test
-    fun createCaptureOffersRepeatAndOpensTheRepeatSheet() {
+    fun createCaptureDoesNotOfferRepeat() {
         val env = env()
         try {
             compose.setContent {
@@ -56,18 +53,15 @@ class RepeatCaptureFlowTest {
             env.viewModel.openCapture()
             await { env.viewModel.uiState.value.captureOpen }
             compose.onNode(hasSetTextAction()).performTextInput("Take meds")
-            compose.onNodeWithText("Repeat").performScrollTo()
-            tap("Repeat")
-            await { env.viewModel.editingRepeat.value?.title == "Take meds" }
-            compose.onNodeWithText("A small repeating thing.").assertExists()
-            compose.onNodeWithText("Repeats stay off Today. Checking them off is enough.").assertExists()
+            compose.onNodeWithText("Repeat").assertDoesNotExist()
+            compose.onNodeWithText("A small repeating thing.").assertDoesNotExist()
         } finally {
             env.close()
         }
     }
 
     @Test
-    fun taskEditSheetFromFocusAppDoesNotOfferRepeat() {
+    fun taskEditSheetFromFocusAppOffersRepeatThatOpensTheRepeatSheet() {
         val env = env()
         try {
             val id =
@@ -84,21 +78,13 @@ class RepeatCaptureFlowTest {
             env.viewModel.openEdit(id)
             await { env.viewModel.uiState.value.editing?.id == id }
             compose.onNodeWithText("Edit task").assertExists()
-            compose.onNodeWithText("Repeat").assertDoesNotExist()
-            compose.onNodeWithText("A small repeating thing.").assertDoesNotExist()
+            compose.onNodeWithText("Repeat").assertExists().performTouchInput { click() }
+            await { env.viewModel.editingRepeat.value != null }
+            compose.onNodeWithText("A small repeating thing.").assertExists()
+            compose.onNodeWithText("Water plants").assertExists()
         } finally {
             env.close()
         }
-    }
-
-    private fun tap(label: String) {
-        compose.waitForIdle()
-        val node = compose.onNodeWithText(label)
-        node.performScrollTo()
-        node.assertIsEnabled().assertHasClickAction()
-        node.performTouchInput { click(center) }
-        compose.waitForIdle()
-        shadowOf(Looper.getMainLooper()).idle()
     }
 
     private fun await(predicate: () -> Boolean) {
@@ -116,7 +102,7 @@ class RepeatCaptureFlowTest {
                 .inMemoryDatabaseBuilder(context, FocusStackDatabase::class.java)
                 .allowMainThreadQueries()
                 .build()
-        val clock = AppClock { System.currentTimeMillis() }
+        val clock = FakeAppClock()
         val repository =
             FocusRepositoryImpl(
                 database = database,
