@@ -3,9 +3,14 @@ package app.backpin.focus.ui.home
 
 import android.os.Looper
 import androidx.activity.ComponentActivity
+import androidx.compose.ui.semantics.SemanticsNode
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.ComposeTimeoutException
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.getBoundsInRoot
+import androidx.compose.ui.test.hasAnyDescendant
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
@@ -81,19 +86,54 @@ class HomeFabClearanceTest {
                 compose.waitForIdle()
                 val last = compose.onNodeWithText(lastRepeat, useUnmergedTree = true).getBoundsInRoot()
                 val fab = compose.onNodeWithText(compose.activity.getString(R.string.action_add)).getBoundsInRoot()
-                val snackbarUnmerged = nodes(checkedOff, unmerged = true).isNotEmpty() &&
-                    nodes(checkedOff, unmerged = false).isEmpty()
-                val snackbar =
-                    compose.onNodeWithText(checkedOff, useUnmergedTree = snackbarUnmerged).getBoundsInRoot()
+                val snackbar = snackbarContainer(checkedOff)
                 val snackbarHeight = snackbar.bottom - snackbar.top
                 assertTrue(
-                    "snackbar height $snackbarHeight vs ${HomeMetrics.SnackbarHeight}",
-                    snackbarHeight >= HomeMetrics.SnackbarHeight - 0.5.dp,
+                    "reserved list bottom ${HomeMetrics.ListBottom} vs snackbar container $snackbarHeight",
+                    HomeMetrics.ListBottom >= snackbarHeight - 0.5.dp,
                 )
                 assertTrue("last list item is covered by the FAB", !intersects(last, fab))
-                assertTrue("snackbar is covered by the FAB", !intersects(snackbar, fab))
-                assertTrue("last list item is covered by the snackbar", !intersects(last, snackbar))
+                assertTrue("snackbar container is covered by the FAB", !intersects(snackbar, fab))
+                assertTrue("last list item is covered by the snackbar container", !intersects(last, snackbar))
             }
+        }
+    }
+
+    private fun snackbarContainer(checkedOff: String): DpRect {
+        val liveRegion =
+            SemanticsMatcher.keyIsDefined(SemanticsProperties.LiveRegion) and
+                hasAnyDescendant(hasText(checkedOff))
+        for (unmerged in listOf(false, true)) {
+            val found = compose.onAllNodes(liveRegion, useUnmergedTree = unmerged)
+            if (found.fetchSemanticsNodes().isNotEmpty()) {
+                return found[0].getBoundsInRoot()
+            }
+        }
+        val unmergedOnly =
+            nodes(checkedOff, unmerged = true).isNotEmpty() &&
+                nodes(checkedOff, unmerged = false).isEmpty()
+        var node: SemanticsNode? =
+            compose.onNodeWithText(checkedOff, useUnmergedTree = unmergedOnly).fetchSemanticsNode()
+        val parent = node?.parent
+        while (node != null) {
+            if (node.config.contains(SemanticsProperties.LiveRegion)) {
+                return node.toDpRect()
+            }
+            node = node.parent
+        }
+        return parent?.toDpRect()
+            ?: throw AssertionError("snackbar container missing for $checkedOff")
+    }
+
+    private fun SemanticsNode.toDpRect(): DpRect {
+        val bounds = boundsInRoot
+        return with(compose.density) {
+            DpRect(
+                left = bounds.left.toDp(),
+                top = bounds.top.toDp(),
+                right = bounds.right.toDp(),
+                bottom = bounds.bottom.toDp(),
+            )
         }
     }
 
