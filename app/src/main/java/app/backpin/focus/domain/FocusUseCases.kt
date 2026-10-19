@@ -24,6 +24,10 @@ class FocusUseCases(
 
     suspend fun captureAndStart(title: String): PromoteOutcome = repository.captureAndStart(title)
 
+    suspend fun discardCapture(taskId: String) {
+        repository.discardCapture(taskId)
+    }
+
     suspend fun captureLater(title: String) {
         repository.captureLater(title)
     }
@@ -63,15 +67,6 @@ class FocusUseCases(
         taskId: String,
         destination: DetachDestination,
     ): PromoteOutcome = repository.detachInterruption(taskId, destination)
-
-    suspend fun captureReplacing(
-        title: String,
-        outgoingTaskId: String,
-    ): UndoToken = repository.captureReplacing(title, outgoingTaskId)
-
-    suspend fun interruptWithNew(title: String) {
-        repository.interruptWithNew(title)
-    }
 
     suspend fun moveToInbox(taskId: String) {
         repository.moveToInbox(taskId)
@@ -134,7 +129,7 @@ class FocusUseCases(
         outgoingTaskId: String,
     ): UndoToken = repository.swapIntoToday(incomingTaskId, outgoingTaskId)
 
-    suspend fun start(taskId: String): PromoteOutcome = repository.start(taskId)
+    suspend fun start(taskId: String): StartOutcome = repository.start(taskId)
 
     suspend fun interruptWith(taskId: String) {
         repository.interruptWith(taskId)

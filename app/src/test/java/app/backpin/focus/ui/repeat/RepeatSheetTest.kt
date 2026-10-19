@@ -53,6 +53,7 @@ class RepeatSheetTest {
                 CaptureSheet(
                     phrases = emptyList(),
                     frameActive = false,
+                    today = app.backpin.focus.testing.FakeAppClock().localDate(),
                     onDismiss = {},
                     onSaveToInbox = {},
                     onInterruptNow = {},
@@ -78,6 +79,7 @@ class RepeatSheetTest {
                 CaptureSheet(
                     phrases = emptyList(),
                     frameActive = false,
+                    today = app.backpin.focus.testing.FakeAppClock().localDate(),
                     onDismiss = {},
                     onSaveToInbox = {},
                     onInterruptNow = {},

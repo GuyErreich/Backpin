@@ -35,7 +35,6 @@ import androidx.test.core.app.ApplicationProvider
 import app.backpin.focus.data.FocusRepositoryImpl
 import app.backpin.focus.data.FocusStackDatabase
 import app.backpin.focus.data.PreferencesDataStore
-import app.backpin.focus.domain.AppClock
 import app.backpin.focus.domain.FocusSnapshot
 import app.backpin.focus.domain.FocusUseCases
 import app.backpin.focus.domain.FrameState
@@ -70,6 +69,7 @@ class ResumeChipSheetQaTest {
     val compose = createAndroidComposeRule<ComponentActivity>()
 
     private val context: Context = ApplicationProvider.getApplicationContext()
+    private val clock = app.backpin.focus.testing.FakeAppClock()
 
     @Test
     fun resumeSheetShowsTomorrowIn3DaysNextWeekAndPickADate() {
@@ -104,7 +104,7 @@ class ResumeChipSheetQaTest {
         var liveText by mutableStateOf(Color.Unspecified)
         var liveMuted by mutableStateOf(Color.Unspecified)
         var liveMint by mutableStateOf(Color.Unspecified)
-        val today = LocalDate.now()
+        val today = clock.localDate()
         val suggested = inNDaysLabel(5, today)
         showResumeSheet(
             suggestedDays = 5,
@@ -129,13 +129,14 @@ class ResumeChipSheetQaTest {
 
     @Test
     fun resumeSheetOmitsSuggestedChipWhenDaysAre0Or1Or3Or7() {
-        val today = LocalDate.now()
+        val today = clock.localDate()
         var suggestedDays by mutableStateOf(0)
         compose.setContent {
             FocusStackTheme {
                 ResumeCountdownSheet(
                     title = "Dentist checkup",
                     suggestedDays = suggestedDays,
+                    today = clock.localDate(),
                     onDismiss = {},
                     onCommit = {},
                 )
@@ -179,7 +180,7 @@ class ResumeChipSheetQaTest {
     @Test
     fun resumeSheetIn3DaysCommitsThreeDaysAndStaysOnHome() {
         withViewModel { viewModel, useCases, repository, database ->
-            val today = LocalDate.now()
+            val today = clock.localDate()
             seedArrivedEvent(useCases, repository, database, intervalDays = 180)
             compose.setContent {
                 FocusStackTheme {
@@ -213,9 +214,9 @@ class ResumeChipSheetQaTest {
         showResumeSheet(onCommit = { committed = it })
         assertSheetChip("Pick a date")
         tap("Pick a date")
-        assertTodayCellDisabled(LocalDate.now())
+        assertTodayCellDisabled(clock.localDate())
         tap("OK")
-        assertEquals(LocalDate.now().plusDays(1).toEpochDay(), committed)
+        assertEquals(clock.localDate().plusDays(1).toEpochDay(), committed)
     }
 
     private fun seedArrivedEvent(
@@ -229,7 +230,7 @@ class ResumeChipSheetQaTest {
             val work = useCases.observeSnapshot().first().tasks.single { it.title == "Write the report" }
             useCases.promote(work.id)
             useCases.start(work.id)
-            useCases.captureCountdown("Dentist checkup", LocalDate.now().toEpochDay())
+            useCases.captureCountdown("Dentist checkup", clock.localDate().toEpochDay())
             val dentist = useCases.observeSnapshot().first().tasks.single { it.title == "Dentist checkup" }
             val row = database.taskDao().getById(dentist.id) ?: error("Missing dentist")
             database.taskDao().upsert(row.copy(countdownIntervalDays = intervalDays))
@@ -255,7 +256,7 @@ class ResumeChipSheetQaTest {
             FocusRepositoryImpl(
                 database = database,
                 preferencesStore = PreferencesDataStore(context, "resume-chip-${UUID.randomUUID()}"),
-                clock = AppClock { System.currentTimeMillis() },
+                clock = clock,
             )
         val useCases = FocusUseCases(repository)
         val store = ViewModelStore()
@@ -265,7 +266,7 @@ class ResumeChipSheetQaTest {
                 object : ViewModelProvider.Factory {
                     override fun <T : ViewModel> create(modelClass: Class<T>): T {
                         @Suppress("UNCHECKED_CAST")
-                        return FocusStackViewModel(useCases) as T
+                        return FocusStackViewModel(useCases, clock = clock) as T
                     }
                 },
             )[FocusStackViewModel::class.java]
@@ -291,6 +292,7 @@ class ResumeChipSheetQaTest {
                 ResumeCountdownSheet(
                     title = "Dentist checkup",
                     suggestedDays = suggestedDays,
+                    today = clock.localDate(),
                     onDismiss = {},
                     onCommit = onCommit,
                 )

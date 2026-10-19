@@ -18,6 +18,7 @@ import app.backpin.focus.domain.Repeat
 import app.backpin.focus.domain.RepeatBand
 import app.backpin.focus.domain.RepeatDraft
 import app.backpin.focus.domain.RepeatRowsState
+import app.backpin.focus.domain.StartOutcome
 import app.backpin.focus.domain.SystemAppClock
 import app.backpin.focus.domain.TaskBucket
 import app.backpin.focus.domain.TodaysRepeats
@@ -51,12 +52,15 @@ class FocusStackViewModel(
     private val captureInterrupts = MutableStateFlow(false)
     private val editingTaskId = MutableStateFlow<String?>(null)
     private val swapIncomingId = MutableStateFlow<String?>(null)
-    private val freshSwapTitle = MutableStateFlow<String?>(null)
+    private val freshCaptureSwap = MutableStateFlow(false)
     private val switchOpen = MutableStateFlow(false)
     private val pendingUndo = MutableStateFlow<PendingUndo?>(null)
+    private val startRedirect = MutableStateFlow<StartRedirectUi?>(null)
     private val taskSheetState = MutableStateFlow<TaskSheetUi?>(null)
     private val missedRepeatSheetState = MutableStateFlow<MissedRepeatSheetUi?>(null)
     private val missedTaskSheetState = MutableStateFlow<MissedTaskSheetUi?>(null)
+
+    fun localDate(): LocalDate = clock.localDate()
 
     val uiState: StateFlow<FocusUiState> =
         combine(
@@ -66,13 +70,13 @@ class FocusStackViewModel(
                 captureOpen,
                 captureInterrupts,
                 swapIncomingId,
-                freshSwapTitle,
-            ) { capture, interrupts, swap, fresh ->
+                startRedirect,
+            ) { capture, interrupts, swap, redirect ->
                 CaptureChrome(
                     captureOpen = capture,
                     captureInterrupts = interrupts,
                     swapIncomingId = swap,
-                    freshSwapTitle = fresh,
+                    startRedirect = redirect,
                 )
             },
             combine(switchOpen, pendingUndo, editingTaskId, repeatsApi.observePendingUndo()) { switching, taskUndo, editing, repeatUndo ->
@@ -102,12 +106,14 @@ class FocusStackViewModel(
                     captureOpen = capture.captureOpen,
                     captureInterrupts = capture.captureInterrupts,
                     swapIncomingId = capture.swapIncomingId,
-                    freshSwapTitle = capture.freshSwapTitle,
                     switchOpen = switching,
                     undo = undo,
                     preferences = preferences,
                     editingTaskId = editing,
+                    startRedirect = capture.startRedirect,
                 ),
+                localDate = clock.localDate(),
+                localTime = clock.localTime(),
             )
         }.stateIn(
             viewModelScope,
@@ -397,7 +403,7 @@ class FocusStackViewModel(
     fun tomorrowMissedTask() {
         val id = missedTaskSheetState.value?.taskId ?: return
         dismissMissedTask()
-        scheduleTaskOn(id, LocalDate.now().plusDays(1).toEpochDay())
+        scheduleTaskOn(id, clock.localDate().plusDays(1).toEpochDay())
     }
 
     fun pickDayMissedTask(epochDay: Long) {
@@ -429,8 +435,8 @@ class FocusStackViewModel(
                 CapturePlace.TODAY ->
                     if (task.bucket != TaskBucket.TODAY) {
                         when (useCases.promote(id)) {
-                            is PromoteOutcome.NeedsSwap -> swapIncomingId.value = id
-                            is PromoteOutcome.Promoted -> swapIncomingId.value = null
+                            is PromoteOutcome.NeedsSwap -> beginSwap(id, fresh = false)
+                            is PromoteOutcome.Promoted -> endSwap()
                             is PromoteOutcome.Rejected -> Unit
                         }
                     }
@@ -478,9 +484,10 @@ class FocusStackViewModel(
         viewModelScope.launch {
             val trimmed = title.trim()
             if (trimmed.isEmpty()) return@launch
-            when (useCases.captureIntoToday(trimmed)) {
+            when (val outcome = useCases.captureIntoToday(trimmed)) {
                 is PromoteOutcome.NeedsSwap -> {
-                    freshSwapTitle.value = trimmed
+                    // The capture is already safe in Inbox; Replace and Interrupt place that task.
+                    beginSwap(outcome.incomingTaskId, fresh = true)
                     closeCapture()
                 }
                 is PromoteOutcome.Promoted -> closeCapture()
@@ -497,9 +504,10 @@ class FocusStackViewModel(
         viewModelScope.launch {
             val trimmed = title.trim()
             if (trimmed.isEmpty()) return@launch
-            when (useCases.captureAndStart(trimmed)) {
+            when (val outcome = useCases.captureAndStart(trimmed)) {
                 is PromoteOutcome.NeedsSwap -> {
-                    freshSwapTitle.value = trimmed
+                    // The capture is already safe in Inbox; Replace and Interrupt place that task.
+                    beginSwap(outcome.incomingTaskId, fresh = true)
                     closeCapture()
                 }
                 is PromoteOutcome.Promoted -> closeCapture()
@@ -566,11 +574,11 @@ class FocusStackViewModel(
             val frame = snapshot.frames.firstOrNull { it.taskId == taskId && it.state != FrameState.CLOSED }
             val parent = frame?.parentFrameId?.let { parentId -> snapshot.frames.firstOrNull { it.id == parentId } }
             when (useCases.detachInterruption(taskId, destination)) {
-                is PromoteOutcome.NeedsSwap -> swapIncomingId.value = taskId
+                is PromoteOutcome.NeedsSwap -> beginSwap(taskId, fresh = false)
                 is PromoteOutcome.Promoted -> {
-                    swapIncomingId.value = null
+                    endSwap()
                     if (destination is DetachDestination.Countdown && before != null) {
-                        val today = LocalDate.now()
+                        val today = clock.localDate()
                         val days = countdownIntervalDays(destination.epochDay, today) ?: return@launch
                         offerUndo(
                             backInDaysLabel(days, today),
@@ -622,47 +630,34 @@ class FocusStackViewModel(
         viewModelScope.launch {
             val before = useCases.observeSnapshot().first().tasks.firstOrNull { it.id == taskId }
             when (useCases.promote(taskId)) {
-                is PromoteOutcome.NeedsSwap -> swapIncomingId.value = taskId
+                is PromoteOutcome.NeedsSwap -> beginSwap(taskId, fresh = false)
                 is PromoteOutcome.Promoted -> {
-                    swapIncomingId.value = null
+                    endSwap()
                     if (before != null && before.bucket != TaskBucket.TODAY && before.bucket != TaskBucket.SCHEDULED) {
                         offerUndo("Added to Today", UndoToken(tasks = listOf(before), frames = emptyList()))
                     }
                 }
-                is PromoteOutcome.Rejected -> swapIncomingId.value = null
+                is PromoteOutcome.Rejected -> endSwap()
             }
         }
     }
 
     fun confirmReplace(outgoingTaskId: String) {
-        val fresh = freshSwapTitle.value
-        val incoming = swapIncomingId.value
-        if (fresh == null && incoming == null) return
+        val incoming = swapIncomingId.value ?: return
         viewModelScope.launch {
-            val token =
-                if (fresh != null) {
-                    useCases.captureReplacing(fresh, outgoingTaskId)
-                } else {
-                    useCases.swapIntoToday(incoming ?: return@launch, outgoingTaskId)
-                }
-            freshSwapTitle.value = null
-            swapIncomingId.value = null
+            val token = useCases.swapIntoToday(incoming, outgoingTaskId)
+            endSwap()
             offerUndo("Swapped into Today", token)
         }
     }
 
     fun confirmInterrupt() {
-        val fresh = freshSwapTitle.value
-        val incoming = swapIncomingId.value
-        if (fresh == null && incoming == null) return
+        val incoming = swapIncomingId.value ?: return
         viewModelScope.launch {
-            if (fresh != null) {
-                useCases.interruptWithNew(fresh)
-            } else if (incoming != null) {
-                useCases.interruptWith(incoming)
-            }
-            freshSwapTitle.value = null
-            swapIncomingId.value = null
+            // Fresh captures land in Inbox first; interruptWith keeps the current Today
+            // task paused on Today and nests the incoming task under it.
+            useCases.interruptWith(incoming)
+            endSwap()
         }
     }
 
@@ -695,19 +690,52 @@ class FocusStackViewModel(
         }
     }
 
-    fun cancelSwap() {
-        swapIncomingId.value = null
-        freshSwapTitle.value = null
+    /**
+     * Closes the full-Today dialog and leaves the incoming task where it is.
+     * A fresh capture is already in Inbox; Undo is the only way that one is deleted.
+     */
+    fun keepInInbox() {
+        val incoming = swapIncomingId.value
+        val fresh = freshCaptureSwap.value
+        endSwap()
+        if (fresh && incoming != null) {
+            offerUndo("", UndoTarget.DiscardCapture(incoming))
+        }
     }
+
+    fun cancelSwap() = keepInInbox()
 
     fun start(taskId: String) {
         viewModelScope.launch {
             when (val outcome = useCases.start(taskId)) {
-                is PromoteOutcome.NeedsSwap -> swapIncomingId.value = taskId
-                is PromoteOutcome.Promoted -> swapIncomingId.value = null
-                is PromoteOutcome.Rejected -> swapIncomingId.value = null
+                is PromoteOutcome.NeedsSwap -> {
+                    startRedirect.value = null
+                    beginSwap(taskId, fresh = false)
+                }
+                is PromoteOutcome.Promoted -> {
+                    startRedirect.value = null
+                    endSwap()
+                }
+                is PromoteOutcome.Rejected -> {
+                    startRedirect.value = null
+                    endSwap()
+                }
+                is StartOutcome.RedirectedToInterruption -> {
+                    endSwap()
+                    startRedirect.value =
+                        StartRedirectUi(
+                            interruptionId = outcome.interruptionId,
+                            parentId = outcome.parentId,
+                            interruptionTitle = outcome.interruptionTitle,
+                            parentTitle = outcome.parentTitle,
+                        )
+                }
             }
         }
+    }
+
+    fun dismissStartRedirect() {
+        startRedirect.value = null
     }
 
     fun pause() {
@@ -949,6 +977,7 @@ class FocusStackViewModel(
                 when (val target = pending.target) {
                     is UndoTarget.Tasks -> useCases.undo(target.token)
                     is UndoTarget.RepeatCheckOff -> repeatsApi.undo(id)
+                    is UndoTarget.DiscardCapture -> useCases.discardCapture(target.taskId)
                 }
             }
             return
@@ -1019,11 +1048,24 @@ class FocusStackViewModel(
         offerUndo(message, UndoTarget.Tasks(token))
     }
 
+    private fun beginSwap(
+        incomingId: String,
+        fresh: Boolean,
+    ) {
+        freshCaptureSwap.value = fresh
+        swapIncomingId.value = incomingId
+    }
+
+    private fun endSwap() {
+        swapIncomingId.value = null
+        freshCaptureSwap.value = false
+    }
+
     private data class CaptureChrome(
         val captureOpen: Boolean,
         val captureInterrupts: Boolean,
         val swapIncomingId: String?,
-        val freshSwapTitle: String?,
+        val startRedirect: StartRedirectUi?,
     )
 }
 
