@@ -76,6 +76,11 @@ class HomeFabClearanceTest {
                     nodes(checkedOff, unmerged = false).isEmpty()
                 val snackbar =
                     compose.onNodeWithText(checkedOff, useUnmergedTree = snackbarUnmerged).getBoundsInRoot()
+                val snackbarHeight = snackbar.bottom - snackbar.top
+                assertTrue(
+                    "snackbar height $snackbarHeight vs ${HomeMetrics.SnackbarHeight}",
+                    snackbarHeight >= HomeMetrics.SnackbarHeight - 0.5.dp,
+                )
                 assertTrue("last list item is covered by the FAB", !intersects(last, fab))
                 assertTrue("snackbar is covered by the FAB", !intersects(snackbar, fab))
                 assertTrue("last list item is covered by the snackbar", !intersects(last, snackbar))

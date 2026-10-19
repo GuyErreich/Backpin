@@ -80,8 +80,12 @@ class HomeCompactPinTagTest {
         val card = compose.onNode(hasContentDescription(title, substring = true)).getBoundsInRoot()
         val titleBounds = compose.onNodeWithText(title, useUnmergedTree = true).getBoundsInRoot()
         val tag = compose.onNodeWithText(pin, useUnmergedTree = true).getBoundsInRoot()
-        assertTrue("MAIN tag sits inside the card", tag.left >= card.left && tag.right <= card.right)
+        assertTrue("MAIN tag sits inside the card", tag.left >= card.left && tag.right <= card.right + 0.5.dp)
         assertTrue("MAIN tag stays vertically on the card", tag.top >= card.top && tag.bottom <= card.bottom)
+        assertTrue(
+            "MAIN sits at the card's right edge: pad=${card.right - tag.right}",
+            card.right - tag.right <= HomeMetrics.TaskPaddingHorizontal + 0.5.dp,
+        )
         assertTrue("title and MAIN tag do not overlap", titleBounds.right <= tag.left + 0.5.dp)
         assertTrue(
             "gap before MAIN is at least 8dp: ${tag.left - titleBounds.right}",
