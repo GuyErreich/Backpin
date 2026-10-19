@@ -14,7 +14,6 @@ import app.backpin.focus.testing.DEFAULT_TEST_ZONE
 import app.backpin.focus.testing.FakeAppClock
 import app.backpin.focus.testing.TestFocusFixture
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
@@ -168,14 +167,12 @@ class FocusStackViewModelHomeBandCrossingTest {
         serviceScheduler.runCurrent()
     }
 
-    private fun atLocal(hour: Int, minute: Int): Instant =
-        DAY.atTime(hour, minute).atZone(DEFAULT_TEST_ZONE).toInstant()
+    private fun atLocal(hour: Int, minute: Int): Instant = DAY.atTime(hour, minute).atZone(DEFAULT_TEST_ZONE).toInstant()
 
-    private fun describeEmissions(emissions: List<HomeBands>): String =
-        emissions
-            .mapIndexed { index, bands ->
-                "$index:${bands.openBand}/m${bands.morning.tasks.size}/n${bands.noon.tasks.size}"
-            }.joinToString(separator = ",")
+    private fun describeEmissions(emissions: List<HomeBands>): String = emissions
+        .mapIndexed { index, bands ->
+            "$index:${bands.openBand}/m${bands.morning.tasks.size}/n${bands.noon.tasks.size}"
+        }.joinToString(separator = ",")
 
     private companion object {
         val DAY: LocalDate = LocalDate.of(2026, 10, 16)
