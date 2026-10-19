@@ -3,35 +3,29 @@ package app.backpin.focus.ui.capture
 
 import android.content.Intent
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ModalBottomSheetProperties
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -46,38 +40,20 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.clearAndSetSemantics
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.heading
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import app.backpin.focus.R
-import app.backpin.focus.domain.CapturePlace
-import app.backpin.focus.domain.editPlaces
-import app.backpin.focus.ui.components.BACK_LABEL
-import app.backpin.focus.ui.components.BackArrow
-import app.backpin.focus.ui.components.CLOSE_LABEL
 import app.backpin.focus.ui.components.CaptureChoice
-import app.backpin.focus.ui.components.ChoiceTone
 import app.backpin.focus.ui.components.PrimaryButton
 import app.backpin.focus.ui.components.QuietButton
 import app.backpin.focus.ui.components.SecondaryActionRow
 import app.backpin.focus.ui.home.HomeMetrics
-import app.backpin.focus.ui.motion.MotionSpec
 import app.backpin.focus.ui.motion.WithoutRipple
-import app.backpin.focus.ui.motion.motionSpec
 import app.backpin.focus.ui.motion.rememberPressSource
 import app.backpin.focus.ui.motion.rememberReducedMotion
-import app.backpin.focus.ui.theme.ButtonGap
-import app.backpin.focus.ui.theme.ButtonMinHeight
-import app.backpin.focus.ui.theme.ButtonRadius
 import app.backpin.focus.ui.theme.FocusColors
 import app.backpin.focus.ui.theme.Space
 
@@ -88,14 +64,10 @@ private enum class ListenField {
 
 private val PhraseChipHeight = 32.dp
 
-/** Prefill for the same sheet in edit mode. [place] is null for a nested interruption. */
-internal data class CaptureEdit(
-    val taskId: String,
-    val title: String,
-    val place: CapturePlace?,
-    val scheduledEpochDay: Long? = null,
-)
-
+/**
+ * Capture a new task (C1/2) or interrupt now (INT/3). Edit lives in
+ * [app.backpin.focus.ui.edit.EditTaskSheet].
+ */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 internal fun CaptureSheet(
@@ -105,10 +77,7 @@ internal fun CaptureSheet(
     onInterruptNow: (String) -> Unit = {},
     onPlaceToday: (String) -> Unit = {},
     onPlaceStart: (String) -> Unit = {},
-    edit: CaptureEdit? = null,
-    onCommitEdit: ((String, CapturePlace?, Long?) -> Unit)? = null,
     onBringBack: ((String) -> Unit)? = null,
-    onRepeat: ((String, String) -> Unit)? = null,
     interrupts: Boolean = false,
     pausedTitle: String? = null,
     recognizer: UtteranceRecognizer? = null,
@@ -116,18 +85,12 @@ internal fun CaptureSheet(
 ) {
     val reducedMotion = rememberReducedMotion()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val titleDraft =
-        remember(edit?.title) {
-            TitleDraft().apply { if (edit != null) edit(edit.title) }
-        }
+    val titleDraft = remember { TitleDraft() }
     val fillDraft = remember { TitleDraft() }
     val title = titleDraft.text
     val fillWord = fillDraft.text
     var activeBlank by remember { mutableStateOf<String?>(null) }
-    var selectedPlace by remember(edit) { mutableStateOf(edit?.place) }
-    var editCommitted by remember { mutableStateOf(false) }
-    val editing = edit != null
-    val interruptNow = interrupts && !editing
+    val interruptNow = interrupts
     val focusRequester = remember { FocusRequester() }
     val fillFocusRequester = remember { FocusRequester() }
     val speech =
@@ -145,22 +108,6 @@ internal fun CaptureSheet(
     fun dismiss() {
         stopListening()
         onDismiss()
-    }
-
-    fun commitEditAndClose() {
-        val current = edit ?: return
-        if (editCommitted) return
-        editCommitted = true
-        stopListening()
-        val resolved = titleDraft.text.trim().ifEmpty { current.title }
-        val place = selectedPlace ?: current.place
-        val day = if (place == CapturePlace.SCHEDULE) current.scheduledEpochDay else null
-        onCommitEdit?.invoke(resolved, place, day)
-        onDismiss()
-    }
-
-    fun leaveSheet() {
-        if (editing) commitEditAndClose() else dismiss()
     }
 
     fun commitFill() {
@@ -193,26 +140,6 @@ internal fun CaptureSheet(
         }
     }
 
-    fun placeTyped(place: CapturePlace) {
-        if (!editing) return
-        if (place == CapturePlace.SCHEDULE) {
-            val titleText = titleDraft.text.trim().ifEmpty { edit.title }
-            val openBringBack = onBringBack ?: return
-            openBringBack(titleText)
-            return
-        }
-        selectedPlace = place
-    }
-
-    fun openRepeatFromEdit() {
-        val current = edit ?: return
-        val openRepeat = onRepeat ?: return
-        val titleText = titleDraft.text.trim().ifEmpty { current.title }
-        editCommitted = true
-        stopListening()
-        openRepeat(current.taskId, titleText)
-    }
-
     val atFirstStep = activeBlank == null
 
     fun stepBack() {
@@ -221,12 +148,12 @@ internal fun CaptureSheet(
             activeBlank = null
             fillDraft.edit("")
         } else {
-            leaveSheet()
+            dismiss()
         }
     }
 
     ModalBottomSheet(
-        onDismissRequest = { leaveSheet() },
+        onDismissRequest = { dismiss() },
         sheetState = sheetState,
         sheetGesturesEnabled = false,
         containerColor = FocusColors.Live.Surface,
@@ -237,15 +164,14 @@ internal fun CaptureSheet(
         properties = ModalBottomSheetProperties(shouldDismissOnBackPress = false),
     ) {
         BackHandler(onBack = ::stepBack)
-        val sheetGap = if (editing) ButtonGap else Space
         Column(
             modifier =
             Modifier
                 .fillMaxWidth()
-                .then(if (editing) Modifier else Modifier.fillMaxHeight())
+                .fillMaxHeight()
                 .padding(horizontal = 16.dp)
                 .padding(bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(sheetGap),
+            verticalArrangement = Arrangement.spacedBy(Space),
         ) {
             // One scrolling column, not a fixed stack under the title. A finite-height
             // column measures buttons in order and gives every button after Save to
@@ -254,38 +180,21 @@ internal fun CaptureSheet(
                 modifier =
                 Modifier
                     .fillMaxWidth()
-                    .then(
-                        if (editing) {
-                            Modifier
-                        } else {
-                            Modifier
-                                .weight(1f)
-                                .verticalScroll(rememberScrollState())
-                        },
-                    ),
-                verticalArrangement = Arrangement.spacedBy(sheetGap),
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(Space),
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    BackArrow(
-                        label = if (atFirstStep) CLOSE_LABEL else BACK_LABEL,
-                        onClick = ::stepBack,
-                        inSheet = true,
-                    )
-                    Text(
-                        when {
-                            editing -> stringResource(R.string.capture_edit_heading)
-                            interruptNow -> stringResource(R.string.capture_interrupt_heading)
-                            else -> stringResource(R.string.capture_heading)
-                        },
-                        style = MaterialTheme.typography.headlineMedium,
-                        modifier = Modifier.weight(1f).semantics { heading() },
-                    )
-                }
-                if (!editing && phrases.isNotEmpty()) {
+                CaptureSheetHeader(
+                    heading =
+                    if (interruptNow) {
+                        stringResource(R.string.capture_interrupt_heading)
+                    } else {
+                        stringResource(R.string.capture_heading)
+                    },
+                    atFirstStep = atFirstStep,
+                    onStepBack = ::stepBack,
+                )
+                if (phrases.isNotEmpty()) {
                     FlowRow(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -354,53 +263,18 @@ internal fun CaptureSheet(
                         enabled = fillPhraseBlank(template, fillWord) != null,
                     )
                 }
-                OutlinedTextField(
+                CaptureTitleField(
                     value = title,
                     onValueChange = { incoming ->
-                        if (speech.isListening(ListenField.Title)) return@OutlinedTextField
+                        if (speech.isListening(ListenField.Title)) return@CaptureTitleField
                         titleDraft.edit(incoming)
                     },
-                    modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .focusRequester(focusRequester),
-                    shape = RoundedCornerShape(8.dp),
-                    colors = titleFieldColors(),
-                    label = {
-                        Text(
-                            if (editing) {
-                                stringResource(R.string.capture_field_task)
-                            } else {
-                                stringResource(R.string.capture_field_title)
-                            },
-                        )
-                    },
-                    placeholder = { Text(stringResource(R.string.capture_field_placeholder)) },
-                    singleLine = true,
-                    trailingIcon = {
-                        SpeakMic(
-                            listening = speech.isListening(ListenField.Title),
-                            reducedMotion = reducedMotion,
-                            contentDescription =
-                            if (speech.isListening(ListenField.Title)) {
-                                stringResource(R.string.capture_stop_listening)
-                            } else {
-                                stringResource(R.string.capture_speak_title)
-                            },
-                            onClick = { speech.toggle(ListenField.Title) },
-                        )
-                    },
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                    keyboardActions =
-                    KeyboardActions(
-                        onDone = {
-                            if (editing) {
-                                commitEditAndClose()
-                            } else {
-                                runPrimary()
-                            }
-                        },
-                    ),
+                    label = stringResource(R.string.capture_field_title),
+                    listening = speech.isListening(ListenField.Title),
+                    reducedMotion = reducedMotion,
+                    focusRequester = focusRequester,
+                    onSpeakToggle = { speech.toggle(ListenField.Title) },
+                    onDone = ::runPrimary,
                 )
                 LaunchedEffect(focusRequester, activeBlank) {
                     if (activeBlank == null) focusRequester.requestFocus()
@@ -408,71 +282,77 @@ internal fun CaptureSheet(
                 speech.note?.let { note ->
                     Text(note, style = MaterialTheme.typography.bodyMedium, color = FocusColors.Live.Muted)
                 }
-                if (editing) {
-                    val bringBackLabel = stringResource(R.string.action_bring_back)
-                    PlaceChoices(
-                        places = editPlaces().filter { it != CapturePlace.LATER },
-                        labelFor = { place ->
-                            if (place == CapturePlace.SCHEDULE) bringBackLabel else place.label()
-                        },
-                        selected = selectedPlace,
-                        onPlace = ::placeTyped,
-                    )
-                    if (onRepeat != null) {
-                        Text(
-                            text = stringResource(R.string.capture_edit_repeat_subline),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = FocusColors.Live.Muted,
-                        )
-                        RepeatSettingsRow(onClick = ::openRepeatFromEdit)
-                    }
-                    PrimaryButton(
-                        label = stringResource(R.string.action_save),
-                        onClick = ::commitEditAndClose,
-                    )
-                } else if (interruptNow) {
-                    pausedTitle?.let { nowTitle ->
-                        Text(
-                            text = stringResource(R.string.capture_interrupt_paused, nowTitle),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = FocusColors.Live.Muted,
-                        )
-                    }
-                    PrimaryButton(
-                        label = stringResource(R.string.action_interrupt_do_this_now),
-                        onClick = { runWithTitle(onInterruptNow) },
+                if (interruptNow) {
+                    CaptureInterruptContent(
+                        pausedTitle = pausedTitle,
+                        onInterruptNow = { runWithTitle(onInterruptNow) },
                     )
                 } else {
-                    Column(modifier = Modifier.fillMaxWidth()) {
-                        PrimaryButton(
-                            label = stringResource(R.string.action_save_to_inbox),
-                            onClick = { runWithTitle(onSaveToInbox) },
-                        )
-                        Text(
-                            text = stringResource(R.string.capture_or_when),
-                            style = HomeMetrics.Eyebrow,
-                            color = FocusColors.Live.Muted,
-                            modifier = Modifier.padding(top = 16.dp, bottom = 8.dp),
-                        )
-                        SecondaryActionRow {
-                            QuietButton(
-                                label = stringResource(R.string.action_today),
-                                onClick = { runWithTitle(onPlaceToday) },
-                            )
-                            QuietButton(
-                                label = stringResource(R.string.action_start_now),
-                                onClick = { runWithTitle(onPlaceStart) },
-                            )
-                            QuietButton(
-                                label = stringResource(R.string.action_bring_back),
-                                onClick = { onBringBack?.let(::runWithTitle) },
-                            )
-                        }
-                    }
+                    CaptureCreateContent(
+                        onSaveToInbox = { runWithTitle(onSaveToInbox) },
+                        onPlaceToday = { runWithTitle(onPlaceToday) },
+                        onPlaceStart = { runWithTitle(onPlaceStart) },
+                        onBringBack = onBringBack?.let { { runWithTitle(it) } },
+                    )
                 }
             }
         }
     }
+}
+
+/** Create destinations (C1/2): Save to Inbox, Today, Start now, Bring back. */
+@Composable
+private fun CaptureCreateContent(
+    onSaveToInbox: () -> Unit,
+    onPlaceToday: () -> Unit,
+    onPlaceStart: () -> Unit,
+    onBringBack: (() -> Unit)?,
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        PrimaryButton(
+            label = stringResource(R.string.action_save_to_inbox),
+            onClick = onSaveToInbox,
+        )
+        Text(
+            text = stringResource(R.string.capture_or_when),
+            style = HomeMetrics.Eyebrow,
+            color = FocusColors.Live.Muted,
+            modifier = Modifier.padding(top = 16.dp, bottom = 8.dp),
+        )
+        SecondaryActionRow {
+            QuietButton(
+                label = stringResource(R.string.action_today),
+                onClick = onPlaceToday,
+            )
+            QuietButton(
+                label = stringResource(R.string.action_start_now),
+                onClick = onPlaceStart,
+            )
+            QuietButton(
+                label = stringResource(R.string.action_bring_back),
+                onClick = { onBringBack?.invoke() },
+            )
+        }
+    }
+}
+
+/** Interrupt now (INT/3): paused hint and Do this now. */
+@Composable
+private fun CaptureInterruptContent(
+    pausedTitle: String?,
+    onInterruptNow: () -> Unit,
+) {
+    pausedTitle?.let { nowTitle ->
+        Text(
+            text = stringResource(R.string.capture_interrupt_paused, nowTitle),
+            style = MaterialTheme.typography.bodyMedium,
+            color = FocusColors.Live.Muted,
+        )
+    }
+    PrimaryButton(
+        label = stringResource(R.string.action_interrupt_do_this_now),
+        onClick = onInterruptNow,
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -513,135 +393,5 @@ private fun PhraseChip(
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun PlaceChoices(
-    places: List<CapturePlace>,
-    onPlace: (CapturePlace) -> Unit,
-    labelFor: @Composable (CapturePlace) -> String = { it.label() },
-    selected: CapturePlace? = null,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(ButtonGap)) {
-        places.forEach { place ->
-            key(place) {
-                CaptureChoice(
-                    label = labelFor(place),
-                    tone = place.tone(),
-                    selected = place == selected,
-                    onClick = { onPlace(place) },
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun CapturePlace.tone(): ChoiceTone = when (this) {
-    CapturePlace.INBOX -> ChoiceTone.Mint
-    CapturePlace.TODAY,
-    CapturePlace.START,
-    CapturePlace.SCHEDULE,
-    CapturePlace.LATER,
-    CapturePlace.INTERRUPT,
-    -> ChoiceTone.Quiet
-}
-
-@Composable
-private fun CapturePlace.label(): String = when (this) {
-    CapturePlace.INBOX -> stringResource(R.string.capture_place_inbox)
-    CapturePlace.TODAY -> stringResource(R.string.action_today)
-    CapturePlace.START -> stringResource(R.string.capture_place_start)
-    CapturePlace.SCHEDULE -> stringResource(R.string.action_bring_back)
-    CapturePlace.LATER -> stringResource(R.string.action_later)
-    CapturePlace.INTERRUPT -> stringResource(R.string.action_interrupt)
-}
-
-@Composable
-private fun titleFieldColors() = OutlinedTextFieldDefaults.colors(
-    focusedTextColor = FocusColors.Live.Text,
-    unfocusedTextColor = FocusColors.Live.Text,
-    cursorColor = FocusColors.Live.Mint,
-    focusedBorderColor = FocusColors.Live.Outline,
-    unfocusedBorderColor = FocusColors.Live.Outline,
-    focusedLabelColor = FocusColors.Live.Muted,
-    unfocusedLabelColor = FocusColors.Live.Muted,
-    focusedPlaceholderColor = FocusColors.Live.Muted,
-    unfocusedPlaceholderColor = FocusColors.Live.Muted,
-    focusedContainerColor = FocusColors.Live.Surface,
-    unfocusedContainerColor = FocusColors.Live.Surface,
-)
-
-@Composable
-private fun RepeatSettingsRow(onClick: () -> Unit) {
-    val interaction = rememberPressSource()
-    val label = stringResource(R.string.action_repeat_row)
-    Surface(
-        modifier =
-        Modifier
-            .fillMaxWidth()
-            .height(ButtonMinHeight)
-            .clickable(
-                interactionSource = interaction,
-                indication = null,
-                role = Role.Button,
-                onClick = onClick,
-            )
-            .semantics { contentDescription = label },
-        shape = RoundedCornerShape(ButtonRadius),
-        color = FocusColors.Live.Surface,
-    ) {
-        Row(
-            modifier =
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.titleMedium,
-                color = FocusColors.Live.Text,
-            )
-            Text(
-                text = stringResource(R.string.action_repeat_chevron),
-                style = MaterialTheme.typography.titleMedium,
-                color = FocusColors.Live.Muted,
-                modifier = Modifier.clearAndSetSemantics { },
-            )
-        }
-    }
-}
-
-@Composable
-internal fun SpeakMic(
-    listening: Boolean,
-    reducedMotion: Boolean,
-    contentDescription: String,
-    onClick: () -> Unit,
-) {
-    val scale by animateFloatAsState(
-        targetValue = if (listening && !reducedMotion) 1.06f else 1f,
-        animationSpec = motionSpec(MotionSpec.PressMillis, reducedMotion || !listening),
-        label = "micListen",
-    )
-    IconButton(
-        onClick = onClick,
-        modifier =
-        Modifier
-            .size(48.dp)
-            .focusProperties { canFocus = false }
-            .graphicsLayer {
-                scaleX = scale
-                scaleY = scale
-            },
-    ) {
-        Icon(
-            painter = painterResource(R.drawable.ic_mic),
-            contentDescription = contentDescription,
-            tint = if (listening) FocusColors.Live.Mint else FocusColors.Live.Muted,
-        )
     }
 }

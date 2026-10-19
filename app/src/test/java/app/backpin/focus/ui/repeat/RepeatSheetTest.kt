@@ -22,10 +22,10 @@ import app.backpin.focus.domain.Repeat
 import app.backpin.focus.domain.RepeatBand
 import app.backpin.focus.domain.RepeatDraft
 import app.backpin.focus.domain.toDraft
-import app.backpin.focus.ui.capture.CaptureEdit
-import app.backpin.focus.ui.capture.CaptureSheet
 import app.backpin.focus.ui.capture.SpeechProblem
 import app.backpin.focus.ui.capture.UtteranceRecognizer
+import app.backpin.focus.ui.edit.CaptureEdit
+import app.backpin.focus.ui.edit.EditTaskSheet
 import app.backpin.focus.ui.theme.FocusStackTheme
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -48,10 +48,9 @@ class RepeatSheetTest {
     fun taskEditSheetDoesNotOfferRepeat() {
         compose.setContent {
             FocusStackTheme {
-                CaptureSheet(
-                    phrases = emptyList(),
-                    onDismiss = {},
+                EditTaskSheet(
                     edit = CaptureEdit(taskId = "task-1", title = "Water plants", place = CapturePlace.INBOX),
+                    onDismiss = {},
                     onCommitEdit = { _, _, _ -> },
                     recognizer = SilentRecognizer,
                 )
