@@ -348,6 +348,34 @@ internal fun CaptureChoice(
 }
 
 /**
+ * Penpot Button/Primary: solid mint fill, dark label. Sheet Save and Capture reuse this.
+ * Same 56dp sheet height and no press-scale as [CaptureChoice], so a tap is not lost.
+ */
+@Composable
+internal fun PrimaryButton(
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+) {
+    val fill = FocusColors.Live.Mint.shown(enabled)
+    val content = FocusColors.Live.OnMint.shown(enabled)
+    OutlinedFocusButton(
+        label = label,
+        labelColor = content,
+        borderColor = fill,
+        onClick = onClick,
+        modifier =
+        modifier
+            .fillMaxWidth()
+            .focusProperties { canFocus = false },
+        enabled = enabled,
+        interactionSource = null,
+        containerColor = fill,
+    )
+}
+
+/**
  * Equal-width buttons for sheets, Settings, and dialogs. Up to three to a line.
  * Four or more wrap into balanced lines whose cells all keep the same width, and each
  * line takes its tallest button's height. One button fills the line.

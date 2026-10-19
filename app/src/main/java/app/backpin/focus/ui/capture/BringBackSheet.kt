@@ -67,8 +67,7 @@ import androidx.compose.ui.unit.sp
 import app.backpin.focus.R
 import app.backpin.focus.domain.scheduleMomentLabel
 import app.backpin.focus.ui.components.ActionRow
-import app.backpin.focus.ui.components.CaptureChoice
-import app.backpin.focus.ui.components.ChoiceTone
+import app.backpin.focus.ui.components.PrimaryButton
 import app.backpin.focus.ui.components.QuietButton
 import app.backpin.focus.ui.motion.WithoutRipple
 import app.backpin.focus.ui.motion.rememberReducedMotion
@@ -222,11 +221,9 @@ internal fun BringBackDaysPane(
                 )
                 .padding(vertical = 8.dp),
         )
-        CaptureChoice(
+        PrimaryButton(
             label = pluralStringResource(R.plurals.bring_back_save_in_days, days, days),
             onClick = onSave,
-            tone = ChoiceTone.Mint,
-            filled = true,
         )
         ActionRow {
             QuietButton(
@@ -285,15 +282,13 @@ internal fun BringBackDatePane(
             selected = selected,
             onSelect = onSelect,
         )
-        CaptureChoice(
+        PrimaryButton(
             label =
             stringResource(
                 R.string.bring_back_save_on_date,
                 scheduleMomentLabel(selected.toEpochDay(), null, locale),
             ),
             onClick = onSave,
-            tone = ChoiceTone.Mint,
-            filled = true,
         )
     }
 }

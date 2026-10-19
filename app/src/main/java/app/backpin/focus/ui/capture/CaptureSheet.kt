@@ -61,6 +61,7 @@ import app.backpin.focus.ui.components.BackArrow
 import app.backpin.focus.ui.components.CLOSE_LABEL
 import app.backpin.focus.ui.components.CaptureChoice
 import app.backpin.focus.ui.components.ChoiceTone
+import app.backpin.focus.ui.components.PrimaryButton
 import app.backpin.focus.ui.motion.MotionSpec
 import app.backpin.focus.ui.motion.motionSpec
 import app.backpin.focus.ui.motion.rememberReducedMotion
@@ -516,10 +517,8 @@ internal fun CaptureSheet(
                         selected = selectedPlace,
                         onPlace = ::placeTyped,
                     )
-                    CaptureChoice(
+                    PrimaryButton(
                         label = stringResource(R.string.action_save),
-                        tone = ChoiceTone.Mint,
-                        filled = true,
                         onClick = ::commitEditAndClose,
                     )
                 }
