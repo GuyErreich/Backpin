@@ -428,6 +428,13 @@ class FocusStackViewModel(
         scheduleTaskOn(id, epochDay)
     }
 
+    fun saveEditThenBringBack(title: String) {
+        val id = editingTaskId.value ?: return
+        val shown = title.trim().ifEmpty { uiState.value.editing?.title.orEmpty() }
+        saveEdit(title)
+        openBringBack(id, shown)
+    }
+
     /**
      * Writes the edit and closes the sheet. A blank title keeps the old one.
      * [place] and [scheduledOnEpochDay] reuse the same move and schedule paths as

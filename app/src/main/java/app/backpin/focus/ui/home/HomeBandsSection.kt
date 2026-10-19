@@ -61,6 +61,9 @@ internal fun HomeBandsSection(
 ) {
     Column {
         bands.inOrder().forEach { group ->
+            val isCurrent = group.phase == BandPhase.OPEN
+            val hasItems = group.tasks.isNotEmpty() || group.repeats.isNotEmpty()
+            if (!isCurrent && !hasItems) return@forEach
             key(group.band) {
                 HomeBandBlock(
                     group = group,

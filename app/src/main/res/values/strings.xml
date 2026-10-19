@@ -20,6 +20,7 @@
     <string name="action_skip_today">Skip today</string>
     <string name="action_start">Start</string>
     <string name="action_edit">Edit</string>
+    <string name="action_save">Save</string>
     <string name="action_today">Today</string>
     <string name="action_tomorrow">Tomorrow</string>
     <string name="action_in_3_days">In 3 days</string>

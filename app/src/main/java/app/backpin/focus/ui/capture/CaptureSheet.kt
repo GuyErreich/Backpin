@@ -43,6 +43,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
@@ -60,6 +61,7 @@ import app.backpin.focus.ui.components.BackArrow
 import app.backpin.focus.ui.components.CLOSE_LABEL
 import app.backpin.focus.ui.components.CaptureChoice
 import app.backpin.focus.ui.components.ChoiceTone
+import app.backpin.focus.ui.components.PrimaryButton
 import app.backpin.focus.ui.motion.MotionSpec
 import app.backpin.focus.ui.motion.motionSpec
 import app.backpin.focus.ui.motion.rememberReducedMotion
@@ -84,6 +86,7 @@ internal data class CaptureEdit(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
+@Suppress("ktlint:standard:indent")
 internal fun CaptureSheet(
     phrases: List<String>,
     frameActive: Boolean,
@@ -97,6 +100,7 @@ internal fun CaptureSheet(
     onSchedule: (String, Long, Int?) -> Unit,
     edit: CaptureEdit? = null,
     onCommitEdit: ((String, CapturePlace?, Long?) -> Unit)? = null,
+    onBringBack: ((String) -> Unit)? = null,
     recognizer: UtteranceRecognizer? = null,
     onSystemSpeech: ((Intent, (String) -> Unit) -> Unit)? = null,
     onRepeat: ((String) -> Unit)? = null,
@@ -229,6 +233,12 @@ internal fun CaptureSheet(
     fun placeTyped(place: CapturePlace) {
         if (editing) {
             if (place == CapturePlace.SCHEDULE) {
+                val titleText = titleDraft.text.trim().ifEmpty { edit.title }
+                val openBringBack = onBringBack
+                if (openBringBack != null) {
+                    openBringBack(titleText)
+                    return
+                }
                 beginSchedule(titleDraft.text, fromPhrase = false)
                 return
             }
@@ -498,15 +508,17 @@ internal fun CaptureSheet(
                     }
                 }
                 editing -> {
+                    val bringBackLabel = stringResource(R.string.action_bring_back)
                     PlaceChoices(
-                        places = editPlaces(),
-                        labelFor = { it.label() },
+                        places = editPlaces().filter { it != CapturePlace.LATER },
+                        labelFor = { place ->
+                            if (place == CapturePlace.SCHEDULE) bringBackLabel else place.label()
+                        },
                         selected = selectedPlace,
                         onPlace = ::placeTyped,
                     )
-                    CaptureChoice(
-                        label = "Done",
-                        tone = ChoiceTone.Mint,
+                    PrimaryButton(
+                        label = stringResource(R.string.action_save),
                         onClick = ::commitEditAndClose,
                     )
                 }
@@ -592,51 +604,48 @@ private fun ScheduleChoices(
     }
 }
 
-private fun CapturePlace.tone(): ChoiceTone =
-    when (this) {
-        CapturePlace.INBOX -> ChoiceTone.Mint
-        CapturePlace.INTERRUPT -> ChoiceTone.Lavender
-        CapturePlace.SCHEDULE -> ChoiceTone.Quiet
-        CapturePlace.TODAY,
-        CapturePlace.START,
-        CapturePlace.LATER,
-        -> ChoiceTone.Quiet
-    }
+private fun CapturePlace.tone(): ChoiceTone = when (this) {
+    CapturePlace.INBOX -> ChoiceTone.Mint
+    CapturePlace.INTERRUPT -> ChoiceTone.Lavender
+    CapturePlace.SCHEDULE -> ChoiceTone.Quiet
+    CapturePlace.TODAY,
+    CapturePlace.START,
+    CapturePlace.LATER,
+    -> ChoiceTone.Quiet
+}
 
-private fun CapturePlace.label(): String =
-    when (this) {
-        CapturePlace.INBOX -> "Inbox"
-        CapturePlace.TODAY -> "Today"
-        CapturePlace.START -> "Start"
-        CapturePlace.INTERRUPT -> "Interrupt"
-        CapturePlace.LATER -> "Later"
-        CapturePlace.SCHEDULE -> "Schedule"
-    }
+private fun CapturePlace.label(): String = when (this) {
+    CapturePlace.INBOX -> "Inbox"
+    CapturePlace.TODAY -> "Today"
+    CapturePlace.START -> "Start"
+    CapturePlace.INTERRUPT -> "Interrupt"
+    CapturePlace.LATER -> "Later"
+    CapturePlace.SCHEDULE -> "Schedule"
+}
 
-private fun CapturePlace.typedLabel(): String =
-    when (this) {
-        CapturePlace.INBOX -> "Save to Inbox"
-        CapturePlace.INTERRUPT -> "Interrupt now"
-        else -> label()
-    }
+private fun CapturePlace.typedLabel(): String = when (this) {
+    CapturePlace.INBOX -> "Save to Inbox"
+    CapturePlace.INTERRUPT -> "Interrupt now"
+    else -> label()
+}
 
 @Composable
-private fun titleFieldColors() =
-    OutlinedTextFieldDefaults.colors(
-        focusedTextColor = FocusColors.Live.Text,
-        unfocusedTextColor = FocusColors.Live.Text,
-        cursorColor = FocusColors.Live.Mint,
-        focusedBorderColor = FocusColors.Live.Outline,
-        unfocusedBorderColor = FocusColors.Live.Outline,
-        focusedLabelColor = FocusColors.Live.Muted,
-        unfocusedLabelColor = FocusColors.Live.Muted,
-        focusedPlaceholderColor = FocusColors.Live.Muted,
-        unfocusedPlaceholderColor = FocusColors.Live.Muted,
-        focusedContainerColor = Color.Transparent,
-        unfocusedContainerColor = Color.Transparent,
-    )
+private fun titleFieldColors() = OutlinedTextFieldDefaults.colors(
+    focusedTextColor = FocusColors.Live.Text,
+    unfocusedTextColor = FocusColors.Live.Text,
+    cursorColor = FocusColors.Live.Mint,
+    focusedBorderColor = FocusColors.Live.Outline,
+    unfocusedBorderColor = FocusColors.Live.Outline,
+    focusedLabelColor = FocusColors.Live.Muted,
+    unfocusedLabelColor = FocusColors.Live.Muted,
+    focusedPlaceholderColor = FocusColors.Live.Muted,
+    unfocusedPlaceholderColor = FocusColors.Live.Muted,
+    focusedContainerColor = Color.Transparent,
+    unfocusedContainerColor = Color.Transparent,
+)
 
 @Composable
+@Suppress("ktlint:standard:indent")
 internal fun SpeakMic(
     listening: Boolean,
     reducedMotion: Boolean,

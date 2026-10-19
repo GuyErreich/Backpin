@@ -84,10 +84,10 @@ class HomeLayoutBandsHeaderTest {
         var layout by mutableStateOf(HomeLayout.BANDS)
         showHome(env) { layout }
         await { env.viewModel.uiState.value.ready }
-        compose.onNodeWithText("MORNING").assertIsDisplayed()
-        compose.onNodeWithText("NOON", substring = true).assertIsDisplayed()
-        compose.onNodeWithText("NIGHT").assertIsDisplayed()
-        compose.onNodeWithText("ANYTIME").assertIsDisplayed()
+        compose.onNodeWithText("NOON · NOW").assertIsDisplayed()
+        compose.onNodeWithText("MORNING").assertDoesNotExist()
+        compose.onNodeWithText("NIGHT").assertDoesNotExist()
+        compose.onNodeWithText("ANYTIME").assertDoesNotExist()
         compose.onNodeWithText("TODAY").assertDoesNotExist()
         compose.onNodeWithText("REPEAT").assertDoesNotExist()
 
@@ -136,9 +136,10 @@ class HomeLayoutBandsHeaderTest {
         await { env.viewModel.uiState.value.ready }
         compose.onNodeWithText("TODAY").assertDoesNotExist()
         compose.onNodeWithText("REPEAT").assertDoesNotExist()
-        compose.onNodeWithText("NOON", substring = true).assertIsDisplayed()
-        compose.onNodeWithText("NIGHT").assertIsDisplayed()
-        compose.onNodeWithText("ANYTIME").assertIsDisplayed()
+        compose.onNodeWithText("NOON · NOW").assertIsDisplayed()
+        compose.onNodeWithText("MORNING").assertIsDisplayed()
+        compose.onNodeWithText("NIGHT").assertDoesNotExist()
+        compose.onNodeWithText("ANYTIME").assertDoesNotExist()
         compose.onNodeWithText("Buy milk", useUnmergedTree = true).performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("Take meds", useUnmergedTree = true).assertDoesNotExist()
     }
