@@ -15,7 +15,6 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performScrollTo
-import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performTouchInput
 import app.backpin.focus.domain.CapturePlace
@@ -46,51 +45,15 @@ class RepeatSheetTest {
     val compose = createAndroidComposeRule<ComponentActivity>()
 
     @Test
-    fun captureRepeatOpensTheRepeatSheetWithThatTitle() {
-        var captured: String? = null
-        compose.setContent {
-            FocusStackTheme {
-                CaptureSheet(
-                    phrases = emptyList(),
-                    frameActive = false,
-                    today = app.backpin.focus.testing.FakeAppClock().localDate(),
-                    onDismiss = {},
-                    onSaveToInbox = {},
-                    onInterruptNow = {},
-                    onPlaceToday = {},
-                    onPlaceStart = {},
-                    onPlaceLater = {},
-                    onSchedule = { _, _, _ -> },
-                    recognizer = SilentRecognizer,
-                    onRepeat = { captured = it },
-                )
-            }
-        }
-        compose.onNode(hasSetTextAction()).performTextInput("Take meds")
-        compose.onNodeWithText("Repeat").performScrollTo()
-        tap("Repeat")
-        assertEquals("Take meds", captured)
-    }
-
-    @Test
     fun taskEditSheetDoesNotOfferRepeat() {
         compose.setContent {
             FocusStackTheme {
                 CaptureSheet(
                     phrases = emptyList(),
-                    frameActive = false,
-                    today = app.backpin.focus.testing.FakeAppClock().localDate(),
                     onDismiss = {},
-                    onSaveToInbox = {},
-                    onInterruptNow = {},
-                    onPlaceToday = {},
-                    onPlaceStart = {},
-                    onPlaceLater = {},
-                    onSchedule = { _, _, _ -> },
-                    edit = CaptureEdit(title = "Water plants", place = CapturePlace.INBOX),
+                    edit = CaptureEdit(taskId = "task-1", title = "Water plants", place = CapturePlace.INBOX),
                     onCommitEdit = { _, _, _ -> },
                     recognizer = SilentRecognizer,
-                    onRepeat = {},
                 )
             }
         }

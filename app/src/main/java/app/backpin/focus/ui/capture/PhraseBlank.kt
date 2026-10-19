@@ -35,7 +35,7 @@ internal fun fillPhraseBlank(
 
 /**
  * What a phrase chip does before any task exists.
- * A finished phrase asks where it goes. A blank asks for that word first.
+ * A finished phrase fills the title. A blank asks for that word first.
  */
 internal sealed interface PhraseChipAction {
     data class AskPlace(

@@ -29,4 +29,7 @@ interface RepeatLogDao {
         repeatId: String,
         epochDay: Long,
     )
+
+    @Query("DELETE FROM repeat_log WHERE repeatId = :repeatId")
+    suspend fun deleteForRepeat(repeatId: String)
 }

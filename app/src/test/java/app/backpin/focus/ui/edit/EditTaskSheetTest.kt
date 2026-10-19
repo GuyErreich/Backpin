@@ -3,26 +3,28 @@ package app.backpin.focus.ui.edit
 
 import androidx.activity.ComponentActivity
 import androidx.activity.ComponentDialog
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
-import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performTouchInput
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.dp
+import app.backpin.focus.R
 import app.backpin.focus.domain.CapturePlace
+import app.backpin.focus.ui.capture.BringBackSheet
 import app.backpin.focus.ui.capture.CaptureEdit
 import app.backpin.focus.ui.capture.CaptureSheet
 import app.backpin.focus.ui.capture.SpeechProblem
 import app.backpin.focus.ui.capture.UtteranceRecognizer
-import app.backpin.focus.ui.theme.FocusColors
 import app.backpin.focus.ui.theme.FocusStackTheme
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -32,7 +34,6 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowDialog
-import java.time.LocalDate
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36], qualifiers = "w411dp-h891dp")
@@ -44,14 +45,14 @@ class EditTaskSheetTest {
     private var dismissed = 0
 
     @Test
-    fun doneWritesTheTitleAndKeepsThePlace() {
+    fun saveWritesTheTitleAndKeepsThePlace() {
         show()
         compose.onNode(hasSetTextAction() and hasText("Hold this")).assertExists()
         compose.onNodeWithContentDescription("Speak the title").assertExists()
-        compose.onNodeWithText("Save").assertDoesNotExist()
+        compose.onNodeWithText("Save").assertExists()
         compose.onNodeWithText("Save title").assertDoesNotExist()
         replaceTitle("Talk to Sarah")
-        tap("Done")
+        tap("Save")
         assertEquals(listOf(EditCommit("Talk to Sarah", CapturePlace.INBOX, null)), saved.toList())
         assertEquals(1, dismissed)
     }
@@ -60,7 +61,7 @@ class EditTaskSheetTest {
     fun aBlankTitleKeepsTheOldOne() {
         show()
         replaceTitle("   ")
-        tap("Done")
+        tap("Save")
         assertEquals(listOf(EditCommit("Hold this", CapturePlace.INBOX, null)), saved.toList())
         assertEquals(1, dismissed)
     }
@@ -88,29 +89,30 @@ class EditTaskSheetTest {
     }
 
     @Test
-    fun laterThenDoneMovesTheTask() {
+    fun editSheetHasNoLater() {
         show()
-        tap("Later")
-        tap("Done")
-        assertEquals(listOf(EditCommit("Hold this", CapturePlace.LATER, null)), saved.toList())
-        assertEquals(1, dismissed)
+        compose.onNodeWithText("Later").assertDoesNotExist()
+        compose.onNodeWithText("Schedule").assertDoesNotExist()
+        compose.onNodeWithText(bringBackLabel()).assertExists()
+        compose.onNodeWithText("Save").assertExists()
     }
 
     @Test
-    fun scheduleTomorrowWritesTheDay() {
+    fun bringBackOpensBringBackSheet() {
         show()
-        tap("Schedule")
-        tap("Tomorrow")
-        val tomorrow: LocalDate = clock.localDate().plusDays(1)
-        assertEquals(listOf(EditCommit("Hold this", CapturePlace.SCHEDULE, tomorrow.toEpochDay())), saved.toList())
-        assertEquals(1, dismissed)
+        tap(bringBackLabel())
+        compose.onNodeWithText("Bring it back in…").assertExists()
+        compose.onNodeWithText("Later").assertDoesNotExist()
+        compose.onNodeWithText("Tomorrow").assertDoesNotExist()
+        assertEquals(emptyList<EditCommit>(), saved.toList())
+        assertEquals(0, dismissed)
     }
 
     @Test
-    fun doneIsASheetButtonAndTheArrowSitsLeft() {
+    fun saveIsASheetButtonAndTheArrowSitsLeft() {
         show()
-        val done = compose.onNodeWithText("Done").getBoundsInRoot()
-        assertTrue("Done is ${done.bottom - done.top} tall", done.bottom - done.top >= 56.dp - 0.5.dp)
+        val save = compose.onNodeWithText("Save").getBoundsInRoot()
+        assertTrue("Save is ${save.bottom - save.top} tall", save.bottom - save.top >= 56.dp - 0.5.dp)
         val arrow = compose.onNodeWithContentDescription("Close").getBoundsInRoot()
         val heading = compose.onNodeWithText("Edit task").getBoundsInRoot()
         assertTrue("The arrow sits left of the heading", arrow.right <= heading.left)
@@ -124,22 +126,21 @@ class EditTaskSheetTest {
     }
 
     @Test
-    fun editSheetStacksTheFieldThenPlacesThenDone() {
+    fun editSheetStacksTheFieldThenPlacesThenSave() {
         show()
         compose.onNodeWithText("Same sheet as capture.", substring = true).assertDoesNotExist()
         val field = compose.onNode(hasSetTextAction()).getBoundsInRoot()
         val inbox = compose.onNodeWithText("Inbox").getBoundsInRoot()
         val today = compose.onNodeWithText("Today").getBoundsInRoot()
-        val later = compose.onNodeWithText("Later").getBoundsInRoot()
-        val schedule = compose.onNodeWithText("Schedule").getBoundsInRoot()
-        val done = compose.onNodeWithText("Done").getBoundsInRoot()
+        val bringBack = compose.onNodeWithText(bringBackLabel()).getBoundsInRoot()
+        val save = compose.onNodeWithText("Save").getBoundsInRoot()
         assertTrue("The Task field sits above Inbox", field.bottom <= inbox.top + 0.5.dp)
         assertTrue("Places stay stacked", today.top >= inbox.bottom + 12.dp - 0.5.dp)
-        assertTrue("Places stay stacked", later.top >= today.bottom + 12.dp - 0.5.dp)
-        assertTrue("Places stay stacked", schedule.top >= later.bottom + 12.dp - 0.5.dp)
-        assertTrue("Schedule sits above Done", schedule.bottom <= done.top + 0.5.dp)
+        assertTrue("Places stay stacked", bringBack.top >= today.bottom + 12.dp - 0.5.dp)
+        assertTrue("Bring back sits above Save", bringBack.bottom <= save.top + 0.5.dp)
         assertTrue("Sheet gaps are 12dp", inbox.top - field.bottom >= 12.dp - 0.5.dp)
-        assertTrue("Done is mint", labelColor("Done") == FocusColors.Mint)
+        compose.onNodeWithText("Later").assertDoesNotExist()
+        compose.onNodeWithText("Schedule").assertDoesNotExist()
         val heading = compose.onNodeWithText("Edit task").getBoundsInRoot()
         assertTrue(
             "The sheet sits at the bottom, with room above: heading.top=${heading.top}",
@@ -147,36 +148,33 @@ class EditTaskSheetTest {
         )
     }
 
-    private fun labelColor(text: String): Color {
-        val node = compose.onNodeWithText(text, useUnmergedTree = true).fetchSemanticsNode()
-        val layouts = mutableListOf<TextLayoutResult>()
-        node.config[SemanticsActions.GetTextLayoutResult].action?.invoke(layouts)
-        return layouts.single().layoutInput.style.color
-    }
-
     private fun show() {
         compose.setContent {
+            var bringBackTitle by remember { mutableStateOf<String?>(null) }
             FocusStackTheme {
                 CaptureSheet(
                     phrases = listOf("Talk to my wife", "Talk to <name>"),
-                    frameActive = true, today = clock.localDate(),
                     onDismiss = { dismissed += 1 },
-                    onSaveToInbox = {},
-                    onInterruptNow = {},
-                    onPlaceToday = {},
-                    onPlaceStart = {},
-                    onPlaceLater = {},
-                    onSchedule = { _, _, _ -> },
                     edit =
-                        CaptureEdit(
-                            title = "Hold this",
-                            place = CapturePlace.INBOX,
-                        ),
+                    CaptureEdit(
+                        taskId = "task-1",
+                        title = "Hold this",
+                        place = CapturePlace.INBOX,
+                    ),
                     onCommitEdit = { title, place, day ->
                         saved += EditCommit(title, place, day)
                     },
+                    onBringBack = { title -> bringBackTitle = title },
                     recognizer = SilentRecognizer,
                 )
+                bringBackTitle?.let {
+                    BringBackSheet(
+                        onDismiss = { bringBackTitle = null },
+                        onDate = {},
+                        onKeepInInbox = {},
+                        today = clock.localDate(),
+                    )
+                }
             }
         }
     }
@@ -189,6 +187,8 @@ class EditTaskSheetTest {
         compose.onNodeWithText(label).assertIsEnabled().performTouchInput { click() }
         compose.waitForIdle()
     }
+
+    private fun bringBackLabel(): String = compose.activity.getString(R.string.action_bring_back)
 
     private data class EditCommit(
         val title: String,

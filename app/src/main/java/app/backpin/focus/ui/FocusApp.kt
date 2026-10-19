@@ -5,6 +5,7 @@ import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -20,7 +21,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -38,7 +42,9 @@ import app.backpin.focus.notifications.NotificationContract
 import app.backpin.focus.ui.capture.BringBackSheet
 import app.backpin.focus.ui.capture.CaptureEdit
 import app.backpin.focus.ui.capture.CaptureSheet
+import app.backpin.focus.ui.capture.bringBackInitialDays
 import app.backpin.focus.ui.components.AddFab
+import app.backpin.focus.ui.components.AddFabMenu
 import app.backpin.focus.ui.components.AppTab
 import app.backpin.focus.ui.components.AppTabBar
 import app.backpin.focus.ui.components.QuietButton
@@ -89,6 +95,7 @@ fun FocusApp(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val checkedOffMessage = stringResource(R.string.undo_checked_off)
     val keptInInboxMessage = stringResource(R.string.kept_in_inbox)
+    val convertedToRepeatMessage = stringResource(R.string.undo_converted_to_repeat)
     val undoLabel = stringResource(R.string.action_undo)
     val movedComingUp = stringResource(R.string.moved_to_coming_up)
     val movedInbox = stringResource(R.string.moved_to_inbox)
@@ -136,7 +143,13 @@ fun FocusApp(
 
     LaunchedEffect(state.undo?.id) {
         val undo = state.undo ?: return@LaunchedEffect
-        val message = undoSnackbarMessage(undo, checkedOffMessage, keptInInboxMessage)
+        val message =
+            undoSnackbarMessage(
+                undo,
+                checkedOffMessage,
+                keptInInboxMessage,
+                convertedToRepeatMessage,
+            )
         val result =
             snackbarHostState.showSnackbar(
                 message = message,
@@ -155,7 +168,28 @@ fun FocusApp(
         snackbarHost = { FocusSnackbarHost(snackbarHostState) },
         floatingActionButton = {
             if (showCapture) {
-                AddFab(onClick = { viewModel.openCapture(interrupts = false) })
+                var menuOpen by remember { mutableStateOf(false) }
+                Box(contentAlignment = Alignment.BottomEnd) {
+                    AddFab(
+                        onClick = {
+                            menuOpen = false
+                            viewModel.openCapture(interrupts = false)
+                        },
+                        onLongClick =
+                        if (state.now != null) {
+                            { menuOpen = true }
+                        } else {
+                            null
+                        },
+                    )
+                    if (menuOpen && state.now != null) {
+                        AddFabMenu(
+                            onAdd = { viewModel.openCapture(interrupts = false) },
+                            onInterrupt = { viewModel.openCapture(interrupts = true) },
+                            onDismiss = { menuOpen = false },
+                        )
+                    }
+                }
             }
         },
         floatingActionButtonPosition = FabPosition.End,
@@ -310,22 +344,19 @@ fun FocusApp(
     } else if (editing != null) {
         CaptureSheet(
             phrases = emptyList(),
-            frameActive = state.now != null,
-            today = viewModel.localDate(),
             onDismiss = viewModel::dismissEdit,
-            onSaveToInbox = {},
-            onInterruptNow = {},
-            onPlaceToday = {},
-            onPlaceStart = {},
-            onPlaceLater = {},
-            onSchedule = { _, _, _ -> },
             edit =
             CaptureEdit(
+                taskId = editing.id,
                 title = editing.title,
                 place = editing.place,
                 scheduledEpochDay = editing.scheduledOnEpochDay,
             ),
             onCommitEdit = viewModel::saveEdit,
+            onBringBack = viewModel::saveEditThenBringBack,
+            onRepeat = { taskId, title ->
+                viewModel.openRepeatCreate(title, convertsTaskId = taskId)
+            },
         )
     } else if (openTaskSheet != null) {
         TaskSheet(
@@ -358,22 +389,23 @@ fun FocusApp(
     } else if (state.captureOpen) {
         CaptureSheet(
             phrases = state.preferences.savedPhrases,
-            frameActive = state.now != null,
-            today = viewModel.localDate(),
             onDismiss = viewModel::dismissCapture,
             onSaveToInbox = viewModel::saveToInbox,
             onInterruptNow = viewModel::interruptNow,
             onPlaceToday = viewModel::placeOnToday,
             onPlaceStart = viewModel::placeAndStart,
-            onPlaceLater = viewModel::placeLater,
-            onSchedule = viewModel::placeScheduled,
-            onRepeat = viewModel::openRepeatCreate,
+            onBringBack = viewModel::captureThenBringBack,
+            interrupts = state.captureInterrupts && state.now != null,
+            pausedTitle = state.now?.title,
         )
     }
 
     bringBack?.let { target ->
         val today = viewModel.localDate()
         val isEvent = state.now?.let { it.taskId == target.taskId && it.isEvent } == true
+        val scheduledEpochDay =
+            state.scheduledTasks.firstOrNull { it.id == target.taskId }?.epochDay
+                ?: state.countdowns.firstOrNull { it.id == target.taskId }?.epochDay
         BringBackSheet(
             onDismiss = viewModel::dismissBringBack,
             onDate = { date ->
@@ -386,6 +418,7 @@ fun FocusApp(
             },
             today = today,
             earliest = if (isEvent) today.plusDays(1) else null,
+            initialDays = bringBackInitialDays(scheduledEpochDay, today),
         )
     }
 

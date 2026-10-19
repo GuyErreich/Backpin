@@ -73,7 +73,7 @@ class ChipSheetThemeQaTest {
             compose.waitForIdle()
             val palette = liveColors(id, live)
             assertEquals(id.name, palette.mint, labelColor("Done"))
-            assertEquals(id.name, palette.lavender, labelColor("Interrupt"))
+            assertEquals(id.name, palette.now, labelColor("Interrupt"))
             assertEquals(id.name, palette.text, labelColor("Start"))
             assertEquals(id.name, palette.text, labelColor("Bring back…"))
             assertEquals(id.name, palette.text, labelColor("Edit"))
@@ -81,7 +81,7 @@ class ChipSheetThemeQaTest {
             assertNotEquals(id.name, palette.danger, labelColor("Interrupt"))
             if (id != ThemeId.SIGNAL) {
                 assertNotEquals(id.name, FocusColors.Mint, labelColor("Done"))
-                assertNotEquals(id.name, FocusColors.Lavender, labelColor("Interrupt"))
+                assertNotEquals(id.name, FocusColors.Now, labelColor("Interrupt"))
                 assertNotEquals(id.name, FocusColors.Text, labelColor("Start"))
             }
         }
@@ -238,7 +238,7 @@ class ChipSheetThemeQaTest {
                 muted = FocusColors.Live.Muted,
                 mint = FocusColors.Live.Mint,
                 amber = FocusColors.Live.Amber,
-                lavender = FocusColors.Live.Lavender,
+                now = FocusColors.Live.Now,
                 danger = FocusColors.Live.Danger,
             )
         SideEffect { onLive(colors) }
@@ -257,7 +257,7 @@ class ChipSheetThemeQaTest {
         assertEquals(id.name, expected.textSecondary, live.muted)
         assertEquals(id.name, expected.done, live.mint)
         assertEquals(id.name, expected.missed, live.amber)
-        assertEquals(id.name, expected.now, live.lavender)
+        assertEquals(id.name, expected.now, live.now)
         assertEquals(id.name, expected.danger, live.danger)
         return live
     }
@@ -267,7 +267,7 @@ class ChipSheetThemeQaTest {
         val muted: Color,
         val mint: Color,
         val amber: Color,
-        val lavender: Color,
+        val now: Color,
         val danger: Color,
     ) {
         companion object {
@@ -277,7 +277,7 @@ class ChipSheetThemeQaTest {
                     muted = paletteFor(ThemeId.SIGNAL).textSecondary,
                     mint = paletteFor(ThemeId.SIGNAL).done,
                     amber = paletteFor(ThemeId.SIGNAL).missed,
-                    lavender = paletteFor(ThemeId.SIGNAL).now,
+                    now = paletteFor(ThemeId.SIGNAL).now,
                     danger = paletteFor(ThemeId.SIGNAL).danger,
                 )
         }

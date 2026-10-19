@@ -133,7 +133,7 @@ private fun MockNowCard() {
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(HomeMetrics.NowRadius),
         color = FocusColors.Live.Surface,
-        border = BorderStroke(HomeMetrics.NowBorder, FocusColors.Live.Lavender),
+        border = BorderStroke(HomeMetrics.NowBorder, FocusColors.Live.Now),
     ) {
         Column(
             Modifier.padding(
@@ -143,7 +143,7 @@ private fun MockNowCard() {
         ) {
             Text(
                 stringResource(R.string.home_now),
-                color = FocusColors.Live.Lavender,
+                color = FocusColors.Live.Now,
                 style = HomeMetrics.NowLabel,
                 modifier = Modifier.padding(bottom = HomeMetrics.NowLabelBottom),
             )

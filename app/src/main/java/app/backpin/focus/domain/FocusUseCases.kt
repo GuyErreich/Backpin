@@ -16,9 +16,7 @@ class FocusUseCases(
 
     val preferences: Flow<UserPreferences> = repository.preferences
 
-    suspend fun capture(title: String) {
-        repository.capture(title)
-    }
+    suspend fun capture(title: String): String? = repository.capture(title)
 
     suspend fun captureIntoToday(title: String): PromoteOutcome = repository.captureIntoToday(title)
 
@@ -26,10 +24,6 @@ class FocusUseCases(
 
     suspend fun discardCapture(taskId: String) {
         repository.discardCapture(taskId)
-    }
-
-    suspend fun captureLater(title: String) {
-        repository.captureLater(title)
     }
 
     /** A set time also queues one inexact check for that moment. */
@@ -203,5 +197,18 @@ class FocusUseCases(
 
     suspend fun setSavedPhrases(phrases: List<String>) {
         repository.setSavedPhrases(phrases)
+    }
+
+    suspend fun convertToRepeat(
+        taskId: String,
+        title: String,
+        band: RepeatBand,
+        everyNDays: Int,
+        anchorEpochDay: Long,
+        reminderOn: Boolean = true,
+    ): ConvertToRepeatResult = repository.convertToRepeat(taskId, title, band, everyNDays, anchorEpochDay, reminderOn)
+
+    suspend fun undoConvertToRepeat(snapshot: ConvertToRepeatResult.Converted) {
+        repository.undoConvertToRepeat(snapshot)
     }
 }

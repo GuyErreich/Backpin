@@ -67,8 +67,7 @@ import androidx.compose.ui.unit.sp
 import app.backpin.focus.R
 import app.backpin.focus.domain.scheduleMomentLabel
 import app.backpin.focus.ui.components.ActionRow
-import app.backpin.focus.ui.components.CaptureChoice
-import app.backpin.focus.ui.components.ChoiceTone
+import app.backpin.focus.ui.components.PrimaryButton
 import app.backpin.focus.ui.components.QuietButton
 import app.backpin.focus.ui.motion.WithoutRipple
 import app.backpin.focus.ui.motion.rememberReducedMotion
@@ -89,6 +88,17 @@ import kotlin.math.abs
 internal const val BRING_BACK_MIN_DAYS = 1
 internal const val BRING_BACK_MAX_DAYS = 365
 internal const val BRING_BACK_DEFAULT_DAYS = 5
+
+/** Wheel start for a task that already has a date after [today]; otherwise 5. */
+internal fun bringBackInitialDays(
+    scheduledEpochDay: Long?,
+    today: LocalDate,
+): Int {
+    if (scheduledEpochDay == null) return BRING_BACK_DEFAULT_DAYS
+    val daysAway = (scheduledEpochDay - today.toEpochDay()).toInt()
+    if (daysAway <= 0) return BRING_BACK_DEFAULT_DAYS
+    return daysAway.coerceIn(BRING_BACK_MIN_DAYS, BRING_BACK_MAX_DAYS)
+}
 
 private val WHEEL_ITEM_HEIGHT = 48.dp
 private const val WHEEL_VISIBLE_COUNT = 5
@@ -112,11 +122,13 @@ internal fun BringBackSheet(
     today: LocalDate,
     locale: Locale = Locale.getDefault(),
     earliest: LocalDate? = null,
+    initialDays: Int = BRING_BACK_DEFAULT_DAYS,
 ) {
     val minDate = earliest ?: today
+    val startDays = initialDays.coerceIn(BRING_BACK_MIN_DAYS, BRING_BACK_MAX_DAYS)
     var page by remember { mutableStateOf(BringBackPage.Days) }
-    var days by remember { mutableIntStateOf(BRING_BACK_DEFAULT_DAYS) }
-    var picked by remember { mutableStateOf(today.plusDays(BRING_BACK_DEFAULT_DAYS.toLong())) }
+    var days by remember { mutableIntStateOf(startDays) }
+    var picked by remember { mutableStateOf(today.plusDays(startDays.toLong())) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     ModalBottomSheet(
@@ -222,11 +234,9 @@ internal fun BringBackDaysPane(
                 )
                 .padding(vertical = 8.dp),
         )
-        CaptureChoice(
+        PrimaryButton(
             label = pluralStringResource(R.plurals.bring_back_save_in_days, days, days),
             onClick = onSave,
-            tone = ChoiceTone.Mint,
-            filled = true,
         )
         ActionRow {
             QuietButton(
@@ -285,15 +295,13 @@ internal fun BringBackDatePane(
             selected = selected,
             onSelect = onSelect,
         )
-        CaptureChoice(
+        PrimaryButton(
             label =
             stringResource(
                 R.string.bring_back_save_on_date,
                 scheduleMomentLabel(selected.toEpochDay(), null, locale),
             ),
             onClick = onSave,
-            tone = ChoiceTone.Mint,
-            filled = true,
         )
     }
 }

@@ -52,7 +52,7 @@ import app.backpin.focus.ui.theme.CardActionHeight
 import app.backpin.focus.ui.theme.FocusColors
 import app.backpin.focus.ui.theme.RowDoneHeight
 
-/** Mint is the one primary action. Lavender is Interrupt and events. Amber is missed or due. */
+/** Mint is the one primary action. Now is Interrupt and events. Amber is missed or due. */
 internal enum class AccentTone {
     Mint,
     Lavender,
@@ -88,7 +88,7 @@ private fun Color.shown(enabled: Boolean): Color = if (enabled) this else copy(a
 /** Tone swatch for the Signal palette. */
 private fun AccentTone.color(): Color = when (this) {
     AccentTone.Mint -> FocusColors.Mint
-    AccentTone.Lavender -> FocusColors.Lavender
+    AccentTone.Lavender -> FocusColors.Now
     AccentTone.Amber -> FocusColors.Amber
 }
 
@@ -98,7 +98,7 @@ internal fun accentLabelColor(
     enabled: Boolean = true,
 ): Color = tone.color().shown(enabled)
 
-/** Label of a [CaptureChoice]: the accent for Mint, Lavender, and Amber, plain text for Quiet. */
+/** Label of a [CaptureChoice]: the accent for Mint, Lavender (Now), and Amber, plain text for Quiet. */
 internal fun choiceLabelColor(
     tone: ChoiceTone,
     enabled: Boolean = true,
@@ -118,7 +118,7 @@ internal fun choiceContainerColor(
     if (!filled) return Color.Transparent
     val fill =
         when (tone) {
-            ChoiceTone.Lavender -> FocusColors.LavenderContainer
+            ChoiceTone.Lavender -> FocusColors.NowContainer
             ChoiceTone.Mint -> FocusColors.Mint.copy(alpha = 0.25f)
             ChoiceTone.Amber -> FocusColors.Amber.copy(alpha = 0.25f)
             ChoiceTone.Quiet -> FocusColors.SurfaceHigh
@@ -132,7 +132,7 @@ internal fun choiceContainerColor(
  * The label color is set on the text itself; theme typography would otherwise win over the content color.
  */
 @Composable
-private fun OutlinedFocusButton(
+private fun FocusButtonShell(
     label: String,
     labelColor: Color,
     borderColor: Color,
@@ -246,10 +246,10 @@ internal fun AccentButton(
     val color =
         when (tone) {
             AccentTone.Mint -> FocusColors.Live.Mint
-            AccentTone.Lavender -> FocusColors.Live.Lavender
+            AccentTone.Lavender -> FocusColors.Live.Now
             AccentTone.Amber -> FocusColors.Live.Amber
         }.shown(enabled)
-    OutlinedFocusButton(
+    FocusButtonShell(
         label = label,
         labelColor = color,
         borderColor = color,
@@ -276,7 +276,7 @@ internal fun QuietButton(
     val picked = selected == true
     val text = FocusColors.Live.Text.shown(enabled)
     val outline = FocusColors.Live.Outline.shown(enabled)
-    OutlinedFocusButton(
+    FocusButtonShell(
         label = label,
         labelColor = text,
         borderColor = if (picked) text else outline,
@@ -309,7 +309,7 @@ internal fun CaptureChoice(
     val labelColor =
         when (tone) {
             ChoiceTone.Mint -> FocusColors.Live.Mint
-            ChoiceTone.Lavender -> FocusColors.Live.Lavender
+            ChoiceTone.Lavender -> FocusColors.Live.Now
             ChoiceTone.Amber -> FocusColors.Live.Amber
             ChoiceTone.Quiet -> FocusColors.Live.Text
         }.shown(enabled)
@@ -321,12 +321,12 @@ internal fun CaptureChoice(
         }
     val fill =
         when (tone) {
-            ChoiceTone.Lavender -> FocusColors.Live.LavenderContainer
+            ChoiceTone.Lavender -> FocusColors.Live.NowContainer
             ChoiceTone.Mint -> FocusColors.Live.Mint.copy(alpha = 0.25f)
             ChoiceTone.Amber -> FocusColors.Live.Amber.copy(alpha = 0.25f)
             ChoiceTone.Quiet -> FocusColors.Live.SurfaceHigh
         }
-    OutlinedFocusButton(
+    FocusButtonShell(
         label = label,
         labelColor = labelColor,
         borderColor = borderColor,
@@ -344,6 +344,37 @@ internal fun CaptureChoice(
             selected -> FocusColors.Live.SurfaceHigh
             else -> Color.Transparent
         },
+    )
+}
+
+/**
+ * Penpot Button/Primary: solid mint fill, dark label. The one filled primary per screen
+ * (sheet Save, Capture Save to Inbox). Same 56dp sheet height and no press-scale as
+ * [CaptureChoice], so a tap is not lost. Refuses focus so the keyboard does not resize
+ * the sheet between down and up — keep that for IME taps; keyboard users reach Save via
+ * the field's Done action.
+ */
+@Composable
+internal fun PrimaryButton(
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+) {
+    val fill = FocusColors.Live.Mint.shown(enabled)
+    val content = FocusColors.Live.OnMint.shown(enabled)
+    FocusButtonShell(
+        label = label,
+        labelColor = content,
+        borderColor = fill,
+        onClick = onClick,
+        modifier =
+        modifier
+            .fillMaxWidth()
+            .focusProperties { canFocus = false },
+        enabled = enabled,
+        interactionSource = null,
+        containerColor = fill,
     )
 }
 
@@ -382,6 +413,26 @@ internal fun ActionRow(
                 }
             }
         }
+    }
+}
+
+/**
+ * Equal-width [QuietButton] row at [CardActionHeight]. Capture's OR, WHEN? destinations
+ * share the line this way, 48dp tall, instead of the 56dp sheet [ActionRow].
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun SecondaryActionRow(
+    modifier: Modifier = Modifier,
+    gap: Dp = ButtonGap,
+    content: @Composable () -> Unit,
+) {
+    CompositionLocalProvider(
+        LocalButtonMinHeight provides CardActionHeight,
+        LocalLockButtonHeight provides true,
+        LocalMinimumInteractiveComponentSize provides 0.dp,
+    ) {
+        ActionRow(modifier = modifier, gap = gap, content = content)
     }
 }
 

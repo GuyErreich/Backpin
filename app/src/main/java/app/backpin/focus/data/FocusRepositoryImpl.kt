@@ -4,6 +4,7 @@ package app.backpin.focus.data
 import androidx.room.withTransaction
 import app.backpin.focus.domain.AppClock
 import app.backpin.focus.domain.BandTimes
+import app.backpin.focus.domain.ConvertToRepeatResult
 import app.backpin.focus.domain.DetachDestination
 import app.backpin.focus.domain.FocusRepository
 import app.backpin.focus.domain.FocusSnapshot
@@ -64,13 +65,13 @@ class FocusRepositoryImpl(
 
     override val preferences: Flow<UserPreferences> = preferencesStore.preferences
 
-    override suspend fun capture(title: String) {
+    override suspend fun capture(title: String): String? {
         val trimmed = title.trim()
-        if (trimmed.isEmpty()) return
-        database.withTransaction {
-            taskDao.upsert(newTask(trimmed, TaskBucket.INBOX))
-        }
+        if (trimmed.isEmpty()) return null
+        val task = newTask(trimmed, TaskBucket.INBOX)
+        database.withTransaction { taskDao.upsert(task) }
         recordInteraction()
+        return task.id
     }
 
     override suspend fun captureIntoToday(title: String): PromoteOutcome {
@@ -141,15 +142,6 @@ class FocusRepositoryImpl(
                 true
             }
         if (discarded) recordInteraction()
-    }
-
-    override suspend fun captureLater(title: String) {
-        val trimmed = title.trim()
-        if (trimmed.isEmpty()) return
-        database.withTransaction {
-            taskDao.upsert(newTask(trimmed, TaskBucket.LATER))
-        }
-        recordInteraction()
     }
 
     override suspend fun captureScheduled(
@@ -1321,5 +1313,71 @@ class FocusRepositoryImpl(
             pausedAtEpochMillis = now,
             accumulatedMillis = frame.accumulatedMillis + segment,
         )
+    }
+
+    /**
+     * Turns [taskId] into a new repeat and deletes the task.
+     * Missing, done, active Now, or an open frame is left alone.
+     */
+    override suspend fun convertToRepeat(
+        taskId: String,
+        title: String,
+        band: RepeatBand,
+        everyNDays: Int,
+        anchorEpochDay: Long,
+        reminderOn: Boolean,
+    ): ConvertToRepeatResult {
+        val result =
+            database.withTransaction {
+                val task = taskDao.getById(taskId) ?: return@withTransaction ConvertToRepeatResult.Rejected
+                if (task.status != TaskStatus.OPEN.name) {
+                    return@withTransaction ConvertToRepeatResult.Rejected
+                }
+                if (frameDao.getActive()?.taskId == taskId) {
+                    return@withTransaction ConvertToRepeatResult.Rejected
+                }
+                if (frameDao.openFrameForTask(taskId) != null) {
+                    return@withTransaction ConvertToRepeatResult.Rejected
+                }
+                val trimmed = title.trim()
+                if (trimmed.isEmpty()) return@withTransaction ConvertToRepeatResult.Rejected
+                val now = clock.nowEpochMillis()
+                val repeatId = ids()
+                repeatDao.upsert(
+                    RepeatEntity(
+                        id = repeatId,
+                        title = trimmed,
+                        band = band.name,
+                        everyNDays = everyNDays.coerceAtLeast(1),
+                        anchorEpochDay = anchorEpochDay,
+                        reminderOn = reminderOn,
+                        sortOrder = now,
+                        createdAtEpochMillis = now,
+                        archivedAtEpochMillis = null,
+                    ),
+                )
+                frameDao.deleteForTask(taskId)
+                taskDao.deleteById(taskId)
+                ConvertToRepeatResult.Converted(repeatId = repeatId, task = task.toDomain())
+            }
+        if (result is ConvertToRepeatResult.Converted) recordInteraction()
+        return result
+    }
+
+    /**
+     * Deletes the created repeat and its logs, then restores [snapshot.task].
+     * No-op when the repeat is gone or the task id exists.
+     */
+    override suspend fun undoConvertToRepeat(snapshot: ConvertToRepeatResult.Converted) {
+        val restored =
+            database.withTransaction {
+                repeatDao.getById(snapshot.repeatId) ?: return@withTransaction false
+                if (taskDao.getById(snapshot.task.id) != null) return@withTransaction false
+                repeatLogDao.deleteForRepeat(snapshot.repeatId)
+                repeatDao.deleteById(snapshot.repeatId)
+                taskDao.upsert(snapshot.task.toEntity())
+                true
+            }
+        if (restored) recordInteraction()
     }
 }

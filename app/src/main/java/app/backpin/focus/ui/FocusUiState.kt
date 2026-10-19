@@ -2,6 +2,7 @@
 package app.backpin.focus.ui
 
 import app.backpin.focus.domain.CapturePlace
+import app.backpin.focus.domain.ConvertToRepeatResult
 import app.backpin.focus.domain.RepeatDayStatus
 import app.backpin.focus.domain.UndoToken
 import app.backpin.focus.domain.UserPreferences
@@ -131,6 +132,11 @@ sealed interface UndoTarget {
     data class DiscardCapture(
         val taskId: String,
     ) : UndoTarget
+
+    /** Edit → Repeat Save. Undo restores the deleted task and removes the repeat. */
+    data class ConvertToRepeat(
+        val snapshot: ConvertToRepeatResult.Converted,
+    ) : UndoTarget
 }
 
 data class PendingUndo(
@@ -160,11 +166,13 @@ fun undoSnackbarMessage(
     undo: PendingUndo,
     checkedOffLabel: String,
     keptInInboxLabel: String = "",
+    convertedToRepeatLabel: String = "",
 ): String {
     val preferred =
         when (undo.target) {
             is UndoTarget.DiscardCapture -> keptInInboxLabel
             is UndoTarget.RepeatCheckOff -> checkedOffLabel
+            is UndoTarget.ConvertToRepeat -> convertedToRepeatLabel
             is UndoTarget.Tasks -> undo.message
         }
     return preferred.ifBlank { checkedOffLabel }.ifBlank { undo.message }

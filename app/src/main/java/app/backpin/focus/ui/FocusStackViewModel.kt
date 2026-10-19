@@ -9,6 +9,7 @@ import app.backpin.focus.domain.BandEdge
 import app.backpin.focus.domain.BandTimeResult
 import app.backpin.focus.domain.BandTimes
 import app.backpin.focus.domain.CapturePlace
+import app.backpin.focus.domain.ConvertToRepeatResult
 import app.backpin.focus.domain.DetachDestination
 import app.backpin.focus.domain.FocusUseCases
 import app.backpin.focus.domain.FrameState
@@ -428,6 +429,13 @@ class FocusStackViewModel(
         scheduleTaskOn(id, epochDay)
     }
 
+    fun saveEditThenBringBack(title: String) {
+        val id = editingTaskId.value ?: return
+        val shown = title.trim().ifEmpty { uiState.value.editing?.title.orEmpty() }
+        saveEdit(title)
+        openBringBack(id, shown)
+    }
+
     /**
      * Writes the edit and closes the sheet. A blank title keeps the old one.
      * [place] and [scheduledOnEpochDay] reuse the same move and schedule paths as
@@ -485,6 +493,19 @@ class FocusStackViewModel(
         }
     }
 
+    /**
+     * Saves a new title to Inbox, then opens the hosted Bring back sheet for that task.
+     */
+    fun captureThenBringBack(title: String) {
+        viewModelScope.launch {
+            val trimmed = title.trim()
+            if (trimmed.isEmpty()) return@launch
+            val id = useCases.capture(trimmed)
+            closeCapture()
+            if (id != null) openBringBack(id, trimmed)
+        }
+    }
+
     fun interruptNow(title: String) {
         viewModelScope.launch {
             val trimmed = title.trim()
@@ -529,25 +550,6 @@ class FocusStackViewModel(
                 is PromoteOutcome.Promoted -> closeCapture()
                 is PromoteOutcome.Rejected -> Unit
             }
-        }
-    }
-
-    fun placeLater(title: String) {
-        viewModelScope.launch {
-            useCases.captureLater(title)
-            if (title.isNotBlank()) closeCapture()
-        }
-    }
-
-    /** Schedules a new task for a day and, when [scheduledAtMinuteOfDay] is set, a time on it. */
-    fun placeScheduled(
-        title: String,
-        scheduledOnEpochDay: Long,
-        scheduledAtMinuteOfDay: Int? = null,
-    ) {
-        viewModelScope.launch {
-            useCases.captureScheduled(title, scheduledOnEpochDay, scheduledAtMinuteOfDay)
-            if (title.isNotBlank()) closeCapture()
         }
     }
 
@@ -875,11 +877,14 @@ class FocusStackViewModel(
         }
     }
 
-    fun openRepeatCreate(title: String = "") {
+    fun openRepeatCreate(
+        title: String = "",
+        convertsTaskId: String? = null,
+    ) {
         closeCapture()
         dismissActionSheets()
         editingTaskId.value = null
-        repeatsApi.openCreate(title)
+        repeatsApi.openCreate(title, convertsTaskId)
     }
 
     fun openRepeatEdit(repeat: Repeat) {
@@ -895,6 +900,34 @@ class FocusStackViewModel(
 
     fun commitRepeatDraft(draft: RepeatDraft) {
         viewModelScope.launch {
+            val convertsId = draft.convertsTaskId
+            if (convertsId != null) {
+                val day =
+                    if (draft.anchorEpochDay != 0L) {
+                        draft.anchorEpochDay
+                    } else {
+                        clock.localDate().toEpochDay()
+                    }
+                when (
+                    val result =
+                        useCases.convertToRepeat(
+                            taskId = convertsId,
+                            title = draft.title,
+                            band = draft.band,
+                            everyNDays = draft.everyNDays.coerceAtLeast(1),
+                            anchorEpochDay = day,
+                            reminderOn = draft.reminderOn,
+                        )
+                ) {
+                    is ConvertToRepeatResult.Converted -> {
+                        repeatsApi.dismissSheet()
+                        closeCapture()
+                        offerUndo("", UndoTarget.ConvertToRepeat(result))
+                    }
+                    ConvertToRepeatResult.Rejected -> Unit
+                }
+                return@launch
+            }
             if (repeatsApi.commitRepeatDraft(draft)) closeCapture()
         }
     }
@@ -1048,6 +1081,7 @@ class FocusStackViewModel(
                     is UndoTarget.Tasks -> useCases.undo(target.token)
                     is UndoTarget.RepeatCheckOff -> repeatsApi.undo(id)
                     is UndoTarget.DiscardCapture -> useCases.discardCapture(target.taskId)
+                    is UndoTarget.ConvertToRepeat -> useCases.undoConvertToRepeat(target.snapshot)
                 }
             }
             return

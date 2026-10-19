@@ -1,0 +1,175 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+package app.backpin.focus.ui.home
+
+import android.os.Looper
+import androidx.activity.ComponentActivity
+import androidx.compose.ui.semantics.SemanticsNode
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.ComposeTimeoutException
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.click
+import androidx.compose.ui.test.getBoundsInRoot
+import androidx.compose.ui.test.hasAnyDescendant
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.unit.DpRect
+import androidx.compose.ui.unit.dp
+import app.backpin.focus.R
+import app.backpin.focus.domain.RepeatBand
+import app.backpin.focus.testing.MainDispatcherRule
+import app.backpin.focus.testing.useTestFocus
+import app.backpin.focus.ui.FocusApp
+import app.backpin.focus.ui.UndoTarget
+import app.backpin.focus.ui.theme.FocusStackTheme
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import org.junit.Assert.assertTrue
+import org.junit.Rule
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows.shadowOf
+import org.robolectric.annotation.Config
+
+@OptIn(ExperimentalCoroutinesApi::class)
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [36], qualifiers = "w411dp-h640dp")
+class HomeFabClearanceTest {
+    @get:Rule(order = 0)
+    val mainDispatcherRule = MainDispatcherRule()
+
+    @get:Rule(order = 1)
+    val compose = createAndroidComposeRule<ComponentActivity>()
+
+    @Test
+    fun lastListItemAndSnackbarStayClearOfTheFab() {
+        useTestFocus { fixture ->
+            val lastRepeat = "Fill row 12"
+            val checkOff = "Fill row 1"
+            mainDispatcherRule.runTest {
+                fixture.seedFullToday()
+                val day = fixture.clock.localDate().toEpochDay()
+                for (index in 1..12) {
+                    fixture.repeats.create(
+                        "Fill row $index",
+                        RepeatBand.NIGHT,
+                        1,
+                        day,
+                        reminderOn = false,
+                    )
+                }
+            }
+            fixture.withViewModel { viewModel ->
+                compose.setContent {
+                    FocusStackTheme {
+                        FocusApp(viewModel)
+                    }
+                }
+                await("ready with $lastRepeat") {
+                    viewModel.uiState.value.ready &&
+                        viewModel.repeatRows.value.rows.any { it.repeat.title == lastRepeat }
+                }
+                compose.onNodeWithText(checkOff, useUnmergedTree = true).performScrollTo()
+                compose.onNodeWithText(checkOff, useUnmergedTree = true).performTouchInput { click(center) }
+                await("repeat check-off undo") {
+                    viewModel.uiState.value.undo?.target is UndoTarget.RepeatCheckOff
+                }
+                val checkedOff = compose.activity.getString(R.string.undo_checked_off)
+                await("undo snackbar $checkedOff") {
+                    nodes(checkedOff, unmerged = false).isNotEmpty() ||
+                        nodes(checkedOff, unmerged = true).isNotEmpty()
+                }
+                compose.onNodeWithText(lastRepeat, useUnmergedTree = true).performScrollTo()
+                compose.waitForIdle()
+                val last = compose.onNodeWithText(lastRepeat, useUnmergedTree = true).getBoundsInRoot()
+                val fab = compose.onNodeWithText(compose.activity.getString(R.string.action_add)).getBoundsInRoot()
+                val snackbar = snackbarContainer(checkedOff)
+                val snackbarHeight = snackbar.bottom - snackbar.top
+                assertTrue(
+                    "reserved list bottom ${HomeMetrics.ListBottom} vs snackbar container $snackbarHeight",
+                    HomeMetrics.ListBottom >= snackbarHeight - 0.5.dp,
+                )
+                assertTrue("last list item is covered by the FAB", !intersects(last, fab))
+                assertTrue("snackbar container is covered by the FAB", !intersects(snackbar, fab))
+                assertTrue("last list item is covered by the snackbar container", !intersects(last, snackbar))
+            }
+        }
+    }
+
+    private fun snackbarContainer(checkedOff: String): DpRect {
+        val liveRegion =
+            SemanticsMatcher.keyIsDefined(SemanticsProperties.LiveRegion) and
+                hasAnyDescendant(hasText(checkedOff))
+        for (unmerged in listOf(false, true)) {
+            val found = compose.onAllNodes(liveRegion, useUnmergedTree = unmerged)
+            if (found.fetchSemanticsNodes().isNotEmpty()) {
+                return found[0].getBoundsInRoot()
+            }
+        }
+        val unmergedOnly =
+            nodes(checkedOff, unmerged = true).isNotEmpty() &&
+                nodes(checkedOff, unmerged = false).isEmpty()
+        var node: SemanticsNode? =
+            compose.onNodeWithText(checkedOff, useUnmergedTree = unmergedOnly).fetchSemanticsNode()
+        val parent = node?.parent
+        while (node != null) {
+            if (node.config.contains(SemanticsProperties.LiveRegion)) {
+                return node.toDpRect()
+            }
+            node = node.parent
+        }
+        return parent?.toDpRect()
+            ?: throw AssertionError("snackbar container missing for $checkedOff")
+    }
+
+    private fun SemanticsNode.toDpRect(): DpRect {
+        val bounds = boundsInRoot
+        return with(compose.density) {
+            DpRect(
+                left = bounds.left.toDp(),
+                top = bounds.top.toDp(),
+                right = bounds.right.toDp(),
+                bottom = bounds.bottom.toDp(),
+            )
+        }
+    }
+
+    private fun intersects(
+        a: DpRect,
+        b: DpRect,
+    ): Boolean {
+        val slop = 0.5.dp
+        return a.left < b.right - slop &&
+            a.right > b.left + slop &&
+            a.top < b.bottom - slop &&
+            a.bottom > b.top + slop
+    }
+
+    private fun nodes(
+        text: String,
+        unmerged: Boolean,
+    ) = compose.onAllNodesWithText(text, useUnmergedTree = unmerged).fetchSemanticsNodes()
+
+    private fun await(
+        step: String,
+        predicate: () -> Boolean,
+    ) {
+        try {
+            compose.waitUntil(conditionDescription = step, timeoutMillis = 5_000) {
+                pump()
+                predicate()
+            }
+        } catch (error: ComposeTimeoutException) {
+            throw AssertionError("$step: ${error.message}", error)
+        }
+    }
+
+    private fun pump() {
+        compose.waitForIdle()
+        shadowOf(Looper.getMainLooper()).idle()
+        mainDispatcherRule.scheduler.advanceUntilIdle()
+    }
+}

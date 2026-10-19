@@ -97,15 +97,11 @@ class CardLeadTest {
             FocusStackTheme {
                 CaptureSheet(
                     phrases = emptyList(),
-                    frameActive = true,
-                    today = app.backpin.focus.testing.FakeAppClock().localDate(),
                     onDismiss = {},
                     onSaveToInbox = {},
                     onInterruptNow = {},
                     onPlaceToday = {},
                     onPlaceStart = {},
-                    onPlaceLater = {},
-                    onSchedule = { _, _, _ -> },
                 )
             }
         }
