@@ -171,7 +171,7 @@ private fun HomeBandHeader(
     val current = group.phase == BandPhase.OPEN
     val title =
         if (current) stringResource(R.string.home_band_current, name) else name
-    val color = if (current) FocusColors.Live.Lavender else FocusColors.Live.Muted
+    val color = if (current) FocusColors.Live.Now else FocusColors.Live.Muted
     val trailing = bandCountCopy(group)
     val interaction = rememberPressSource()
     val clickModifier =

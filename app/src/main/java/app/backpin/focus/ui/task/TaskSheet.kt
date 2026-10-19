@@ -14,7 +14,7 @@ import app.backpin.focus.ui.components.QuietButton
 
 /**
  * Chip-row actions for one open task. Same QuietButton chips as the add-repeat
- * band and cadence rows. Mint is Done and Resume. Lavender is Interrupt.
+ * band and cadence rows. Mint is Done and Resume. Now is Interrupt.
  */
 @Composable
 internal fun TaskSheet(

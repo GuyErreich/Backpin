@@ -12,7 +12,7 @@ Buttons
 
 Colors
 - Accent buttons are outlined, with the label in the same color as the border.
-- Mint is Done, Resume, Inbox, and the primary Save. Lavender is the now-blue status color (NOW card, current band, MAIN, chevrons). Amber is missed or due. Everything else is quiet.
+- Mint is Done, Resume, Inbox, and the primary Save. Now (#5AB4FF) is the status color (NOW card, current band, MAIN, chevrons). Amber is missed or due. Everything else is quiet.
 - Use only the theme colors in `FocusColors`.
 - No red, no alarm look.
 

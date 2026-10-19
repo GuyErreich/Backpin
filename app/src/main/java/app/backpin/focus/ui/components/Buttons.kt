@@ -52,7 +52,7 @@ import app.backpin.focus.ui.theme.CardActionHeight
 import app.backpin.focus.ui.theme.FocusColors
 import app.backpin.focus.ui.theme.RowDoneHeight
 
-/** Mint is the one primary action. Lavender is Interrupt and events. Amber is missed or due. */
+/** Mint is the one primary action. Now is Interrupt and events. Amber is missed or due. */
 internal enum class AccentTone {
     Mint,
     Lavender,
@@ -88,7 +88,7 @@ private fun Color.shown(enabled: Boolean): Color = if (enabled) this else copy(a
 /** Tone swatch for the Signal palette. */
 private fun AccentTone.color(): Color = when (this) {
     AccentTone.Mint -> FocusColors.Mint
-    AccentTone.Lavender -> FocusColors.Lavender
+    AccentTone.Lavender -> FocusColors.Now
     AccentTone.Amber -> FocusColors.Amber
 }
 
@@ -98,7 +98,7 @@ internal fun accentLabelColor(
     enabled: Boolean = true,
 ): Color = tone.color().shown(enabled)
 
-/** Label of a [CaptureChoice]: the accent for Mint, Lavender, and Amber, plain text for Quiet. */
+/** Label of a [CaptureChoice]: the accent for Mint, Lavender (Now), and Amber, plain text for Quiet. */
 internal fun choiceLabelColor(
     tone: ChoiceTone,
     enabled: Boolean = true,
@@ -118,7 +118,7 @@ internal fun choiceContainerColor(
     if (!filled) return Color.Transparent
     val fill =
         when (tone) {
-            ChoiceTone.Lavender -> FocusColors.LavenderContainer
+            ChoiceTone.Lavender -> FocusColors.NowContainer
             ChoiceTone.Mint -> FocusColors.Mint.copy(alpha = 0.25f)
             ChoiceTone.Amber -> FocusColors.Amber.copy(alpha = 0.25f)
             ChoiceTone.Quiet -> FocusColors.SurfaceHigh
@@ -246,7 +246,7 @@ internal fun AccentButton(
     val color =
         when (tone) {
             AccentTone.Mint -> FocusColors.Live.Mint
-            AccentTone.Lavender -> FocusColors.Live.Lavender
+            AccentTone.Lavender -> FocusColors.Live.Now
             AccentTone.Amber -> FocusColors.Live.Amber
         }.shown(enabled)
     FocusButtonShell(
@@ -309,7 +309,7 @@ internal fun CaptureChoice(
     val labelColor =
         when (tone) {
             ChoiceTone.Mint -> FocusColors.Live.Mint
-            ChoiceTone.Lavender -> FocusColors.Live.Lavender
+            ChoiceTone.Lavender -> FocusColors.Live.Now
             ChoiceTone.Amber -> FocusColors.Live.Amber
             ChoiceTone.Quiet -> FocusColors.Live.Text
         }.shown(enabled)
@@ -321,7 +321,7 @@ internal fun CaptureChoice(
         }
     val fill =
         when (tone) {
-            ChoiceTone.Lavender -> FocusColors.Live.LavenderContainer
+            ChoiceTone.Lavender -> FocusColors.Live.NowContainer
             ChoiceTone.Mint -> FocusColors.Live.Mint.copy(alpha = 0.25f)
             ChoiceTone.Amber -> FocusColors.Live.Amber.copy(alpha = 0.25f)
             ChoiceTone.Quiet -> FocusColors.Live.SurfaceHigh
