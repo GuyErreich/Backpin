@@ -119,6 +119,19 @@ data class UndoToken(
 )
 
 /**
+ * Outcome of turning a task into a repeat. [Converted.task] is the deleted
+ * row Undo reinserts with the same id, list, and position.
+ */
+sealed interface ConvertToRepeatResult {
+    data class Converted(
+        val repeatId: String,
+        val task: Task,
+    ) : ConvertToRepeatResult
+
+    data object Rejected : ConvertToRepeatResult
+}
+
+/**
  * Result of [FocusRepository.start].
  * Today-slot results stay [PromoteOutcome] values.
  * Starting a parent that still has an open interruption activates the

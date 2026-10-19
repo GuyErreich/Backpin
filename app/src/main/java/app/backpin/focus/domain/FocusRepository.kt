@@ -304,6 +304,26 @@ interface FocusRepository {
     ): String?
 
     /**
+     * Turns [taskId] into a new repeat and deletes the task, in one transaction.
+     * Missing, done, the active Now item, or any open frame is
+     * [ConvertToRepeatResult.Rejected]. Blank title follows [createRepeat].
+     */
+    suspend fun convertToRepeat(
+        taskId: String,
+        title: String,
+        band: RepeatBand,
+        everyNDays: Int,
+        anchorEpochDay: Long,
+        reminderOn: Boolean = true,
+    ): ConvertToRepeatResult
+
+    /**
+     * Deletes the repeat from [snapshot] (and its log rows) and restores the task.
+     * No-op when the repeat is already gone or the task id exists again.
+     */
+    suspend fun undoConvertToRepeat(snapshot: ConvertToRepeatResult.Converted)
+
+    /**
      * Rewrites every field on an existing, unarchived repeat.
      * A blank title, a missing id, or an archived row writes nothing and returns false.
      */

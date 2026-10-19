@@ -4,6 +4,7 @@ package app.backpin.focus.data
 import androidx.room.withTransaction
 import app.backpin.focus.domain.AppClock
 import app.backpin.focus.domain.BandTimes
+import app.backpin.focus.domain.ConvertToRepeatResult
 import app.backpin.focus.domain.DetachDestination
 import app.backpin.focus.domain.FocusRepository
 import app.backpin.focus.domain.FocusSnapshot
@@ -23,7 +24,6 @@ import app.backpin.focus.domain.Task
 import app.backpin.focus.domain.TaskBucket
 import app.backpin.focus.domain.TaskStatus
 import app.backpin.focus.domain.TodaysRepeats
-import app.backpin.focus.domain.UNTITLED_INTERRUPTION
 import app.backpin.focus.domain.UndoToken
 import app.backpin.focus.domain.UserPreferences
 import app.backpin.focus.domain.bandWindow
@@ -554,7 +554,7 @@ class FocusRepositoryImpl(
             if (active != null) {
                 frameDao.upsert(pause(active))
             }
-            val resolved = title?.trim()?.takeIf { it.isNotEmpty() } ?: UNTITLED_INTERRUPTION
+            val resolved = title?.trim()?.takeIf { it.isNotEmpty() } ?: app.backpin.focus.domain.UNTITLED_INTERRUPTION
             val task = newTask(resolved, TaskBucket.INBOX)
             taskDao.upsert(task)
             frameDao.upsert(newFrame(task.id, parentFrameId = active?.id))
@@ -1321,5 +1321,57 @@ class FocusRepositoryImpl(
             pausedAtEpochMillis = now,
             accumulatedMillis = frame.accumulatedMillis + segment,
         )
+    }
+
+    /**
+     * Turns [taskId] into a new repeat and deletes the task.
+     * Missing, done, active Now, or an open frame is left alone.
+     */
+    override suspend fun convertToRepeat(
+        taskId: String,
+        title: String,
+        band: RepeatBand,
+        everyNDays: Int,
+        anchorEpochDay: Long,
+        reminderOn: Boolean,
+    ): ConvertToRepeatResult {
+        val result =
+            database.withTransaction {
+                val task = taskDao.getById(taskId) ?: return@withTransaction ConvertToRepeatResult.Rejected
+                if (task.status != TaskStatus.OPEN.name) {
+                    return@withTransaction ConvertToRepeatResult.Rejected
+                }
+                if (frameDao.getActive()?.taskId == taskId) {
+                    return@withTransaction ConvertToRepeatResult.Rejected
+                }
+                if (frameDao.openFrameForTask(taskId) != null) {
+                    return@withTransaction ConvertToRepeatResult.Rejected
+                }
+                val repeatId =
+                    createRepeat(title, band, everyNDays, anchorEpochDay, reminderOn)
+                        ?: return@withTransaction ConvertToRepeatResult.Rejected
+                frameDao.deleteForTask(taskId)
+                taskDao.deleteById(taskId)
+                ConvertToRepeatResult.Converted(repeatId = repeatId, task = task.toDomain())
+            }
+        if (result is ConvertToRepeatResult.Converted) recordInteraction()
+        return result
+    }
+
+    /**
+     * Deletes the created repeat and its logs, then restores [snapshot.task].
+     * No-op when the repeat is gone or the task id exists.
+     */
+    override suspend fun undoConvertToRepeat(snapshot: ConvertToRepeatResult.Converted) {
+        val restored =
+            database.withTransaction {
+                repeatDao.getById(snapshot.repeatId) ?: return@withTransaction false
+                if (taskDao.getById(snapshot.task.id) != null) return@withTransaction false
+                repeatLogDao.deleteForRepeat(snapshot.repeatId)
+                repeatDao.deleteById(snapshot.repeatId)
+                taskDao.upsert(snapshot.task.toEntity())
+                true
+            }
+        if (restored) recordInteraction()
     }
 }
