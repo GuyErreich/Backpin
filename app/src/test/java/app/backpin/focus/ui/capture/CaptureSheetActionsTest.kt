@@ -9,6 +9,8 @@ import android.os.Looper
 import android.speech.RecognizerIntent
 import android.view.WindowInsets
 import androidx.activity.ComponentActivity
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.assertHasClickAction
@@ -72,6 +74,8 @@ class CaptureSheetActionsTest {
             fixture.withViewModel { viewModel ->
                 var dismissed = 0
                 compose.setContent {
+                    // Keep uiState subscribed — it is stateIn(WhileSubscribed).
+                    val state by viewModel.uiState.collectAsState()
                     FocusStackTheme {
                         CaptureSheet(
                             phrases = emptyList(),
@@ -84,6 +88,8 @@ class CaptureSheetActionsTest {
                             recognizer = AllowAllRecognizer,
                         )
                     }
+                    @Suppress("UNUSED_EXPRESSION")
+                    state.now
                 }
                 typeTitle("Write the notes")
                 tap("Today")

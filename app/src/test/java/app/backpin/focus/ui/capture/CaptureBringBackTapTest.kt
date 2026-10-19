@@ -14,6 +14,7 @@ import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
 import app.backpin.focus.R
 import app.backpin.focus.domain.TaskBucket
+import app.backpin.focus.domain.scheduleMomentLabel
 import app.backpin.focus.testing.MainDispatcherRule
 import app.backpin.focus.testing.useTestFocus
 import app.backpin.focus.ui.FocusApp
@@ -27,6 +28,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import java.util.Locale
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
@@ -84,6 +86,66 @@ class CaptureBringBackTapTest {
                 await("capture open") { viewModel.uiState.value.captureOpen }
                 tap(compose.activity.getString(R.string.action_bring_back))
                 await("still capturing") { viewModel.uiState.value.captureOpen && viewModel.bringBack.value == null }
+                compose.onNodeWithText("Bring it back in…").assertDoesNotExist()
+            }
+        }
+    }
+
+    @Test
+    fun pickADateOnTheBringBackCalendarSchedulesOnceAndCloses() {
+        useTestFocus { fixture ->
+            fixture.withViewModel { viewModel ->
+                compose.setContent {
+                    FocusStackTheme {
+                        FocusApp(viewModel)
+                    }
+                }
+                await("FocusApp ready") { viewModel.uiState.value.ready }
+                compose.runOnIdle { viewModel.openCapture() }
+                await("capture open") { viewModel.uiState.value.captureOpen }
+                compose.onNode(hasSetTextAction()).performTextInput("Book the room")
+                tap(compose.activity.getString(R.string.action_bring_back))
+                await("Bring back sheet") {
+                    compose.onAllNodesWithText("Bring it back in…", useUnmergedTree = true)
+                        .fetchSemanticsNodes()
+                        .isNotEmpty()
+                }
+                tap(compose.activity.getString(R.string.bring_back_pick_a_date))
+                await("calendar page") {
+                    compose
+                        .onAllNodesWithText(
+                            compose.activity.getString(R.string.bring_back_pick_a_date_title),
+                            useUnmergedTree = true,
+                        )
+                        .fetchSemanticsNodes()
+                        .isNotEmpty() &&
+                        compose
+                            .onAllNodesWithText("Bring it back in…", useUnmergedTree = true)
+                            .fetchSemanticsNodes()
+                            .isEmpty()
+                }
+                val picked = fixture.clock.localDate().plusDays(4)
+                tap(picked.dayOfMonth.toString())
+                val saveLabel =
+                    compose.activity.getString(
+                        R.string.bring_back_save_on_date,
+                        scheduleMomentLabel(picked.toEpochDay(), null, Locale.getDefault()),
+                    )
+                tap(saveLabel)
+                await("Book the room scheduled") {
+                    kotlinx.coroutines.runBlocking {
+                        val task =
+                            fixture.useCases
+                                .observeSnapshot()
+                                .first()
+                                .tasks
+                                .singleOrNull { it.title == "Book the room" }
+                        task != null &&
+                            task.bucket == TaskBucket.SCHEDULED &&
+                            task.scheduledOnEpochDay == picked.toEpochDay()
+                    }
+                }
+                assertEquals(null, viewModel.bringBack.value)
                 compose.onNodeWithText("Bring it back in…").assertDoesNotExist()
             }
         }
