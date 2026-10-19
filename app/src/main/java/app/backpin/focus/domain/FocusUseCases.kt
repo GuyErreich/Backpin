@@ -26,10 +26,6 @@ class FocusUseCases(
         repository.discardCapture(taskId)
     }
 
-    suspend fun captureLater(title: String) {
-        repository.captureLater(title)
-    }
-
     /** A set time also queues one inexact check for that moment. */
     suspend fun captureScheduled(
         title: String,

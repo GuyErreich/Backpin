@@ -10,6 +10,7 @@ import app.backpin.focus.domain.FocusSnapshot
 import app.backpin.focus.domain.FrameState
 import app.backpin.focus.domain.TaskBucket
 import app.backpin.focus.domain.TaskStatus
+import app.backpin.focus.testing.seedInbox
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -47,10 +48,9 @@ class PileInterruptTest {
                 database = database,
                 preferencesStore = PreferencesDataStore(context, "pile-${UUID.randomUUID()}"),
                 clock =
-                    object : AppClock {
-                        override fun nowEpochMillis(): Long =
-                            today.atStartOfDay(zone).toInstant().toEpochMilli()
-                    },
+                object : AppClock {
+                    override fun nowEpochMillis(): Long = today.atStartOfDay(zone).toInstant().toEpochMilli()
+                },
             )
     }
 
@@ -60,76 +60,71 @@ class PileInterruptTest {
     }
 
     @Test
-    fun interruptFromInboxNestsAndLeavesTodayFull() =
-        runBlocking {
-            val parent = startFullToday()
-            repository.capture("Buy milk")
-            val child = taskNamed("Buy milk").id
-            nestAndFinish(parent, child)
-            assertTrue(snapshot().tasks.none { it.bucket == TaskBucket.INBOX })
-        }
+    fun interruptFromInboxNestsAndLeavesTodayFull() = runBlocking {
+        val parent = startFullToday()
+        repository.capture("Buy milk")
+        val child = taskNamed("Buy milk").id
+        nestAndFinish(parent, child)
+        assertTrue(snapshot().tasks.none { it.bucket == TaskBucket.INBOX })
+    }
 
     @Test
-    fun interruptFromLaterNestsAndLeavesTodayFull() =
-        runBlocking {
-            val parent = startFullToday()
-            repository.captureLater("Call the vendor")
-            val child = taskNamed("Call the vendor").id
-            nestAndFinish(parent, child)
-            assertTrue(snapshot().tasks.none { it.bucket == TaskBucket.LATER })
-        }
+    fun interruptFromLaterNestsAndLeavesTodayFull() = runBlocking {
+        val parent = startFullToday()
+        val child = repository.seedInbox("Call the vendor").single().id
+        repository.demote(child)
+        nestAndFinish(parent, child)
+        assertTrue(snapshot().tasks.none { it.bucket == TaskBucket.LATER })
+    }
 
     @Test
-    fun interruptFromScheduledNestsWithoutDroppingOntoToday() =
-        runBlocking {
-            val parent = startFullToday()
-            val due = today.toEpochDay()
-            repository.captureScheduled("Talk to Dana", due)
-            val child = taskNamed("Talk to Dana").id
-            val before = openToday().map { it.id }.toSet()
-            repository.interruptFromPile(child)
-            val nested = task(child)
-            assertEquals(TaskBucket.INTERRUPTION, nested.bucket)
-            assertNull(nested.scheduledOnEpochDay)
-            assertEquals(before, openToday().map { it.id }.toSet())
-            repository.releaseDueScheduled()
-            assertEquals(TaskBucket.INTERRUPTION, task(child).bucket)
-            assertEquals(before, openToday().map { it.id }.toSet())
-            assertTrue(snapshot().tasks.none { it.bucket == TaskBucket.LATER })
-            val active = snapshot().frames.single { it.state == FrameState.ACTIVE }
-            assertEquals(child, active.taskId)
-            assertEquals(parent.frameId, active.parentFrameId)
-            assertEquals("Next: the failing test", task(parent.taskId).returnCue)
-        }
+    fun interruptFromScheduledNestsWithoutDroppingOntoToday() = runBlocking {
+        val parent = startFullToday()
+        val due = today.toEpochDay()
+        repository.captureScheduled("Talk to Dana", due)
+        val child = taskNamed("Talk to Dana").id
+        val before = openToday().map { it.id }.toSet()
+        repository.interruptFromPile(child)
+        val nested = task(child)
+        assertEquals(TaskBucket.INTERRUPTION, nested.bucket)
+        assertNull(nested.scheduledOnEpochDay)
+        assertEquals(before, openToday().map { it.id }.toSet())
+        repository.releaseDueScheduled()
+        assertEquals(TaskBucket.INTERRUPTION, task(child).bucket)
+        assertEquals(before, openToday().map { it.id }.toSet())
+        assertTrue(snapshot().tasks.none { it.bucket == TaskBucket.LATER })
+        val active = snapshot().frames.single { it.state == FrameState.ACTIVE }
+        assertEquals(child, active.taskId)
+        assertEquals(parent.frameId, active.parentFrameId)
+        assertEquals("Next: the failing test", task(parent.taskId).returnCue)
+    }
 
     @Test
-    fun interruptIsRefusedWhenNothingIsActive() =
-        runBlocking {
-            repository.capture("Buy milk")
-            val milk = taskNamed("Buy milk").id
-            assertThrows(IllegalStateException::class.java) {
-                runBlocking { repository.interruptFromPile(milk) }
-            }
-            assertEquals(TaskBucket.INBOX, task(milk).bucket)
-            assertTrue(snapshot().frames.isEmpty())
+    fun interruptIsRefusedWhenNothingIsActive() = runBlocking {
+        repository.capture("Buy milk")
+        val milk = taskNamed("Buy milk").id
+        assertThrows(IllegalStateException::class.java) {
+            runBlocking { repository.interruptFromPile(milk) }
         }
+        assertEquals(TaskBucket.INBOX, task(milk).bucket)
+        assertTrue(snapshot().frames.isEmpty())
+    }
 
     @Test
-    fun interruptIsRefusedWhenTheOnlyFrameIsWaiting() =
-        runBlocking {
-            val parent = startFullToday()
-            repository.interrupt("Ping")
-            repository.completeActive()
-            assertEquals(FrameState.AWAITING_RESUME, snapshot().frames.single { it.id == parent.frameId }.state)
-            repository.capture("Buy milk")
-            val milk = taskNamed("Buy milk").id
-            assertThrows(IllegalStateException::class.java) {
-                runBlocking { repository.interruptFromPile(milk) }
-            }
-            assertEquals(TaskBucket.INBOX, task(milk).bucket)
-            assertNull(snapshot().frames.firstOrNull { it.state == FrameState.ACTIVE })
-            assertEquals(parent.todayIds, openToday().map { it.id }.toSet())
+    fun interruptIsRefusedWhenTheOnlyFrameIsWaiting() = runBlocking {
+        val parent = startFullToday()
+        repository.interrupt("Ping")
+        repository.completeActive()
+        assertEquals(FrameState.AWAITING_RESUME, snapshot().frames.single { it.id == parent.frameId }.state)
+        repository.capture("Buy milk")
+        val milk = taskNamed("Buy milk").id
+        assertThrows(IllegalStateException::class.java) {
+            runBlocking { repository.interruptFromPile(milk) }
         }
+        assertEquals(TaskBucket.INBOX, task(milk).bucket)
+        assertNull(snapshot().frames.firstOrNull { it.state == FrameState.ACTIVE })
+        assertEquals(parent.todayIds, openToday().map { it.id }.toSet())
+    }
 
     private suspend fun nestAndFinish(
         parent: StartedToday,
@@ -171,8 +166,7 @@ class PileInterruptTest {
 
     private suspend fun snapshot(): FocusSnapshot = repository.observeSnapshot().first()
 
-    private suspend fun openToday() =
-        snapshot().tasks.filter { it.bucket == TaskBucket.TODAY && it.status == TaskStatus.OPEN }
+    private suspend fun openToday() = snapshot().tasks.filter { it.bucket == TaskBucket.TODAY && it.status == TaskStatus.OPEN }
 
     private suspend fun task(id: String) = snapshot().tasks.single { it.id == id }
 

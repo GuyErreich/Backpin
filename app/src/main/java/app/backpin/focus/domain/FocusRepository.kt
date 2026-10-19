@@ -40,9 +40,6 @@ interface FocusRepository {
      */
     suspend fun discardCapture(taskId: String)
 
-    /** Parks a new task in Later. Does not start it. A blank title changes nothing. */
-    suspend fun captureLater(title: String)
-
     /**
      * Stores a new task outside Inbox, Today, and Later until [scheduledOnEpochDay], and,
      * when [scheduledAtMinuteOfDay] is set, until that local time on that day.

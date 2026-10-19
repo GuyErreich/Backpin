@@ -132,7 +132,7 @@ internal fun choiceContainerColor(
  * The label color is set on the text itself; theme typography would otherwise win over the content color.
  */
 @Composable
-private fun OutlinedFocusButton(
+private fun FocusButtonShell(
     label: String,
     labelColor: Color,
     borderColor: Color,
@@ -249,7 +249,7 @@ internal fun AccentButton(
             AccentTone.Lavender -> FocusColors.Live.Lavender
             AccentTone.Amber -> FocusColors.Live.Amber
         }.shown(enabled)
-    OutlinedFocusButton(
+    FocusButtonShell(
         label = label,
         labelColor = color,
         borderColor = color,
@@ -276,7 +276,7 @@ internal fun QuietButton(
     val picked = selected == true
     val text = FocusColors.Live.Text.shown(enabled)
     val outline = FocusColors.Live.Outline.shown(enabled)
-    OutlinedFocusButton(
+    FocusButtonShell(
         label = label,
         labelColor = text,
         borderColor = if (picked) text else outline,
@@ -326,7 +326,7 @@ internal fun CaptureChoice(
             ChoiceTone.Amber -> FocusColors.Live.Amber.copy(alpha = 0.25f)
             ChoiceTone.Quiet -> FocusColors.Live.SurfaceHigh
         }
-    OutlinedFocusButton(
+    FocusButtonShell(
         label = label,
         labelColor = labelColor,
         borderColor = borderColor,
@@ -363,7 +363,7 @@ internal fun PrimaryButton(
 ) {
     val fill = FocusColors.Live.Mint.shown(enabled)
     val content = FocusColors.Live.OnMint.shown(enabled)
-    OutlinedFocusButton(
+    FocusButtonShell(
         label = label,
         labelColor = content,
         borderColor = fill,
