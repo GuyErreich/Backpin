@@ -23,7 +23,11 @@
     <string name="action_save">Save</string>
     <string name="action_save_to_inbox">Save to Inbox</string>
     <string name="action_start_now">Start now</string>
-    <string name="action_interrupt_now">Interrupt now</string>
+    <string name="action_interrupt_do_this_now">Interrupt · do this now</string>
+    <string name="capture_heading">Get it out of your head.</string>
+    <string name="capture_edit_heading">Edit task</string>
+    <string name="capture_interrupt_heading">What came up?</string>
+    <string name="capture_interrupt_paused">“%1$s” is paused and waits at the top.</string>
     <string name="capture_or_when">OR, WHEN?</string>
     <string name="action_today">Today</string>
     <string name="action_tomorrow">Tomorrow</string>

@@ -367,6 +367,7 @@ fun FocusApp(
             onPlaceStart = viewModel::placeAndStart,
             onBringBack = viewModel::captureThenBringBack,
             interrupts = state.captureInterrupts && state.now != null,
+            pausedTitle = state.now?.title,
         )
     }
 

@@ -6,6 +6,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -13,7 +14,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -25,6 +26,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ModalBottomSheetProperties
@@ -34,6 +36,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -57,20 +60,21 @@ import androidx.compose.ui.unit.dp
 import app.backpin.focus.R
 import app.backpin.focus.domain.CapturePlace
 import app.backpin.focus.domain.editPlaces
-import app.backpin.focus.ui.components.ActionRow
 import app.backpin.focus.ui.components.BACK_LABEL
 import app.backpin.focus.ui.components.BackArrow
 import app.backpin.focus.ui.components.CLOSE_LABEL
 import app.backpin.focus.ui.components.CaptureChoice
 import app.backpin.focus.ui.components.ChoiceTone
 import app.backpin.focus.ui.components.PrimaryButton
+import app.backpin.focus.ui.components.QuietButton
+import app.backpin.focus.ui.components.SecondaryActionRow
+import app.backpin.focus.ui.home.HomeMetrics
 import app.backpin.focus.ui.motion.MotionSpec
 import app.backpin.focus.ui.motion.WithoutRipple
 import app.backpin.focus.ui.motion.motionSpec
 import app.backpin.focus.ui.motion.rememberPressSource
 import app.backpin.focus.ui.motion.rememberReducedMotion
 import app.backpin.focus.ui.theme.ButtonGap
-import app.backpin.focus.ui.theme.ButtonLabel
 import app.backpin.focus.ui.theme.ButtonRadius
 import app.backpin.focus.ui.theme.FocusColors
 import app.backpin.focus.ui.theme.Space
@@ -80,7 +84,7 @@ private enum class ListenField {
     Fill,
 }
 
-private val PhraseChipMinHeight = 40.dp
+private val PhraseChipHeight = 32.dp
 
 /** Prefill for the same sheet in edit mode. [place] is null for a nested interruption. */
 internal data class CaptureEdit(
@@ -103,6 +107,7 @@ internal fun CaptureSheet(
     onCommitEdit: ((String, CapturePlace?, Long?) -> Unit)? = null,
     onBringBack: ((String) -> Unit)? = null,
     interrupts: Boolean = false,
+    pausedTitle: String? = null,
     recognizer: UtteranceRecognizer? = null,
     onSystemSpeech: ((Intent, (String) -> Unit) -> Unit)? = null,
 ) {
@@ -263,7 +268,11 @@ internal fun CaptureSheet(
                     inSheet = true,
                 )
                 Text(
-                    if (editing) "Edit task" else "Get it out of your head.",
+                    when {
+                        editing -> stringResource(R.string.capture_edit_heading)
+                        interruptNow -> stringResource(R.string.capture_interrupt_heading)
+                        else -> stringResource(R.string.capture_heading)
+                    },
                     style = MaterialTheme.typography.headlineMedium,
                     modifier = Modifier.weight(1f).semantics { heading() },
                 )
@@ -271,8 +280,8 @@ internal fun CaptureSheet(
             if (!editing && phrases.isNotEmpty()) {
                 FlowRow(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(Space),
-                    verticalArrangement = Arrangement.spacedBy(Space),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     phrases.forEach { phrase ->
                         key(phrase) {
@@ -397,38 +406,44 @@ internal fun CaptureSheet(
                     label = stringResource(R.string.action_save),
                     onClick = ::commitEditAndClose,
                 )
-            } else {
-                if (interruptNow) {
-                    CaptureChoice(
-                        label = stringResource(R.string.action_interrupt_now),
-                        onClick = { runWithTitle(onInterruptNow) },
-                        tone = ChoiceTone.Lavender,
-                        filled = true,
+            } else if (interruptNow) {
+                pausedTitle?.let { nowTitle ->
+                    Text(
+                        text = stringResource(R.string.capture_interrupt_paused, nowTitle),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = FocusColors.Live.Muted,
                     )
-                } else {
+                }
+                PrimaryButton(
+                    label = stringResource(R.string.action_interrupt_do_this_now),
+                    onClick = { runWithTitle(onInterruptNow) },
+                )
+            } else {
+                Column(modifier = Modifier.fillMaxWidth()) {
                     PrimaryButton(
                         label = stringResource(R.string.action_save_to_inbox),
                         onClick = { runWithTitle(onSaveToInbox) },
                     )
-                }
-                Text(
-                    text = stringResource(R.string.capture_or_when),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = FocusColors.Live.Muted,
-                )
-                ActionRow {
-                    CaptureChoice(
-                        label = stringResource(R.string.action_today),
-                        onClick = { runWithTitle(onPlaceToday) },
+                    Text(
+                        text = stringResource(R.string.capture_or_when),
+                        style = HomeMetrics.Eyebrow,
+                        color = FocusColors.Live.Muted,
+                        modifier = Modifier.padding(top = 16.dp, bottom = 8.dp),
                     )
-                    CaptureChoice(
-                        label = stringResource(R.string.action_start_now),
-                        onClick = { runWithTitle(onPlaceStart) },
-                    )
-                    CaptureChoice(
-                        label = stringResource(R.string.action_bring_back),
-                        onClick = { onBringBack?.let(::runWithTitle) },
-                    )
+                    SecondaryActionRow {
+                        QuietButton(
+                            label = stringResource(R.string.action_today),
+                            onClick = { runWithTitle(onPlaceToday) },
+                        )
+                        QuietButton(
+                            label = stringResource(R.string.action_start_now),
+                            onClick = { runWithTitle(onPlaceStart) },
+                        )
+                        QuietButton(
+                            label = stringResource(R.string.action_bring_back),
+                            onClick = { onBringBack?.let(::runWithTitle) },
+                        )
+                    }
                 }
             }
             }
@@ -436,32 +451,43 @@ internal fun CaptureSheet(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun PhraseChip(
     label: String,
     onClick: () -> Unit,
 ) {
     val interaction = rememberPressSource()
-    WithoutRipple {
-        Surface(
-            modifier =
-            Modifier
-                .heightIn(min = PhraseChipMinHeight)
-                .clickable(
-                    interactionSource = interaction,
-                    indication = null,
-                    role = Role.Button,
-                    onClick = onClick,
-                ),
-            shape = RoundedCornerShape(50),
-            color = FocusColors.Live.SurfaceHigh,
-        ) {
-            Text(
-                text = label,
-                style = ButtonLabel,
-                color = FocusColors.Live.Text,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-            )
+    CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
+        WithoutRipple {
+            Surface(
+                modifier =
+                Modifier
+                    .height(PhraseChipHeight)
+                    .clickable(
+                        interactionSource = interaction,
+                        indication = null,
+                        role = Role.Button,
+                        onClick = onClick,
+                    ),
+                shape = RoundedCornerShape(percent = 50),
+                color = FocusColors.Live.SurfaceHigh,
+            ) {
+                Box(
+                    modifier =
+                    Modifier
+                        .fillMaxHeight()
+                        .padding(horizontal = 16.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = FocusColors.Live.Text,
+                        maxLines = 1,
+                    )
+                }
+            }
         }
     }
 }

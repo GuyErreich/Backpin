@@ -417,6 +417,26 @@ internal fun ActionRow(
 }
 
 /**
+ * Equal-width [QuietButton] row at [CardActionHeight]. Capture's OR, WHEN? destinations
+ * share the line this way, 48dp tall, instead of the 56dp sheet [ActionRow].
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun SecondaryActionRow(
+    modifier: Modifier = Modifier,
+    gap: Dp = ButtonGap,
+    content: @Composable () -> Unit,
+) {
+    CompositionLocalProvider(
+        LocalButtonMinHeight provides CardActionHeight,
+        LocalLockButtonHeight provides true,
+        LocalMinimumInteractiveComponentSize provides 0.dp,
+    ) {
+        ActionRow(modifier = modifier, gap = gap, content = content)
+    }
+}
+
+/**
  * Mint outline Done on a compact Home row. Same size on every upcoming and missed row.
  */
 @OptIn(ExperimentalMaterial3Api::class)
