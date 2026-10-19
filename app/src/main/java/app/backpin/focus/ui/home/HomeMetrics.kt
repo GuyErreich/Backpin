@@ -50,7 +50,7 @@ internal object HomeMetrics {
 
     /** Scroll padding so the last row and footer clear the FAB, a snackbar, and 16dp. */
     val ListBottom = ButtonMinHeight + SnackbarHeight + 16.dp
-    val TabBarHeight = 64.dp
+    val TabBarHeight = 80.dp
 
     val Eyebrow =
         TextStyle(
