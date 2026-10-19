@@ -1,6 +1,28 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [0.1.29-dev] - 19-10-2026
+
+### Features & Enhancements
+- Today notification matches option B (#59)
+- match Home to the frozen compact mockup (#58)
+- Capture sheet to Penpot C1/2 (#93)
+
+
+### Infrastructure & Tooling
+- run CI on pull requests to any branch (#71)
+- rerun changed tests to catch flakes (#74)
+
+
+### Bug Fixes & Resolutions
+- keep captured task in Inbox when Today is full (#57)
+- design QA follow-ups for Home v2 (#92)
+
+
+### Testing
+- cover build-logic test-class parser (#81)
+- make two FocusStack ViewModel unit tests deterministic (#76)
+
 ## [0.1.25-dev] - 19-10-2026
 
 ### Features & Enhancements
