@@ -328,6 +328,7 @@ fun FocusApp(
             ),
             onCommitEdit = viewModel::saveEdit,
             onBringBack = viewModel::saveEditThenBringBack,
+            onRepeat = viewModel::openRepeatCreate,
         )
     } else if (openTaskSheet != null) {
         TaskSheet(

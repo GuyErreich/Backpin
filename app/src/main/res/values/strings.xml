@@ -26,6 +26,8 @@
     <string name="action_interrupt_do_this_now">Interrupt · do this now</string>
     <string name="capture_heading">Get it out of your head.</string>
     <string name="capture_edit_heading">Edit task</string>
+    <string name="capture_edit_repeat_subline">Edit · Repeat lives here</string>
+    <string name="action_repeat">Repeat ›</string>
     <string name="capture_interrupt_heading">What came up?</string>
     <string name="capture_interrupt_paused">“%1$s” is paused and waits at the top.</string>
     <string name="capture_or_when">OR, WHEN?</string>

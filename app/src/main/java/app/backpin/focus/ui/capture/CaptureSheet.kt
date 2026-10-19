@@ -106,6 +106,7 @@ internal fun CaptureSheet(
     edit: CaptureEdit? = null,
     onCommitEdit: ((String, CapturePlace?, Long?) -> Unit)? = null,
     onBringBack: ((String) -> Unit)? = null,
+    onRepeat: ((String) -> Unit)? = null,
     interrupts: Boolean = false,
     pausedTitle: String? = null,
     recognizer: UtteranceRecognizer? = null,
@@ -203,6 +204,15 @@ internal fun CaptureSheet(
             return
         }
         selectedPlace = place
+    }
+
+    fun openRepeatFromEdit() {
+        val current = edit ?: return
+        val openRepeat = onRepeat ?: return
+        val titleText = titleDraft.text.trim().ifEmpty { current.title }
+        editCommitted = true
+        stopListening()
+        openRepeat(titleText)
     }
 
     val atFirstStep = activeBlank == null
@@ -402,6 +412,17 @@ internal fun CaptureSheet(
                     selected = selectedPlace,
                     onPlace = ::placeTyped,
                 )
+                if (onRepeat != null) {
+                    Text(
+                        text = stringResource(R.string.capture_edit_repeat_subline),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = FocusColors.Live.Muted,
+                    )
+                    CaptureChoice(
+                        label = stringResource(R.string.action_repeat),
+                        onClick = ::openRepeatFromEdit,
+                    )
+                }
                 PrimaryButton(
                     label = stringResource(R.string.action_save),
                     onClick = ::commitEditAndClose,
