@@ -5,6 +5,8 @@ import app.backpin.focus.domain.CapturePlace
 import app.backpin.focus.domain.RepeatDayStatus
 import app.backpin.focus.domain.UndoToken
 import app.backpin.focus.domain.UserPreferences
+import java.time.LocalDate
+import java.time.LocalTime
 
 enum class SlotRole {
     NOW,
@@ -17,6 +19,7 @@ data class TaskUi(
     val id: String,
     val title: String,
     val returnCue: String?,
+    val scheduledAtMinuteOfDay: Int? = null,
 )
 
 /** The open task currently in the edit sheet. [place] is null for a nested interruption. */
@@ -41,6 +44,12 @@ data class TaskSheetUi(
     val role: TaskSheetRole,
     val canInterrupt: Boolean,
     val frameId: String? = null,
+)
+
+/** Home item waiting on the shared Bring back sheet. */
+data class BringBackUi(
+    val taskId: String,
+    val title: String,
 )
 
 /** A missed repeat in the chip-row missed sheet. */
@@ -187,4 +196,6 @@ data class FocusUiState(
     val undo: PendingUndo? = null,
     val startRedirect: StartRedirectUi? = null,
     val preferences: UserPreferences = UserPreferences(),
+    val today: LocalDate = LocalDate.ofEpochDay(0),
+    val localTime: LocalTime = LocalTime.MIN,
 )

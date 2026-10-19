@@ -66,7 +66,6 @@ class RepeatsMissedHeaderQaTest {
                         viewModel = env.viewModel,
                         onOpenFocus = {},
                         onOpenInbox = {},
-                        onOpenLater = {},
                         onOpenScheduled = {},
                         onOpenDone = {},
                     )

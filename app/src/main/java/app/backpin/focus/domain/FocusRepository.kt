@@ -86,7 +86,7 @@ interface FocusRepository {
      * A nested child already on Today is treated the same once its parent frame is
      * closed: if it now exceeds the cap, Inbox and [PromoteOutcome.NeedsSwap].
      * [DetachDestination.Later] waits in Inbox. Later is not a placement anymore.
-     * [DetachDestination.Countdown] needs a day after today.
+     * [DetachDestination.Countdown] needs a day from tomorrow through today plus 365 days.
      */
     suspend fun detachInterruption(
         taskId: String,

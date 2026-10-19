@@ -24,12 +24,20 @@ internal fun everyNDaysLabel(
     cadenceDays: Int,
     resources: Resources,
 ): String? =
-    if (cadenceDays <= 1) null else resources.getString(R.string.repeat_cadence, cadenceDays)
+    when {
+        cadenceDays <= 0 -> null
+        cadenceDays == 1 -> resources.getString(R.string.repeat_cadence_daily)
+        else -> resources.getString(R.string.repeat_cadence, cadenceDays)
+    }
 
 internal fun missedRepeatCopy(
     band: RepeatBand,
     resources: Resources,
-): String = resources.getString(R.string.repeat_missed, band.label().lowercase())
+): String = when (band) {
+    RepeatBand.MORNING -> resources.getString(R.string.repeat_missed_morning)
+    RepeatBand.NOON -> resources.getString(R.string.repeat_missed_noon)
+    RepeatBand.NIGHT -> resources.getString(R.string.repeat_missed_night)
+}
 
 internal fun repeatRowDescription(
     row: RepeatRow,

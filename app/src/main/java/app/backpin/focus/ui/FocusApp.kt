@@ -8,16 +8,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.FabPosition
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHost
@@ -30,7 +23,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -39,21 +31,23 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import app.backpin.focus.R
+import app.backpin.focus.domain.CountdownUnit
 import app.backpin.focus.domain.HomeLayout
 import app.backpin.focus.domain.ThemeId
 import app.backpin.focus.notifications.NotificationContract
+import app.backpin.focus.ui.capture.BringBackSheet
 import app.backpin.focus.ui.capture.CaptureEdit
 import app.backpin.focus.ui.capture.CaptureSheet
-import app.backpin.focus.ui.components.AccentButton
-import app.backpin.focus.ui.components.AccentTone
+import app.backpin.focus.ui.components.AddFab
+import app.backpin.focus.ui.components.AppTab
+import app.backpin.focus.ui.components.AppTabBar
 import app.backpin.focus.ui.components.QuietButton
 import app.backpin.focus.ui.countdown.CountdownScreen
 import app.backpin.focus.ui.focus.FocusScreen
+import app.backpin.focus.ui.home.ComingUpScreen
 import app.backpin.focus.ui.home.DoneScreen
 import app.backpin.focus.ui.home.HomeScreen
 import app.backpin.focus.ui.home.InboxScreen
-import app.backpin.focus.ui.home.LaterScreen
-import app.backpin.focus.ui.home.ScheduledScreen
 import app.backpin.focus.ui.motion.pileEnter
 import app.backpin.focus.ui.motion.pileExit
 import app.backpin.focus.ui.motion.rememberReducedMotion
@@ -64,21 +58,19 @@ import app.backpin.focus.ui.task.MissedTaskSheet
 import app.backpin.focus.ui.task.TaskSheet
 import app.backpin.focus.ui.theme.ButtonGap
 import app.backpin.focus.ui.theme.FocusColors
-import app.backpin.focus.ui.theme.Space
 
 private object Routes {
     const val HOME = "home"
     const val INBOX = "inbox"
-    const val LATER = "later"
-    const val SCHEDULED = "scheduled"
     const val DONE = "done"
     const val FOCUS = "focus"
     const val COUNTDOWN = "countdown"
+    const val COMING_UP = "coming_up"
     const val SETTINGS = "settings"
 }
 
-private val homeRoutes = setOf(Routes.HOME, Routes.INBOX, Routes.LATER, Routes.SCHEDULED, Routes.DONE)
-private val pileRoutes = setOf(Routes.INBOX, Routes.LATER, Routes.SCHEDULED, Routes.DONE)
+private val pileRoutes = setOf(Routes.INBOX, Routes.DONE, Routes.COMING_UP)
+private val comingUpRoutes = setOf(Routes.COMING_UP, Routes.COUNTDOWN)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -91,13 +83,18 @@ fun FocusApp(
     homeLayout: HomeLayout = HomeLayout.FLAT,
     onHomeLayout: (HomeLayout) -> Unit = {},
     showHomeLayout: Boolean = false,
+    countdownUnit: CountdownUnit = CountdownUnit.DAYS,
+    onCountdownUnit: (CountdownUnit) -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val checkedOffMessage = stringResource(R.string.undo_checked_off)
     val keptInInboxMessage = stringResource(R.string.kept_in_inbox)
-    val undoAction = stringResource(R.string.action_undo)
+    val undoLabel = stringResource(R.string.action_undo)
+    val movedComingUp = stringResource(R.string.moved_to_coming_up)
+    val movedInbox = stringResource(R.string.moved_to_inbox)
     val repeatDraft by viewModel.editingRepeat.collectAsStateWithLifecycle()
     val taskSheet by viewModel.taskSheet.collectAsStateWithLifecycle()
+    val bringBack by viewModel.bringBack.collectAsStateWithLifecycle()
     val missedRepeatSheet by viewModel.missedRepeatSheet.collectAsStateWithLifecycle()
     val missedTaskSheet by viewModel.missedTaskSheet.collectAsStateWithLifecycle()
     val bandTimes by viewModel.bandTimes.collectAsStateWithLifecycle()
@@ -120,22 +117,6 @@ fun FocusApp(
         if (launchDestination != null) onLaunchDestinationConsumed()
     }
 
-    LaunchedEffect(state.undo?.id) {
-        val undo = state.undo ?: return@LaunchedEffect
-        val message = undoSnackbarMessage(undo, checkedOffMessage, keptInInboxMessage)
-        val result =
-            snackbarHostState.showSnackbar(
-                message = message,
-                actionLabel = undoAction,
-                withDismissAction = true,
-            )
-        if (result == SnackbarResult.ActionPerformed) {
-            viewModel.undo(undo.id)
-        } else {
-            viewModel.dismissUndo(undo.id)
-        }
-    }
-
     val startRedirect = state.startRedirect
     val startRedirectMessage =
         if (startRedirect != null) {
@@ -153,49 +134,46 @@ fun FocusApp(
         viewModel.dismissStartRedirect()
     }
 
+    LaunchedEffect(state.undo?.id) {
+        val undo = state.undo ?: return@LaunchedEffect
+        val message = undoSnackbarMessage(undo, checkedOffMessage, keptInInboxMessage)
+        val result =
+            snackbarHostState.showSnackbar(
+                message = message,
+                actionLabel = undoLabel,
+                withDismissAction = true,
+            )
+        if (result == SnackbarResult.ActionPerformed) {
+            viewModel.undo(undo.id)
+        } else {
+            viewModel.dismissUndo(undo.id)
+        }
+    }
+
     Scaffold(
         containerColor = FocusColors.Live.Midnight,
         snackbarHost = { FocusSnackbarHost(snackbarHostState) },
-        bottomBar = {
-            Column {
-                if (showCapture) {
-                    AccentButton(
-                        label = "+ Capture",
-                        tone = AccentTone.Mint,
-                        onClick = { viewModel.openCapture(interrupts = false) },
-                        modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = Space),
-                    )
-                }
-                NavigationBar(containerColor = FocusColors.Live.Surface) {
-                    NavigationBarItem(
-                        selected = route in homeRoutes,
-                        onClick = { navController.showToday() },
-                        icon = { Icon(Icons.Filled.Home, contentDescription = null) },
-                        label = { Text("Home") },
-                    )
-                    NavigationBarItem(
-                        selected = route == Routes.FOCUS,
-                        onClick = { navController.navigateTab(Routes.FOCUS) },
-                        icon = { Icon(Icons.Filled.Star, contentDescription = null) },
-                        label = { Text("Focus") },
-                    )
-                    NavigationBarItem(
-                        selected = route == Routes.COUNTDOWN,
-                        onClick = { navController.navigateTab(Routes.COUNTDOWN) },
-                        icon = { Icon(Icons.Filled.DateRange, contentDescription = null) },
-                        label = { Text("Countdown") },
-                    )
-                    NavigationBarItem(
-                        selected = route == Routes.SETTINGS,
-                        onClick = { navController.navigateTab(Routes.SETTINGS) },
-                        icon = { Icon(Icons.Filled.Settings, contentDescription = null) },
-                        label = { Text("Settings") },
-                    )
-                }
+        floatingActionButton = {
+            if (showCapture) {
+                AddFab(onClick = { viewModel.openCapture(interrupts = false) })
             }
+        },
+        floatingActionButtonPosition = FabPosition.End,
+        bottomBar = {
+            AppTabBar(
+                selected = selectedTab(route),
+                inboxCount = state.inboxCount,
+                comingUpCount = state.scheduledTasks.size + state.countdowns.size,
+                onSelect = { tab ->
+                    when (tab) {
+                        AppTab.HOME -> navController.navigateTab(Routes.HOME)
+                        AppTab.INBOX -> navController.navigateTab(Routes.INBOX)
+                        AppTab.COMING_UP -> navController.navigateTab(Routes.COMING_UP)
+                        AppTab.FOCUS -> navController.navigateTab(Routes.FOCUS)
+                        AppTab.SETTINGS -> navController.navigateTab(Routes.SETTINGS)
+                    }
+                },
+            )
         },
     ) { padding ->
         NavHost(
@@ -224,11 +202,24 @@ fun FocusApp(
                     state = state,
                     viewModel = viewModel,
                     onOpenFocus = { navController.navigateTab(Routes.FOCUS) },
-                    onOpenInbox = { navController.openPile(Routes.INBOX) },
-                    onOpenLater = { navController.openPile(Routes.LATER) },
-                    onOpenScheduled = { navController.openPile(Routes.SCHEDULED) },
-                    onOpenDone = { navController.openPile(Routes.DONE) },
+                    onOpenInbox = { navController.navigateTab(Routes.INBOX) },
+                    onOpenScheduled = { navController.navigateTab(Routes.COMING_UP) },
+                    onOpenDone = { navController.navigateTab(Routes.INBOX) },
                     homeLayout = homeLayout,
+                )
+            }
+            composable(Routes.COMING_UP) {
+                ComingUpScreen(
+                    scheduledTasks = state.scheduledTasks,
+                    countdowns = state.countdowns,
+                    ready = state.ready,
+                    today = viewModel.localDate(),
+                    countdownUnit = countdownUnit,
+                    onEdit = viewModel::openEdit,
+                    onOpenSheet = viewModel::openTaskSheet,
+                    onOpenMissed = viewModel::openMissedTask,
+                    onAddCountdown = viewModel::addCountdown,
+                    onChangeCountdownDate = viewModel::changeCountdownDate,
                 )
             }
             composable(
@@ -240,52 +231,15 @@ fun FocusApp(
                     tasks = state.inboxTasks,
                     ready = state.ready,
                     canInterrupt = state.canInterrupt,
-                    onBack = { navController.popBackStack() },
+                    onBack = { navController.navigateTab(Routes.HOME) },
                     onToday = viewModel::promote,
                     onStart = viewModel::start,
                     onInterrupt = viewModel::interruptFromPile,
                     onEdit = viewModel::openEdit,
                     onOpenSheet = viewModel::openTaskSheet,
-                )
-            }
-            composable(
-                Routes.LATER,
-                enterTransition = { homePileEnter(reducedMotion) },
-                popExitTransition = { homePileExit(reducedMotion) },
-            ) {
-                LaterScreen(
-                    tasks = state.laterTasks,
-                    ready = state.ready,
-                    canInterrupt = state.canInterrupt,
-                    onBack = { navController.popBackStack() },
-                    onToday = viewModel::promote,
-                    onStart = viewModel::start,
-                    onInterrupt = viewModel::interruptFromPile,
-                    onEdit = viewModel::openEdit,
-                    onOpenSheet = viewModel::openTaskSheet,
-                )
-            }
-            composable(
-                Routes.SCHEDULED,
-                enterTransition = { homePileEnter(reducedMotion) },
-                popExitTransition = { homePileExit(reducedMotion) },
-            ) {
-                ScheduledScreen(
-                    tasks = state.scheduledTasks,
-                    ready = state.ready,
-                    canInterrupt = state.canInterrupt,
-                    today = viewModel.localDate(),
-                    onBack = { navController.popBackStack() },
-                    onToday = viewModel::promote,
-                    onStart = viewModel::start,
-                    onInterrupt = viewModel::interruptFromPile,
-                    onInbox = viewModel::moveToInbox,
-                    onLater = viewModel::demote,
-                    onRemove = viewModel::removeScheduled,
-                    onChangeDate = viewModel::changeScheduledDate,
-                    onChangeTime = viewModel::changeScheduledTime,
-                    onEdit = viewModel::openEdit,
-                    onOpenMissed = viewModel::openMissedTask,
+                    doneTasks = state.archiveTasks,
+                    onRestore = viewModel::restore,
+                    showBack = false,
                 )
             }
             composable(
@@ -334,6 +288,8 @@ fun FocusApp(
                     homeLayout = homeLayout,
                     onHomeLayout = onHomeLayout,
                     showHomeLayout = showHomeLayout,
+                    countdownUnit = countdownUnit,
+                    onCountdownUnit = onCountdownUnit,
                 )
             }
         }
@@ -377,11 +333,11 @@ fun FocusApp(
             onDismiss = viewModel::dismissTaskSheet,
             onStart = viewModel::startFromTaskSheet,
             onDone = viewModel::doneFromTaskSheet,
-            onLater = viewModel::laterFromTaskSheet,
             onEdit = viewModel::editFromTaskSheet,
             onInterrupt = viewModel::interruptFromTaskSheet,
             onToday = viewModel::todayFromTaskSheet,
             onResume = viewModel::resumeFromTaskSheet,
+            onBringBack = viewModel::bringBackFromTaskSheet,
         )
     } else if (openMissedRepeat != null) {
         MissedRepeatSheet(
@@ -412,6 +368,24 @@ fun FocusApp(
             onPlaceLater = viewModel::placeLater,
             onSchedule = viewModel::placeScheduled,
             onRepeat = viewModel::openRepeatCreate,
+        )
+    }
+
+    bringBack?.let { target ->
+        val today = viewModel.localDate()
+        val isEvent = state.now?.let { it.taskId == target.taskId && it.isEvent } == true
+        BringBackSheet(
+            onDismiss = viewModel::dismissBringBack,
+            onDate = { date ->
+                viewModel.dismissBringBack()
+                viewModel.bringBackOnDate(target.taskId, date.toEpochDay(), movedComingUp)
+            },
+            onKeepInInbox = {
+                viewModel.dismissBringBack()
+                viewModel.bringBackToInbox(target.taskId, movedInbox)
+            },
+            today = today,
+            earliest = if (isEvent) today.plusDays(1) else null,
         )
     }
 
@@ -471,6 +445,14 @@ internal fun FocusSnackbarHost(hostState: SnackbarHostState) {
     }
 }
 
+private fun selectedTab(route: String): AppTab = when {
+    route == Routes.INBOX || route == Routes.DONE -> AppTab.INBOX
+    route in comingUpRoutes -> AppTab.COMING_UP
+    route == Routes.FOCUS -> AppTab.FOCUS
+    route == Routes.SETTINGS -> AppTab.SETTINGS
+    else -> AppTab.HOME
+}
+
 private fun androidx.navigation.NavController.navigateTab(route: String) {
     navigate(route) {
         popUpTo(graph.findStartDestination().id) { saveState = true }
@@ -486,17 +468,3 @@ private fun AnimatedContentTransitionScope<NavBackStackEntry>.homePileEnter(
 private fun AnimatedContentTransitionScope<NavBackStackEntry>.homePileExit(
     reducedMotion: Boolean,
 ): ExitTransition? = if (targetState.destination.route == Routes.HOME) pileExit(forward = false, reducedMotion) else null
-
-/** Push a pile above Today. Task actions on that screen do not call this. */
-private fun androidx.navigation.NavController.openPile(route: String) {
-    navigate(route) { launchSingleTop = true }
-}
-
-/** Home is Today. Pile screens stay off this tab until the user opens one again. */
-private fun androidx.navigation.NavController.showToday() {
-    navigate(Routes.HOME) {
-        popUpTo(graph.findStartDestination().id) { saveState = false }
-        launchSingleTop = true
-        restoreState = false
-    }
-}

@@ -29,6 +29,7 @@ import app.backpin.focus.domain.UserPreferences
 import app.backpin.focus.domain.bandWindow
 import app.backpin.focus.domain.countdownIntervalDays
 import app.backpin.focus.domain.isCountdownDue
+import app.backpin.focus.domain.isCountdownRearmDay
 import app.backpin.focus.domain.isQuietNow
 import app.backpin.focus.domain.isRepeatDue
 import app.backpin.focus.domain.isScheduledDue
@@ -38,7 +39,6 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import java.time.Instant
-import java.time.LocalDate
 import java.time.LocalDateTime
 import java.util.UUID
 
@@ -253,9 +253,9 @@ class FocusRepositoryImpl(
                     return@withTransaction PromoteOutcome.Rejected("Task still has an open interruption")
                 }
                 if (destination is DetachDestination.Countdown &&
-                    !LocalDate.ofEpochDay(destination.epochDay).isAfter(localToday())
+                    !isCountdownRearmDay(destination.epochDay, localToday())
                 ) {
-                    return@withTransaction PromoteOutcome.Rejected("Count down to a day after today")
+                    return@withTransaction PromoteOutcome.Rejected("Count down to a day from tomorrow through 365 days")
                 }
                 frameDao.upsert(close(frame))
                 val parent = frame.parentFrameId?.let { frameDao.getById(it) }
@@ -1161,7 +1161,7 @@ class FocusRepositoryImpl(
     private fun localNow(): LocalDateTime =
         Instant.ofEpochMilli(clock.nowEpochMillis()).atZone(clock.zone).toLocalDateTime()
 
-    private fun localToday(): LocalDate = localNow().toLocalDate()
+    private fun localToday(): java.time.LocalDate = localNow().toLocalDate()
 
     /** An open scheduled task that is still waiting, so its day and time can change in place. */
     private suspend fun openScheduled(taskId: String): TaskEntity? {

@@ -3,7 +3,7 @@ package app.backpin.focus.ui.home
 
 import app.backpin.focus.ui.SlotRole
 
-/** Right swipe on a Today row. Slide left stays Later. */
+/** Right swipe on a Today row. Slide left opens Bring back. */
 internal enum class TodayRightSwipe {
     Done,
     Start,

@@ -2,6 +2,8 @@
 package app.backpin.focus.ui.task
 
 import androidx.activity.ComponentActivity
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.click
@@ -11,8 +13,10 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.dp
+import app.backpin.focus.testing.FakeAppClock
 import app.backpin.focus.ui.TaskSheetRole
 import app.backpin.focus.ui.TaskSheetUi
+import app.backpin.focus.ui.capture.BringBackSheet
 import app.backpin.focus.ui.theme.FocusStackTheme
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -29,45 +33,55 @@ class TaskSheetChipTest {
     val compose = createAndroidComposeRule<ComponentActivity>()
 
     @Test
-    fun todayOpenWithoutFocusShowsStartDoneLaterEdit() {
+    fun todayOpenWithoutFocusShowsStartBringBackEditDone() {
         val calls = mutableListOf<String>()
+        val bringBackOpen = mutableStateOf(false)
         show(
             role = TaskSheetRole.TODAY_OPEN,
             canInterrupt = false,
             calls = calls,
+            bringBackOpen = bringBackOpen,
         )
-        assertEquals(listOf("Start", "Done", "Later", "Edit"), sheetActions())
+        assertEquals(listOf("Start", "Bring back…", "Edit", "Done"), sheetActions())
+        compose.onNodeWithText("Later").assertDoesNotExist()
         tap("Start")
         tap("Done")
-        tap("Later")
         tap("Edit")
-        assertEquals(listOf("start", "done", "later", "edit"), calls.toList())
+        tap("Bring back…")
+        assertEquals(listOf("start", "done", "edit", "bringBack"), calls.toList())
+        awaitSheet("Bring it back in…")
     }
 
     @Test
-    fun todayOpenInFocusAddsInterruptBetweenLaterAndEdit() {
+    fun todayOpenInFocusAddsInterruptBetweenBringBackAndEdit() {
         val calls = mutableListOf<String>()
         show(
             role = TaskSheetRole.TODAY_OPEN,
             canInterrupt = true,
             calls = calls,
         )
-        assertEquals(listOf("Start", "Done", "Later", "Interrupt", "Edit"), sheetActions())
+        assertEquals(listOf("Start", "Bring back…", "Interrupt", "Edit", "Done"), sheetActions())
         tap("Interrupt")
         assertEquals(listOf("interrupt"), calls.toList())
     }
 
     @Test
-    fun waitingShowsResumeLaterEditAndNeverInterrupt() {
+    fun waitingShowsResumeBringBackEditAndNeverInterrupt() {
         val calls = mutableListOf<String>()
+        val bringBackOpen = mutableStateOf(false)
         show(
             role = TaskSheetRole.TODAY_WAITING,
             canInterrupt = true,
             calls = calls,
+            bringBackOpen = bringBackOpen,
         )
-        assertEquals(listOf("Resume", "Later", "Edit"), sheetActions())
+        assertEquals(listOf("Resume", "Bring back…", "Edit"), sheetActions())
         tap("Resume")
-        assertEquals(listOf("resume"), calls.toList())
+        tap("Bring back…")
+        assertEquals(listOf("resume", "bringBack"), calls.toList())
+        compose.onNodeWithText("Interrupt").assertDoesNotExist()
+        compose.onNodeWithText("Later").assertDoesNotExist()
+        awaitSheet("Bring it back in…")
     }
 
     @Test
@@ -100,7 +114,9 @@ class TaskSheetChipTest {
         role: TaskSheetRole,
         canInterrupt: Boolean,
         calls: MutableList<String>,
+        bringBackOpen: MutableState<Boolean> = mutableStateOf(false),
     ) {
+        val today = FakeAppClock().localDate()
         compose.setContent {
             FocusStackTheme {
                 TaskSheet(
@@ -115,12 +131,23 @@ class TaskSheetChipTest {
                     onDismiss = { calls += "dismiss" },
                     onStart = { calls += "start" },
                     onDone = { calls += "done" },
-                    onLater = { calls += "later" },
                     onEdit = { calls += "edit" },
                     onInterrupt = { calls += "interrupt" },
                     onToday = { calls += "today" },
                     onResume = { calls += "resume" },
+                    onBringBack = {
+                        calls += "bringBack"
+                        bringBackOpen.value = true
+                    },
                 )
+                if (bringBackOpen.value) {
+                    BringBackSheet(
+                        onDismiss = { bringBackOpen.value = false },
+                        onDate = {},
+                        onKeepInInbox = {},
+                        today = today,
+                    )
+                }
             }
         }
         compose.onNodeWithText("This task.").assertExists()
@@ -158,13 +185,21 @@ class TaskSheetChipTest {
         compose.waitForIdle()
     }
 
+    private fun awaitSheet(title: String) {
+        compose.waitUntil(timeoutMillis = 5_000) {
+            compose.waitForIdle()
+            compose.onAllNodesWithText(title, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithText(title, useUnmergedTree = true).assertExists()
+    }
+
     private companion object {
         val SHEET_CHIP_MIN = 50.dp
         val CHIP_LABELS =
             listOf(
                 "Start",
                 "Done",
-                "Later",
+                "Bring back…",
                 "Edit",
                 "Interrupt",
                 "Resume",

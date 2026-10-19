@@ -18,22 +18,17 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.ViewModelStore
-import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
-import app.backpin.focus.data.FocusRepositoryImpl
-import app.backpin.focus.data.FocusStackDatabase
-import app.backpin.focus.data.PreferencesDataStore
-import app.backpin.focus.domain.AppClock
+import app.backpin.focus.domain.CountdownUnit
 import app.backpin.focus.domain.FocusSnapshot
 import app.backpin.focus.domain.FocusUseCases
 import app.backpin.focus.domain.TaskBucket
 import app.backpin.focus.domain.TaskStatus
+import app.backpin.focus.testing.FakeAppClock
+import app.backpin.focus.testing.useTestFocus
 import app.backpin.focus.ui.FocusStackViewModel
 import app.backpin.focus.ui.calendar.PickDateDialog
-import app.backpin.focus.ui.home.ScheduledScreen
+import app.backpin.focus.ui.home.ComingUpScreen
 import app.backpin.focus.ui.theme.FocusStackTheme
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -48,7 +43,6 @@ import org.robolectric.annotation.Config
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
-import java.util.UUID
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36], qualifiers = "w411dp-h891dp")
@@ -65,9 +59,9 @@ class MissedTaskSheetQaTest {
             runBlocking {
                 useCases.captureScheduled("Call Dana", today.toEpochDay())
             }
-            showScheduled(viewModel)
+            showComingUp(viewModel, clock)
             await { viewModel.uiState.value.scheduledTasks.singleOrNull { it.title == "Call Dana" }?.due == true }
-            tapRow("Scheduled. Call Dana")
+            tapRow("Call Dana. today")
             await { viewModel.missedTaskSheet.value?.title == "Call Dana" }
             compose.onNodeWithText("This one was missed.").assertExists()
             compose.onNodeWithText("It stayed off Today. Done now, or pick another day.").assertExists()
@@ -86,9 +80,9 @@ class MissedTaskSheetQaTest {
             runBlocking {
                 useCases.captureScheduled("Call Dana", clock.localDate().toEpochDay())
             }
-            showScheduled(viewModel)
+            showComingUp(viewModel, clock)
             await { viewModel.uiState.value.scheduledTasks.any { it.title == "Call Dana" && it.due } }
-            tapRow("Scheduled. Call Dana")
+            tapRow("Call Dana. today")
             await { viewModel.missedTaskSheet.value != null }
             tapSheet("Done now")
             awaitSnapshot(useCases) { task(it, "Call Dana").status == TaskStatus.DONE }
@@ -104,9 +98,9 @@ class MissedTaskSheetQaTest {
             runBlocking {
                 useCases.captureScheduled("Call Dana", today.toEpochDay())
             }
-            showScheduled(viewModel)
+            showComingUp(viewModel, clock)
             await { viewModel.uiState.value.scheduledTasks.any { it.title == "Call Dana" && it.due } }
-            tapRow("Scheduled. Call Dana")
+            tapRow("Call Dana. today")
             await { viewModel.missedTaskSheet.value != null }
             tapSheet("Tomorrow")
             val tomorrow = today.plusDays(1)
@@ -124,7 +118,7 @@ class MissedTaskSheetQaTest {
     @Test
     fun pickADayOpensACalendarWhoseEarliestDayIsTomorrow() {
         var picked: LocalDate? = null
-        val today = app.backpin.focus.testing.FakeAppClock().localDate()
+        val today = FakeAppClock().localDate()
         val tomorrow = today.plusDays(1)
         compose.setContent {
             FocusStackTheme {
@@ -149,9 +143,9 @@ class MissedTaskSheetQaTest {
             runBlocking {
                 useCases.captureScheduled("Call Dana", today.toEpochDay())
             }
-            showScheduled(viewModel)
+            showComingUp(viewModel, clock)
             await { viewModel.uiState.value.scheduledTasks.any { it.title == "Call Dana" && it.due } }
-            tapRow("Scheduled. Call Dana")
+            tapRow("Call Dana. today")
             await { viewModel.missedTaskSheet.value != null }
             tapSheet("Pick a day")
             assertTodayCellDisabled(today)
@@ -164,32 +158,30 @@ class MissedTaskSheetQaTest {
         }
     }
 
-    private fun showScheduled(viewModel: FocusStackViewModel) {
+    private fun showComingUp(
+        viewModel: FocusStackViewModel,
+        clock: FakeAppClock,
+    ) {
         compose.setContent {
             val state by viewModel.uiState.collectAsState()
             val missed by viewModel.missedTaskSheet.collectAsState()
             FocusStackTheme {
-                ScheduledScreen(
-                    tasks = state.scheduledTasks,
+                ComingUpScreen(
+                    scheduledTasks = state.scheduledTasks,
+                    countdowns = state.countdowns,
                     ready = state.ready,
-                    canInterrupt = state.canInterrupt,
-                    today = viewModel.localDate(),
-                    onBack = {},
-                    onToday = {},
-                    onStart = {},
-                    onInterrupt = {},
-                    onInbox = {},
-                    onLater = {},
-                    onRemove = {},
-                    onChangeDate = { _, _ -> },
-                    onChangeTime = { _, _ -> },
+                    today = clock.localDate(),
+                    countdownUnit = CountdownUnit.DAYS,
                     onEdit = {},
+                    onOpenSheet = {},
                     onOpenMissed = viewModel::openMissedTask,
+                    onAddCountdown = { _, _ -> },
+                    onChangeCountdownDate = { _, _ -> },
                 )
                 missed?.let { pending ->
                     MissedTaskSheet(
                         state = pending,
-                        today = viewModel.localDate(),
+                        today = clock.localDate(),
                         onDismiss = viewModel::dismissMissedTask,
                         onDoneNow = viewModel::doneMissedTask,
                         onTomorrow = viewModel::tomorrowMissedTask,
@@ -200,37 +192,11 @@ class MissedTaskSheetQaTest {
         }
     }
 
-    private fun withHarness(block: (FocusStackViewModel, FocusUseCases, AppClock) -> Unit) {
-        val clock: AppClock = app.backpin.focus.testing.FakeAppClock()
-        val database =
-            Room
-                .inMemoryDatabaseBuilder(context, FocusStackDatabase::class.java)
-                .allowMainThreadQueries()
-                .build()
-        val useCases =
-            FocusUseCases(
-                FocusRepositoryImpl(
-                    database = database,
-                    preferencesStore = PreferencesDataStore(context, "missed-task-${UUID.randomUUID()}"),
-                    clock = clock,
-                ),
-            )
-        val store = ViewModelStore()
-        val viewModel =
-            ViewModelProvider(
-                store,
-                object : ViewModelProvider.Factory {
-                    override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                        @Suppress("UNCHECKED_CAST")
-                        return FocusStackViewModel(useCases, clock = clock) as T
-                    }
-                },
-            )[FocusStackViewModel::class.java]
-        try {
-            block(viewModel, useCases, clock)
-        } finally {
-            store.clear()
-            database.close()
+    private fun withHarness(block: (FocusStackViewModel, FocusUseCases, FakeAppClock) -> Unit) {
+        useTestFocus(context = context) { fixture ->
+            fixture.withViewModel { viewModel ->
+                block(viewModel, fixture.useCases, fixture.clock)
+            }
         }
     }
 
@@ -242,7 +208,7 @@ class MissedTaskSheetQaTest {
         )
 
         val hits = mutableListOf<Hit>()
-        listOf("Done now", "Tomorrow", "Pick a day", "Start", "Done", "Later", "Edit").forEach { label ->
+        listOf("Done now", "Tomorrow", "Pick a day", "Start", "Done", "Edit").forEach { label ->
             val nodes = compose.onAllNodesWithText(label)
             val found = nodes.fetchSemanticsNodes()
             found.indices.forEach { index ->

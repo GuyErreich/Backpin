@@ -138,12 +138,12 @@ internal fun CountdownScreen(
     }
     if (adding) {
         AddCountdownSheet(
-            today = today,
             onDismiss = { adding = false },
             onAdd = { title, day ->
                 adding = false
                 onAdd(title, day)
             },
+            today = today,
             recognizer = recognizer,
             onSystemSpeech = onSystemSpeech,
         )
@@ -151,7 +151,6 @@ internal fun CountdownScreen(
 }
 
 @Composable
-@Suppress("ktlint:standard:indent")
 private fun CountdownRow(
     countdown: CountdownUi,
     onChangeDate: () -> Unit,
@@ -160,18 +159,18 @@ private fun CountdownRow(
 ) {
     Surface(
         modifier =
-            Modifier
-                .fillMaxWidth()
-                .semantics(mergeDescendants = false) {
-                    contentDescription = "Countdown. ${countdown.title}. ${countdown.dayLabel}, ${countdown.dateLabel}."
-                    customActions =
-                        listOf(
-                            CustomAccessibilityAction("Edit") {
-                                onEdit()
-                                true
-                            },
-                        )
-                },
+        Modifier
+            .fillMaxWidth()
+            .semantics(mergeDescendants = false) {
+                contentDescription = "Countdown. ${countdown.title}. ${countdown.dayLabel}, ${countdown.dateLabel}."
+                customActions =
+                    listOf(
+                        CustomAccessibilityAction("Edit") {
+                            onEdit()
+                            true
+                        },
+                    )
+            },
         shape = RoundedCornerShape(CardRadius),
         color = FocusColors.Live.Surface,
     ) {
@@ -197,13 +196,12 @@ private object CountdownField
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-@Suppress("ktlint:standard:indent")
-private fun AddCountdownSheet(
-    today: LocalDate,
+internal fun AddCountdownSheet(
     onDismiss: () -> Unit,
     onAdd: (String, Long) -> Unit,
-    recognizer: UtteranceRecognizer?,
-    onSystemSpeech: ((Intent, (String) -> Unit) -> Unit)?,
+    today: LocalDate,
+    recognizer: UtteranceRecognizer? = null,
+    onSystemSpeech: ((Intent, (String) -> Unit) -> Unit)? = null,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val reducedMotion = rememberReducedMotion()
@@ -265,11 +263,11 @@ private fun AddCountdownSheet(
         BackHandler(onBack = ::dismiss)
         Column(
             modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp)
-                    .padding(bottom = 24.dp),
+            Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp)
+                .padding(bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(Space),
         ) {
             Row(
@@ -299,7 +297,7 @@ private fun AddCountdownSheet(
                         listening = speech.isListening(CountdownField),
                         reducedMotion = reducedMotion,
                         contentDescription =
-                            if (speech.isListening(CountdownField)) "Stop listening" else "Speak the event",
+                        if (speech.isListening(CountdownField)) "Stop listening" else "Speak the event",
                         onClick = { speech.toggle(CountdownField) },
                     )
                 },
@@ -338,8 +336,7 @@ private fun AddCountdownSheet(
 /** A new number of days, or a calendar day, for a countdown that already has a name. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-@Suppress("ktlint:standard:indent")
-private fun ChangeCountdownSheet(
+internal fun ChangeCountdownSheet(
     epochDay: Long,
     today: LocalDate,
     onDismiss: () -> Unit,
@@ -375,11 +372,11 @@ private fun ChangeCountdownSheet(
         BackHandler(onBack = onDismiss)
         Column(
             modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp)
-                    .padding(bottom = 24.dp),
+            Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp)
+                .padding(bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(Space),
         ) {
             Row(
@@ -412,6 +409,63 @@ private fun ChangeCountdownSheet(
                 commit(date.toEpochDay())
             },
             onDismiss = { picking = false },
+        )
+    }
+}
+
+/**
+ * Countdown rows and the add/change sheets, for Coming up.
+ */
+@Composable
+internal fun CountdownPile(
+    countdowns: List<CountdownUi>,
+    emptyLabel: String,
+    adding: Boolean,
+    today: LocalDate,
+    onAddingChange: (Boolean) -> Unit,
+    onAdd: (String, Long) -> Unit,
+    onChangeDate: (String, Long) -> Unit,
+    onRemove: (String) -> Unit,
+    onEdit: (String) -> Unit,
+    recognizer: UtteranceRecognizer? = null,
+    onSystemSpeech: ((Intent, (String) -> Unit) -> Unit)? = null,
+) {
+    var changingId by rememberSaveable { mutableStateOf<String?>(null) }
+    if (countdowns.isEmpty()) {
+        Text(emptyLabel, style = MaterialTheme.typography.bodyLarge, color = FocusColors.Live.Muted)
+    } else {
+        countdowns.forEach { countdown ->
+            CountdownRow(
+                countdown = countdown,
+                onChangeDate = { changingId = countdown.id },
+                onRemove = { onRemove(countdown.id) },
+                onEdit = { onEdit(countdown.id) },
+            )
+        }
+    }
+    val changing = countdowns.firstOrNull { it.id == changingId }
+    if (changing != null) {
+        ChangeCountdownSheet(
+            epochDay = changing.epochDay,
+            today = today,
+            onDismiss = { changingId = null },
+            onCommit = { day ->
+                val id = changing.id
+                changingId = null
+                onChangeDate(id, day)
+            },
+        )
+    }
+    if (adding) {
+        AddCountdownSheet(
+            onDismiss = { onAddingChange(false) },
+            onAdd = { title, day ->
+                onAddingChange(false)
+                onAdd(title, day)
+            },
+            today = today,
+            recognizer = recognizer,
+            onSystemSpeech = onSystemSpeech,
         )
     }
 }

@@ -28,8 +28,9 @@ import app.backpin.focus.ui.theme.FocusColors
 import app.backpin.focus.ui.theme.Space
 
 /**
- * Shared chrome for chip-row sheets. Same back arrow, surface, and gaps as the
+ * Shared chrome for chip-row sheets. Same Close arrow, surface, and gaps as the
  * add-repeat sheet. [content] is the chip row and any field under it.
+ * [gesturesEnabled] lets a swipe down dismiss, as on the resume sheet.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -39,13 +40,14 @@ internal fun ChipSheet(
     modifier: Modifier = Modifier,
     subtitle: String? = null,
     lede: String? = null,
+    gesturesEnabled: Boolean = false,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        sheetGesturesEnabled = false,
+        sheetGesturesEnabled = gesturesEnabled,
         containerColor = FocusColors.Live.Surface,
         contentWindowInsets = { WindowInsets.navigationBars },
         properties = ModalBottomSheetProperties(shouldDismissOnBackPress = false),
