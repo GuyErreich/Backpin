@@ -1,0 +1,52 @@
+name: Flake check
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+    inputs:
+      classes:
+        description: Space-separated fully qualified test class names
+        required: false
+        type: string
+        default: ""
+      runs:
+        description: Times to run the selected tests
+        required: false
+        type: number
+        default: 30
+permissions: {}
+concurrency:
+  group: flake-check-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+jobs:
+  flake-check:
+    name: Rerun changed tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+        with:
+          cache-read-only: true
+      - name: Test build-logic
+        run: ./gradlew -p build-logic test
+      - name: Flake check
+        env:
+          FLAKE_CHECK_MERGE_PARENTS: ${{ github.event_name == 'pull_request' }}
+          FLAKE_CHECK_BASE: ${{ github.event.pull_request.base.sha }}
+          FLAKE_CHECK_HEAD: ${{ github.event.pull_request.head.sha }}
+          FLAKE_CHECK_CLASSES: ${{ github.event.inputs.classes }}
+          RUN_COUNT: ${{ github.event.inputs.runs || 30 }}
+        run: ./gradlew flakeCheck
+      - name: Publish flake summary
+        if: always()
+        run: cat build/flake-check/summary.md >>"$GITHUB_STEP_SUMMARY"
