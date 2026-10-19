@@ -19,16 +19,14 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
-import java.time.Instant
 import java.time.LocalDate
-import java.time.ZoneId
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
 class CountdownRearmTest {
     @Test
     fun isCountdownRearmDayAllowsTomorrowThrough365() {
-        val today = todayOn(FakeAppClock())
+        val today = FakeAppClock().localDate()
         REARM_CASES.forEach { case ->
             assertEquals(
                 "days=${case.days}",
@@ -43,7 +41,7 @@ class CountdownRearmTest {
         REARM_CASES.forEach { case ->
             useTestFocus { fixture ->
                 runBlocking {
-                    val today = todayOn(fixture.clock)
+                    val today = fixture.clock.localDate()
                     val event = arriveToday(fixture, today)
                     val beforeRow =
                         fixture.database.taskDao().getById(event.id) ?: error("missing ${event.id}")
@@ -89,7 +87,7 @@ class CountdownRearmTest {
     fun detachCountdownClampsLastInterval500To365() {
         useTestFocus { fixture ->
             runBlocking {
-                val today = todayOn(fixture.clock)
+                val today = fixture.clock.localDate()
                 val event = arriveToday(fixture, today)
                 val row = fixture.database.taskDao().getById(event.id) ?: error("missing ${event.id}")
                 fixture.database.taskDao().upsert(row.copy(countdownIntervalDays = 500))
@@ -125,11 +123,6 @@ class CountdownRearmTest {
             }
         }
     }
-
-    private fun todayOn(clock: FakeAppClock): LocalDate = Instant
-        .ofEpochMilli(clock.nowEpochMillis())
-        .atZone(ZoneId.systemDefault())
-        .toLocalDate()
 
     private suspend fun arriveToday(
         fixture: TestFocusFixture,
