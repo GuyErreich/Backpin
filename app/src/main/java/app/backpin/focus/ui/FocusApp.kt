@@ -156,7 +156,15 @@ fun FocusApp(
         snackbarHost = { FocusSnackbarHost(snackbarHostState) },
         floatingActionButton = {
             if (showCapture) {
-                AddFab(onClick = { viewModel.openCapture(interrupts = false) })
+                AddFab(
+                    onClick = { viewModel.openCapture(interrupts = false) },
+                    onLongClick =
+                    if (state.now != null) {
+                        { viewModel.openCapture(interrupts = true) }
+                    } else {
+                        null
+                    },
+                )
             }
         },
         floatingActionButtonPosition = FabPosition.End,
@@ -311,15 +319,7 @@ fun FocusApp(
     } else if (editing != null) {
         CaptureSheet(
             phrases = emptyList(),
-            frameActive = state.now != null,
-            today = viewModel.localDate(),
             onDismiss = viewModel::dismissEdit,
-            onSaveToInbox = {},
-            onInterruptNow = {},
-            onPlaceToday = {},
-            onPlaceStart = {},
-            onPlaceLater = {},
-            onSchedule = { _, _, _ -> },
             edit =
             CaptureEdit(
                 title = editing.title,
@@ -360,16 +360,13 @@ fun FocusApp(
     } else if (state.captureOpen) {
         CaptureSheet(
             phrases = state.preferences.savedPhrases,
-            frameActive = state.now != null,
-            today = viewModel.localDate(),
             onDismiss = viewModel::dismissCapture,
             onSaveToInbox = viewModel::saveToInbox,
             onInterruptNow = viewModel::interruptNow,
             onPlaceToday = viewModel::placeOnToday,
             onPlaceStart = viewModel::placeAndStart,
-            onPlaceLater = viewModel::placeLater,
-            onSchedule = viewModel::placeScheduled,
-            onRepeat = viewModel::openRepeatCreate,
+            onBringBack = viewModel::captureThenBringBack,
+            interrupts = state.captureInterrupts && state.now != null,
         )
     }
 

@@ -21,6 +21,10 @@
     <string name="action_start">Start</string>
     <string name="action_edit">Edit</string>
     <string name="action_save">Save</string>
+    <string name="action_save_to_inbox">Save to Inbox</string>
+    <string name="action_start_now">Start now</string>
+    <string name="action_interrupt_now">Interrupt now</string>
+    <string name="capture_or_when">OR, WHEN?</string>
     <string name="action_today">Today</string>
     <string name="action_tomorrow">Tomorrow</string>
     <string name="action_in_3_days">In 3 days</string>

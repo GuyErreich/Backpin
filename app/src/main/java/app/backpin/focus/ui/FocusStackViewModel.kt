@@ -492,6 +492,25 @@ class FocusStackViewModel(
         }
     }
 
+    /**
+     * Saves a new title to Inbox, then opens the hosted Bring back sheet for that task.
+     */
+    fun captureThenBringBack(title: String) {
+        viewModelScope.launch {
+            val trimmed = title.trim()
+            if (trimmed.isEmpty()) return@launch
+            useCases.capture(trimmed)
+            val snapshot = useCases.observeSnapshot().first()
+            val id =
+                snapshot.tasks
+                    .filter { it.title == trimmed && it.bucket == TaskBucket.INBOX }
+                    .maxByOrNull { it.createdAtEpochMillis }
+                    ?.id
+            closeCapture()
+            if (id != null) openBringBack(id, trimmed)
+        }
+    }
+
     fun interruptNow(title: String) {
         viewModelScope.launch {
             val trimmed = title.trim()
