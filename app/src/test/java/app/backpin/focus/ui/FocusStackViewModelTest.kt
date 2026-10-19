@@ -26,6 +26,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
 import kotlinx.coroutines.withTimeout
@@ -53,7 +54,7 @@ class FocusStackViewModelTest {
 
     @Before
     fun setUp() {
-        Dispatchers.setMain(kotlinx.coroutines.test.UnconfinedTestDispatcher())
+        Dispatchers.setMain(UnconfinedTestDispatcher())
         database =
             Room
                 .inMemoryDatabaseBuilder(context, FocusStackDatabase::class.java)
@@ -74,8 +75,13 @@ class FocusStackViewModelTest {
     @After
     fun tearDown() {
         shadowOf(Looper.getMainLooper()).idle()
-        database.close()
-        Dispatchers.resetMain()
+        try {
+            database.close()
+        } finally {
+            // FullTodayStartTest's MainDispatcherRule may already have cleared Main
+            // when flake-check reuses the JVM across classes.
+            runCatching { Dispatchers.resetMain() }
+        }
     }
 
     @Test
@@ -128,8 +134,11 @@ class FocusStackViewModelTest {
         first.interruptNow("Message John")
         withTimeout(5_000) { first.uiState.first { it.now?.title == "Message John" } }
         first.interruptNow("Ping")
-        withTimeout(5_000) { first.uiState.first { it.now?.title == "Ping" } }
-        first.rename(first.uiState.value.now!!.taskId, "Talk to Sarah")
+        val ping =
+            withTimeout(5_000) {
+                first.uiState.first { it.now?.title == "Ping" }
+            }
+        first.rename(ping.now!!.taskId, "Talk to Sarah")
         withTimeout(5_000) { first.uiState.first { it.now?.title == "Talk to Sarah" } }
         first.completeActive()
         val recovered =
