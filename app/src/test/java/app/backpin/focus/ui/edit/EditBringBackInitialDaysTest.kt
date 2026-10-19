@@ -17,10 +17,8 @@ import app.backpin.focus.ui.FocusApp
 import app.backpin.focus.ui.capture.BRING_BACK_DEFAULT_DAYS
 import app.backpin.focus.ui.capture.BRING_BACK_MAX_DAYS
 import app.backpin.focus.ui.theme.FocusStackTheme
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.launch
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -43,7 +41,7 @@ class EditBringBackInitialDaysTest {
         useTestFocus { fixture ->
             val today = fixture.clock.localDate()
             lateinit var ids: Map<String, String>
-            seedOnDispatcher {
+            mainDispatcherRule.runTest {
                 ids =
                     CASES.associate { case ->
                         if (case.offsetDays == null) {
@@ -92,21 +90,6 @@ class EditBringBackInitialDaysTest {
     }
 
     private fun saveInDays(days: Int): String = compose.activity.resources.getQuantityString(R.plurals.bring_back_save_in_days, days, days)
-
-    private fun seedOnDispatcher(block: suspend () -> Unit) {
-        var failure: Throwable? = null
-        val job =
-            CoroutineScope(mainDispatcherRule.dispatcher).launch {
-                try {
-                    block()
-                } catch (error: Throwable) {
-                    failure = error
-                    throw error
-                }
-            }
-        await { job.isCompleted }
-        failure?.let { throw it }
-    }
 
     private fun tap(label: String) {
         compose.onNode(hasText(label)).assertIsEnabled()

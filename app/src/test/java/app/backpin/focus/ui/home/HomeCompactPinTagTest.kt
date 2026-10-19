@@ -95,6 +95,12 @@ class HomeCompactPinTagTest {
         val node = compose.onNodeWithText(title, useUnmergedTree = true).fetchSemanticsNode()
         node.config[SemanticsActions.GetTextLayoutResult].action?.invoke(layouts)
         val layout = layouts.single()
-        assertTrue("the title ellipsizes", layout.isLineEllipsized(0) || layout.didOverflowWidth)
+        val visibleEnd = layout.getLineEnd(0, visibleEnd = true)
+        assertTrue(
+            "the title ellipsizes (visible=$visibleEnd of ${title.length})",
+            layout.isLineEllipsized(0) ||
+                layout.hasVisualOverflow ||
+                visibleEnd < title.length,
+        )
     }
 }

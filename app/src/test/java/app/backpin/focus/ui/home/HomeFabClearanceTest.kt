@@ -20,9 +20,7 @@ import app.backpin.focus.testing.defaultTodayTitles
 import app.backpin.focus.testing.useTestFocus
 import app.backpin.focus.ui.FocusApp
 import app.backpin.focus.ui.theme.FocusStackTheme
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.launch
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -45,7 +43,7 @@ class HomeFabClearanceTest {
     fun lastListItemAndSnackbarStayClearOfTheFab() {
         useTestFocus { fixture ->
             val lastRepeat = "Fill row 12"
-            seedOnDispatcher {
+            mainDispatcherRule.runTest {
                 fixture.seedFullToday()
                 val day = fixture.clock.localDate().toEpochDay()
                 for (index in 1..12) {
@@ -121,24 +119,9 @@ class HomeFabClearanceTest {
         val found = nodes.fetchSemanticsNodes()
         check(found.isNotEmpty()) { "No $label action near $nearTitle" }
         val index = found.indices.minBy { kotlin.math.abs(found[it].boundsInRoot.top - titleTop) }
-        val action = found[index].config[SemanticsActions.CustomActions].single { it.label == label }
+        val action = found[index].config[SemanticsActions.CustomActions].first { it.label == label }
         compose.runOnIdle { check(action.action()) }
         pump()
-    }
-
-    private fun seedOnDispatcher(block: suspend () -> Unit) {
-        var failure: Throwable? = null
-        val job =
-            CoroutineScope(mainDispatcherRule.dispatcher).launch {
-                try {
-                    block()
-                } catch (error: Throwable) {
-                    failure = error
-                    throw error
-                }
-            }
-        await { job.isCompleted }
-        failure?.let { throw it }
     }
 
     private fun nodes(
