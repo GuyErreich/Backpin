@@ -87,6 +87,7 @@ internal data class CaptureEdit(
 internal fun CaptureSheet(
     phrases: List<String>,
     frameActive: Boolean,
+    today: LocalDate,
     onDismiss: () -> Unit,
     onSaveToInbox: (String) -> Unit,
     onInterruptNow: (String) -> Unit,
@@ -127,7 +128,6 @@ internal fun CaptureSheet(
                 ListenField.Fill -> fillDraft
             }
         }
-    val today = LocalDate.now()
 
     fun stopListening() {
         speech.stop()

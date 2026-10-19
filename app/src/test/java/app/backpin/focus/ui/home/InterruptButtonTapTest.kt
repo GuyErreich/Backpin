@@ -27,11 +27,11 @@ import androidx.test.core.app.ApplicationProvider
 import app.backpin.focus.data.FocusRepositoryImpl
 import app.backpin.focus.data.FocusStackDatabase
 import app.backpin.focus.data.PreferencesDataStore
-import app.backpin.focus.domain.AppClock
 import app.backpin.focus.domain.FocusSnapshot
 import app.backpin.focus.domain.FocusUseCases
 import app.backpin.focus.domain.FrameState
 import app.backpin.focus.domain.TaskBucket
+import app.backpin.focus.testing.FakeAppClock
 import app.backpin.focus.ui.FocusStackViewModel
 import app.backpin.focus.ui.capture.CaptureSheet
 import app.backpin.focus.ui.capture.UtteranceRecognizer
@@ -62,15 +62,13 @@ class InterruptButtonTapTest {
                 .inMemoryDatabaseBuilder(context, FocusStackDatabase::class.java)
                 .allowMainThreadQueries()
                 .build()
+        val clock = FakeAppClock()
         val useCases =
             FocusUseCases(
                 FocusRepositoryImpl(
                     database = database,
                     preferencesStore = PreferencesDataStore(context, "interrupt-tap-${UUID.randomUUID()}"),
-                    clock =
-                        object : AppClock {
-                            override fun nowEpochMillis(): Long = 5_000L
-                        },
+                    clock = clock,
                 ),
             )
         val store = ViewModelStore()
@@ -80,7 +78,7 @@ class InterruptButtonTapTest {
                 object : ViewModelProvider.Factory {
                     override fun <T : ViewModel> create(modelClass: Class<T>): T {
                         @Suppress("UNCHECKED_CAST")
-                        return FocusStackViewModel(useCases) as T
+                        return FocusStackViewModel(useCases, clock = clock) as T
                     }
                 },
             )[FocusStackViewModel::class.java]
@@ -113,6 +111,7 @@ class InterruptButtonTapTest {
                             CaptureSheet(
                                 phrases = emptyList(),
                                 frameActive = state.now != null,
+                                today = clock.localDate(),
                                 onDismiss = {},
                                 onSaveToInbox = viewModel::saveToInbox,
                                 onInterruptNow = viewModel::interruptNow,

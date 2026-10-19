@@ -86,7 +86,7 @@ class EditFlowVisualTest {
                     editTitle?.let { title ->
                         CaptureSheet(
                             phrases = emptyList(),
-                            frameActive = false,
+                            frameActive = false, today = app.backpin.focus.testing.FakeAppClock().localDate(),
                             onDismiss = {},
                             onSaveToInbox = {},
                             onInterruptNow = {},

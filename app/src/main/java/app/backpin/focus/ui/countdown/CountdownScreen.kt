@@ -65,12 +65,12 @@ import java.time.LocalDate
 internal fun CountdownScreen(
     countdowns: List<CountdownUi>,
     ready: Boolean,
+    today: LocalDate,
     onAdd: (String, Long) -> Unit,
     onChangeDate: (String, Long) -> Unit,
     onRemove: (String) -> Unit,
     onEdit: (String) -> Unit,
     modifier: Modifier = Modifier,
-    today: LocalDate = LocalDate.now(),
     recognizer: UtteranceRecognizer? = null,
     onSystemSpeech: ((Intent, (String) -> Unit) -> Unit)? = null,
 ) {

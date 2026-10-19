@@ -300,6 +300,7 @@ internal fun QuietButton(
 internal fun CaptureChoice(
     label: String,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
     tone: ChoiceTone = ChoiceTone.Quiet,
     enabled: Boolean = true,
     filled: Boolean = false,
@@ -331,7 +332,7 @@ internal fun CaptureChoice(
         borderColor = borderColor,
         onClick = onClick,
         modifier =
-        Modifier
+        modifier
             .fillMaxWidth()
             .focusProperties { canFocus = false }
             .then(if (selected) Modifier.semantics { this.selected = true } else Modifier),

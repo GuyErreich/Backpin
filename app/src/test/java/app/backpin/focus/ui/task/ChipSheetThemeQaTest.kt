@@ -105,6 +105,7 @@ class ChipSheetThemeQaTest {
                 } else {
                     MissedTaskSheet(
                         state = MissedTaskSheetUi("task-1", "Call Dana"),
+                        today = app.backpin.focus.testing.FakeAppClock().localDate(),
                         onDismiss = {},
                         onDoneNow = {},
                         onTomorrow = {},
@@ -151,6 +152,7 @@ class ChipSheetThemeQaTest {
                 CaptureLiveColors { live = it }
                 MissedTaskSheet(
                     state = MissedTaskSheetUi("task-1", "Call Dana"),
+                    today = app.backpin.focus.testing.FakeAppClock().localDate(),
                     onDismiss = {},
                     onDoneNow = {},
                     onTomorrow = {},

@@ -38,8 +38,6 @@ import app.backpin.focus.notifications.NotificationContract
 import app.backpin.focus.ui.capture.BringBackSheet
 import app.backpin.focus.ui.capture.CaptureEdit
 import app.backpin.focus.ui.capture.CaptureSheet
-import app.backpin.focus.ui.components.AccentButton
-import app.backpin.focus.ui.components.AccentTone
 import app.backpin.focus.ui.components.AddFab
 import app.backpin.focus.ui.components.AppTab
 import app.backpin.focus.ui.components.AppTabBar
@@ -60,7 +58,6 @@ import app.backpin.focus.ui.task.MissedTaskSheet
 import app.backpin.focus.ui.task.TaskSheet
 import app.backpin.focus.ui.theme.ButtonGap
 import app.backpin.focus.ui.theme.FocusColors
-import app.backpin.focus.ui.theme.Space
 
 private object Routes {
     const val HOME = "home"
@@ -91,6 +88,7 @@ fun FocusApp(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val checkedOffMessage = stringResource(R.string.undo_checked_off)
+    val keptInInboxMessage = stringResource(R.string.kept_in_inbox)
     val undoLabel = stringResource(R.string.action_undo)
     val movedComingUp = stringResource(R.string.moved_to_coming_up)
     val movedInbox = stringResource(R.string.moved_to_inbox)
@@ -119,9 +117,26 @@ fun FocusApp(
         if (launchDestination != null) onLaunchDestinationConsumed()
     }
 
+    val startRedirect = state.startRedirect
+    val startRedirectMessage =
+        if (startRedirect != null) {
+            stringResource(
+                R.string.start_redirect_message,
+                startRedirect.interruptionTitle,
+                startRedirect.parentTitle,
+            )
+        } else {
+            null
+        }
+    LaunchedEffect(startRedirect) {
+        val message = startRedirectMessage ?: return@LaunchedEffect
+        snackbarHostState.showSnackbar(message = message)
+        viewModel.dismissStartRedirect()
+    }
+
     LaunchedEffect(state.undo?.id) {
         val undo = state.undo ?: return@LaunchedEffect
-        val message = undoSnackbarMessage(undo, checkedOffMessage)
+        val message = undoSnackbarMessage(undo, checkedOffMessage, keptInInboxMessage)
         val result =
             snackbarHostState.showSnackbar(
                 message = message,
@@ -137,17 +152,7 @@ fun FocusApp(
 
     Scaffold(
         containerColor = FocusColors.Live.Midnight,
-        snackbarHost = {
-            SnackbarHost(snackbarHostState) { data ->
-                Snackbar(
-                    snackbarData = data,
-                    containerColor = FocusColors.Live.SurfaceHigh,
-                    contentColor = FocusColors.Live.Text,
-                    actionColor = FocusColors.Live.Mint,
-                    dismissActionContentColor = FocusColors.Live.Muted,
-                )
-            }
-        },
+        snackbarHost = { FocusSnackbarHost(snackbarHostState) },
         floatingActionButton = {
             if (showCapture) {
                 AddFab(onClick = { viewModel.openCapture(interrupts = false) })
@@ -208,7 +213,7 @@ fun FocusApp(
                     scheduledTasks = state.scheduledTasks,
                     countdowns = state.countdowns,
                     ready = state.ready,
-                    today = state.today,
+                    today = viewModel.localDate(),
                     countdownUnit = countdownUnit,
                     onEdit = viewModel::openEdit,
                     onOpenSheet = viewModel::openTaskSheet,
@@ -256,11 +261,11 @@ fun FocusApp(
                 CountdownScreen(
                     countdowns = state.countdowns,
                     ready = state.ready,
+                    today = viewModel.localDate(),
                     onAdd = viewModel::addCountdown,
                     onChangeDate = viewModel::changeCountdownDate,
                     onRemove = viewModel::removeCountdown,
                     onEdit = viewModel::openEdit,
-                    today = viewModel.localDate(),
                 )
             }
             composable(Routes.SETTINGS) {
@@ -306,6 +311,7 @@ fun FocusApp(
         CaptureSheet(
             phrases = emptyList(),
             frameActive = state.now != null,
+            today = viewModel.localDate(),
             onDismiss = viewModel::dismissEdit,
             onSaveToInbox = {},
             onInterruptNow = {},
@@ -343,6 +349,7 @@ fun FocusApp(
     } else if (openMissedTask != null) {
         MissedTaskSheet(
             state = openMissedTask,
+            today = viewModel.localDate(),
             onDismiss = viewModel::dismissMissedTask,
             onDoneNow = viewModel::doneMissedTask,
             onTomorrow = viewModel::tomorrowMissedTask,
@@ -352,6 +359,7 @@ fun FocusApp(
         CaptureSheet(
             phrases = state.preferences.savedPhrases,
             frameActive = state.now != null,
+            today = viewModel.localDate(),
             onDismiss = viewModel::dismissCapture,
             onSaveToInbox = viewModel::saveToInbox,
             onInterruptNow = viewModel::interruptNow,
@@ -364,7 +372,7 @@ fun FocusApp(
     }
 
     bringBack?.let { target ->
-        val today = state.today
+        val today = viewModel.localDate()
         val isEvent = state.now?.let { it.taskId == target.taskId && it.isEvent } == true
         BringBackSheet(
             onDismiss = viewModel::dismissBringBack,
@@ -381,47 +389,17 @@ fun FocusApp(
         )
     }
 
-    val swapTitle = state.swapIncoming?.title ?: state.freshSwapTitle
-    if (swapTitle != null) {
+    val swapIncoming = state.swapIncoming
+    if (swapIncoming != null) {
         val canInterrupt =
             state.now != null && state.todaySlots.any { it.task?.id == state.now?.taskId }
-        AlertDialog(
-            onDismissRequest = viewModel::cancelSwap,
-            containerColor = FocusColors.Live.Surface,
-            titleContentColor = FocusColors.Live.Text,
-            textContentColor = FocusColors.Live.Muted,
-            title = { Text("Today is full") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(Space)) {
-                    Text(
-                        if (canInterrupt) {
-                            "“$swapTitle” needs a Today slot. Interrupt the current task, or replace one. Replacing parks that task in Later and does not start the new one."
-                        } else {
-                            "“$swapTitle” needs a Today slot. Replace one Today task. That task moves to Later, and the new one takes its place without starting."
-                        },
-                    )
-                    Column(verticalArrangement = Arrangement.spacedBy(ButtonGap)) {
-                        if (canInterrupt) {
-                            AccentButton(
-                                label = "Interrupt current task",
-                                tone = AccentTone.Lavender,
-                                onClick = viewModel::confirmInterrupt,
-                                modifier = Modifier.fillMaxWidth(),
-                            )
-                        }
-                        state.swapChoices.forEach { choice ->
-                            QuietButton(
-                                label = "Replace “${choice.title}”",
-                                onClick = { viewModel.confirmReplace(choice.id) },
-                                modifier = Modifier.fillMaxWidth(),
-                            )
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                QuietButton("Cancel", onClick = viewModel::cancelSwap, modifier = Modifier.fillMaxWidth())
-            },
+        TodayFullSwapDialog(
+            incoming = swapIncoming,
+            swapChoices = state.swapChoices,
+            canInterrupt = canInterrupt,
+            onKeepInInbox = viewModel::keepInInbox,
+            onInterrupt = viewModel::confirmInterrupt,
+            onReplace = viewModel::confirmReplace,
         )
     }
 
@@ -450,6 +428,19 @@ fun FocusApp(
                     QuietButton("Cancel", onClick = viewModel::dismissSwitch, modifier = Modifier.fillMaxWidth())
                 }
             },
+        )
+    }
+}
+
+@Composable
+internal fun FocusSnackbarHost(hostState: SnackbarHostState) {
+    SnackbarHost(hostState) { data ->
+        Snackbar(
+            snackbarData = data,
+            containerColor = FocusColors.Live.SurfaceHigh,
+            contentColor = FocusColors.Live.Text,
+            actionColor = FocusColors.Live.Mint,
+            dismissActionContentColor = FocusColors.Live.Muted,
         )
     }
 }

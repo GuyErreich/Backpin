@@ -41,7 +41,6 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
-import java.time.LocalDate
 import java.util.UUID
 
 @RunWith(RobolectricTestRunner::class)
@@ -63,6 +62,7 @@ class ScheduleCalendarTapTest {
                     CaptureSheet(
                         phrases = emptyList(),
                         frameActive = false,
+                        today = clock.localDate(),
                         onDismiss = { open = false },
                         onSaveToInbox = viewModel::saveToInbox,
                         onInterruptNow = viewModel::interruptNow,
@@ -86,7 +86,7 @@ class ScheduleCalendarTapTest {
             compose.onNodeWithText("Add a time").assertDoesNotExist()
             compose.onNodeWithText("Change date").assertDoesNotExist()
             tap("Tomorrow")
-            val tomorrow = LocalDate.now().plusDays(1).toEpochDay()
+            val tomorrow = clock.localDate().plusDays(1).toEpochDay()
             awaitScheduled(useCases, "Call Dana", tomorrow, minute = null)
             assertEquals(1, taskCount(useCases))
             assertSheetClosed()
@@ -96,7 +96,7 @@ class ScheduleCalendarTapTest {
             tap("Schedule")
             compose.onNodeWithText("Schedule for", substring = true).assertDoesNotExist()
             tap("In 7 days")
-            awaitScheduled(useCases, "File the form", LocalDate.now().plusDays(7).toEpochDay(), minute = null)
+            awaitScheduled(useCases, "File the form", clock.localDate().plusDays(7).toEpochDay(), minute = null)
             assertEquals(2, taskCount(useCases))
             assertSheetClosed()
 
@@ -120,6 +120,7 @@ class ScheduleCalendarTapTest {
                 CaptureSheet(
                     phrases = emptyList(),
                     frameActive = false,
+                    today = clock.localDate(),
                     onDismiss = {},
                     onSaveToInbox = { placed += "inbox:$it" },
                     onInterruptNow = { placed += "interrupt:$it" },
@@ -141,7 +142,7 @@ class ScheduleCalendarTapTest {
         compose.onNodeWithText("Schedule for", substring = true).assertDoesNotExist()
         compose.onNodeWithText("Change date").assertDoesNotExist()
         tap("In 7 days")
-        assertEquals(listOf("schedule:Call Dana:${LocalDate.now().plusDays(7).toEpochDay()}"), placed)
+        assertEquals(listOf("schedule:Call Dana:${clock.localDate().plusDays(7).toEpochDay()}"), placed)
     }
 
     private fun assertSheetClosed() {
@@ -163,7 +164,7 @@ class ScheduleCalendarTapTest {
                 FocusRepositoryImpl(
                     database = database,
                     preferencesStore = PreferencesDataStore(context, "calendar-tap-${UUID.randomUUID()}"),
-                    clock = AppClock { System.currentTimeMillis() },
+                    clock = clock,
                 ),
                 wakeUp = { wakeUps += it },
             )
@@ -174,7 +175,7 @@ class ScheduleCalendarTapTest {
                 object : ViewModelProvider.Factory {
                     override fun <T : ViewModel> create(modelClass: Class<T>): T {
                         @Suppress("UNCHECKED_CAST")
-                        return FocusStackViewModel(useCases) as T
+                        return FocusStackViewModel(useCases, clock = clock) as T
                     }
                 },
             )[FocusStackViewModel::class.java]
@@ -187,6 +188,8 @@ class ScheduleCalendarTapTest {
     }
 
     private fun taskCount(useCases: FocusUseCases): Int = runBlocking { useCases.observeSnapshot().first().tasks.size }
+
+    private val clock: AppClock = app.backpin.focus.testing.FakeAppClock()
 
     private fun awaitScheduled(
         useCases: FocusUseCases,

@@ -39,7 +39,7 @@ class FakeAppClock(
      * property (or [zoneId]) as the implementation.
      */
     @Volatile
-    var zone: ZoneId = initialZone
+    override var zone: ZoneId = initialZone
         private set
 
     override fun nowEpochMillis(): Long = instant.toEpochMilli()
@@ -49,9 +49,9 @@ class FakeAppClock(
 
     fun localDateTime(): LocalDateTime = instant.atZone(zone).toLocalDateTime()
 
-    fun localDate(): LocalDate = localDateTime().toLocalDate()
+    override fun localDate(): LocalDate = localDateTime().toLocalDate()
 
-    fun localTime(): LocalTime = localDateTime().toLocalTime()
+    override fun localTime(): LocalTime = localDateTime().toLocalTime()
 
     fun localEpochDay(): Long = localDate().toEpochDay()
 

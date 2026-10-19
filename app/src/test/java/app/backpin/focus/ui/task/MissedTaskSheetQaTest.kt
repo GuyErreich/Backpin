@@ -181,6 +181,7 @@ class MissedTaskSheetQaTest {
                 missed?.let { pending ->
                     MissedTaskSheet(
                         state = pending,
+                        today = clock.localDate(),
                         onDismiss = viewModel::dismissMissedTask,
                         onDoneNow = viewModel::doneMissedTask,
                         onTomorrow = viewModel::tomorrowMissedTask,

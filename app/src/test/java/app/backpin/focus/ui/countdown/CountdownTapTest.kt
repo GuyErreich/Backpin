@@ -105,9 +105,9 @@ class CountdownTapTest {
 
             tap("Change date")
             tap("Pick a date")
-            tapCalendarDay(clock.localDate().plusDays(4))
+            val pickedDay = clock.localDate().plusDays(4).also { tapCalendarDay(it) }
             tap("OK")
-            val picked = awaitCountdown(useCases, "Dana's birthday", clock.localDate().plusDays(4).toEpochDay())
+            val picked = awaitCountdown(useCases, "Dana's birthday", pickedDay.toEpochDay())
             assertEquals(created.id, picked.id)
             await { viewModel.uiState.value.countdowns.singleOrNull()?.dayLabel == "4 days" }
             compose.onNodeWithText("4 days", useUnmergedTree = true).assertExists()
@@ -124,9 +124,9 @@ class CountdownTapTest {
             compose.onNodeWithText("Save countdown").assertDoesNotExist()
             nameField().performTextInput("Dana's birthday")
             tap("Pick a date")
+            val eventDay = clock.localDate().plusDays(7).also { tapCalendarDay(it) }
             tap("OK")
-            val eventDay = clock.localDate().plusDays(7).toEpochDay()
-            awaitCountdown(useCases, "Dana's birthday", eventDay)
+            awaitCountdown(useCases, "Dana's birthday", eventDay.toEpochDay())
             assertEquals(1, taskCount(useCases))
             compose.onNodeWithText("Count down to").assertDoesNotExist()
             compose.onNodeWithText("Save countdown").assertDoesNotExist()
@@ -158,14 +158,15 @@ class CountdownTapTest {
 
             tap("Add countdown")
             tap("Pick a date")
+            val eventDay = clock.localDate().plusDays(7).also { tapCalendarDay(it) }
             tap("OK")
             compose.onNodeWithText("Name the event.").assertExists()
             compose.onNodeWithText("Save countdown").assertDoesNotExist()
             assertEquals(1, taskCount(useCases))
 
-            val eventDay = clock.localDate().plusDays(7).toEpochDay()
+            val eventEpoch = eventDay.toEpochDay()
             nameField().performTextInput("Anniversary")
-            awaitCountdown(useCases, "Anniversary", eventDay)
+            awaitCountdown(useCases, "Anniversary", eventEpoch)
             assertEquals(2, taskCount(useCases))
             compose.onNodeWithText("Count down to").assertDoesNotExist()
         }
@@ -186,6 +187,7 @@ class CountdownTapTest {
             showFocus(viewModel)
             await { viewModel.uiState.value.now?.isEvent == true }
             compose.onNodeWithText("EVENT").assertExists()
+            compose.mainClock.autoAdvance = false
 
             tap("Today")
             awaitSnapshot(useCases) { snapshot ->
@@ -193,14 +195,16 @@ class CountdownTapTest {
                 event.bucket == TaskBucket.TODAY && event.status == TaskStatus.OPEN && parentWaits(snapshot)
             }
             await { viewModel.uiState.value.recovery?.title == "Write the report" }
+            repeat(10) { pump() }
             compose.onNodeWithText("Resume").assertExists()
 
             arriveAgain(useCases, repository, "Dentist again", today)
             await { viewModel.uiState.value.now?.title == "Dentist again" }
+            repeat(10) { pump() }
             compose.onNodeWithText("EVENT").assertExists()
             tap("Later")
             awaitSnapshot(useCases) { snapshot ->
-                snapshot.tasks.single { it.title == "Dentist again" }.bucket == TaskBucket.LATER && parentWaits(snapshot)
+                snapshot.tasks.single { it.title == "Dentist again" }.bucket == TaskBucket.INBOX && parentWaits(snapshot)
             }
 
             arriveAgain(useCases, repository, "Anniversary", today)
@@ -464,11 +468,11 @@ class CountdownTapTest {
                 CountdownScreen(
                     countdowns = state.countdowns,
                     ready = state.ready,
+                    today = clock.localDate(),
                     onAdd = viewModel::addCountdown,
                     onChangeDate = viewModel::changeCountdownDate,
                     onRemove = viewModel::removeCountdown,
                     onEdit = viewModel::openEdit,
-                    today = clock.localDate(),
                     recognizer = QuietRecognizer,
                 )
             }

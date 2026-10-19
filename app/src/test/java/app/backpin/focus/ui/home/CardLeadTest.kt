@@ -98,6 +98,7 @@ class CardLeadTest {
                 CaptureSheet(
                     phrases = emptyList(),
                     frameActive = true,
+                    today = app.backpin.focus.testing.FakeAppClock().localDate(),
                     onDismiss = {},
                     onSaveToInbox = {},
                     onInterruptNow = {},
