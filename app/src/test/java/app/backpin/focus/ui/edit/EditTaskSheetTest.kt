@@ -21,8 +21,6 @@ import androidx.compose.ui.unit.dp
 import app.backpin.focus.R
 import app.backpin.focus.domain.CapturePlace
 import app.backpin.focus.ui.capture.BringBackSheet
-import app.backpin.focus.ui.capture.CaptureEdit
-import app.backpin.focus.ui.capture.CaptureSheet
 import app.backpin.focus.ui.capture.SpeechProblem
 import app.backpin.focus.ui.capture.UtteranceRecognizer
 import app.backpin.focus.ui.theme.FocusStackTheme
@@ -152,15 +150,14 @@ class EditTaskSheetTest {
         compose.setContent {
             var bringBackTitle by remember { mutableStateOf<String?>(null) }
             FocusStackTheme {
-                CaptureSheet(
-                    phrases = listOf("Talk to my wife", "Talk to <name>"),
-                    onDismiss = { dismissed += 1 },
+                EditTaskSheet(
                     edit =
                     CaptureEdit(
                         taskId = "task-1",
                         title = "Hold this",
                         place = CapturePlace.INBOX,
                     ),
+                    onDismiss = { dismissed += 1 },
                     onCommitEdit = { title, place, day ->
                         saved += EditCommit(title, place, day)
                     },

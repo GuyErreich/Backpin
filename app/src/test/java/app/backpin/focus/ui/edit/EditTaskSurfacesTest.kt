@@ -38,8 +38,6 @@ import app.backpin.focus.testing.useTestFocus
 import app.backpin.focus.ui.FocusStackViewModel
 import app.backpin.focus.ui.SlotRole
 import app.backpin.focus.ui.capture.BringBackSheet
-import app.backpin.focus.ui.capture.CaptureEdit
-import app.backpin.focus.ui.capture.CaptureSheet
 import app.backpin.focus.ui.capture.SpeechProblem
 import app.backpin.focus.ui.capture.UtteranceRecognizer
 import app.backpin.focus.ui.capture.bringBackInitialDays
@@ -346,9 +344,7 @@ class EditTaskSurfacesTest {
         val movedComingUp = stringResource(R.string.moved_to_coming_up)
         val movedInbox = stringResource(R.string.moved_to_inbox)
         state.editing?.let { editing ->
-            CaptureSheet(
-                phrases = emptyList(),
-                onDismiss = viewModel::dismissEdit,
+            EditTaskSheet(
                 edit =
                 CaptureEdit(
                     taskId = editing.id,
@@ -356,6 +352,7 @@ class EditTaskSurfacesTest {
                     place = editing.place,
                     scheduledEpochDay = editing.scheduledOnEpochDay,
                 ),
+                onDismiss = viewModel::dismissEdit,
                 onCommitEdit = viewModel::saveEdit,
                 onBringBack = viewModel::saveEditThenBringBack,
                 recognizer = SilentRecognizer,
