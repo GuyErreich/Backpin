@@ -25,6 +25,7 @@ Navigation
 Motion
 - Quiet motion from [ui/motion](app/src/main/java/app/backpin/focus/ui/motion): no ripple, no bounce, no sound.
 - Honor reduced motion.
+- The swipe color is a band on the opened side, clipped to the row radius, reaching one corner-radius past the finger so the round corner stays filled.
 
 Copy
 - Real copy, short sentences.
