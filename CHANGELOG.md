@@ -1,6 +1,15 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [0.1.33-dev] - 21-10-2026
+
+### Refactoring & Code Quality
+- split CaptureSheet into create, interrupt, EditTaskSheet (#102)
+
+
+### Bug Fixes & Resolutions
+- center the add pill and keep a started task in the head (#106)
+
 ## [0.1.32-dev] - 21-10-2026
 
 ### Refactoring & Code Quality
