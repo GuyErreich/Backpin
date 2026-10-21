@@ -20,6 +20,8 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.AbsoluteAlignment
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -44,7 +46,6 @@ import app.backpin.focus.ui.theme.FocusColors
 import kotlin.math.abs
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 
@@ -227,8 +228,15 @@ internal fun SwipeRevealCard(
                             val edge = if (total >= 0f) width else -width
                             glide(edge, MotionSpec.SettleMillis)
                             commit()
-                            delay(64)
-                            if (abs(logicalOffset) > 1f) glide(0f, MotionSpec.SettleMillis)
+                            val started = withFrameNanos { it }
+                            val budget = MotionSpec.ReorderMillis * 1_000_000L
+                            while (startState.value != null || endState.value != null) {
+                                val now = withFrameNanos { it }
+                                if (now - started >= budget) {
+                                    if (abs(logicalOffset) > 1f) glide(0f, MotionSpec.SettleMillis)
+                                    return
+                                }
+                            }
                         } else {
                             commit?.invoke()
                             val millis = if (reduced) MotionSpec.ReducedFadeMillis else MotionSpec.SettleMillis
@@ -347,7 +355,11 @@ internal fun SwipeRevealCard(
         Box(
             Modifier
                 .fillMaxWidth()
-                .graphicsLayer { translationX = visualOffset },
+                .graphicsLayer {
+                    translationX = visualOffset
+                    shape = RoundedCornerShape(cornerRadius)
+                    clip = abs(visualOffset) > 0.5f
+                },
         ) {
             content()
         }
@@ -413,7 +425,7 @@ private fun BoxScope.SwipeBand(
         }
     Box(
         Modifier
-            .align(if (alignStart) Alignment.CenterStart else Alignment.CenterEnd)
+            .align(if (alignStart) AbsoluteAlignment.CenterLeft else AbsoluteAlignment.CenterRight)
             .width(band)
             .fillMaxHeight()
             .clipToBounds()
