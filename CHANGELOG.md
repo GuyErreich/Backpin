@@ -1,7 +1,13 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
-## [0.1.34-rc] - 21-10-2026
+## [0.1.35-rc] - 21-10-2026
+
+### Bug Fixes & Resolutions
+- publish the preview when a staging push is not delivered (#108)
+- fill the swipe color behind the rounded row (#110)
+
+## [0.1.34-dev] - 21-10-2026
 
 ### Bug Fixes & Resolutions
 - center the add pill and keep a started task in the head (#106)
