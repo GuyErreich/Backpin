@@ -275,6 +275,7 @@ private fun NowCard(
                         true
                     },
                 ),
+                cornerRadius = HomeMetrics.NowRadius,
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Surface(
@@ -804,6 +805,7 @@ private fun TodayRow(
         } else {
             emptyList()
         },
+        cornerRadius = layout.taskRadius(),
         modifier = Modifier.fillMaxWidth(),
     ) {
         Surface(

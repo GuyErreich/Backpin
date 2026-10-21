@@ -13,6 +13,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeLeft
 import androidx.compose.ui.test.swipeRight
+import app.backpin.focus.domain.HomeLayout
 import app.backpin.focus.testing.useTestFocus
 import app.backpin.focus.ui.FocusStackViewModel
 import app.backpin.focus.ui.capture.BringBackSheet
@@ -45,6 +46,20 @@ class HomeActionTapTest {
     @Test
     fun focusedTaskLeavesTheListAndReturnsWhenAnotherRowInterrupts() {
         showHomeWithNowAndToday { viewModel ->
+            await { textCount("Hold this") == 1 }
+            compose.onNodeWithText("Park me").assertExists()
+            swipeLeftOn(hasContentDescription("Park me", substring = true))
+            await {
+                viewModel.uiState.value.now?.title == "Park me" &&
+                    textCount("Park me") == 1 &&
+                    textCount("Hold this") == 1
+            }
+        }
+    }
+
+    @Test
+    fun focusedTaskLeavesTheBandAndReturnsWhenAnotherRowInterrupts() {
+        showHomeWithNowAndToday(HomeLayout.BANDS) { viewModel ->
             await { textCount("Hold this") == 1 }
             compose.onNodeWithText("Park me").assertExists()
             swipeLeftOn(hasContentDescription("Park me", substring = true))
@@ -94,7 +109,37 @@ class HomeActionTapTest {
         }
     }
 
-    private fun showHomeWithNowAndToday(block: (FocusStackViewModel) -> Unit) {
+    @Test
+    fun swipeRightInABandRemovesTheRowUntilItIsReplaced() {
+        useTestFocus { fixture ->
+            runBlocking {
+                fixture.useCases.capture("Call Dana")
+                val id =
+                    fixture.repository
+                        .observeSnapshot()
+                        .first()
+                        .tasks
+                        .single { it.title == "Call Dana" }
+                        .id
+                fixture.useCases.promote(id)
+            }
+            fixture.withViewModel { viewModel ->
+                showHome(viewModel, HomeLayout.BANDS)
+                await {
+                    viewModel.uiState.value.now == null &&
+                        viewModel.uiState.value.todaySlots.any { it.task?.title == "Call Dana" } &&
+                        textCount("Call Dana") == 1
+                }
+                swipeRightOn(hasContentDescription("Call Dana", substring = true))
+                await { viewModel.uiState.value.now?.title == "Call Dana" && textCount("Call Dana") == 1 }
+            }
+        }
+    }
+
+    private fun showHomeWithNowAndToday(
+        layout: HomeLayout = HomeLayout.FLAT,
+        block: (FocusStackViewModel) -> Unit,
+    ) {
         useTestFocus { fixture ->
             runBlocking {
                 fixture.seedFullToday(listOf("Hold this", "Park me"))
@@ -107,37 +152,45 @@ class HomeActionTapTest {
                 fixture.useCases.start(hold.id)
             }
             fixture.withViewModel { viewModel ->
-                compose.setContent {
-                    val state by viewModel.uiState.collectAsState()
-                    val bringBack by viewModel.bringBack.collectAsState()
-                    FocusStackTheme {
-                        HomeScreen(
-                            state = state,
-                            viewModel = viewModel,
-                            onOpenFocus = {},
-                            onOpenInbox = {},
-                            onOpenScheduled = {},
-                            onOpenDone = {},
-                        )
-                        bringBack?.let { target ->
-                            val today = state.today
-                            val isEvent =
-                                state.now?.let { it.taskId == target.taskId && it.isEvent } == true
-                            BringBackSheet(
-                                onDismiss = viewModel::dismissBringBack,
-                                onDate = {},
-                                onKeepInInbox = {},
-                                today = today,
-                                earliest = if (isEvent) today.plusDays(1) else null,
-                            )
-                        }
-                    }
-                }
+                showHome(viewModel, layout)
                 await {
                     viewModel.uiState.value.now?.title == "Hold this" &&
                         viewModel.uiState.value.todaySlots.any { it.task?.title == "Park me" }
                 }
                 block(viewModel)
+            }
+        }
+    }
+
+    private fun showHome(
+        viewModel: FocusStackViewModel,
+        layout: HomeLayout,
+    ) {
+        compose.setContent {
+            val state by viewModel.uiState.collectAsState()
+            val bringBack by viewModel.bringBack.collectAsState()
+            FocusStackTheme {
+                HomeScreen(
+                    state = state,
+                    viewModel = viewModel,
+                    onOpenFocus = {},
+                    onOpenInbox = {},
+                    onOpenScheduled = {},
+                    onOpenDone = {},
+                    homeLayout = layout,
+                )
+                bringBack?.let { target ->
+                    val today = state.today
+                    val isEvent =
+                        state.now?.let { it.taskId == target.taskId && it.isEvent } == true
+                    BringBackSheet(
+                        onDismiss = viewModel::dismissBringBack,
+                        onDate = {},
+                        onKeepInInbox = {},
+                        today = today,
+                        earliest = if (isEvent) today.plusDays(1) else null,
+                    )
+                }
             }
         }
     }
