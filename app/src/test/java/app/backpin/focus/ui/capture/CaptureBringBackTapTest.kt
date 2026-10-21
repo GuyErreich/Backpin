@@ -87,6 +87,7 @@ class CaptureBringBackTapTest {
                 tap(compose.activity.getString(R.string.action_bring_back))
                 await("still capturing") { viewModel.uiState.value.captureOpen && viewModel.bringBack.value == null }
                 compose.onNodeWithText("Bring it back in…").assertDoesNotExist()
+                compose.onNodeWithText("Name it.").assertExists()
             }
         }
     }

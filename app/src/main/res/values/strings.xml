@@ -31,6 +31,7 @@
     <string name="capture_interrupt_heading">What came up?</string>
     <string name="capture_interrupt_paused">“%1$s” is paused and waits at the top.</string>
     <string name="capture_or_when">OR, WHEN?</string>
+    <string name="capture_name_it">Name it.</string>
     <string name="action_today">Today</string>
     <string name="action_tomorrow">Tomorrow</string>
     <string name="action_in_3_days">In 3 days</string>
