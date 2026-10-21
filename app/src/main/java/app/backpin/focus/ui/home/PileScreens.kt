@@ -129,9 +129,14 @@ internal fun ActionPileCards(
         Text(emptyLabel, style = MaterialTheme.typography.bodyLarge, color = FocusColors.Live.Muted)
     }
     tasks.forEach { task ->
+        val left = pileLeftSwipe(canInterrupt)
         SwipeRevealCard(
             towardStart = todaySwipe { onToday(task.id) },
-            towardEnd = startSwipe { onStart(task.id) },
+            towardEnd =
+            left.side(
+                onStart = { onStart(task.id) },
+                onInterrupt = { onInterrupt(task.id) },
+            ),
             reducedMotion = reducedMotion,
             extraActions =
             listOfNotNull(
@@ -162,7 +167,7 @@ internal fun ActionPileCards(
                 .fillMaxWidth()
                 .semantics {
                     contentDescription =
-                        "$title. ${task.title}. Opens the task sheet. Swipe right for today, swipe left for start."
+                        "$title. ${task.title}. Opens the task sheet. Swipe right for today, swipe left for ${left.name.lowercase()}."
                 },
         ) {
             Surface(

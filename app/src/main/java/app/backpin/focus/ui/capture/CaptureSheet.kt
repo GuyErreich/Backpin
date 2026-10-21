@@ -67,8 +67,6 @@ import app.backpin.focus.ui.components.CLOSE_LABEL
 import app.backpin.focus.ui.components.CaptureChoice
 import app.backpin.focus.ui.components.ChoiceTone
 import app.backpin.focus.ui.components.PrimaryButton
-import app.backpin.focus.ui.components.QuietButton
-import app.backpin.focus.ui.components.SecondaryActionRow
 import app.backpin.focus.ui.home.HomeMetrics
 import app.backpin.focus.ui.motion.MotionSpec
 import app.backpin.focus.ui.motion.WithoutRipple
@@ -126,6 +124,7 @@ internal fun CaptureSheet(
     var activeBlank by remember { mutableStateOf<String?>(null) }
     var selectedPlace by remember(edit) { mutableStateOf(edit?.place) }
     var editCommitted by remember { mutableStateOf(false) }
+    var needsName by remember { mutableStateOf(false) }
     val editing = edit != null
     val interruptNow = interrupts && !editing
     val focusRequester = remember { FocusRequester() }
@@ -180,7 +179,12 @@ internal fun CaptureSheet(
 
     fun runWithTitle(place: (String) -> Unit) {
         val titleText = typedTitle()
-        if (titleText.isEmpty()) return
+        if (titleText.isEmpty()) {
+            needsName = true
+            focusRequester.requestFocus()
+            return
+        }
+        needsName = false
         place(titleText)
         stopListening()
     }
@@ -408,6 +412,13 @@ internal fun CaptureSheet(
                 speech.note?.let { note ->
                     Text(note, style = MaterialTheme.typography.bodyMedium, color = FocusColors.Live.Muted)
                 }
+                if (needsName && typedTitle().isEmpty()) {
+                    Text(
+                        text = stringResource(R.string.capture_name_it),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = FocusColors.Live.Muted,
+                    )
+                }
                 if (editing) {
                     val bringBackLabel = stringResource(R.string.action_bring_back)
                     PlaceChoices(
@@ -454,16 +465,23 @@ internal fun CaptureSheet(
                             color = FocusColors.Live.Muted,
                             modifier = Modifier.padding(top = 16.dp, bottom = 8.dp),
                         )
-                        SecondaryActionRow {
-                            QuietButton(
-                                label = stringResource(R.string.action_today),
-                                onClick = { runWithTitle(onPlaceToday) },
-                            )
-                            QuietButton(
-                                label = stringResource(R.string.action_start_now),
-                                onClick = { runWithTitle(onPlaceStart) },
-                            )
-                            QuietButton(
+                        Column(verticalArrangement = Arrangement.spacedBy(ButtonGap)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(ButtonGap),
+                            ) {
+                                CaptureChoice(
+                                    label = stringResource(R.string.action_today),
+                                    onClick = { runWithTitle(onPlaceToday) },
+                                    modifier = Modifier.weight(1f),
+                                )
+                                CaptureChoice(
+                                    label = stringResource(R.string.action_start_now),
+                                    onClick = { runWithTitle(onPlaceStart) },
+                                    modifier = Modifier.weight(1f),
+                                )
+                            }
+                            CaptureChoice(
                                 label = stringResource(R.string.action_bring_back),
                                 onClick = { onBringBack?.let(::runWithTitle) },
                             )
