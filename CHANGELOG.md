@@ -1,6 +1,25 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [0.1.31-dev] - 21-10-2026
+
+### Features & Enhancements
+- Capture sheet to Penpot C1/2 (#93)
+
+
+### Refactoring & Code Quality
+- rename FocusColors.Lavender to Now (#100)
+
+
+### Bug Fixes & Resolutions
+- design QA follow-ups for Home v2 (#92)
+- align the sheets, use the day wheel for countdowns, and restore home swipes (#103)
+
+
+### Testing
+- cover build-logic test-class parser (#81)
+- make two FocusStack ViewModel unit tests deterministic (#76)
+
 ## [0.1.30-dev] - 19-10-2026
 
 ### Features & Enhancements
