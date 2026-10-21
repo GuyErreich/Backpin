@@ -41,7 +41,6 @@ import app.backpin.focus.domain.ThemeId
 import app.backpin.focus.notifications.NotificationContract
 import app.backpin.focus.ui.capture.BRING_BACK_DEFAULT_DAYS
 import app.backpin.focus.ui.capture.BringBackSheet
-import app.backpin.focus.ui.capture.CaptureEdit
 import app.backpin.focus.ui.capture.CaptureSheet
 import app.backpin.focus.ui.capture.bringBackInitialDays
 import app.backpin.focus.ui.components.AddFab
@@ -50,6 +49,8 @@ import app.backpin.focus.ui.components.AppTab
 import app.backpin.focus.ui.components.AppTabBar
 import app.backpin.focus.ui.components.QuietButton
 import app.backpin.focus.ui.countdown.CountdownScreen
+import app.backpin.focus.ui.edit.CaptureEdit
+import app.backpin.focus.ui.edit.EditTaskSheet
 import app.backpin.focus.ui.focus.FocusScreen
 import app.backpin.focus.ui.home.ComingUpScreen
 import app.backpin.focus.ui.home.DoneScreen
@@ -345,9 +346,7 @@ fun FocusApp(
             onArchive = viewModel::archiveRepeat,
         )
     } else if (editing != null) {
-        CaptureSheet(
-            phrases = emptyList(),
-            onDismiss = viewModel::dismissEdit,
+        EditTaskSheet(
             edit =
             CaptureEdit(
                 taskId = editing.id,
@@ -355,6 +354,7 @@ fun FocusApp(
                 place = editing.place,
                 scheduledEpochDay = editing.scheduledOnEpochDay,
             ),
+            onDismiss = viewModel::dismissEdit,
             onCommitEdit = viewModel::saveEdit,
             onBringBack = viewModel::saveEditThenBringBack,
             onRepeat = { taskId, title ->

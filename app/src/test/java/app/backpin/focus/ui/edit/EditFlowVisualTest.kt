@@ -24,10 +24,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.backpin.focus.domain.CapturePlace
 import app.backpin.focus.ui.TaskUi
-import app.backpin.focus.ui.capture.CaptureEdit
-import app.backpin.focus.ui.capture.CaptureSheet
 import app.backpin.focus.ui.capture.SpeechProblem
 import app.backpin.focus.ui.capture.UtteranceRecognizer
+import app.backpin.focus.ui.edit.CaptureEdit
+import app.backpin.focus.ui.edit.EditTaskSheet
 import app.backpin.focus.ui.home.InboxScreen
 import app.backpin.focus.ui.theme.FocusColors
 import app.backpin.focus.ui.theme.FocusStackTheme
@@ -84,15 +84,14 @@ class EditFlowVisualTest {
                         onEdit = {},
                     )
                     editTitle?.let { title ->
-                        CaptureSheet(
-                            phrases = emptyList(),
-                            onDismiss = {},
+                        EditTaskSheet(
                             edit =
                             CaptureEdit(
                                 taskId = "task-1",
                                 title = title,
                                 place = CapturePlace.INBOX,
                             ),
+                            onDismiss = {},
                             onCommitEdit = { _, _, _ -> },
                             recognizer = SilentRecognizer,
                         )

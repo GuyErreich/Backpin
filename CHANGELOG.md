@@ -1,7 +1,16 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
-## [0.1.31-rc] - 21-10-2026
+## [0.1.32-rc] - 21-10-2026
+
+### Refactoring & Code Quality
+- split CaptureSheet into create, interrupt, EditTaskSheet (#102)
+
+
+### Bug Fixes & Resolutions
+- align the sheets, use the day wheel for countdowns, and restore home swipes (#103)
+
+## [0.1.31-dev] - 21-10-2026
 
 ### Features & Enhancements
 - Capture sheet to Penpot C1/2 (#93)
