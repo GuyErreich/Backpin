@@ -32,12 +32,14 @@ import app.backpin.focus.domain.FocusUseCases
 import app.backpin.focus.domain.FrameState
 import app.backpin.focus.domain.TaskBucket
 import app.backpin.focus.testing.FakeAppClock
+import app.backpin.focus.testing.MainDispatcherRule
 import app.backpin.focus.ui.FocusStackViewModel
 import app.backpin.focus.ui.capture.CaptureSheet
 import app.backpin.focus.ui.capture.UtteranceRecognizer
 import app.backpin.focus.ui.focus.FocusScreen
 import app.backpin.focus.ui.theme.FocusStackTheme
 
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
@@ -48,10 +50,14 @@ import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import java.util.UUID
 
+@OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36], qualifiers = "w411dp-h891dp")
 class InterruptButtonTapTest {
-    @get:Rule
+    @get:Rule(order = 0)
+    val mainDispatcherRule = MainDispatcherRule()
+
+    @get:Rule(order = 1)
     val compose = createAndroidComposeRule<ComponentActivity>()
 
     @Test
@@ -124,8 +130,14 @@ class InterruptButtonTapTest {
             }
             await { viewModel.uiState.value.now != null }
             compose.onNode(hasSetTextAction()).performTextInput("Quick note")
+            // The sheet is already up. Opening capture here makes the later close observable:
+            // interruptNow writes the task, then closes capture. Waiting only on the task
+            // lets that close land after the focus Interrupt tap and clear it.
+            viewModel.openCapture(interrupts = true)
+            await { viewModel.uiState.value.captureOpen && viewModel.uiState.value.captureInterrupts }
             tap("Interrupt · do this now")
             awaitSnapshot(useCases) { snapshot -> activeTitle(snapshot) == "Quick note" }
+            await { !viewModel.uiState.value.captureOpen }
 
             show("Switch") { screen = "focus" }
             tap("Interrupt")
@@ -165,7 +177,7 @@ class InterruptButtonTapTest {
                 nearest(compose.onAllNodesWithText(label), beside)
             }
         node.assertIsEnabled().assertHasClickAction()
-        node.performTouchInput { click() }
+        node.performTouchInput { click(center) }
     }
 
     private fun nearest(
@@ -180,10 +192,23 @@ class InterruptButtonTapTest {
 
     private fun await(predicate: () -> Boolean) {
         compose.waitUntil(timeoutMillis = 5_000) {
-            compose.waitForIdle()
-            shadowOf(Looper.getMainLooper()).idle()
+            pump()
             predicate()
         }
+        // The state can land while the scheduler drains, after that pump already idled.
+        // Compose once more so the next assertion sees the screen that matched.
+        pump()
+    }
+
+    private fun pump() {
+        if (compose.mainClock.autoAdvance) {
+            compose.waitForIdle()
+        } else {
+            compose.mainClock.advanceTimeBy(16L)
+            compose.mainClock.advanceTimeByFrame()
+        }
+        shadowOf(Looper.getMainLooper()).idle()
+        mainDispatcherRule.scheduler.advanceUntilIdle()
     }
 
     private fun awaitSnapshot(
