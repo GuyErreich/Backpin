@@ -1,20 +1,82 @@
 name: Preview APK
 
+# A push to staging is the normal publish. Action-Semver-Control moves staging
+# with the commits API, and GitHub sometimes does not deliver that push, so
+# a completed Auto Semver run publishes staging when the preview release is
+# behind. workflow_dispatch rebuilds the current staging tip from the Actions tab.
 on:
   push:
     branches:
       - staging
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["Auto Semver Bump"]
+    types: [completed]
 
 permissions:
   contents: write
 
+concurrency:
+  group: preview-apk
+  cancel-in-progress: false
+
 jobs:
+  gate:
+    # Feature merges also finish Auto Semver. Only a release branch promotes staging.
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       startsWith(github.event.workflow_run.head_branch, 'auto-semver/release/'))
+    runs-on: ubuntu-latest
+    outputs:
+      build: ${{ steps.gate.outputs.build }}
+      ref: ${{ steps.gate.outputs.ref }}
+    steps:
+      - name: Choose the commit to publish
+        id: gate
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          EVENT_NAME: ${{ github.event_name }}
+          PUSH_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          case "$EVENT_NAME" in
+            workflow_run)
+              tip=$(gh api "repos/${GITHUB_REPOSITORY}/commits/staging" --jq .sha)
+              published=$(gh release view preview --json targetCommitish --jq .targetCommitish || true)
+              if [ -n "$published" ]; then
+                resolved=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${published}" --jq .sha || true)
+                if [ -n "$resolved" ]; then
+                  published=$resolved
+                fi
+              fi
+              if [ "$tip" = "$published" ]; then
+                echo "Staging ${tip} is already the preview release."
+                echo "build=false" >> "$GITHUB_OUTPUT"
+                exit 0
+              fi
+              echo "build=true" >> "$GITHUB_OUTPUT"
+              echo "ref=${tip}" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "build=true" >> "$GITHUB_OUTPUT"
+              if [ "$EVENT_NAME" = "push" ]; then
+                echo "ref=${PUSH_SHA}" >> "$GITHUB_OUTPUT"
+              else
+                echo "ref=staging" >> "$GITHUB_OUTPUT"
+              fi
+              ;;
+          esac
+
   preview:
+    needs: gate
+    if: needs.gate.outputs.build == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v7
         with:
+          ref: ${{ needs.gate.outputs.ref }}
           fetch-depth: 0
 
       - name: Set up JDK 21
@@ -62,10 +124,11 @@ jobs:
           apk="app/build/outputs/apk/preview/app-preview.apk"
           test -f "$apk"
           cp "$apk" backpin.apk
+          sha=$(git rev-parse HEAD)
           if gh release view preview >/dev/null 2>&1; then
             gh release delete preview --yes --cleanup-tag
           fi
           gh release create preview backpin.apk \
-            --target "$GITHUB_SHA" \
+            --target "$sha" \
             --title preview \
             --notes "Latest Backpin preview."
