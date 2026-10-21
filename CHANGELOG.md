@@ -1,7 +1,13 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
-## [0.1.33-rc] - 21-10-2026
+## [0.1.34-rc] - 21-10-2026
+
+### Bug Fixes & Resolutions
+- center the add pill and keep a started task in the head (#106)
+- publish the preview when a staging push is not delivered (#108)
+
+## [0.1.33-dev] - 21-10-2026
 
 ### Refactoring & Code Quality
 - split CaptureSheet into create, interrupt, EditTaskSheet (#102)
