@@ -1,7 +1,6 @@
 version: 0.1.34-dev
 source_branch: dev
 target_branch: dev
-target_base_sha: 06f4d812b2ec3e4af16c71f4e4602354fcf07771
-finalized: false
+target_base_sha: e79b3bec9552e073e6dbb841748285877e4d2afb
+finalized: true
 managed_by: auto-semver
-branch_role: release
