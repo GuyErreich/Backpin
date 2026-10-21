@@ -10,6 +10,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.LayoutDirection
@@ -91,6 +92,68 @@ class SwipeRevealClipTest {
                 assertTrue(
                     "Start should stay on screen, start=$start",
                     start.left >= 0f && start.right <= card.right,
+                )
+            }
+        }
+    }
+
+    @Test
+    fun revealColorContinuesBehindTheRow() {
+        useTestFocus { fixture ->
+            runBlocking {
+                fixture.useCases.capture("Call Dana")
+                val id =
+                    fixture.repository
+                        .observeSnapshot()
+                        .first()
+                        .tasks
+                        .single { it.title == "Call Dana" }
+                        .id
+                fixture.useCases.promote(id)
+            }
+            fixture.withViewModel { viewModel ->
+                compose.setContent {
+                    val state by viewModel.uiState.collectAsState()
+                    FocusStackTheme {
+                        HomeScreen(
+                            state = state,
+                            viewModel = viewModel,
+                            onOpenFocus = {},
+                            onOpenInbox = {},
+                            onOpenScheduled = {},
+                            onOpenDone = {},
+                            homeLayout = HomeLayout.BANDS,
+                        )
+                    }
+                }
+                compose.waitUntil(timeoutMillis = 5_000) {
+                    compose.waitForIdle()
+                    shadowOf(Looper.getMainLooper()).idle()
+                    viewModel.uiState.value.now == null &&
+                        viewModel.uiState.value.todaySlots.any { it.task?.title == "Call Dana" }
+                }
+                val row = compose.onNode(hasContentDescription("Call Dana", substring = true))
+                row.performTouchInput {
+                    down(center)
+                    moveBy(Offset(120.dp.toPx(), 0f))
+                }
+                compose.waitForIdle()
+                shadowOf(Looper.getMainLooper()).idle()
+
+                val card = row.fetchSemanticsNode().boundsInRoot
+                val color =
+                    compose
+                        .onNodeWithTag(SWIPE_REVEAL_COLOR_TAG, useUnmergedTree = true)
+                        .fetchSemanticsNode()
+                        .boundsInRoot
+                val reveal = card.left - color.left
+                assertTrue(
+                    "The color should sit in the gap beside the row, color=$color card=$card",
+                    reveal > 1f && color.top <= card.top + 1f && color.bottom >= card.bottom - 1f,
+                )
+                assertTrue(
+                    "The color should continue behind the row, color=$color card=$card reveal=$reveal",
+                    color.right > card.left + reveal,
                 )
             }
         }

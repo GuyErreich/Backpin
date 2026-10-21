@@ -35,6 +35,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
@@ -48,6 +49,9 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
+
+/** The rounded color behind a moving row. Tests use this to see that it fills the card. */
+internal const val SWIPE_REVEAL_COLOR_TAG = "swipe-reveal-color"
 
 private sealed interface Race {
     data object Up : Race
@@ -350,7 +354,7 @@ internal fun SwipeRevealCard(
         val revealed = revealSide(logicalOffset, startState.value, endState.value)
         val committed = threshold > 0f && abs(logicalOffset) >= threshold
         if (revealed != null && !reducedMotion) {
-            SwipeBandLayer(cornerRadius, revealed, logicalOffset, committed)
+            SwipeBandLayer(cornerRadius, revealed, logicalOffset, committed, coversCard = true)
         }
         Box(
             Modifier
@@ -364,7 +368,7 @@ internal fun SwipeRevealCard(
             content()
         }
         if (revealed != null && reducedMotion) {
-            SwipeBandLayer(cornerRadius, revealed, logicalOffset, committed)
+            SwipeBandLayer(cornerRadius, revealed, logicalOffset, committed, coversCard = false)
         }
     }
 }
@@ -385,18 +389,31 @@ private fun revealSide(
     return side?.let { RevealedSide(it, alignStart) }
 }
 
-/** Clips the band to the card corners without clipping the card's shadow. */
+/**
+ * The revealed color is the rounded card itself, drawn behind the row.
+ * A strip only as wide as the finger stops at the row's rectangle, so the
+ * row's round corners show the page behind them.
+ * Reduced motion paints the strip on top of the still card instead.
+ */
 @Composable
 private fun BoxScope.SwipeBandLayer(
     cornerRadius: Dp,
     revealed: RevealedSide,
     logicalOffset: Float,
     committed: Boolean,
+    coversCard: Boolean,
 ) {
     Box(
         Modifier
             .matchParentSize()
-            .clip(RoundedCornerShape(cornerRadius)),
+            .clip(RoundedCornerShape(cornerRadius))
+            .then(
+                if (coversCard) {
+                    Modifier.background(revealed.side.tint).testTag(SWIPE_REVEAL_COLOR_TAG)
+                } else {
+                    Modifier
+                },
+            ),
     ) {
         SwipeBand(
             side = revealed.side,
