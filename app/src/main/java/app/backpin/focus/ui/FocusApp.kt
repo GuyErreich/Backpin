@@ -39,6 +39,7 @@ import app.backpin.focus.domain.CountdownUnit
 import app.backpin.focus.domain.HomeLayout
 import app.backpin.focus.domain.ThemeId
 import app.backpin.focus.notifications.NotificationContract
+import app.backpin.focus.ui.capture.BRING_BACK_DEFAULT_DAYS
 import app.backpin.focus.ui.capture.BringBackSheet
 import app.backpin.focus.ui.capture.CaptureSheet
 import app.backpin.focus.ui.capture.bringBackInitialDays
@@ -255,6 +256,7 @@ fun FocusApp(
                     onOpenMissed = viewModel::openMissedTask,
                     onAddCountdown = viewModel::addCountdown,
                     onChangeCountdownDate = viewModel::changeCountdownDate,
+                    initialCountdownDays = state.preferences.lastCountdownDays ?: BRING_BACK_DEFAULT_DAYS,
                 )
             }
             composable(
@@ -301,6 +303,7 @@ fun FocusApp(
                     onChangeDate = viewModel::changeCountdownDate,
                     onRemove = viewModel::removeCountdown,
                     onEdit = viewModel::openEdit,
+                    initialDays = state.preferences.lastCountdownDays ?: BRING_BACK_DEFAULT_DAYS,
                 )
             }
             composable(Routes.SETTINGS) {

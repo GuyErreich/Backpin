@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -48,12 +49,11 @@ import androidx.compose.ui.unit.dp
 import app.backpin.focus.R
 import app.backpin.focus.ui.components.CaptureChoice
 import app.backpin.focus.ui.components.PrimaryButton
-import app.backpin.focus.ui.components.QuietButton
-import app.backpin.focus.ui.components.SecondaryActionRow
 import app.backpin.focus.ui.home.HomeMetrics
 import app.backpin.focus.ui.motion.WithoutRipple
 import app.backpin.focus.ui.motion.rememberPressSource
 import app.backpin.focus.ui.motion.rememberReducedMotion
+import app.backpin.focus.ui.theme.ButtonGap
 import app.backpin.focus.ui.theme.FocusColors
 import app.backpin.focus.ui.theme.Space
 
@@ -90,6 +90,7 @@ internal fun CaptureSheet(
     val title = titleDraft.text
     val fillWord = fillDraft.text
     var activeBlank by remember { mutableStateOf<String?>(null) }
+    var needsName by remember { mutableStateOf(false) }
     val interruptNow = interrupts
     val focusRequester = remember { FocusRequester() }
     val fillFocusRequester = remember { FocusRequester() }
@@ -127,7 +128,12 @@ internal fun CaptureSheet(
 
     fun runWithTitle(place: (String) -> Unit) {
         val titleText = typedTitle()
-        if (titleText.isEmpty()) return
+        if (titleText.isEmpty()) {
+            needsName = true
+            focusRequester.requestFocus()
+            return
+        }
+        needsName = false
         place(titleText)
         stopListening()
     }
@@ -282,6 +288,13 @@ internal fun CaptureSheet(
                 speech.note?.let { note ->
                     Text(note, style = MaterialTheme.typography.bodyMedium, color = FocusColors.Live.Muted)
                 }
+                if (needsName && typedTitle().isEmpty()) {
+                    Text(
+                        text = stringResource(R.string.capture_name_it),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = FocusColors.Live.Muted,
+                    )
+                }
                 if (interruptNow) {
                     CaptureInterruptContent(
                         pausedTitle = pausedTitle,
@@ -319,16 +332,23 @@ private fun CaptureCreateContent(
             color = FocusColors.Live.Muted,
             modifier = Modifier.padding(top = 16.dp, bottom = 8.dp),
         )
-        SecondaryActionRow {
-            QuietButton(
-                label = stringResource(R.string.action_today),
-                onClick = onPlaceToday,
-            )
-            QuietButton(
-                label = stringResource(R.string.action_start_now),
-                onClick = onPlaceStart,
-            )
-            QuietButton(
+        Column(verticalArrangement = Arrangement.spacedBy(ButtonGap)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(ButtonGap),
+            ) {
+                CaptureChoice(
+                    label = stringResource(R.string.action_today),
+                    onClick = onPlaceToday,
+                    modifier = Modifier.weight(1f),
+                )
+                CaptureChoice(
+                    label = stringResource(R.string.action_start_now),
+                    onClick = onPlaceStart,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            CaptureChoice(
                 label = stringResource(R.string.action_bring_back),
                 onClick = { onBringBack?.invoke() },
             )

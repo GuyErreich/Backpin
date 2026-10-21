@@ -15,6 +15,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import app.backpin.focus.ui.theme.ButtonGap
 import app.backpin.focus.ui.theme.FocusStackTheme
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -59,15 +60,20 @@ class CaptureSheetBackTest {
         val bringBack = compose.onNodeWithText("Bring back…").getBoundsInRoot()
         listOf("Today" to today, "Start now" to startNow, "Bring back…" to bringBack).forEach { (label, rect) ->
             val height = rect.bottom - rect.top
-            assertTrue("$label is $height tall", height >= 48.dp - Slack && height <= 48.dp + Slack)
+            assertTrue("$label is $height tall", height >= 56.dp - Slack)
         }
         assertTrue("Today and Start now share a row", kotlin.math.abs((today.top - startNow.top).value) <= 0.5f)
-        assertTrue("Start now and Bring back share a row", kotlin.math.abs((startNow.top - bringBack.top).value) <= 0.5f)
+        val underRow = bringBack.top - startNow.bottom
+        assertTrue("Bring back sits 12dp under the row, gap is $underRow", kotlin.math.abs((underRow - ButtonGap).value) <= 1f)
         val todayWidth = today.right - today.left
         val startWidth = startNow.right - startNow.left
+        val saveWidth = save.right - save.left
         val bringWidth = bringBack.right - bringBack.left
-        assertTrue("When-row widths match", kotlin.math.abs((todayWidth - startWidth).value) <= 1f)
-        assertTrue("When-row widths match", kotlin.math.abs((startWidth - bringWidth).value) <= 1f)
+        assertTrue("Today and Start now match", kotlin.math.abs((todayWidth - startWidth).value) <= 1f)
+        assertTrue("Bring back matches Save", kotlin.math.abs((bringWidth - saveWidth).value) <= 1f)
+        assertTrue("Bring back shares Save's left edge", kotlin.math.abs((bringBack.left - save.left).value) <= 1f)
+        assertTrue("Today shares Save's left edge", kotlin.math.abs((today.left - save.left).value) <= 1f)
+        assertTrue("Start now shares Save's right edge", kotlin.math.abs((startNow.right - save.right).value) <= 1f)
     }
 
     private fun walkEveryStep(goBack: () -> Unit) {

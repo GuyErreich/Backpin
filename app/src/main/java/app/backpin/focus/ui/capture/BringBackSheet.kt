@@ -307,22 +307,24 @@ internal fun BringBackDatePane(
 }
 
 @Composable
-private fun DaysWheel(
+internal fun DaysWheel(
     selectedDays: Int,
     onSelectedDays: (Int) -> Unit,
+    maxDays: Int = BRING_BACK_MAX_DAYS,
 ) {
+    val capped = maxDays.coerceAtLeast(BRING_BACK_MIN_DAYS)
     val reducedMotion = rememberReducedMotion()
     val scope = rememberCoroutineScope()
     val listState =
         rememberLazyListState(
-            initialFirstVisibleItemIndex = (selectedDays - 1).coerceIn(0, BRING_BACK_MAX_DAYS - 1),
+            initialFirstVisibleItemIndex = (selectedDays - 1).coerceIn(0, capped - 1),
         )
     val fling = rememberSnapFlingBehavior(lazyListState = listState)
     val centeredDays by remember {
         derivedStateOf {
             listState.firstVisibleItemIndex
             listState.firstVisibleItemScrollOffset
-            centeredDays(listState)
+            centeredDays(listState, capped)
         }
     }
     val outline = FocusColors.Live.Text
@@ -356,15 +358,11 @@ private fun DaysWheel(
             contentPadding = PaddingValues(vertical = WHEEL_ITEM_HEIGHT * WHEEL_PAD_COUNT),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            items(BRING_BACK_MAX_DAYS) { index ->
+            items(capped) { index ->
                 val days = index + 1
                 val distance = abs(days - centeredDays)
                 val source = remember { MutableInteractionSource() }
-                Text(
-                    text = pluralStringResource(R.plurals.bring_back_days, days, days),
-                    style = wheelTextStyle(distance),
-                    color = wheelTextColor(distance),
-                    textAlign = TextAlign.Center,
+                Box(
                     modifier =
                     Modifier
                         .fillMaxWidth()
@@ -385,7 +383,16 @@ private fun DaysWheel(
                             },
                         )
                         .padding(horizontal = 16.dp),
-                )
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = pluralStringResource(R.plurals.bring_back_days, days, days),
+                        style = wheelTextStyle(distance),
+                        color = wheelTextColor(distance),
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
             }
         }
     }
@@ -568,7 +575,10 @@ private fun wheelTextColor(distance: Int) = when (distance) {
     else -> FocusColors.Live.Muted.copy(alpha = 0.45f)
 }
 
-private fun centeredDays(state: LazyListState): Int {
+private fun centeredDays(
+    state: LazyListState,
+    maxDays: Int,
+): Int {
     val info = state.layoutInfo
     val viewportCenter = (info.viewportStartOffset + info.viewportEndOffset) / 2
     val nearest =
@@ -576,7 +586,7 @@ private fun centeredDays(state: LazyListState): Int {
             abs((item.offset + item.size / 2) - viewportCenter)
         }
     val index = nearest?.index ?: state.firstVisibleItemIndex
-    return (index + 1).coerceIn(BRING_BACK_MIN_DAYS, BRING_BACK_MAX_DAYS)
+    return (index + 1).coerceIn(BRING_BACK_MIN_DAYS, maxDays)
 }
 
 internal fun sundayWeekdayLabels(locale: Locale): List<String> = (0L..6L).map { offset ->
