@@ -14,6 +14,7 @@ import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performImeAction
@@ -74,43 +75,46 @@ class CountdownTapTest {
     private val clock = FakeAppClock(DEFAULT_TEST_INSTANT, DEFAULT_TEST_ZONE)
 
     @Test
-    fun enteringTwentyFiveDaysWithANameSavesOneCountdownAndCloses() {
+    fun savingTheWheelDayWithANameSavesOneCountdownAndCloses() {
         withViewModel { viewModel, useCases, _, _ ->
             showCountdown(viewModel)
             await { viewModel.uiState.value.ready }
             tap("Add countdown")
+            compose.onNodeWithText("Days from today").assertDoesNotExist()
             compose.onNodeWithText("Save countdown").assertDoesNotExist()
+            compose.onNodeWithText("5 days").assertExists()
             nameField().performTextInput("Dana's birthday")
-            daysField().performTextInput("25")
-            val eventDay = clock.localDate().plusDays(25).toEpochDay()
-            compose.onNodeWithText(scheduleMomentLabel(eventDay, null)).assertExists()
-            daysField().performTouchInput { click() }
-            daysField().performImeAction()
+            tap("6 days")
+            val eventDay = clock.localDate().plusDays(6).toEpochDay()
+            await { compose.onAllNodesWithText(scheduleMomentLabel(eventDay, null)).fetchSemanticsNodes().isNotEmpty() }
+            tap("Save · in 6 days")
             val created = awaitCountdown(useCases, "Dana's birthday", eventDay)
             assertEquals(1, taskCount(useCases))
             compose.onNodeWithText("Count down to").assertDoesNotExist()
             compose.onNodeWithText("Save countdown").assertDoesNotExist()
-            await { viewModel.uiState.value.countdowns.singleOrNull()?.dayLabel == "25 days" }
-            compose.onNodeWithText("25 days").assertExists()
+            await { viewModel.uiState.value.countdowns.singleOrNull()?.dayLabel == "6 days" }
+            compose.onNodeWithText("6 days").assertExists()
 
             tap("Change date")
-            compose.onNode(hasSetTextAction()).performTextInput("3")
-            compose.onNode(hasSetTextAction()).performTouchInput { click() }
-            compose.onNode(hasSetTextAction()).performImeAction()
-            val moved = awaitCountdown(useCases, "Dana's birthday", clock.localDate().plusDays(3).toEpochDay())
+            compose.onNodeWithText("Days from today").assertDoesNotExist()
+            tap("4 days")
+            val movedDay = clock.localDate().plusDays(4).toEpochDay()
+            await { compose.onAllNodesWithText(scheduleMomentLabel(movedDay, null)).fetchSemanticsNodes().isNotEmpty() }
+            tap("Save · in 4 days")
+            val moved = awaitCountdown(useCases, "Dana's birthday", movedDay)
             assertEquals(created.id, moved.id)
-            await { viewModel.uiState.value.countdowns.singleOrNull()?.dayLabel == "3 days" }
+            await { viewModel.uiState.value.countdowns.singleOrNull()?.dayLabel == "4 days" }
             compose.onNodeWithText("Change the day").assertDoesNotExist()
-            compose.onNodeWithText("3 days", useUnmergedTree = true).assertExists()
+            compose.onNodeWithText("4 days", useUnmergedTree = true).assertExists()
 
             tap("Change date")
             tap("Pick a date")
-            val pickedDay = clock.localDate().plusDays(4).also { tapCalendarDay(it) }
+            val pickedDay = clock.localDate().plusDays(8).also { tapCalendarDay(it) }
             tap("OK")
             val picked = awaitCountdown(useCases, "Dana's birthday", pickedDay.toEpochDay())
             assertEquals(created.id, picked.id)
-            await { viewModel.uiState.value.countdowns.singleOrNull()?.dayLabel == "4 days" }
-            compose.onNodeWithText("4 days", useUnmergedTree = true).assertExists()
+            await { viewModel.uiState.value.countdowns.singleOrNull()?.dayLabel == "8 days" }
+            compose.onNodeWithText("8 days", useUnmergedTree = true).assertExists()
             compose.onNodeWithText("Save countdown").assertDoesNotExist()
         }
     }
@@ -141,18 +145,17 @@ class CountdownTapTest {
             showCountdown(viewModel)
             await { viewModel.uiState.value.ready }
             tap("Add countdown")
-            daysField().performTextInput("25")
-            val inTwentyFive = clock.localDate().plusDays(25).toEpochDay()
-            compose.onNodeWithText(scheduleMomentLabel(inTwentyFive, null)).assertExists()
-            daysField().performTouchInput { click() }
-            daysField().performImeAction()
+            val inFive = clock.localDate().plusDays(5).toEpochDay()
+            compose.onNodeWithText(scheduleMomentLabel(inFive, null)).assertExists()
+            tap("Save · in 5 days")
             compose.onNodeWithText("Name the event.").assertExists()
             compose.onNodeWithText("Save countdown").assertDoesNotExist()
-            compose.onNodeWithText(scheduleMomentLabel(inTwentyFive, null)).assertExists()
+            compose.onNodeWithText(scheduleMomentLabel(inFive, null)).assertExists()
             assertEquals(0, taskCount(useCases))
 
             nameField().performTextInput("Dana's birthday")
-            awaitCountdown(useCases, "Dana's birthday", inTwentyFive)
+            tap("Save · in 5 days")
+            awaitCountdown(useCases, "Dana's birthday", inFive)
             assertEquals(1, taskCount(useCases))
             compose.onNodeWithText("Count down to").assertDoesNotExist()
 
@@ -166,6 +169,7 @@ class CountdownTapTest {
 
             val eventEpoch = eventDay.toEpochDay()
             nameField().performTextInput("Anniversary")
+            tap("Save · in 7 days")
             awaitCountdown(useCases, "Anniversary", eventEpoch)
             assertEquals(2, taskCount(useCases))
             compose.onNodeWithText("Count down to").assertDoesNotExist()
@@ -480,8 +484,6 @@ class CountdownTapTest {
     }
 
     private fun nameField(): SemanticsNodeInteraction = compose.onAllNodes(hasSetTextAction())[0]
-
-    private fun daysField(): SemanticsNodeInteraction = compose.onAllNodes(hasSetTextAction())[1]
 
     private fun resumeDaysField() = compose.onNode(hasSetTextAction() and hasText("Days from today"))
 

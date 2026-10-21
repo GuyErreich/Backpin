@@ -42,6 +42,7 @@ import app.backpin.focus.domain.comingUpSection
 import app.backpin.focus.domain.countdownDaysLeft
 import app.backpin.focus.ui.CountdownUi
 import app.backpin.focus.ui.ScheduledTaskUi
+import app.backpin.focus.ui.capture.BRING_BACK_DEFAULT_DAYS
 import app.backpin.focus.ui.components.AddFab
 import app.backpin.focus.ui.countdown.AddCountdownSheet
 import app.backpin.focus.ui.countdown.ChangeCountdownSheet
@@ -61,6 +62,7 @@ fun ComingUpScreen(
     ready: Boolean,
     today: LocalDate,
     countdownUnit: CountdownUnit,
+    initialCountdownDays: Int = BRING_BACK_DEFAULT_DAYS,
     onEdit: (String) -> Unit,
     onOpenSheet: (String) -> Unit,
     onOpenMissed: (String) -> Unit,
@@ -178,6 +180,7 @@ fun ComingUpScreen(
                 onAddCountdown(title, day)
             },
             today = today,
+            initialDays = initialCountdownDays,
         )
     }
 }

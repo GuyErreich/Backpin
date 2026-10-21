@@ -31,6 +31,7 @@
     <string name="capture_interrupt_heading">What came up?</string>
     <string name="capture_interrupt_paused">“%1$s” is paused and waits at the top.</string>
     <string name="capture_or_when">OR, WHEN?</string>
+    <string name="capture_name_it">Name it.</string>
     <string name="action_today">Today</string>
     <string name="action_tomorrow">Tomorrow</string>
     <string name="action_in_3_days">In 3 days</string>
@@ -143,8 +144,8 @@
     <string name="home_now_paused">Paused: %1$s</string>
     <string name="home_today">Today</string>
     <string name="home_empty_slot">Empty slot</string>
-    <string name="home_row_desc_opens_sheet">Today position %1$d. %2$s. %3$s. Opens the task sheet. Swipe right for done, swipe left to bring back. Long press for more actions.</string>
-    <string name="home_row_desc">Today position %1$d. %2$s. %3$s. Swipe right for done, swipe left to bring back. Long press for more actions.</string>
+    <string name="home_row_desc_opens_sheet">Today position %1$d. %2$s. %3$s. Opens the task sheet. Long press for more actions.</string>
+    <string name="home_row_desc">Today position %1$d. %2$s. %3$s. Long press for more actions.</string>
     <string name="home_missed_footer">Missed repeats don\'t pile up. Tomorrow starts fresh.</string>
     <string name="action_add">+ Add</string>
     <string name="add_fab_menu_add_subtitle">Same as a tap</string>

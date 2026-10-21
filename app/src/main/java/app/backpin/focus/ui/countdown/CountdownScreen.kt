@@ -3,6 +3,8 @@ package app.backpin.focus.ui.countdown
 
 import android.content.Intent
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -13,6 +15,7 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -24,32 +27,45 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
+import app.backpin.focus.R
+import app.backpin.focus.domain.scheduleMomentLabel
 import app.backpin.focus.ui.CountdownUi
 import app.backpin.focus.ui.calendar.PickDateDialog
+import app.backpin.focus.ui.capture.BRING_BACK_DEFAULT_DAYS
+import app.backpin.focus.ui.capture.BRING_BACK_MAX_DAYS
+import app.backpin.focus.ui.capture.BRING_BACK_MIN_DAYS
+import app.backpin.focus.ui.capture.DaysWheel
 import app.backpin.focus.ui.capture.SpeakMic
 import app.backpin.focus.ui.capture.TitleDraft
 import app.backpin.focus.ui.capture.UtteranceRecognizer
 import app.backpin.focus.ui.capture.rememberSpeechInput
 import app.backpin.focus.ui.components.AccentButton
 import app.backpin.focus.ui.components.AccentTone
-import app.backpin.focus.ui.components.CardActions
 import app.backpin.focus.ui.components.BackArrow
 import app.backpin.focus.ui.components.CLOSE_LABEL
+import app.backpin.focus.ui.components.CardActions
+import app.backpin.focus.ui.components.PrimaryButton
 import app.backpin.focus.ui.components.QuietButton
 import app.backpin.focus.ui.motion.rememberReducedMotion
 import app.backpin.focus.ui.theme.CardRadius
@@ -70,6 +86,7 @@ internal fun CountdownScreen(
     onChangeDate: (String, Long) -> Unit,
     onRemove: (String) -> Unit,
     onEdit: (String) -> Unit,
+    initialDays: Int = BRING_BACK_DEFAULT_DAYS,
     modifier: Modifier = Modifier,
     recognizer: UtteranceRecognizer? = null,
     onSystemSpeech: ((Intent, (String) -> Unit) -> Unit)? = null,
@@ -144,6 +161,7 @@ internal fun CountdownScreen(
                 onAdd(title, day)
             },
             today = today,
+            initialDays = initialDays,
             recognizer = recognizer,
             onSystemSpeech = onSystemSpeech,
         )
@@ -190,9 +208,9 @@ private fun CountdownRow(
 private object CountdownField
 
 /**
- * Title with the mic, then either a number of days or a calendar day.
- * That choice saves and closes the sheet when the event has a name.
- * With no name, the choice stays and the event saves as soon as it is named.
+ * Event name, then the same day wheel as Bring back.
+ * Save stores the centered day. Pick a date stores a calendar day.
+ * With no name, the sheet stays open and asks for one.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -200,21 +218,25 @@ internal fun AddCountdownSheet(
     onDismiss: () -> Unit,
     onAdd: (String, Long) -> Unit,
     today: LocalDate,
+    initialDays: Int = BRING_BACK_DEFAULT_DAYS,
     recognizer: UtteranceRecognizer? = null,
     onSystemSpeech: ((Intent, (String) -> Unit) -> Unit)? = null,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val reducedMotion = rememberReducedMotion()
     val draft = remember { TitleDraft() }
-    var daysText by rememberSaveable { mutableStateOf("") }
+    var days by rememberSaveable {
+        mutableIntStateOf(initialDays.coerceIn(BRING_BACK_MIN_DAYS, BRING_BACK_MAX_DAYS))
+    }
     var committedDay by rememberSaveable { mutableStateOf<Long?>(null) }
     var picking by remember { mutableStateOf(false) }
     var askForName by remember { mutableStateOf(false) }
     val saved = remember { booleanArrayOf(false) }
     val speech = rememberSpeechInput<CountdownField>(recognizer, onSystemSpeech) { draft }
     val title = draft.text.trim()
-    val typedDay = countdownDays(daysText)?.let { today.plusDays(it.toLong()).toEpochDay() }
-    val shownDay = typedDay ?: committedDay
+    val shownDay = committedDay ?: today.plusDays(days.toLong()).toEpochDay()
+    val saveDays = (shownDay - today.toEpochDay()).toInt().coerceAtLeast(BRING_BACK_MIN_DAYS)
+    val pickDate = remember { MutableInteractionSource() }
 
     fun save(
         resolved: String,
@@ -236,15 +258,8 @@ internal fun AddCountdownSheet(
         save(resolved, day)
     }
 
-    SideEffect {
-        val pending = committedDay
-        val resolved = draft.text.trim()
-        if (!saved[0] && pending != null && resolved.isNotEmpty()) save(resolved, pending)
-    }
-
-    fun commitTypedDays() {
-        val days = countdownDays(daysText) ?: return
-        commit(today.plusDays(days.toLong()).toEpochDay())
+    fun commitShown() {
+        commit(shownDay)
     }
 
     fun dismiss() {
@@ -268,6 +283,7 @@ internal fun AddCountdownSheet(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp)
                 .padding(bottom = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(Space),
         ) {
             Row(
@@ -302,30 +318,77 @@ internal fun AddCountdownSheet(
                     )
                 },
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { commitShown() }),
             )
             if (askForName && title.isEmpty()) {
-                Text("Name the event.", style = MaterialTheme.typography.bodyMedium, color = FocusColors.Live.Muted)
+                Text(
+                    "Name the event.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = FocusColors.Live.Muted,
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
             speech.note?.let { note ->
-                Text(note, style = MaterialTheme.typography.bodyMedium, color = FocusColors.Live.Muted)
+                Text(
+                    note,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = FocusColors.Live.Muted,
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
-            CountdownDayEntry(
-                daysText = daysText,
-                onDaysChange = { daysText = sanitizeCountdownDays(it) },
-                shownDay = shownDay,
-                onDone = { commitTypedDays() },
-                onPickDate = { picking = true },
+            Text(
+                text = stringResource(R.string.bring_back_sheet_subtitle),
+                style = MaterialTheme.typography.bodyMedium,
+                color = FocusColors.Live.Muted,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            DaysWheel(
+                selectedDays = days,
+                maxDays = BRING_BACK_MAX_DAYS,
+                onSelectedDays = { next ->
+                    if (next != days) {
+                        days = next
+                        committedDay = null
+                    }
+                },
+            )
+            Text(
+                text = scheduleMomentLabel(shownDay, null),
+                style = MaterialTheme.typography.bodyLarge,
+                color = FocusColors.Live.Text,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Text(
+                text = stringResource(R.string.action_pick_a_date),
+                style = MaterialTheme.typography.bodyLarge,
+                color = FocusColors.Live.Text,
+                textAlign = TextAlign.Center,
+                textDecoration = TextDecoration.Underline,
+                modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .clickable(
+                        interactionSource = pickDate,
+                        indication = null,
+                        role = Role.Button,
+                        onClick = { picking = true },
+                    )
+                    .padding(vertical = 8.dp),
+            )
+            PrimaryButton(
+                label = pluralStringResource(R.plurals.bring_back_save_in_days, saveDays, saveDays),
+                onClick = ::commitShown,
             )
         }
     }
     if (picking) {
         val tomorrow = today.plusDays(1)
         PickDateDialog(
-            initial = committedDay?.let(LocalDate::ofEpochDay) ?: tomorrow.plusDays(6),
+            initial = committedDay?.let(LocalDate::ofEpochDay) ?: today.plusDays(days.toLong()),
             earliest = tomorrow,
             onPick = { date ->
                 picking = false
-                daysText = ""
                 commit(date.toEpochDay())
             },
             onDismiss = { picking = false },
@@ -333,7 +396,7 @@ internal fun AddCountdownSheet(
     }
 }
 
-/** A new number of days, or a calendar day, for a countdown that already has a name. */
+/** A new day for a countdown that already has a name. The wheel matches Bring back. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun ChangeCountdownSheet(
@@ -343,22 +406,28 @@ internal fun ChangeCountdownSheet(
     onCommit: (Long) -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    var daysText by rememberSaveable { mutableStateOf("") }
+    val span = (epochDay - today.toEpochDay()).toInt()
+    var days by rememberSaveable {
+        mutableIntStateOf(span.coerceIn(BRING_BACK_MIN_DAYS, BRING_BACK_MAX_DAYS))
+    }
+    var wheelMoved by rememberSaveable { mutableStateOf(false) }
     var picking by remember { mutableStateOf(false) }
     val sent = remember { booleanArrayOf(false) }
     val tomorrow = today.plusDays(1)
     val current = LocalDate.ofEpochDay(epochDay)
-    val typedDay = countdownDays(daysText)?.let { today.plusDays(it.toLong()).toEpochDay() }
+    val pickDate = remember { MutableInteractionSource() }
+    val shownDay =
+        if (!wheelMoved && span !in BRING_BACK_MIN_DAYS..BRING_BACK_MAX_DAYS) {
+            epochDay
+        } else {
+            today.plusDays(days.toLong()).toEpochDay()
+        }
+    val saveDays = (shownDay - today.toEpochDay()).toInt().coerceAtLeast(BRING_BACK_MIN_DAYS)
 
     fun commit(day: Long) {
         if (sent[0]) return
         sent[0] = true
         onCommit(day)
-    }
-
-    fun commitTypedDays() {
-        val days = countdownDays(daysText) ?: return
-        commit(today.plusDays(days.toLong()).toEpochDay())
     }
 
     ModalBottomSheet(
@@ -377,6 +446,7 @@ internal fun ChangeCountdownSheet(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp)
                 .padding(bottom = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(Space),
         ) {
             Row(
@@ -388,15 +458,51 @@ internal fun ChangeCountdownSheet(
                 Text(
                     "Change the day",
                     style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold,
                     modifier = Modifier.weight(1f).semantics { heading() },
                 )
             }
-            CountdownDayEntry(
-                daysText = daysText,
-                onDaysChange = { daysText = sanitizeCountdownDays(it) },
-                shownDay = typedDay,
-                onDone = { commitTypedDays() },
-                onPickDate = { picking = true },
+            Text(
+                text = stringResource(R.string.bring_back_sheet_subtitle),
+                style = MaterialTheme.typography.bodyMedium,
+                color = FocusColors.Live.Muted,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            DaysWheel(
+                selectedDays = days,
+                maxDays = BRING_BACK_MAX_DAYS,
+                onSelectedDays = { next ->
+                    if (next != days) wheelMoved = true
+                    days = next
+                },
+            )
+            Text(
+                text = scheduleMomentLabel(shownDay, null),
+                style = MaterialTheme.typography.bodyLarge,
+                color = FocusColors.Live.Text,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Text(
+                text = stringResource(R.string.action_pick_a_date),
+                style = MaterialTheme.typography.bodyLarge,
+                color = FocusColors.Live.Text,
+                textAlign = TextAlign.Center,
+                textDecoration = TextDecoration.Underline,
+                modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .clickable(
+                        interactionSource = pickDate,
+                        indication = null,
+                        role = Role.Button,
+                        onClick = { picking = true },
+                    )
+                    .padding(vertical = 8.dp),
+            )
+            PrimaryButton(
+                label = pluralStringResource(R.plurals.bring_back_save_in_days, saveDays, saveDays),
+                onClick = { commit(shownDay) },
             )
         }
     }
@@ -422,6 +528,7 @@ internal fun CountdownPile(
     emptyLabel: String,
     adding: Boolean,
     today: LocalDate,
+    initialDays: Int = BRING_BACK_DEFAULT_DAYS,
     onAddingChange: (Boolean) -> Unit,
     onAdd: (String, Long) -> Unit,
     onChangeDate: (String, Long) -> Unit,
@@ -464,6 +571,7 @@ internal fun CountdownPile(
                 onAdd(title, day)
             },
             today = today,
+            initialDays = initialDays,
             recognizer = recognizer,
             onSystemSpeech = onSystemSpeech,
         )
