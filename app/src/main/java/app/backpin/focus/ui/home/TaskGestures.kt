@@ -41,6 +41,7 @@ import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import app.backpin.focus.ui.motion.MotionSpec
 import app.backpin.focus.ui.theme.CardRadius
 import app.backpin.focus.ui.theme.FocusColors
@@ -50,7 +51,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 
-/** The rounded color behind a moving row. Tests use this to see that it fills the card. */
+/** The swipe band. Tests use this to see that it stays on the opened side and covers the corners. */
 internal const val SWIPE_REVEAL_COLOR_TAG = "swipe-reveal-color"
 
 private sealed interface Race {
@@ -390,10 +391,10 @@ private fun revealSide(
 }
 
 /**
- * The revealed color is the rounded card itself, drawn behind the row.
- * A strip only as wide as the finger stops at the row's rectangle, so the
- * row's round corners show the page behind them.
- * Reduced motion paints the strip on top of the still card instead.
+ * The band is the opened side of the row, clipped to the card's rounded outline.
+ * It runs past the finger by the corner radius, so the row's transparent
+ * corners show the band instead of the page. The rest of the card stays the row.
+ * Reduced motion paints only the opened strip on top of the still card.
  */
 @Composable
 private fun BoxScope.SwipeBandLayer(
@@ -406,15 +407,22 @@ private fun BoxScope.SwipeBandLayer(
     Box(
         Modifier
             .matchParentSize()
-            .clip(RoundedCornerShape(cornerRadius))
-            .then(
-                if (coversCard) {
-                    Modifier.background(revealed.side.tint).testTag(SWIPE_REVEAL_COLOR_TAG)
-                } else {
-                    Modifier
-                },
-            ),
+            .clip(RoundedCornerShape(cornerRadius)),
     ) {
+        if (coversCard) {
+            val reach =
+                with(LocalDensity.current) {
+                    (abs(logicalOffset) + cornerRadius.toPx() + 1.dp.toPx()).toDp()
+                }
+            Box(
+                Modifier
+                    .align(if (revealed.alignStart) AbsoluteAlignment.CenterLeft else AbsoluteAlignment.CenterRight)
+                    .width(reach)
+                    .fillMaxHeight()
+                    .background(revealed.side.tint)
+                    .testTag(SWIPE_REVEAL_COLOR_TAG),
+            )
+        }
         SwipeBand(
             side = revealed.side,
             alignStart = revealed.alignStart,
