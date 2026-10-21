@@ -105,6 +105,20 @@ internal fun startSwipe(onStart: () -> Unit): SwipeSide = SwipeSide(
 )
 
 @Composable
+internal fun RowSwipe.side(
+    onDone: () -> Unit = {},
+    onStart: () -> Unit = {},
+    onInterrupt: () -> Unit = {},
+    onBringBack: () -> Unit = {},
+): SwipeSide? = when (this) {
+    RowSwipe.None -> null
+    RowSwipe.Done -> doneSwipe(onDone)
+    RowSwipe.Start -> startSwipe(onStart)
+    RowSwipe.Interrupt -> interruptSwipe(onInterrupt)
+    RowSwipe.BringBack -> bringBackSwipe(onBringBack)
+}
+
+@Composable
 internal fun interruptSwipe(onInterrupt: () -> Unit): SwipeSide = SwipeSide(
     label = "Interrupt",
     accessibilityLabel = "Interrupt",
@@ -160,10 +174,20 @@ internal fun SwipeRevealCard(
                 customActions =
                     buildList {
                         startState.value?.let { side ->
-                            add(CustomAccessibilityAction(side.accessibilityLabel) { side.onCommit(); true })
+                            add(
+                                CustomAccessibilityAction(side.accessibilityLabel) {
+                                    side.onCommit()
+                                    true
+                                },
+                            )
                         }
                         endState.value?.let { side ->
-                            add(CustomAccessibilityAction(side.accessibilityLabel) { side.onCommit(); true })
+                            add(
+                                CustomAccessibilityAction(side.accessibilityLabel) {
+                                    side.onCommit()
+                                    true
+                                },
+                            )
                         }
                         addAll(extraActions)
                     }
