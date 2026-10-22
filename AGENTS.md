@@ -22,6 +22,9 @@ Navigation
 - No X and no text Back. The system back does the same as the arrow.
 - Dialogs use Cancel. Exception: when dismissing is itself the safe choice, the safe button replaces Cancel.
 
+Layout
+- In a band, the Today cards and the repeats use the same `taskGap()` between the two groups as between the cards inside each group. Leave an empty group out.
+
 Motion
 - Quiet motion from [ui/motion](app/src/main/java/app/backpin/focus/ui/motion): no ripple, no bounce, no sound.
 - Honor reduced motion.
