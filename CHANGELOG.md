@@ -1,7 +1,16 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
-## [0.1.37-rc] - 22-10-2026
+## [0.1.38-rc] - 22-10-2026
+
+### Features & Enhancements
+- show Done on the task in focus (#116)
+
+
+### Bug Fixes & Resolutions
+- keep a gap between a band task and the repeat under it (#114)
+
+## [0.1.37-dev] - 22-10-2026
 
 ### Bug Fixes & Resolutions
 - keep the swipe color a band on the opened side (#112)

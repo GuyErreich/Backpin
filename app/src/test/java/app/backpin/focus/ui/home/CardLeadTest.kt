@@ -61,13 +61,13 @@ class CardLeadTest {
             FocusStackTheme {
                 InboxScreen(
                     tasks =
-                        listOf(
-                            TaskUi(
-                                id = "1",
-                                title = "Call Dana",
-                                returnCue = null,
-                            ),
+                    listOf(
+                        TaskUi(
+                            id = "1",
+                            title = "Call Dana",
+                            returnCue = null,
                         ),
+                    ),
                     ready = true,
                     canInterrupt = true,
                     onBack = {},
@@ -81,7 +81,7 @@ class CardLeadTest {
         assertEquals(22.sp, fontSizeOf("Call Dana"))
         val today = boundsOf("Today")
         val interrupt = boundsOf("Interrupt")
-        listOf("Today", "Start", "Interrupt", "Edit").forEach { label ->
+        listOf("Today", "Interrupt", "Edit").forEach { label ->
             val height = boundsOf(label).let { it.bottom - it.top }
             assertTrue("$label is $height tall", height <= 48.dp + 0.5.dp && height >= 48.dp - 0.5.dp)
         }
@@ -89,6 +89,7 @@ class CardLeadTest {
             "Interrupt is ${interrupt.right - interrupt.left}, Today is ${today.right - today.left}",
             interrupt.right - interrupt.left > today.right - today.left,
         )
+        compose.onNodeWithText("Start").assertDoesNotExist()
     }
 
     @Test
@@ -111,7 +112,7 @@ class CardLeadTest {
     }
 
     @Test
-    fun touchesOnTodayStartAndInterruptReachThePileAction() {
+    fun touchesOnTodayAndInterruptReachThePileAction() {
         val context: Context = ApplicationProvider.getApplicationContext()
         val database =
             Room
@@ -142,7 +143,6 @@ class CardLeadTest {
                 useCases.capture("Hold this")
                 useCases.start(idOf(useCases, "Hold this"))
                 useCases.capture("To today")
-                useCases.capture("To start")
                 useCases.capture("To interrupt")
             }
             compose.setContent {
@@ -168,10 +168,7 @@ class CardLeadTest {
                 snapshot.tasks.single { it.title == "To today" }.bucket == TaskBucket.TODAY
             }
             await { compose.onAllNodesWithText("To today").fetchSemanticsNodes().isEmpty() }
-
-            tap("Start", beside = "To start")
-            awaitSnapshot(useCases, "Start") { snapshot -> activeTitle(snapshot) == "To start" }
-            await { compose.onAllNodesWithText("To start").fetchSemanticsNodes().isEmpty() }
+            compose.onNodeWithText("Start").assertDoesNotExist()
 
             tap("Interrupt", beside = "To interrupt")
             awaitSnapshot(useCases, "Interrupt") { snapshot ->

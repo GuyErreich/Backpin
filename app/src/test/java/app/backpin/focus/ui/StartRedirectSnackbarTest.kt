@@ -10,8 +10,10 @@ import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isHeading
 import androidx.compose.ui.test.isSelected
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performSemanticsAction
@@ -92,7 +94,7 @@ class StartRedirectSnackbarTest {
                         viewModel.uiState.value.now?.taskId == chain.last().id
                 }
                 openFocusFromNowCard()
-                tap("Switch")
+                openSwitchFromFocus()
                 awaitText(chain.first().title)
                 compose.mainClock.autoAdvance = false
                 tap(chain.first().title)
@@ -183,9 +185,15 @@ class StartRedirectSnackbarTest {
     }
 
     private fun tapStartOnParent(title: String) {
-        tap("Switch")
+        openSwitchFromFocus()
         awaitText(title)
         tap(title)
+    }
+
+    private fun openSwitchFromFocus() {
+        compose.onNode(isHeading()).performTouchInput { longClick() }
+        awaitText("Switch")
+        tap("Switch")
     }
 
     private fun tap(label: String) {

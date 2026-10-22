@@ -186,13 +186,14 @@ internal fun ActionPileCards(
                     Text(task.title, style = MaterialTheme.typography.titleLarge)
                     CardActions {
                         QuietButton(label = "Today", onClick = { onToday(task.id) })
-                        QuietButton(label = "Start", onClick = { onStart(task.id) })
                         if (canInterrupt) {
                             AccentButton(
                                 label = "Interrupt",
                                 tone = AccentTone.Lavender,
                                 onClick = { onInterrupt(task.id) },
                             )
+                        } else {
+                            QuietButton(label = "Start", onClick = { onStart(task.id) })
                         }
                         QuietButton(label = "Edit", onClick = { onEdit(task.id) })
                     }

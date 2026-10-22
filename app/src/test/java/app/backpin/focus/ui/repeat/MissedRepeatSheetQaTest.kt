@@ -249,7 +249,7 @@ class MissedRepeatSheetQaTest {
             await {
                 env.viewModel.uiState.value.ready &&
                     env.viewModel.repeatRows.value.rows.singleOrNull()?.repeat?.title == "Water plants" &&
-                    env.viewModel.repeatRows.value.rows.single().status == RepeatDayStatus.OPEN
+                    env.viewModel.repeatRows.value.rows.singleOrNull()?.status == RepeatDayStatus.OPEN
             }
             compose.onNodeWithContentDescription("Water plants. Noon. every 2 days. Check off.").assertExists()
             compose.onNodeWithText("Missed at noon").assertDoesNotExist()

@@ -372,6 +372,8 @@ fun FocusApp(
             onToday = viewModel::todayFromTaskSheet,
             onResume = viewModel::resumeFromTaskSheet,
             onBringBack = viewModel::bringBackFromTaskSheet,
+            onPause = viewModel::pauseFromTaskSheet,
+            onSwitch = viewModel::switchFromTaskSheet,
         )
     } else if (openMissedRepeat != null) {
         MissedRepeatSheet(

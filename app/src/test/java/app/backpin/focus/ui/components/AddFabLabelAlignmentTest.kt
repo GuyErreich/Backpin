@@ -25,8 +25,8 @@ class AddFabLabelAlignmentTest {
     val compose = createAndroidComposeRule<ComponentActivity>()
 
     @Test
-    fun addAndPlanLabelsSitInTheMiddleOfThePill() {
-        val labels = listOf(R.string.action_add, R.string.action_plan_ahead)
+    fun addAndCountdownLabelsSitInTheMiddleOfThePill() {
+        val labels = listOf(R.string.action_add, R.string.action_add_countdown)
         compose.setContent {
             FocusStackTheme {
                 Column {
