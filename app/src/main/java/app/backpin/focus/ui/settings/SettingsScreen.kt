@@ -23,10 +23,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TimePicker
 import androidx.compose.material3.rememberTimePickerState
@@ -65,7 +67,11 @@ import app.backpin.focus.domain.minuteOfDayClock
 import app.backpin.focus.domain.parseClockToMinute
 import app.backpin.focus.notifications.notificationsAllowed
 import app.backpin.focus.ui.components.ActionRow
+import app.backpin.focus.ui.components.ChoicePills
+import app.backpin.focus.ui.components.PillButton
 import app.backpin.focus.ui.components.QuietButton
+import app.backpin.focus.ui.components.QuietStack
+import app.backpin.focus.ui.theme.ButtonGap
 import app.backpin.focus.ui.theme.CardRadius
 import app.backpin.focus.ui.theme.FocusColors
 import app.backpin.focus.ui.theme.Space
@@ -164,9 +170,9 @@ fun SettingsScreen(
         SettingsGroup("LOOK") {
             SettingsCard {
                 Text(stringResource(R.string.settings_theme), style = MaterialTheme.typography.titleMedium)
-                ActionRow {
+                ChoicePills {
                     for ((id, label) in themeChoices) {
-                        QuietButton(
+                        PillButton(
                             stringResource(label),
                             selected = themeId == id,
                             onClick = { onThemeId(id) },
@@ -182,9 +188,9 @@ fun SettingsScreen(
                     "How many tasks Today holds. Empty places stay empty.",
                     style = MaterialTheme.typography.bodyMedium,
                 )
-                ActionRow {
+                ChoicePills {
                     for (limit in MIN_TODAY_LIMIT..MAX_TODAY_LIMIT) {
-                        QuietButton(
+                        PillButton(
                             label = limit.toString(),
                             selected = preferences.todayLimit == limit,
                             onClick = { onTodayLimit(limit) },
@@ -198,9 +204,9 @@ fun SettingsScreen(
                     stringResource(R.string.settings_countdown_copy),
                     style = MaterialTheme.typography.bodyMedium,
                 )
-                ActionRow {
+                ChoicePills {
                     for ((unit, label) in countdownUnitChoices) {
-                        QuietButton(
+                        PillButton(
                             stringResource(label),
                             selected = countdownUnit == unit,
                             onClick = { onCountdownUnit(unit) },
@@ -211,9 +217,9 @@ fun SettingsScreen(
             if (showHomeLayout) {
                 SettingsCard {
                     Text(stringResource(R.string.settings_home_layout), style = MaterialTheme.typography.titleMedium)
-                    ActionRow {
+                    ChoicePills {
                         for ((layout, label) in homeLayoutChoices) {
-                            QuietButton(
+                            PillButton(
                                 stringResource(label),
                                 selected = homeLayout == layout,
                                 onClick = { onHomeLayout(layout) },
@@ -238,39 +244,51 @@ fun SettingsScreen(
             SettingsCard {
                 Text("Nudges", style = MaterialTheme.typography.titleMedium)
                 Text(
-                    "Nudges can arrive a few minutes late. Repeat reminders are on time when exact alarms are allowed.",
+                    "Nudges can arrive a few minutes late.",
                     style = MaterialTheme.typography.bodyMedium,
                 )
-                ActionRow {
-                    QuietButton(
+                ChoicePills {
+                    PillButton(
                         "Off",
                         selected = !preferences.nudgesEnabled,
                         onClick = { onNudgeSelected(false, preferences.nudgeMinutes) },
                     )
                     for ((label, minutes) in listOf("30 min" to 30, "1 h" to 60, "2 h" to 120)) {
-                        QuietButton(
+                        PillButton(
                             label,
                             selected = preferences.nudgesEnabled && preferences.nudgeMinutes == minutes,
                             onClick = { enableThen { onNudgeSelected(true, minutes) } },
                         )
                     }
                 }
+                HorizontalDivider(color = FocusColors.Live.Outline)
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(top = Space),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(ButtonGap),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text("Quiet hours", style = MaterialTheme.typography.titleMedium)
                         Text(quietHours(preferences), style = MaterialTheme.typography.bodyLarge)
                     }
-                    Column(
-                        horizontalAlignment = Alignment.End,
-                        verticalArrangement = Arrangement.spacedBy(Space),
-                    ) {
-                        QuietButton("Quiet from", onClick = { picking = QuietPick.START })
-                        QuietButton("Quiet until", onClick = { picking = QuietPick.END })
-                        QuietButton("Clear", onClick = { onQuietHours(null, null) })
+                    QuietStack {
+                        PillButton(
+                            "Quiet from",
+                            onClick = { picking = QuietPick.START },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        PillButton(
+                            "Quiet until",
+                            onClick = { picking = QuietPick.END },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                }
+                val quietHoursSet =
+                    !preferences.quietStart.isNullOrBlank() || !preferences.quietEnd.isNullOrBlank()
+                if (quietHoursSet) {
+                    ChoicePills {
+                        PillButton("Clear", onClick = { onQuietHours(null, null) })
                     }
                 }
             }
@@ -297,6 +315,15 @@ fun SettingsScreen(
                             }
                         },
                         modifier = Modifier.heightIn(min = 48.dp),
+                        colors =
+                        SwitchDefaults.colors(
+                            checkedThumbColor = FocusColors.Live.Text,
+                            checkedTrackColor = FocusColors.Live.SurfaceHigh,
+                            checkedBorderColor = FocusColors.Live.Text,
+                            uncheckedThumbColor = FocusColors.Live.Muted,
+                            uncheckedTrackColor = FocusColors.Live.SurfaceHigh,
+                            uncheckedBorderColor = FocusColors.Live.Outline,
+                        ),
                     )
                 }
             }
