@@ -12,6 +12,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -40,6 +41,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
@@ -121,6 +123,7 @@ fun SettingsScreen(
     var picking by remember { mutableStateOf<QuietPick?>(null) }
     var bandPicking by remember { mutableStateOf<BandPick?>(null) }
     var renaming by remember { mutableStateOf<Int?>(null) }
+    var removing by remember { mutableStateOf<Int?>(null) }
     var newPhrase by remember { mutableStateOf("") }
 
     fun enableThen(action: () -> Unit) {
@@ -155,15 +158,11 @@ fun SettingsScreen(
             modifier = Modifier.semantics { heading() },
         )
         Text(
-            "Tasks and the interruption stack stay on this device. There is no account. Nudges are approximate: Android may delay them. Repeat reminders use exact alarms when you allow them, and otherwise land a few minutes late.",
-            style = MaterialTheme.typography.bodyLarge,
+            "Tasks stay on this phone. There is no account.",
+            style = MaterialTheme.typography.bodyMedium,
         )
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(CardRadius),
-            color = FocusColors.Live.Surface,
-        ) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(Space)) {
+        SettingsGroup("LOOK") {
+            SettingsCard {
                 Text(stringResource(R.string.settings_theme), style = MaterialTheme.typography.titleMedium)
                 ActionRow {
                     for ((id, label) in themeChoices) {
@@ -176,12 +175,24 @@ fun SettingsScreen(
                 }
             }
         }
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(CardRadius),
-            color = FocusColors.Live.Surface,
-        ) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(Space)) {
+        SettingsGroup("DAY") {
+            SettingsCard {
+                Text("Today", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "How many tasks Today holds. Empty places stay empty.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                ActionRow {
+                    for (limit in MIN_TODAY_LIMIT..MAX_TODAY_LIMIT) {
+                        QuietButton(
+                            label = limit.toString(),
+                            selected = preferences.todayLimit == limit,
+                            onClick = { onTodayLimit(limit) },
+                        )
+                    }
+                }
+            }
+            SettingsCard {
                 Text(stringResource(R.string.settings_countdown), style = MaterialTheme.typography.titleMedium)
                 Text(
                     stringResource(R.string.settings_countdown_copy),
@@ -197,14 +208,8 @@ fun SettingsScreen(
                     }
                 }
             }
-        }
-        if (showHomeLayout) {
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(CardRadius),
-                color = FocusColors.Live.Surface,
-            ) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(Space)) {
+            if (showHomeLayout) {
+                SettingsCard {
                     Text(stringResource(R.string.settings_home_layout), style = MaterialTheme.typography.titleMedium)
                     ActionRow {
                         for ((layout, label) in homeLayoutChoices) {
@@ -217,38 +222,10 @@ fun SettingsScreen(
                     }
                 }
             }
-        }
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(CardRadius),
-            color = FocusColors.Live.Surface,
-        ) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(Space)) {
-                Text("Today", style = MaterialTheme.typography.titleMedium)
-                Text(
-                    "How many open tasks Today can hold. Empty places stay empty until you add a task. A smaller number parks the extra Today tasks in Later. The task in focus stays when it still fits.",
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                ActionRow {
-                    for (limit in MIN_TODAY_LIMIT..MAX_TODAY_LIMIT) {
-                        QuietButton(
-                            label = limit.toString(),
-                            selected = preferences.todayLimit == limit,
-                            onClick = { onTodayLimit(limit) },
-                        )
-                    }
-                }
-            }
-        }
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(CardRadius),
-            color = FocusColors.Live.Surface,
-        ) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(Space)) {
+            SettingsCard {
                 Text("Repeats", style = MaterialTheme.typography.titleMedium)
                 Text(
-                    "Morning, noon, and night start times. A reminder uses the start of that band. Night ends when you say it does.",
+                    "A reminder uses the start of that band.",
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 BandTimeRow("Morning", bandTimes.morningStartMinute) { bandPicking = BandPick.MORNING }
@@ -257,17 +234,78 @@ fun SettingsScreen(
                 BandTimeRow("Night ends", bandTimes.nightEndMinute) { bandPicking = BandPick.NIGHT_END }
             }
         }
-        if (showExactAlarmPrompt) {
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(CardRadius),
-                color = FocusColors.Live.SurfaceHigh,
-            ) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(Space)) {
+        SettingsGroup("REMINDERS") {
+            SettingsCard {
+                Text("Nudges", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "Nudges can arrive a few minutes late. Repeat reminders are on time when exact alarms are allowed.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                ActionRow {
+                    QuietButton(
+                        "Off",
+                        selected = !preferences.nudgesEnabled,
+                        onClick = { onNudgeSelected(false, preferences.nudgeMinutes) },
+                    )
+                    for ((label, minutes) in listOf("30 min" to 30, "1 h" to 60, "2 h" to 120)) {
+                        QuietButton(
+                            label,
+                            selected = preferences.nudgesEnabled && preferences.nudgeMinutes == minutes,
+                            onClick = { enableThen { onNudgeSelected(true, minutes) } },
+                        )
+                    }
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = Space),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("Quiet hours", style = MaterialTheme.typography.titleMedium)
+                        Text(quietHours(preferences), style = MaterialTheme.typography.bodyLarge)
+                    }
+                    Column(
+                        horizontalAlignment = Alignment.End,
+                        verticalArrangement = Arrangement.spacedBy(Space),
+                    ) {
+                        QuietButton("Quiet from", onClick = { picking = QuietPick.START })
+                        QuietButton("Quiet until", onClick = { picking = QuietPick.END })
+                        QuietButton("Clear", onClick = { onQuietHours(null, null) })
+                    }
+                }
+            }
+            SettingsCard {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f).padding(end = 12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("Show current task", style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            "A silent notice of what is open.",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                    Switch(
+                        checked = preferences.currentNotificationEnabled,
+                        onCheckedChange = { enabled ->
+                            if (enabled) {
+                                enableThen { onCurrentNotification(true) }
+                            } else {
+                                onCurrentNotification(false)
+                            }
+                        },
+                        modifier = Modifier.heightIn(min = 48.dp),
+                    )
+                }
+            }
+            if (showExactAlarmPrompt) {
+                SettingsCard(color = FocusColors.Live.SurfaceHigh) {
                     Text("On-time reminders", style = MaterialTheme.typography.titleMedium)
                     Text(
-                        "Repeat reminders arrive on time when exact alarms are allowed. If you skip this, they can still land a few minutes late. Home, capture, and check-off keep working either way.",
-                        style = MaterialTheme.typography.bodyLarge,
+                        "Repeat reminders arrive on time when exact alarms are allowed. They can still land a few minutes late.",
+                        style = MaterialTheme.typography.bodyMedium,
                     )
                     QuietButton(
                         label = "Allow exact alarms",
@@ -289,13 +327,28 @@ fun SettingsScreen(
                     )
                 }
             }
+            if ((preferences.nudgesEnabled || preferences.currentNotificationEnabled) && !allowed) {
+                SettingsCard(color = FocusColors.Live.SurfaceHigh) {
+                    Text(
+                        "Notifications are off for Backpin. Home, capture, and recovery keep working.",
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                    QuietButton(
+                        label = "Notification settings",
+                        onClick = {
+                            val intent =
+                                Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                                    putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                                }
+                            context.startActivity(intent)
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
         }
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(CardRadius),
-            color = FocusColors.Live.Surface,
-        ) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(Space)) {
+        SettingsGroup("PHRASES") {
+            SettingsCard {
                 Text("Phrases", style = MaterialTheme.typography.titleMedium)
                 Text(
                     "A finished phrase is one tap. Angle brackets ask only for that word.",
@@ -308,9 +361,9 @@ fun SettingsScreen(
                             style = MaterialTheme.typography.bodyLarge,
                             color = FocusColors.Live.Text,
                         )
-                        ActionRow {
+                        Row(horizontalArrangement = Arrangement.spacedBy(Space)) {
                             QuietButton("Rename", onClick = { renaming = index })
-                            QuietButton("Remove", onClick = { onRemovePhrase(index) })
+                            QuietButton("Remove", onClick = { removing = index })
                         }
                     }
                 }
@@ -341,95 +394,6 @@ fun SettingsScreen(
                 )
             }
         }
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(CardRadius),
-            color = FocusColors.Live.Surface,
-        ) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(Space)) {
-                Text("Nudges", style = MaterialTheme.typography.titleMedium)
-                Text(
-                    "Off, or about every 30 minutes, 1 hour, or 2 hours. Quiet hours are checked when a nudge is about to show.",
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                ActionRow {
-                    QuietButton(
-                        "Off",
-                        selected = !preferences.nudgesEnabled,
-                        onClick = { onNudgeSelected(false, preferences.nudgeMinutes) },
-                    )
-                    for ((label, minutes) in listOf("30 min" to 30, "1 h" to 60, "2 h" to 120)) {
-                        QuietButton(
-                            label,
-                            selected = preferences.nudgesEnabled && preferences.nudgeMinutes == minutes,
-                            onClick = { enableThen { onNudgeSelected(true, minutes) } },
-                        )
-                    }
-                }
-                Text("Quiet hours", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = Space))
-                Text(quietHours(preferences), style = MaterialTheme.typography.bodyLarge)
-                ActionRow {
-                    QuietButton("Start", onClick = { picking = QuietPick.START })
-                    QuietButton("End", onClick = { picking = QuietPick.END })
-                    QuietButton("Clear", onClick = { onQuietHours(null, null) })
-                }
-            }
-        }
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(CardRadius),
-            color = FocusColors.Live.Surface,
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(Modifier.weight(1f).padding(end = 12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("Show current task", style = MaterialTheme.typography.titleMedium)
-                    Text(
-                        "An ongoing notice while Today has an open task, including when nothing is started. With nothing in focus the title is Today and the collapsed line says how many tasks are open. Expanded, each task is its own row. While a task is current or waiting, it names that task. Interrupt is on that notice only while a task is in focus. A small status icon can show. Silent: no sound or vibration. Elapsed time stays in the app. No foreground service.",
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                }
-                Switch(
-                    checked = preferences.currentNotificationEnabled,
-                    onCheckedChange = { enabled ->
-                        if (enabled) {
-                            enableThen { onCurrentNotification(true) }
-                        } else {
-                            onCurrentNotification(false)
-                        }
-                    },
-                    modifier = Modifier.heightIn(min = 48.dp),
-                )
-            }
-        }
-        if ((preferences.nudgesEnabled || preferences.currentNotificationEnabled) && !allowed) {
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(CardRadius),
-                color = FocusColors.Live.SurfaceHigh,
-            ) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(Space)) {
-                    Text(
-                        "Notifications are off for Backpin. Home, capture, and recovery keep working.",
-                        style = MaterialTheme.typography.bodyLarge,
-                    )
-                    QuietButton(
-                        label = "Notification settings",
-                        onClick = {
-                            val intent =
-                                Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
-                                    putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
-                                }
-                            context.startActivity(intent)
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-            }
-        }
     }
 
     val renameIndex = renaming
@@ -444,6 +408,35 @@ fun SettingsScreen(
             onConfirm = { value ->
                 onRenamePhrase(renameIndex, value)
                 renaming = null
+            },
+        )
+    }
+
+    val removeIndex = removing
+    val removeText = removeIndex?.let { preferences.savedPhrases.getOrNull(it) }
+    LaunchedEffect(removeIndex, removeText) {
+        if (removeIndex != null && removeText == null) removing = null
+    }
+    if (removeIndex != null && removeText != null) {
+        AlertDialog(
+            onDismissRequest = { removing = null },
+            containerColor = FocusColors.Live.Surface,
+            titleContentColor = FocusColors.Live.Text,
+            title = { Text("Remove this phrase?") },
+            text = {
+                Text(removeText, style = MaterialTheme.typography.bodyLarge)
+            },
+            confirmButton = {
+                ActionRow {
+                    QuietButton("Cancel", onClick = { removing = null })
+                    QuietButton(
+                        "Remove",
+                        onClick = {
+                            onRemovePhrase(removeIndex)
+                            removing = null
+                        },
+                    )
+                }
             },
         )
     }
@@ -563,6 +556,39 @@ private fun RenamePhraseDialog(
             }
         },
     )
+}
+
+@Composable
+private fun SettingsGroup(
+    title: String,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(Space)) {
+        Text(
+            title,
+            style = MaterialTheme.typography.labelLarge,
+            color = FocusColors.Live.Muted,
+        )
+        content()
+    }
+}
+
+@Composable
+private fun SettingsCard(
+    color: Color = FocusColors.Live.Surface,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(CardRadius),
+        color = color,
+    ) {
+        Column(
+            Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(Space),
+            content = content,
+        )
+    }
 }
 
 @Composable
