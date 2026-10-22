@@ -547,6 +547,9 @@ class CountdownTapTest {
             pump()
             predicate()
         }
+        // The state can land while the scheduler drains, after that pump already idled.
+        // Compose once more so the next assertion sees the screen that matched.
+        pump()
     }
 
     private fun pump() {
