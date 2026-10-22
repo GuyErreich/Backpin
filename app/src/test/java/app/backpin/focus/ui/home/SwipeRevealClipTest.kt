@@ -147,13 +147,20 @@ class SwipeRevealClipTest {
                         .fetchSemanticsNode()
                         .boundsInRoot
                 val reveal = card.left - color.left
+                val under = color.right - card.left
+                val corner = with(compose.density) { HomeMetrics.TaskRadius.toPx() }
+                val slack = with(compose.density) { 12.dp.toPx() }
                 assertTrue(
-                    "The color should sit in the gap beside the row, color=$color card=$card",
+                    "The band should sit in the gap and cover the row height, color=$color card=$card",
                     reveal > 1f && color.top <= card.top + 1f && color.bottom >= card.bottom - 1f,
                 )
                 assertTrue(
-                    "The color should continue behind the row, color=$color card=$card reveal=$reveal",
-                    color.right > card.left + reveal,
+                    "The band should cover the leading corners, under=$under corner=$corner",
+                    under >= corner - 2f,
+                )
+                assertTrue(
+                    "The band should stay on the opened side, under=$under corner=$corner",
+                    under <= corner + slack,
                 )
             }
         }

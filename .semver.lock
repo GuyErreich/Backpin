@@ -1,6 +1,6 @@
-version: 0.1.35-rc
+version: 0.1.36-rc
 source_branch: dev
 target_branch: staging
-target_base_sha: 4388f83c9f254a464fe9bab78a643ced6cb342dc
+target_base_sha: 9352baeaa7064df0c169512230767feb3da26f0f
 finalized: true
 managed_by: auto-semver

@@ -1,7 +1,13 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
-## [0.1.35-rc] - 21-10-2026
+## [0.1.36-rc] - 22-10-2026
+
+### Bug Fixes & Resolutions
+- fill the swipe color behind the rounded row (#110)
+- keep the swipe color a band on the opened side (#112)
+
+## [0.1.35-dev] - 21-10-2026
 
 ### Bug Fixes & Resolutions
 - publish the preview when a staging push is not delivered (#108)
