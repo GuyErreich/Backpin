@@ -115,6 +115,9 @@ private fun HomeBandBlock(
         mutableStateOf(startsExpanded)
     }
     val showRows = if (toggleable) expanded else true
+    val bandRows = filled.forBand(group)
+    val showTasks = bandRows.isNotEmpty() || (group.phase == BandPhase.OPEN && hasRoom)
+    val showRepeats = group.repeats.isNotEmpty()
     Column {
         HomeBandHeader(
             group = group,
@@ -122,37 +125,41 @@ private fun HomeBandBlock(
             toggleable = toggleable,
             onToggle = { expanded = !expanded },
         )
-        if (showRows) {
-            TodaySection(
-                filled = filled.forBand(group),
-                hasRoom = group.phase == BandPhase.OPEN && hasRoom,
-                todayLimit = todayLimit,
-                reducedMotion = reducedMotion,
-                somethingCurrent = somethingCurrent,
-                onOpenFocus = onOpenFocus,
-                onStart = onStart,
-                onDone = onDone,
-                onBringBack = onBringBack,
-                onInterrupt = onInterrupt,
-                onReorder = { order ->
-                    if (group.phase == BandPhase.OPEN) onReorder(order)
-                },
-                onEdit = onEditTask,
-                onOpenSheet = onOpenSheet,
-                showHeader = false,
-                layout = HomeLayout.BANDS,
-                todayTaskIds = filled.map { it.second.id }.toSet(),
-            )
-            if (group.repeats.isNotEmpty()) {
-                RepeatRowGroup(
-                    rows = group.repeats,
-                    reducedMotion = reducedMotion,
-                    layout = HomeLayout.BANDS,
-                    onCheckOff = onCheckOffRepeat,
-                    onOpenMissed = onOpenMissedRepeat,
-                    onUndo = onUndoRepeat,
-                    onEdit = onEditRepeat,
-                )
+        if (showRows && (showTasks || showRepeats)) {
+            Column(verticalArrangement = Arrangement.spacedBy(HomeLayout.BANDS.taskGap())) {
+                if (showTasks) {
+                    TodaySection(
+                        filled = bandRows,
+                        hasRoom = group.phase == BandPhase.OPEN && hasRoom,
+                        todayLimit = todayLimit,
+                        reducedMotion = reducedMotion,
+                        somethingCurrent = somethingCurrent,
+                        onOpenFocus = onOpenFocus,
+                        onStart = onStart,
+                        onDone = onDone,
+                        onBringBack = onBringBack,
+                        onInterrupt = onInterrupt,
+                        onReorder = { order ->
+                            if (group.phase == BandPhase.OPEN) onReorder(order)
+                        },
+                        onEdit = onEditTask,
+                        onOpenSheet = onOpenSheet,
+                        showHeader = false,
+                        layout = HomeLayout.BANDS,
+                        todayTaskIds = filled.map { it.second.id }.toSet(),
+                    )
+                }
+                if (showRepeats) {
+                    RepeatRowGroup(
+                        rows = group.repeats,
+                        reducedMotion = reducedMotion,
+                        layout = HomeLayout.BANDS,
+                        onCheckOff = onCheckOffRepeat,
+                        onOpenMissed = onOpenMissedRepeat,
+                        onUndo = onUndoRepeat,
+                        onEdit = onEditRepeat,
+                    )
+                }
             }
         }
     }
