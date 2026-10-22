@@ -75,7 +75,7 @@ class BandTimeSettingsTest {
         compose.onNodeWithText("23:00").assertExists()
         compose.onNodeWithText("On-time reminders").assertExists()
         compose.onNodeWithText(
-            "Repeat reminders arrive on time when exact alarms are allowed. If you skip this, they can still land a few minutes late. Home, capture, and check-off keep working either way.",
+            "Repeat reminders arrive on time when exact alarms are allowed. They can still land a few minutes late.",
         ).assertExists()
         compose.onNodeWithText("Not now").performScrollTo()
         tap("Not now")

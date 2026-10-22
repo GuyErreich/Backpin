@@ -1,7 +1,13 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
-## [0.1.38-rc] - 22-10-2026
+## [0.1.39-rc] - 22-10-2026
+
+### Features & Enhancements
+- show Done on the task in focus (#116)
+- group settings into short choice cards (#118)
+
+## [0.1.38-dev] - 22-10-2026
 
 ### Features & Enhancements
 - show Done on the task in focus (#116)

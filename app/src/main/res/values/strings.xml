@@ -226,7 +226,7 @@
     <string name="home_layout_flat">Flat</string>
     <string name="home_layout_bands">Bands</string>
     <string name="settings_countdown">Countdown</string>
-    <string name="settings_countdown_copy">Days keeps every Coming up label in days. Months uses months once an item is a month or more away.</string>
+    <string name="settings_countdown_copy">Months, once a date is a month away.</string>
     <string name="settings_countdown_days">Days</string>
     <string name="settings_countdown_months">Months</string>
 </resources>
