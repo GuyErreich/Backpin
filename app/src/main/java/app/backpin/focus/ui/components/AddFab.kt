@@ -25,7 +25,7 @@ import app.backpin.focus.ui.theme.ButtonMinHeight
 import app.backpin.focus.ui.theme.FocusColors
 
 /**
- * Mint floating control. Home uses + Add. Coming up uses + Plan ahead.
+ * Mint floating control. Home uses + Add. Coming up uses Add countdown.
  * Long-press is forwarded when the caller has one.
  */
 @Composable

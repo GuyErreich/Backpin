@@ -54,6 +54,7 @@ import app.backpin.focus.ui.motion.WithoutRipple
 import app.backpin.focus.ui.motion.rememberPressSource
 import app.backpin.focus.ui.motion.rememberReducedMotion
 import app.backpin.focus.ui.theme.ButtonGap
+import app.backpin.focus.ui.theme.CardActionHeight
 import app.backpin.focus.ui.theme.FocusColors
 import app.backpin.focus.ui.theme.Space
 
@@ -62,7 +63,7 @@ private enum class ListenField {
     Fill,
 }
 
-private val PhraseChipHeight = 32.dp
+private val PhraseChipHeight = CardActionHeight
 
 /**
  * Capture a new task (C1/2) or interrupt now (INT/3). Edit lives in

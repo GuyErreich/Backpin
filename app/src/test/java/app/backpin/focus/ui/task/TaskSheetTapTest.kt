@@ -67,7 +67,7 @@ class TaskSheetTapTest {
             await { viewModel.uiState.value.todaySlots.any { it.task?.title == "Park me" } }
             tapRow("open. Park me. Opens the task sheet")
             await { viewModel.taskSheet.value?.role == TaskSheetRole.TODAY_OPEN }
-            assertEquals(listOf("Start", "Bring back…", "Edit", "Done"), sheetActions())
+            assertEquals(listOf("Bring back…", "Edit", "Done", "Start"), sheetActions())
             compose.onNodeWithText("Later").assertDoesNotExist()
             tapSheet("Start")
             await { viewModel.taskSheet.value == null && viewModel.uiState.value.now?.title == "Park me" }

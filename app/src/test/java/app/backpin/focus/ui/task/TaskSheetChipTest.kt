@@ -4,6 +4,8 @@ package app.backpin.focus.ui.task
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.click
@@ -12,11 +14,13 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.dp
 import app.backpin.focus.testing.FakeAppClock
 import app.backpin.focus.ui.TaskSheetRole
 import app.backpin.focus.ui.TaskSheetUi
 import app.backpin.focus.ui.capture.BringBackSheet
+import app.backpin.focus.ui.theme.FocusColors
 import app.backpin.focus.ui.theme.FocusStackTheme
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -42,13 +46,20 @@ class TaskSheetChipTest {
             calls = calls,
             bringBackOpen = bringBackOpen,
         )
-        assertEquals(listOf("Start", "Bring back…", "Edit", "Done"), sheetActions())
+        assertEquals(listOf("Bring back…", "Edit", "Done", "Start"), sheetActions())
+        assertEquals(FocusColors.Text, labelColor("Done"))
+        val start = compose.onNodeWithText("Start").getBoundsInRoot()
+        val bringBack = compose.onNodeWithText("Bring back…").getBoundsInRoot()
+        assertTrue(
+            "Start is the full-width action",
+            start.right - start.left > (bringBack.right - bringBack.left) * 2,
+        )
         compose.onNodeWithText("Later").assertDoesNotExist()
-        tap("Start")
+        tap("Bring back…")
         tap("Done")
         tap("Edit")
-        tap("Bring back…")
-        assertEquals(listOf("start", "done", "edit", "bringBack"), calls.toList())
+        tap("Start")
+        assertEquals(listOf("bringBack", "done", "edit", "start"), calls.toList())
         awaitSheet("Bring it back in…")
     }
 
@@ -61,6 +72,8 @@ class TaskSheetChipTest {
             calls = calls,
         )
         assertEquals(listOf("Start", "Bring back…", "Interrupt", "Edit", "Done"), sheetActions())
+        assertEquals(FocusColors.Text, labelColor("Done"))
+        assertEquals(FocusColors.Now, labelColor("Interrupt"))
         tap("Interrupt")
         assertEquals(listOf("interrupt"), calls.toList())
     }
@@ -110,6 +123,23 @@ class TaskSheetChipTest {
         assertEquals(listOf("today", "start", "interrupt", "edit"), calls.toList())
     }
 
+    @Test
+    fun focusSheetOffersPauseSwitchAndEdit() {
+        val calls = mutableListOf<String>()
+        show(
+            role = TaskSheetRole.FOCUS,
+            canInterrupt = false,
+            calls = calls,
+        )
+        assertEquals(listOf("Pause", "Switch", "Bring back…", "Edit"), sheetActions())
+        compose.onNodeWithText("Done").assertDoesNotExist()
+        compose.onNodeWithText("Interrupt").assertDoesNotExist()
+        tap("Pause")
+        tap("Switch")
+        tap("Edit")
+        assertEquals(listOf("pause", "switch", "edit"), calls.toList())
+    }
+
     private fun show(
         role: TaskSheetRole,
         canInterrupt: Boolean,
@@ -139,6 +169,8 @@ class TaskSheetChipTest {
                         calls += "bringBack"
                         bringBackOpen.value = true
                     },
+                    onPause = { calls += "pause" },
+                    onSwitch = { calls += "switch" },
                 )
                 if (bringBackOpen.value) {
                     BringBackSheet(
@@ -175,6 +207,15 @@ class TaskSheetChipTest {
         return hits.sortedWith(compareBy({ it.top }, { it.left })).map { it.label }
     }
 
+    private fun labelColor(text: String): Color {
+        val layouts = mutableListOf<TextLayoutResult>()
+        compose.onNodeWithText(text, useUnmergedTree = true).fetchSemanticsNode()
+            .config[SemanticsActions.GetTextLayoutResult]
+            .action
+            ?.invoke(layouts)
+        return layouts.single().layoutInput.style.color
+    }
+
     private fun tap(label: String) {
         compose.waitForIdle()
         val node = compose.onNodeWithText(label)
@@ -204,6 +245,8 @@ class TaskSheetChipTest {
                 "Interrupt",
                 "Resume",
                 "Today",
+                "Pause",
+                "Switch",
                 "Done now",
                 "Skip today",
                 "Tomorrow",

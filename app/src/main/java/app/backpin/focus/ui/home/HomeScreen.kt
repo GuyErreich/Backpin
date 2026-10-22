@@ -78,6 +78,9 @@ import app.backpin.focus.ui.NowUi
 import app.backpin.focus.ui.SlotRole
 import app.backpin.focus.ui.SlotUi
 import app.backpin.focus.ui.TaskUi
+import app.backpin.focus.ui.components.AccentButton
+import app.backpin.focus.ui.components.AccentTone
+import app.backpin.focus.ui.components.CardActions
 import app.backpin.focus.ui.focus.RecoveryCard
 import app.backpin.focus.ui.motion.MotionSpec
 import app.backpin.focus.ui.motion.motionSpec
@@ -279,17 +282,7 @@ private fun NowCard(
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Surface(
-                    modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .semantics { contentDescription = "$label. ${now.title}. Opens focus." }
-                        .pressScale(openInteraction)
-                        .clickable(
-                            interactionSource = openInteraction,
-                            indication = null,
-                            role = Role.Button,
-                            onClick = onOpenFocus,
-                        ),
+                    modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(HomeMetrics.NowRadius),
                     color = FocusColors.Live.Surface,
                     border = BorderStroke(HomeMetrics.NowBorder, accent),
@@ -300,24 +293,49 @@ private fun NowCard(
                             vertical = HomeMetrics.NowPaddingVertical,
                         ),
                     ) {
-                        Text(
-                            label,
-                            color = accent,
-                            style = HomeMetrics.NowLabel,
-                            modifier = Modifier.padding(bottom = HomeMetrics.NowLabelBottom),
-                        )
-                        Text(
-                            now.title,
-                            style = HomeMetrics.NowTitle,
-                            color = FocusColors.Live.Text,
-                            modifier = Modifier.padding(bottom = HomeMetrics.NowTitleBottom),
-                        )
-                        ElapsedText(
-                            accumulatedMillis = now.accumulatedMillis,
-                            startedAtEpochMillis = now.startedAtEpochMillis,
-                            running = true,
-                            clock = true,
-                        )
+                        Column(
+                            Modifier
+                                .fillMaxWidth()
+                                .semantics { contentDescription = "$label. ${now.title}. Opens focus." }
+                                .pressScale(openInteraction)
+                                .clickable(
+                                    interactionSource = openInteraction,
+                                    indication = null,
+                                    role = Role.Button,
+                                    onClick = onOpenFocus,
+                                ),
+                        ) {
+                            Text(
+                                label,
+                                color = accent,
+                                style = HomeMetrics.NowLabel,
+                                modifier = Modifier.padding(bottom = HomeMetrics.NowLabelBottom),
+                            )
+                            Text(
+                                now.title,
+                                style = HomeMetrics.NowTitle,
+                                color = FocusColors.Live.Text,
+                                modifier = Modifier.padding(bottom = HomeMetrics.NowTitleBottom),
+                            )
+                            ElapsedText(
+                                accumulatedMillis = now.accumulatedMillis,
+                                startedAtEpochMillis = now.startedAtEpochMillis,
+                                running = true,
+                                clock = true,
+                            )
+                        }
+                        CardActions(Modifier.padding(top = HomeMetrics.SlotGap)) {
+                            AccentButton(
+                                label = stringResource(R.string.action_interrupt),
+                                tone = AccentTone.Lavender,
+                                onClick = { viewModel.openCapture(interrupts = true) },
+                            )
+                            AccentButton(
+                                label = stringResource(R.string.action_done),
+                                tone = AccentTone.Mint,
+                                onClick = viewModel::completeActive,
+                            )
+                        }
                     }
                 }
             }
@@ -360,6 +378,13 @@ private fun NowCard(
                             color = FocusColors.Live.Text,
                             modifier = Modifier.padding(top = HomeMetrics.NowLabelBottom),
                         )
+                        CardActions(Modifier.padding(top = HomeMetrics.SlotGap)) {
+                            AccentButton(
+                                label = stringResource(R.string.action_resume),
+                                tone = AccentTone.Mint,
+                                onClick = { viewModel.start(paused.taskId) },
+                            )
+                        }
                     }
                 }
             }

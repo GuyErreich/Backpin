@@ -8,13 +8,13 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.test.SemanticsNodeInteraction
+import androidx.compose.ui.test.SemanticsNodeInteractionCollection
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
-import androidx.compose.ui.test.SemanticsNodeInteraction
-import androidx.compose.ui.test.SemanticsNodeInteractionCollection
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performTextInput
@@ -38,7 +38,6 @@ import app.backpin.focus.ui.capture.CaptureSheet
 import app.backpin.focus.ui.capture.UtteranceRecognizer
 import app.backpin.focus.ui.focus.FocusScreen
 import app.backpin.focus.ui.theme.FocusStackTheme
-
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -139,7 +138,7 @@ class InterruptButtonTapTest {
             awaitSnapshot(useCases) { snapshot -> activeTitle(snapshot) == "Quick note" }
             await { !viewModel.uiState.value.captureOpen }
 
-            show("Switch") { screen = "focus" }
+            show("Done") { screen = "focus" }
             tap("Interrupt")
             await { viewModel.uiState.value.captureOpen && viewModel.uiState.value.captureInterrupts }
             viewModel.dismissCapture()

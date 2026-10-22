@@ -152,7 +152,7 @@ fun ComingUpScreen(
         }
         AddFab(
             onClick = { addingCountdown = true },
-            labelRes = R.string.action_plan_ahead,
+            labelRes = R.string.action_add_countdown,
             modifier =
             Modifier
                 .align(Alignment.BottomEnd)
