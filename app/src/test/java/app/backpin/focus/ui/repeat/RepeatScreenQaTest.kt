@@ -339,7 +339,13 @@ class RepeatScreenQaTest {
         compose.waitUntil(timeoutMillis = 5_000) {
             compose.waitForIdle()
             shadowOf(Looper.getMainLooper()).idle()
-            predicate()
+            try {
+                predicate()
+            } catch (_: NoSuchElementException) {
+                // The first frame can still have an empty row list. single() throws
+                // until the row arrives, and waitUntil would fail the test immediately.
+                false
+            }
         }
     }
 
