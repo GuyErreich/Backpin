@@ -142,7 +142,8 @@ class ComingUpScreenTest {
                     }
                 }
                 await { viewModel.uiState.value.ready }
-                tap("+ Plan ahead")
+                compose.onNodeWithText(compose.activity.getString(R.string.coming_up_empty)).assertExists()
+                tap("Add countdown")
                 tap("Pick a date")
                 assertTodayCellDisabled(beforeMidnight)
                 tap("Cancel")

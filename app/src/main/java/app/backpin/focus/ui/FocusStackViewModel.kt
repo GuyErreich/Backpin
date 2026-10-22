@@ -272,8 +272,10 @@ class FocusStackViewModel(
         val state = uiState.value
         val title = taskTitle(taskId, state) ?: return
         val waiting = state.recovery?.takeIf { it.taskId == taskId }
+        val inFocus = state.now?.takeIf { it.taskId == taskId && !it.isEvent }
         val role =
             when {
+                inFocus != null -> TaskSheetRole.FOCUS
                 waiting != null -> TaskSheetRole.TODAY_WAITING
                 state.todaySlots.any { it.task?.id == taskId } -> TaskSheetRole.TODAY_OPEN
                 else -> TaskSheetRole.PILE
@@ -283,7 +285,10 @@ class FocusStackViewModel(
                 taskId = taskId,
                 title = title,
                 role = role,
-                canInterrupt = state.canInterrupt && role != TaskSheetRole.TODAY_WAITING,
+                canInterrupt =
+                state.canInterrupt &&
+                    role != TaskSheetRole.TODAY_WAITING &&
+                    role != TaskSheetRole.FOCUS,
                 frameId = waiting?.frameId,
             )
     }
@@ -346,6 +351,18 @@ class FocusStackViewModel(
         val frameId = taskSheetState.value?.frameId ?: return
         dismissTaskSheet()
         resume(frameId)
+    }
+
+    fun pauseFromTaskSheet() {
+        if (taskSheetState.value?.role != TaskSheetRole.FOCUS) return
+        dismissTaskSheet()
+        pause()
+    }
+
+    fun switchFromTaskSheet() {
+        if (taskSheetState.value?.role != TaskSheetRole.FOCUS) return
+        dismissTaskSheet()
+        openSwitch()
     }
 
     /**

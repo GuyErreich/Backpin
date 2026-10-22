@@ -20,6 +20,8 @@
     <string name="action_skip_today">Skip today</string>
     <string name="action_start">Start</string>
     <string name="action_edit">Edit</string>
+    <string name="action_pause">Pause</string>
+    <string name="action_switch">Switch</string>
     <string name="action_save">Save</string>
     <string name="action_save_to_inbox">Save to Inbox</string>
     <string name="action_start_now">Start now</string>
@@ -140,7 +142,7 @@
     <string name="home_now_event">EVENT</string>
     <string name="home_now_interrupted">INTERRUPTED</string>
     <string name="home_now_empty_title">Nothing in focus.</string>
-    <string name="home_now_empty_body">Capture a thought, or add one to Today.</string>
+    <string name="home_now_empty_body">Use + Add, or fill an empty Today slot.</string>
     <string name="home_now_paused">Paused: %1$s</string>
     <string name="home_today">Today</string>
     <string name="home_empty_slot">Empty slot</string>
@@ -164,7 +166,6 @@
     <string name="undo_converted_to_repeat">Converted to repeat</string>
     <string name="action_repeat_row">Repeat</string>
     <string name="action_repeat_chevron" translatable="false">›</string>
-    <string name="action_plan_ahead">+ Plan ahead</string>
     <string name="action_add_countdown">Add countdown</string>
     <string name="tab_home">Home</string>
     <string name="tab_inbox">Inbox</string>
@@ -176,7 +177,7 @@
     <string name="screen_coming_up">Coming up</string>
     <string name="coming_up_eyebrow">COMING UP</string>
     <string name="coming_up_title">It comes back on its day.</string>
-    <string name="coming_up_empty">Nothing is waiting on a day.</string>
+    <string name="coming_up_empty">Nothing is waiting on a day. Add a countdown, or bring a task back from capture.</string>
     <string name="coming_up_group_today">TODAY</string>
     <string name="coming_up_group_tomorrow">TOMORROW</string>
     <string name="coming_up_group_this_week">THIS WEEK</string>

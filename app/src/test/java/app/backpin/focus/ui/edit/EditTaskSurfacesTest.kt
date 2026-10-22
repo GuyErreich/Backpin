@@ -143,7 +143,7 @@ class EditTaskSurfacesTest {
 
             compose.runOnIdle { screen = "focus" }
             compose.waitForIdle()
-            tap("Edit")
+            invokeCustomAction("Edit", "Now renamed")
             saveTitleAs("Focus renamed")
             await { viewModel.uiState.value.now?.title == "Focus renamed" }
 
@@ -270,7 +270,7 @@ class EditTaskSurfacesTest {
             }
             await { viewModel.uiState.value.now?.title == UNTITLED_INTERRUPTION }
             compose.onNode(hasText("Save title")).assertDoesNotExist()
-            tap("Edit")
+            invokeCustomAction("Edit", UNTITLED_INTERRUPTION)
             await { viewModel.uiState.value.editing?.title == UNTITLED_INTERRUPTION }
             saveTitleAs("Name this")
             await { viewModel.uiState.value.now?.title == "Name this" }

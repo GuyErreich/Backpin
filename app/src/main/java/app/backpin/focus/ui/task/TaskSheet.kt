@@ -14,7 +14,8 @@ import app.backpin.focus.ui.components.QuietButton
 
 /**
  * Chip-row actions for one open task. Same QuietButton chips as the add-repeat
- * band and cadence rows. Mint is Done and Resume. Now is Interrupt.
+ * band and cadence rows. Mint is Resume. Now is Interrupt. Done on an unstarted
+ * Today task stays quiet; the filled finish lives on the Now card and Focus.
  */
 @Composable
 internal fun TaskSheet(
@@ -27,32 +28,41 @@ internal fun TaskSheet(
     onToday: () -> Unit,
     onResume: () -> Unit,
     onBringBack: () -> Unit,
+    onPause: () -> Unit = {},
+    onSwitch: () -> Unit = {},
 ) {
     ChipSheet(
         title = stringResource(R.string.task_sheet_title),
         subtitle = state.title,
         onDismiss = onDismiss,
     ) {
-        ActionRow {
-            when (state.role) {
-                TaskSheetRole.TODAY_OPEN -> {
-                    QuietButton(label = stringResource(R.string.action_start), onClick = onStart)
-                    QuietButton(label = stringResource(R.string.action_bring_back), onClick = onBringBack)
-                    if (state.canInterrupt) {
+        when (state.role) {
+            TaskSheetRole.TODAY_OPEN -> {
+                if (state.canInterrupt) {
+                    ActionRow {
+                        QuietButton(label = stringResource(R.string.action_start), onClick = onStart)
+                        QuietButton(label = stringResource(R.string.action_bring_back), onClick = onBringBack)
                         AccentButton(
                             label = stringResource(R.string.action_interrupt),
                             tone = AccentTone.Lavender,
                             onClick = onInterrupt,
                         )
+                        QuietButton(label = stringResource(R.string.action_edit), onClick = onEdit)
+                        QuietButton(label = stringResource(R.string.action_done), onClick = onDone)
                     }
-                    QuietButton(label = stringResource(R.string.action_edit), onClick = onEdit)
-                    AccentButton(
-                        label = stringResource(R.string.action_done),
-                        tone = AccentTone.Mint,
-                        onClick = onDone,
-                    )
+                } else {
+                    ActionRow {
+                        QuietButton(label = stringResource(R.string.action_bring_back), onClick = onBringBack)
+                        QuietButton(label = stringResource(R.string.action_edit), onClick = onEdit)
+                        QuietButton(label = stringResource(R.string.action_done), onClick = onDone)
+                    }
+                    ActionRow {
+                        QuietButton(label = stringResource(R.string.action_start), onClick = onStart)
+                    }
                 }
-                TaskSheetRole.TODAY_WAITING -> {
+            }
+            TaskSheetRole.TODAY_WAITING -> {
+                ActionRow {
                     AccentButton(
                         label = stringResource(R.string.action_resume),
                         tone = AccentTone.Mint,
@@ -61,7 +71,9 @@ internal fun TaskSheet(
                     QuietButton(label = stringResource(R.string.action_bring_back), onClick = onBringBack)
                     QuietButton(label = stringResource(R.string.action_edit), onClick = onEdit)
                 }
-                TaskSheetRole.PILE -> {
+            }
+            TaskSheetRole.PILE -> {
+                ActionRow {
                     QuietButton(label = stringResource(R.string.action_today), onClick = onToday)
                     QuietButton(label = stringResource(R.string.action_start), onClick = onStart)
                     if (state.canInterrupt) {
@@ -71,6 +83,14 @@ internal fun TaskSheet(
                             onClick = onInterrupt,
                         )
                     }
+                    QuietButton(label = stringResource(R.string.action_edit), onClick = onEdit)
+                }
+            }
+            TaskSheetRole.FOCUS -> {
+                ActionRow {
+                    QuietButton(label = stringResource(R.string.action_pause), onClick = onPause)
+                    QuietButton(label = stringResource(R.string.action_switch), onClick = onSwitch)
+                    QuietButton(label = stringResource(R.string.action_bring_back), onClick = onBringBack)
                     QuietButton(label = stringResource(R.string.action_edit), onClick = onEdit)
                 }
             }

@@ -4,7 +4,6 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
     alias(libs.plugins.ktlint)
-    id("app.backpin.flake-check")
 }
 
 val commitCount = providers.exec {

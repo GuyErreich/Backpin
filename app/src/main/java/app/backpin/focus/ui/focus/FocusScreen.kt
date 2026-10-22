@@ -2,6 +2,7 @@
 package app.backpin.focus.ui.focus
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -26,7 +27,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
@@ -35,6 +38,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import app.backpin.focus.R
 import app.backpin.focus.domain.elapsedMillis
 import app.backpin.focus.domain.suggestedCountdownDays
 import app.backpin.focus.domain.timeInFocusLabel
@@ -61,10 +65,10 @@ fun FocusScreen(
 ) {
     Column(
         modifier =
-            modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp, vertical = 12.dp),
+        modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 20.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(Space * 2),
     ) {
         when {
@@ -108,7 +112,11 @@ private fun EmptyFocus(
             state.paused?.let { paused ->
                 Text("Paused: ${paused.title}", style = MaterialTheme.typography.titleLarge)
                 CardActions {
-                    QuietButton("Start", onClick = { viewModel.start(paused.taskId) })
+                    AccentButton(
+                        stringResource(R.string.action_resume),
+                        AccentTone.Mint,
+                        onClick = { viewModel.start(paused.taskId) },
+                    )
                 }
             }
         }
@@ -123,19 +131,38 @@ private fun ActiveCard(
     val now = state.now ?: return
     val label = nowLabel(now)
     val accent = FocusColors.Live.Now
+    val editLabel = stringResource(R.string.action_edit)
+    val pauseLabel = stringResource(R.string.action_pause)
+    val switchLabel = stringResource(R.string.action_switch)
     Surface(
         modifier =
-            Modifier
-                .fillMaxWidth()
-                .semantics {
-                    customActions =
-                        listOf(
-                            CustomAccessibilityAction("Edit") {
+        Modifier
+            .fillMaxWidth()
+            .semantics {
+                customActions =
+                    buildList {
+                        add(
+                            CustomAccessibilityAction(editLabel) {
                                 viewModel.openEdit(now.taskId)
                                 true
                             },
                         )
-                },
+                        if (!now.isEvent) {
+                            add(
+                                CustomAccessibilityAction(pauseLabel) {
+                                    viewModel.pause()
+                                    true
+                                },
+                            )
+                            add(
+                                CustomAccessibilityAction(switchLabel) {
+                                    viewModel.openSwitch()
+                                    true
+                                },
+                            )
+                        }
+                    }
+            },
         shape = RoundedCornerShape(CardRadius),
         color = FocusColors.Live.Surface,
         border = BorderStroke(2.dp, accent),
@@ -145,7 +172,20 @@ private fun ActiveCard(
             Text(
                 now.title,
                 style = MaterialTheme.typography.headlineLarge,
-                modifier = Modifier.semantics { heading() },
+                modifier =
+                Modifier
+                    .semantics { heading() }
+                    .then(
+                        if (now.isEvent) {
+                            Modifier
+                        } else {
+                            Modifier.pointerInput(now.taskId) {
+                                detectTapGestures(
+                                    onLongPress = { viewModel.openTaskSheet(now.taskId) },
+                                )
+                            }
+                        },
+                    ),
             )
             TimeInFocus(now.accumulatedMillis, now.startedAtEpochMillis)
             ReturnNoteField(
@@ -157,35 +197,40 @@ private fun ActiveCard(
                 taskId = now.taskId,
                 title = now.title,
                 suggestedDays =
-                    suggestedCountdownDays(
-                        now.countdownIntervalDays,
-                        state.preferences.lastCountdownDays,
-                    ),
+                suggestedCountdownDays(
+                    now.countdownIntervalDays,
+                    state.preferences.lastCountdownDays,
+                ),
                 today = viewModel.localDate(),
                 onDetach = viewModel::detachEvent,
             ) { onCountDownAgain, resumeOpen ->
-                CardActions {
-                    if (now.isEvent) {
+                if (now.isEvent) {
+                    CardActions {
                         EventDetachButtons(
                             taskId = now.taskId,
                             onDetach = viewModel::detachEvent,
                             onCountDownAgain = onCountDownAgain,
                             showCountDownAgain = !resumeOpen,
                         )
-                    } else {
-                        QuietButton("Pause", onClick = viewModel::pause)
+                        QuietButton("Edit", onClick = { viewModel.openEdit(now.taskId) })
                         AccentButton(
-                            "Interrupt",
-                            AccentTone.Lavender,
-                            onClick = { viewModel.openCapture(interrupts = true) },
+                            stringResource(R.string.action_done),
+                            AccentTone.Mint,
+                            onClick = viewModel::completeActive,
                         )
-                        QuietButton("Switch", onClick = viewModel::openSwitch)
                     }
-                    QuietButton("Edit", onClick = { viewModel.openEdit(now.taskId) })
+                } else {
                     AccentButton(
-                        "Done",
+                        stringResource(R.string.action_interrupt),
+                        AccentTone.Lavender,
+                        onClick = { viewModel.openCapture(interrupts = true) },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    AccentButton(
+                        stringResource(R.string.action_done),
                         AccentTone.Mint,
                         onClick = viewModel::completeActive,
+                        modifier = Modifier.fillMaxWidth(),
                     )
                 }
             }
@@ -236,7 +281,7 @@ internal fun RecoveryCard(
                     onClick = { viewModel.resume(recovery.frameId) },
                 )
                 QuietButton(
-                    androidx.compose.ui.res.stringResource(app.backpin.focus.R.string.action_bring_back),
+                    stringResource(R.string.action_bring_back),
                     onClick = { viewModel.openBringBack(recovery.taskId, recovery.title) },
                 )
             }

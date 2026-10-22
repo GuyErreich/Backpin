@@ -102,10 +102,10 @@ class RepeatScreenQaTest {
             }
             showHome(missed.viewModel)
             await {
-                missed.viewModel.uiState.value.ready &&
+                val water =
                     missed.viewModel.repeatRows.value.rows
-                        .single { it.repeat.title == "Water plants" }
-                        .status == RepeatDayStatus.MISSED
+                        .find { it.repeat.title == "Water plants" }
+                missed.viewModel.uiState.value.ready && water?.status == RepeatDayStatus.MISSED
             }
             writePng("repeats-home-missed-checkable.png")
         } finally {
@@ -125,13 +125,12 @@ class RepeatScreenQaTest {
             }
             showHome(env.viewModel)
             await {
+                val rows = env.viewModel.repeatRows.value.rows
+                val water = rows.find { it.repeat.title == "Water plants" }
+                val brush = rows.find { it.repeat.title == "Brush teeth" }
                 env.viewModel.uiState.value.ready &&
-                    env.viewModel.repeatRows.value.rows
-                        .single { it.repeat.title == "Water plants" }
-                        .status == RepeatDayStatus.DONE &&
-                    env.viewModel.repeatRows.value.rows
-                        .single { it.repeat.title == "Brush teeth" }
-                        .status == RepeatDayStatus.OPEN
+                    water?.status == RepeatDayStatus.DONE &&
+                    brush?.status == RepeatDayStatus.OPEN
             }
             writePng("repeats-home-after-late-done.png")
         } finally {
@@ -272,14 +271,16 @@ class RepeatScreenQaTest {
             }
             env.viewModel.markRepeatDone(id, today)
             await {
-                env.viewModel.repeatRows.value.rows.single().status == RepeatDayStatus.DONE &&
+                val row = env.viewModel.repeatRows.value.rows.singleOrNull()
+                row?.status == RepeatDayStatus.DONE &&
                     env.viewModel.uiState.value.undo?.target is UndoTarget.RepeatCheckOff
             }
             writePng("repeats-row-checked.png")
             val undo = env.viewModel.uiState.value.undo
             env.viewModel.undo(undo!!.id)
             await {
-                env.viewModel.repeatRows.value.rows.single().status == RepeatDayStatus.OPEN &&
+                val row = env.viewModel.repeatRows.value.rows.singleOrNull()
+                row?.status == RepeatDayStatus.OPEN &&
                     env.viewModel.uiState.value.undo == null
             }
             writePng("repeats-row-after-undo.png")

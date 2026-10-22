@@ -79,7 +79,7 @@ class FocusStackViewModelTest {
             database.close()
         } finally {
             // FullTodayStartTest's MainDispatcherRule may already have cleared Main
-            // when flake-check reuses the JVM across classes.
+            // when another test class shares this JVM.
             runCatching { Dispatchers.resetMain() }
         }
     }

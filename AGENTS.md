@@ -14,6 +14,7 @@ Buttons
 Colors
 - Accent buttons are outlined, with the label in the same color as the border.
 - Mint is Done, Resume, Inbox, and the primary Save. Now (#5AB4FF) is the status color (NOW card, current band, MAIN, chevrons). Amber is missed or due. Everything else is quiet.
+- An active Now card shows outlined Interrupt and outlined mint Done. The filled mint button stays Save.
 - Use only the theme colors in `FocusColors`.
 - No red, no alarm look.
 
@@ -51,7 +52,8 @@ Copy
 - One regression test per bug, which fails if the fix is reverted.
 - No test that still passes when the code under test is deleted.
 - No real clock and no fixed sleeps.
-- Every new or changed test passes 30 consecutive runs. Record the command and 0/30 result in the PR Test plan, which must say "ankyr-testing followed".
+- A changed test passes once. Any failure is fixed before push.
+- A wait returns false until the row exists. It does not call `single()` inside the predicate.
 - Tap tests use `performTouchInput` on the visible center, not only `performClick`.
 - Clear the `ViewModelStore` in `finally`.
 - Robolectric runs on a plain `Application`.

@@ -36,6 +36,9 @@ enum class TaskSheetRole {
     TODAY_OPEN,
     TODAY_WAITING,
     PILE,
+
+    /** The task in focus. Pause, Switch, and Edit live here. */
+    FOCUS,
 }
 
 /** One open task in the chip-row task sheet. */
