@@ -1,6 +1,15 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [0.1.40-dev] - 23-10-2026
+
+### Features & Enhancements
+- group settings into short choice cards (#118)
+
+
+### Bug Fixes & Resolutions
+- keep settings choices on one row of pills (#120)
+
 ## [0.1.39-dev] - 22-10-2026
 
 ### Features & Enhancements
