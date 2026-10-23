@@ -434,6 +434,7 @@ internal fun ActionRow(
 
 /**
  * A settings choice pill. As wide as [label], and exactly [ChoicePillHeight] tall.
+ * It stays an outlined [QuietButton], so an unselected pill shows the card behind it.
  * A centered label measured with an unlimited width collapses, so the width is taken from
  * the text first and then given to the button as a real limit.
  */
@@ -462,13 +463,15 @@ internal fun PillButton(
         LocalButtonPadding provides ChoicePillPadding,
         LocalButtonVerticalPadding provides 0.dp,
         LocalButtonMinHeight provides ChoicePillHeight,
-        LocalLockButtonHeight provides true,
         LocalMinimumInteractiveComponentSize provides 0.dp,
     ) {
         QuietButton(
             label = label,
             onClick = onClick,
-            modifier = modifier.pillWidth(maxOf(textWidth + padding * 2, shortest)),
+            modifier =
+            modifier
+                .height(ChoicePillHeight)
+                .pillWidth(maxOf(textWidth + padding * 2, shortest)),
             enabled = enabled,
             selected = selected,
         )
