@@ -7,7 +7,8 @@ Read this before changing code. One line per rule.
 Buttons
 - Use only `QuietButton`, `AccentButton`, `CaptureChoice`, or `PrimaryButton` from [Buttons.kt](app/src/main/java/app/backpin/focus/ui/components/Buttons.kt). No raw `Button`, `OutlinedButton`, `TextButton`, chips, or other filled buttons.
 - `PrimaryButton` is the one filled mint primary per screen (sheet Save, Capture Save to Inbox). Everything else stays outlined.
-- Sheets, dialogs, and Settings stay 56dp minimum height, 16dp radius, 12dp gaps, and `ButtonLabel` text. The tokens live in [Theme.kt](app/src/main/java/app/backpin/focus/ui/theme/Theme.kt).
+- Sheets and dialogs stay 56dp minimum height, 16dp radius, 12dp gaps, and `ButtonLabel` text. Settings choice pills are `ChoicePillHeight` (40dp) and only as wide as the label. The tokens live in [Theme.kt](app/src/main/java/app/backpin/focus/ui/theme/Theme.kt).
+- Settings is a stack of cards with one title each. No section eyebrow above that title.
 - Sheets and dialogs use equal width in `ActionRow`. `ActionRow` stops at 3, and a fourth cell wraps into equal cells.
 - Settings rows of 4 or 5 short choices use `PillButton` in `ChoicePills`, at the label width. Do not put those rows in `ActionRow`.
 - A centered button label measured with an unlimited width collapses. `PillButton` measures the label with a finite width first. Do not measure `QuietButton` under an infinite width.

@@ -14,8 +14,10 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.DpRect
+import androidx.compose.ui.unit.dp
 import app.backpin.focus.domain.BandTimes
 import app.backpin.focus.domain.UserPreferences
+import app.backpin.focus.ui.theme.ChoicePillHeight
 import app.backpin.focus.ui.theme.FocusStackTheme
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -36,11 +38,14 @@ class SettingsSectionsTest {
         show(UserPreferences())
         compose.onNodeWithText("Tasks stay on this phone. There is no account.").assertExists()
         listOf("LOOK", "DAY", "REMINDERS", "PHRASES").forEach { section ->
-            compose.onNodeWithText(section).performScrollTo().assertIsDisplayed()
+            compose.onNodeWithText(section).assertDoesNotExist()
         }
-        compose.onNodeWithText("How many tasks Today holds. Empty places stay empty.").assertExists()
+        compose.onNodeWithText("Theme").assertExists()
+        compose.onNodeWithText("Today").assertExists()
+        compose.onNodeWithText("How many tasks Today holds. Empty places stay empty.").assertDoesNotExist()
         compose.onNodeWithText("Months, once a date is a month away.").assertExists()
-        compose.onNodeWithText("A reminder uses the start of that band.").assertExists()
+        compose.onNodeWithText("Repeats").assertExists()
+        compose.onNodeWithText("A reminder uses the start of that band.").assertDoesNotExist()
         compose.onNodeWithText("Nudges can arrive a few minutes late.").assertExists()
         compose.onNodeWithText("Quiet from").assertExists()
         compose.onNodeWithText("Quiet until").assertExists()
@@ -80,7 +85,9 @@ class SettingsSectionsTest {
         assertTrue(clear.left.value < from.left.value)
         assertTrue(clear.top > from.top)
         assertTrue(buttonWidth("Off") < 70)
-        assertTrue(buttonHeight("Off") >= 56)
+        val offHeight = bounds("Off").bottom - bounds("Off").top
+        assertTrue("Off is $offHeight tall", offHeight <= ChoicePillHeight + 0.5.dp)
+        assertTrue("Off is $offHeight tall", offHeight >= ChoicePillHeight - 0.5.dp)
     }
 
     @Test
@@ -104,8 +111,6 @@ class SettingsSectionsTest {
     private fun bounds(label: String): DpRect = compose.onNodeWithText(label).getUnclippedBoundsInRoot()
 
     private fun buttonWidth(label: String): Int = buttonNode(label).size.width
-
-    private fun buttonHeight(label: String): Int = buttonNode(label).size.height
 
     private fun buttonNode(label: String) = generateSequence(
         compose.onNodeWithText(label, useUnmergedTree = true).fetchSemanticsNode(),

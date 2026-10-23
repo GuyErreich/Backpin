@@ -61,6 +61,7 @@ import app.backpin.focus.ui.theme.ButtonPadding
 import app.backpin.focus.ui.theme.ButtonRadius
 import app.backpin.focus.ui.theme.CardActionGap
 import app.backpin.focus.ui.theme.CardActionHeight
+import app.backpin.focus.ui.theme.ChoicePillHeight
 import app.backpin.focus.ui.theme.FocusColors
 import app.backpin.focus.ui.theme.RowDoneHeight
 
@@ -432,7 +433,7 @@ internal fun ActionRow(
 }
 
 /**
- * A settings choice pill. As wide as [label], and at least [ButtonMinHeight] tall.
+ * A settings choice pill. As wide as [label], and exactly [ChoicePillHeight] tall.
  * A centered label measured with an unlimited width collapses, so the width is taken from
  * the text first and then given to the button as a real limit.
  */
@@ -456,9 +457,12 @@ internal fun PillButton(
             ).size.width
     val density = LocalDensity.current
     val padding = with(density) { ChoicePillPadding.roundToPx() }
-    val shortest = with(density) { ButtonMinHeight.roundToPx() }
+    val shortest = with(density) { ChoicePillHeight.roundToPx() }
     CompositionLocalProvider(
         LocalButtonPadding provides ChoicePillPadding,
+        LocalButtonVerticalPadding provides 0.dp,
+        LocalButtonMinHeight provides ChoicePillHeight,
+        LocalLockButtonHeight provides true,
         LocalMinimumInteractiveComponentSize provides 0.dp,
     ) {
         QuietButton(
