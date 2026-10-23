@@ -1,6 +1,15 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [0.1.43-dev] - 23-10-2026
+
+### Bug Fixes & Resolutions
+- quiet the choice pills and drop the extra headings (#126)
+
+
+### Testing
+- touch the today row through its unmerged description (#123)
+
 ## [0.1.42-dev] - 23-10-2026
 
 ### Bug Fixes & Resolutions
