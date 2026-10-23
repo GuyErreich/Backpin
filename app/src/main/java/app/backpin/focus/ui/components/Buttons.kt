@@ -6,14 +6,17 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -28,11 +31,20 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.IntrinsicMeasurable
+import androidx.compose.ui.layout.IntrinsicMeasureScope
 import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.LayoutModifier
+import androidx.compose.ui.layout.Measurable
+import androidx.compose.ui.layout.MeasureResult
+import androidx.compose.ui.layout.MeasureScope
+import androidx.compose.ui.layout.Placeable
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
@@ -72,6 +84,9 @@ private const val MAX_PER_ROW = 3
 
 /** Inside an [ActionRow] the row sets the width, so the label gets the room instead. */
 private val RowButtonPadding = 8.dp
+
+/** Horizontal room inside a settings choice pill. The pill stays as wide as its label. */
+private val ChoicePillPadding = 12.dp
 
 /** Horizontal room around a card-action label. The button stays as wide as that label. */
 private val CardActionPadding = 12.dp
@@ -412,6 +427,157 @@ internal fun ActionRow(
                     y += row.maxOf { it.height } + gapPx
                 }
             }
+        }
+    }
+}
+
+/**
+ * A settings choice pill. As wide as [label], and at least [ButtonMinHeight] tall.
+ * A centered label measured with an unlimited width collapses, so the width is taken from
+ * the text first and then given to the button as a real limit.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun PillButton(
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    selected: Boolean? = null,
+) {
+    val measurer = rememberTextMeasurer()
+    val textWidth =
+        measurer
+            .measure(
+                text = label,
+                style = ButtonLabel,
+                maxLines = 1,
+                constraints = Constraints(maxWidth = 10_000),
+            ).size.width
+    val density = LocalDensity.current
+    val padding = with(density) { ChoicePillPadding.roundToPx() }
+    val shortest = with(density) { ButtonMinHeight.roundToPx() }
+    CompositionLocalProvider(
+        LocalButtonPadding provides ChoicePillPadding,
+        LocalMinimumInteractiveComponentSize provides 0.dp,
+    ) {
+        QuietButton(
+            label = label,
+            onClick = onClick,
+            modifier = modifier.pillWidth(maxOf(textWidth + padding * 2, shortest)),
+            enabled = enabled,
+            selected = selected,
+        )
+    }
+}
+
+private fun Modifier.pillWidth(labelWidth: Int): Modifier = this.then(
+    object : LayoutModifier {
+        override fun MeasureScope.measure(
+            measurable: Measurable,
+            constraints: Constraints,
+        ): MeasureResult {
+            val width =
+                if (constraints.hasFixedWidth) {
+                    constraints.maxWidth
+                } else {
+                    labelWidth.coerceIn(constraints.minWidth, constraints.maxWidth)
+                }
+            val placeable =
+                measurable.measure(constraints.copy(minWidth = width, maxWidth = width))
+            return layout(placeable.width, placeable.height) { placeable.place(0, 0) }
+        }
+
+        override fun IntrinsicMeasureScope.maxIntrinsicWidth(
+            measurable: IntrinsicMeasurable,
+            height: Int,
+        ): Int = labelWidth
+
+        override fun IntrinsicMeasureScope.minIntrinsicWidth(
+            measurable: IntrinsicMeasurable,
+            height: Int,
+        ): Int = labelWidth
+    },
+)
+
+/**
+ * Settings choices in one line of pills, each as wide as its label. A label that does not
+ * fit wraps to the next line instead of stretching into an equal-width grid.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun ChoicePills(
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) {
+    CompositionLocalProvider(
+        LocalButtonPadding provides ChoicePillPadding,
+        LocalMinimumInteractiveComponentSize provides 0.dp,
+    ) {
+        Layout(content = content, modifier = modifier.fillMaxWidth()) { measurables, constraints ->
+            if (measurables.isEmpty()) return@Layout layout(constraints.maxWidth, 0) {}
+            val gap = ButtonGap.roundToPx()
+            val maxWidth = constraints.maxWidth
+            val unbounded =
+                constraints.copy(
+                    minWidth = 0,
+                    minHeight = 0,
+                    maxWidth = Constraints.Infinity,
+                    maxHeight = Constraints.Infinity,
+                )
+            val placeables = measurables.map { it.measure(unbounded) }
+            val rows = mutableListOf<MutableList<Placeable>>()
+            var line = mutableListOf<Placeable>()
+            var used = 0
+            placeables.forEach { placeable ->
+                val next = if (line.isEmpty()) placeable.width else used + gap + placeable.width
+                if (line.isNotEmpty() && next > maxWidth) {
+                    rows += line
+                    line = mutableListOf(placeable)
+                    used = placeable.width
+                } else {
+                    line += placeable
+                    used = next
+                }
+            }
+            if (line.isNotEmpty()) rows += line
+            val height =
+                rows.sumOf { row -> row.maxOf { it.height } } + gap * (rows.size - 1).coerceAtLeast(0)
+            layout(maxWidth, height) {
+                var y = 0
+                rows.forEach { row ->
+                    var x = 0
+                    val rowHeight = row.maxOf { it.height }
+                    row.forEach { placeable ->
+                        placeable.placeRelative(x, y)
+                        x += placeable.width + gap
+                    }
+                    y += rowHeight + gap
+                }
+            }
+        }
+    }
+}
+
+/**
+ * A vertical pair of [QuietButton]s that share the wider label's width. Quiet from and
+ * Quiet until use this so the stack matches the sketch without a third button beside it.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun QuietStack(
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) {
+    CompositionLocalProvider(
+        LocalButtonPadding provides ChoicePillPadding,
+        LocalMinimumInteractiveComponentSize provides 0.dp,
+    ) {
+        Column(
+            modifier = modifier.width(IntrinsicSize.Max),
+            verticalArrangement = Arrangement.spacedBy(ButtonGap),
+        ) {
+            content()
         }
     }
 }
