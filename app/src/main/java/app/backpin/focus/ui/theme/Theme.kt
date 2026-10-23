@@ -101,10 +101,13 @@ val CardRadius = 24.dp
 val Space = 8.dp
 
 /**
- * Sheets, Settings, and dialogs are at least this tall, so a tap lands on the one you meant.
- * List-card actions use [CardActionHeight] instead.
+ * Sheets and dialogs are at least this tall, so a tap lands on the one you meant.
+ * Settings choice pills use [ChoicePillHeight]. List-card actions use [CardActionHeight].
  */
 val ButtonMinHeight = 56.dp
+
+/** A settings choice. Short enough that a row of them stays quiet. */
+val ChoicePillHeight = 40.dp
 
 /** A list-card action: 48dp so a thumb lands on the one you meant. */
 val CardActionHeight = 48.dp
