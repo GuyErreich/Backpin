@@ -8,6 +8,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -17,6 +18,7 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import app.backpin.focus.domain.HomeLayout
 import app.backpin.focus.testing.useTestFocus
+import app.backpin.focus.ui.FocusStackViewModel
 import app.backpin.focus.ui.theme.FocusStackTheme
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -65,13 +67,7 @@ class SwipeRevealClipTest {
                         }
                     }
                 }
-                compose.waitUntil(timeoutMillis = 5_000) {
-                    compose.waitForIdle()
-                    shadowOf(Looper.getMainLooper()).idle()
-                    viewModel.uiState.value.now == null &&
-                        viewModel.uiState.value.todaySlots.any { it.task?.title == "Call Dana" }
-                }
-                val row = compose.onNode(hasContentDescription("Call Dana", substring = true))
+                val row = callDanaRow(viewModel)
                 row.performTouchInput {
                     down(center)
                     moveBy(Offset(120.dp.toPx(), 0f))
@@ -126,13 +122,7 @@ class SwipeRevealClipTest {
                         )
                     }
                 }
-                compose.waitUntil(timeoutMillis = 5_000) {
-                    compose.waitForIdle()
-                    shadowOf(Looper.getMainLooper()).idle()
-                    viewModel.uiState.value.now == null &&
-                        viewModel.uiState.value.todaySlots.any { it.task?.title == "Call Dana" }
-                }
-                val row = compose.onNode(hasContentDescription("Call Dana", substring = true))
+                val row = callDanaRow(viewModel)
                 row.performTouchInput {
                     down(center)
                     moveBy(Offset(120.dp.toPx(), 0f))
@@ -164,5 +154,28 @@ class SwipeRevealClipTest {
                 )
             }
         }
+    }
+
+    /**
+     * The row description is on the card, under the swipe card's merged actions.
+     * The merged tree can omit it while the unmerged node is already placed, and
+     * the touch then never lands. Wait for that placed node.
+     */
+    private fun callDanaRow(viewModel: FocusStackViewModel): SemanticsNodeInteraction {
+        compose.waitUntil(timeoutMillis = 5_000) {
+            compose.waitForIdle()
+            shadowOf(Looper.getMainLooper()).idle()
+            viewModel.uiState.value.now == null &&
+                viewModel.uiState.value.todaySlots.any { it.task?.title == "Call Dana" } &&
+                callDanaPlaced()
+        }
+        return compose.onNode(hasContentDescription("Call Dana", substring = true), useUnmergedTree = true)
+    }
+
+    private fun callDanaPlaced(): Boolean = compose.onAllNodes(
+        hasContentDescription("Call Dana", substring = true),
+        useUnmergedTree = true,
+    ).fetchSemanticsNodes().any { node ->
+        node.layoutInfo.isPlaced && node.boundsInRoot.width > 1f && node.boundsInRoot.height > 1f
     }
 }
