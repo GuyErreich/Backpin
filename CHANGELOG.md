@@ -1,6 +1,19 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [0.1.42-dev] - 23-10-2026
+
+### Bug Fixes & Resolutions
+- keep settings choices on one row of pills (#120)
+
+
+### Testing
+- touch the today row through its unmerged description (#123)
+
+
+### Documentation
+- keep settings choice rows on pills (#122)
+
 ## [0.1.41-dev] - 23-10-2026
 
 ### Features & Enhancements
