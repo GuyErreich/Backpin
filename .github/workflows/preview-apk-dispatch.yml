@@ -3,7 +3,8 @@ name: Preview APK dispatch
 # Auto Semver moves staging through the commits API, which sometimes does not
 # deliver a push. This job only starts Preview APK. It does not check out or
 # run that code: workflow_run is privileged and still has the signing secrets
-# of any later step in this file.
+# of any later step in this file. GH_REPO tells gh which repo to dispatch
+# without a local .git.
 on:
   workflow_run:
     workflows: ["Auto Semver Bump"]
@@ -23,4 +24,5 @@ jobs:
       - name: Start the staging preview
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
         run: gh workflow run preview-apk.yml --ref dev
