@@ -169,7 +169,6 @@ fun SettingsScreen(
             Text(
                 "Tasks stay on this phone. There is no account.",
                 style = MaterialTheme.typography.bodyMedium,
-                color = FocusColors.Live.Muted,
                 modifier = Modifier.padding(top = 4.dp),
             )
         }
