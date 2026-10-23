@@ -23,7 +23,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -71,8 +70,9 @@ import app.backpin.focus.ui.components.ChoicePills
 import app.backpin.focus.ui.components.PillButton
 import app.backpin.focus.ui.components.QuietButton
 import app.backpin.focus.ui.components.QuietStack
+import app.backpin.focus.ui.home.HomeMetrics
 import app.backpin.focus.ui.theme.ButtonGap
-import app.backpin.focus.ui.theme.CardRadius
+import app.backpin.focus.ui.theme.ButtonRadius
 import app.backpin.focus.ui.theme.FocusColors
 import app.backpin.focus.ui.theme.Space
 import java.time.LocalTime
@@ -151,275 +151,263 @@ fun SettingsScreen(
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(Space * 2),
+        verticalArrangement = Arrangement.spacedBy(ButtonGap),
     ) {
-        Text(
-            "SETTINGS",
-            style = MaterialTheme.typography.labelLarge,
-            color = FocusColors.Live.Muted,
-        )
-        Text(
-            "Kept on this phone.",
-            style = MaterialTheme.typography.headlineLarge,
-            modifier = Modifier.semantics { heading() },
-        )
-        Text(
-            "Tasks stay on this phone. There is no account.",
-            style = MaterialTheme.typography.bodyMedium,
-        )
-        SettingsGroup("LOOK") {
-            SettingsCard {
-                Text(stringResource(R.string.settings_theme), style = MaterialTheme.typography.titleMedium)
-                ChoicePills {
-                    for ((id, label) in themeChoices) {
-                        PillButton(
-                            stringResource(label),
-                            selected = themeId == id,
-                            onClick = { onThemeId(id) },
-                        )
-                    }
-                }
-            }
+        Column(Modifier.padding(top = HomeMetrics.EyebrowTop)) {
+            Text(
+                "SETTINGS",
+                style = HomeMetrics.Eyebrow,
+                color = FocusColors.Live.Muted,
+                modifier = Modifier.padding(bottom = HomeMetrics.EyebrowBottom),
+            )
+            Text(
+                "Kept on this phone.",
+                style = HomeMetrics.ScreenTitle,
+                color = FocusColors.Live.Text,
+                modifier = Modifier.semantics { heading() },
+            )
+            Text(
+                "Tasks stay on this phone. There is no account.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = FocusColors.Live.Muted,
+                modifier = Modifier.padding(top = 4.dp),
+            )
         }
-        SettingsGroup("DAY") {
-            SettingsCard {
-                Text("Today", style = MaterialTheme.typography.titleMedium)
-                Text(
-                    "How many tasks Today holds. Empty places stay empty.",
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                ChoicePills {
-                    for (limit in MIN_TODAY_LIMIT..MAX_TODAY_LIMIT) {
-                        PillButton(
-                            label = limit.toString(),
-                            selected = preferences.todayLimit == limit,
-                            onClick = { onTodayLimit(limit) },
-                        )
-                    }
-                }
-            }
-            SettingsCard {
-                Text(stringResource(R.string.settings_countdown), style = MaterialTheme.typography.titleMedium)
-                Text(
-                    stringResource(R.string.settings_countdown_copy),
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                ChoicePills {
-                    for ((unit, label) in countdownUnitChoices) {
-                        PillButton(
-                            stringResource(label),
-                            selected = countdownUnit == unit,
-                            onClick = { onCountdownUnit(unit) },
-                        )
-                    }
-                }
-            }
-            if (showHomeLayout) {
-                SettingsCard {
-                    Text(stringResource(R.string.settings_home_layout), style = MaterialTheme.typography.titleMedium)
-                    ChoicePills {
-                        for ((layout, label) in homeLayoutChoices) {
-                            PillButton(
-                                stringResource(label),
-                                selected = homeLayout == layout,
-                                onClick = { onHomeLayout(layout) },
-                            )
-                        }
-                    }
-                }
-            }
-            SettingsCard {
-                Text("Repeats", style = MaterialTheme.typography.titleMedium)
-                Text(
-                    "A reminder uses the start of that band.",
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                BandTimeRow("Morning", bandTimes.morningStartMinute) { bandPicking = BandPick.MORNING }
-                BandTimeRow("Noon", bandTimes.noonStartMinute) { bandPicking = BandPick.NOON }
-                BandTimeRow("Night", bandTimes.nightStartMinute) { bandPicking = BandPick.NIGHT }
-                BandTimeRow("Night ends", bandTimes.nightEndMinute) { bandPicking = BandPick.NIGHT_END }
-            }
-        }
-        SettingsGroup("REMINDERS") {
-            SettingsCard {
-                Text("Nudges", style = MaterialTheme.typography.titleMedium)
-                Text(
-                    "Nudges can arrive a few minutes late.",
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                ChoicePills {
+        SettingsCard {
+            Text(stringResource(R.string.settings_theme), style = MaterialTheme.typography.titleMedium)
+            ChoicePills {
+                for ((id, label) in themeChoices) {
                     PillButton(
-                        "Off",
-                        selected = !preferences.nudgesEnabled,
-                        onClick = { onNudgeSelected(false, preferences.nudgeMinutes) },
+                        stringResource(label),
+                        selected = themeId == id,
+                        onClick = { onThemeId(id) },
                     )
-                    for ((label, minutes) in listOf("30 min" to 30, "1 h" to 60, "2 h" to 120)) {
-                        PillButton(
-                            label,
-                            selected = preferences.nudgesEnabled && preferences.nudgeMinutes == minutes,
-                            onClick = { enableThen { onNudgeSelected(true, minutes) } },
-                        )
-                    }
-                }
-                HorizontalDivider(color = FocusColors.Live.Outline)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(ButtonGap),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("Quiet hours", style = MaterialTheme.typography.titleMedium)
-                        Text(quietHours(preferences), style = MaterialTheme.typography.bodyLarge)
-                    }
-                    QuietStack {
-                        PillButton(
-                            "Quiet from",
-                            onClick = { picking = QuietPick.START },
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                        PillButton(
-                            "Quiet until",
-                            onClick = { picking = QuietPick.END },
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                    }
-                }
-                val quietHoursSet =
-                    !preferences.quietStart.isNullOrBlank() || !preferences.quietEnd.isNullOrBlank()
-                if (quietHoursSet) {
-                    ChoicePills {
-                        PillButton("Clear", onClick = { onQuietHours(null, null) })
-                    }
                 }
             }
+        }
+        SettingsCard {
+            Text("Today", style = MaterialTheme.typography.titleMedium)
+            ChoicePills {
+                for (limit in MIN_TODAY_LIMIT..MAX_TODAY_LIMIT) {
+                    PillButton(
+                        label = limit.toString(),
+                        selected = preferences.todayLimit == limit,
+                        onClick = { onTodayLimit(limit) },
+                    )
+                }
+            }
+        }
+        SettingsCard {
+            Text(stringResource(R.string.settings_countdown), style = MaterialTheme.typography.titleMedium)
+            Text(
+                stringResource(R.string.settings_countdown_copy),
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            ChoicePills {
+                for ((unit, label) in countdownUnitChoices) {
+                    PillButton(
+                        stringResource(label),
+                        selected = countdownUnit == unit,
+                        onClick = { onCountdownUnit(unit) },
+                    )
+                }
+            }
+        }
+        if (showHomeLayout) {
             SettingsCard {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(Modifier.weight(1f).padding(end = 12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("Show current task", style = MaterialTheme.typography.titleMedium)
-                        Text(
-                            "A silent notice of what is open.",
-                            style = MaterialTheme.typography.bodyMedium,
+                Text(stringResource(R.string.settings_home_layout), style = MaterialTheme.typography.titleMedium)
+                ChoicePills {
+                    for ((layout, label) in homeLayoutChoices) {
+                        PillButton(
+                            stringResource(label),
+                            selected = homeLayout == layout,
+                            onClick = { onHomeLayout(layout) },
                         )
                     }
-                    Switch(
-                        checked = preferences.currentNotificationEnabled,
-                        onCheckedChange = { enabled ->
-                            if (enabled) {
-                                enableThen { onCurrentNotification(true) }
-                            } else {
-                                onCurrentNotification(false)
-                            }
-                        },
-                        modifier = Modifier.heightIn(min = 48.dp),
-                        colors =
-                        SwitchDefaults.colors(
-                            checkedThumbColor = FocusColors.Live.Text,
-                            checkedTrackColor = FocusColors.Live.SurfaceHigh,
-                            checkedBorderColor = FocusColors.Live.Text,
-                            uncheckedThumbColor = FocusColors.Live.Muted,
-                            uncheckedTrackColor = FocusColors.Live.SurfaceHigh,
-                            uncheckedBorderColor = FocusColors.Live.Outline,
-                        ),
+                }
+            }
+        }
+        SettingsCard {
+            Text("Repeats", style = MaterialTheme.typography.titleMedium)
+            BandTimeRow("Morning", bandTimes.morningStartMinute) { bandPicking = BandPick.MORNING }
+            BandTimeRow("Noon", bandTimes.noonStartMinute) { bandPicking = BandPick.NOON }
+            BandTimeRow("Night", bandTimes.nightStartMinute) { bandPicking = BandPick.NIGHT }
+            BandTimeRow("Night ends", bandTimes.nightEndMinute) { bandPicking = BandPick.NIGHT_END }
+        }
+        SettingsCard {
+            Text("Nudges", style = MaterialTheme.typography.titleMedium)
+            Text(
+                "Nudges can arrive a few minutes late.",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            ChoicePills {
+                PillButton(
+                    "Off",
+                    selected = !preferences.nudgesEnabled,
+                    onClick = { onNudgeSelected(false, preferences.nudgeMinutes) },
+                )
+                for ((label, minutes) in listOf("30 min" to 30, "1 h" to 60, "2 h" to 120)) {
+                    PillButton(
+                        label,
+                        selected = preferences.nudgesEnabled && preferences.nudgeMinutes == minutes,
+                        onClick = { enableThen { onNudgeSelected(true, minutes) } },
                     )
                 }
             }
-            if (showExactAlarmPrompt) {
-                SettingsCard(color = FocusColors.Live.SurfaceHigh) {
-                    Text("On-time reminders", style = MaterialTheme.typography.titleMedium)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(ButtonGap),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Quiet hours", style = MaterialTheme.typography.titleMedium)
+                    Text(quietHours(preferences), style = MaterialTheme.typography.bodyLarge)
+                }
+                QuietStack {
+                    PillButton(
+                        "Quiet from",
+                        onClick = { picking = QuietPick.START },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    PillButton(
+                        "Quiet until",
+                        onClick = { picking = QuietPick.END },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
+            val quietHoursSet =
+                !preferences.quietStart.isNullOrBlank() || !preferences.quietEnd.isNullOrBlank()
+            if (quietHoursSet) {
+                ChoicePills {
+                    PillButton("Clear", onClick = { onQuietHours(null, null) })
+                }
+            }
+        }
+        SettingsCard {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f).padding(end = 12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Show current task", style = MaterialTheme.typography.titleMedium)
                     Text(
-                        "Repeat reminders arrive on time when exact alarms are allowed. They can still land a few minutes late.",
+                        "A silent notice of what is open.",
                         style = MaterialTheme.typography.bodyMedium,
                     )
-                    QuietButton(
-                        label = "Allow exact alarms",
-                        onClick = {
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                                context.startActivity(
-                                    Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
-                                        data = Uri.parse("package:${context.packageName}")
-                                    },
-                                )
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    QuietButton(
-                        label = "Not now",
-                        onClick = onDismissExactAlarmPrompt,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
                 }
-            }
-            if ((preferences.nudgesEnabled || preferences.currentNotificationEnabled) && !allowed) {
-                SettingsCard(color = FocusColors.Live.SurfaceHigh) {
-                    Text(
-                        "Notifications are off for Backpin. Home, capture, and recovery keep working.",
-                        style = MaterialTheme.typography.bodyLarge,
-                    )
-                    QuietButton(
-                        label = "Notification settings",
-                        onClick = {
-                            val intent =
-                                Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
-                                    putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
-                                }
-                            context.startActivity(intent)
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-            }
-        }
-        SettingsGroup("PHRASES") {
-            SettingsCard {
-                Text("Phrases", style = MaterialTheme.typography.titleMedium)
-                Text(
-                    "A finished phrase is one tap. Angle brackets ask only for that word.",
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                preferences.savedPhrases.forEachIndexed { index, phrase ->
-                    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Space)) {
-                        Text(
-                            phrase,
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = FocusColors.Live.Text,
-                        )
-                        Row(horizontalArrangement = Arrangement.spacedBy(Space)) {
-                            QuietButton("Rename", onClick = { renaming = index })
-                            QuietButton("Remove", onClick = { removing = index })
+                Switch(
+                    checked = preferences.currentNotificationEnabled,
+                    onCheckedChange = { enabled ->
+                        if (enabled) {
+                            enableThen { onCurrentNotification(true) }
+                        } else {
+                            onCurrentNotification(false)
                         }
-                    }
-                }
-                OutlinedTextField(
-                    value = newPhrase,
-                    onValueChange = { newPhrase = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("New phrase") },
-                    placeholder = { Text("Talk to <name>") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                    keyboardActions =
-                    KeyboardActions(
-                        onDone = {
-                            onAddPhrase(newPhrase)
-                            if (newPhrase.isNotBlank()) newPhrase = ""
-                        },
+                    },
+                    modifier = Modifier.heightIn(min = 48.dp),
+                    colors =
+                    SwitchDefaults.colors(
+                        checkedThumbColor = FocusColors.Live.Text,
+                        checkedTrackColor = FocusColors.Live.SurfaceHigh,
+                        checkedBorderColor = FocusColors.Live.Text,
+                        uncheckedThumbColor = FocusColors.Live.Muted,
+                        uncheckedTrackColor = FocusColors.Live.SurfaceHigh,
+                        uncheckedBorderColor = FocusColors.Live.Outline,
                     ),
                 )
+            }
+        }
+        if (showExactAlarmPrompt) {
+            SettingsCard(color = FocusColors.Live.SurfaceHigh) {
+                Text("On-time reminders", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "Repeat reminders arrive on time when exact alarms are allowed. They can still land a few minutes late.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
                 QuietButton(
-                    label = "Add",
+                    label = "Allow exact alarms",
                     onClick = {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                            context.startActivity(
+                                Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
+                                    data = Uri.parse("package:${context.packageName}")
+                                },
+                            )
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                QuietButton(
+                    label = "Not now",
+                    onClick = onDismissExactAlarmPrompt,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
+        if ((preferences.nudgesEnabled || preferences.currentNotificationEnabled) && !allowed) {
+            SettingsCard(color = FocusColors.Live.SurfaceHigh) {
+                Text(
+                    "Notifications are off for Backpin. Home, capture, and recovery keep working.",
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+                QuietButton(
+                    label = "Notification settings",
+                    onClick = {
+                        val intent =
+                            Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                                putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                            }
+                        context.startActivity(intent)
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
+        SettingsCard {
+            Text("Phrases", style = MaterialTheme.typography.titleMedium)
+            Text(
+                "A finished phrase is one tap. Angle brackets ask only for that word.",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            preferences.savedPhrases.forEachIndexed { index, phrase ->
+                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Space)) {
+                    Text(
+                        phrase,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = FocusColors.Live.Text,
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(ButtonGap)) {
+                        PillButton("Rename", onClick = { renaming = index })
+                        PillButton("Remove", onClick = { removing = index })
+                    }
+                }
+            }
+            OutlinedTextField(
+                value = newPhrase,
+                onValueChange = { newPhrase = it },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("New phrase") },
+                placeholder = { Text("Talk to <name>") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions =
+                KeyboardActions(
+                    onDone = {
                         onAddPhrase(newPhrase)
                         if (newPhrase.isNotBlank()) newPhrase = ""
                     },
-                    enabled = newPhrase.isNotBlank(),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
+                ),
+            )
+            PillButton(
+                label = "Add",
+                onClick = {
+                    onAddPhrase(newPhrase)
+                    if (newPhrase.isNotBlank()) newPhrase = ""
+                },
+                enabled = newPhrase.isNotBlank(),
+            )
         }
     }
 
@@ -586,32 +574,17 @@ private fun RenamePhraseDialog(
 }
 
 @Composable
-private fun SettingsGroup(
-    title: String,
-    content: @Composable ColumnScope.() -> Unit,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(Space)) {
-        Text(
-            title,
-            style = MaterialTheme.typography.labelLarge,
-            color = FocusColors.Live.Muted,
-        )
-        content()
-    }
-}
-
-@Composable
 private fun SettingsCard(
     color: Color = FocusColors.Live.Surface,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(CardRadius),
+        shape = RoundedCornerShape(ButtonRadius),
         color = color,
     ) {
         Column(
-            Modifier.padding(16.dp),
+            Modifier.padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(Space),
             content = content,
         )
@@ -630,7 +603,7 @@ private fun BandTimeRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(label, style = MaterialTheme.typography.bodyLarge)
-        QuietButton(label = minuteOfDayClock(minuteOfDay), onClick = onClick)
+        PillButton(label = minuteOfDayClock(minuteOfDay), onClick = onClick)
     }
 }
 
