@@ -6,23 +6,22 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -277,8 +276,9 @@ internal fun AccentButton(
 }
 
 /**
- * Every other button. Scales while pressed. [selected] marks the current pick in a set of
- * choices, such as a Settings option, with a filled surface and a brighter edge.
+ * Every other button. Scales while pressed. [selected] marks the current pick.
+ * The label and border use Now, and NowContainer fills behind them.
+ * An unselected choice stays outlined so the card shows through.
  */
 @Composable
 internal fun QuietButton(
@@ -290,12 +290,11 @@ internal fun QuietButton(
 ) {
     val interaction = rememberPressSource()
     val picked = selected == true
-    val text = FocusColors.Live.Text.shown(enabled)
-    val outline = FocusColors.Live.Outline.shown(enabled)
+    val paint = quietChoicePaint(picked, enabled)
     FocusButtonShell(
         label = label,
-        labelColor = text,
-        borderColor = if (picked) text else outline,
+        labelColor = paint.label,
+        borderColor = paint.border,
         onClick = onClick,
         modifier =
         modifier
@@ -303,9 +302,68 @@ internal fun QuietButton(
             .then(if (selected != null) Modifier.semantics { this.selected = picked } else Modifier),
         enabled = enabled,
         interactionSource = interaction,
-        containerColor = if (picked) FocusColors.Live.SurfaceHigh else Color.Transparent,
+        containerColor = paint.container,
     )
 }
+
+/** The one switch. On uses Now for the thumb and border, and NowContainer for the track. */
+@Composable
+internal fun ThemeSwitch(
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+) {
+    Switch(
+        checked = checked,
+        onCheckedChange = onCheckedChange,
+        modifier = modifier.heightIn(min = 48.dp),
+        enabled = enabled,
+        colors =
+        SwitchDefaults.colors(
+            checkedThumbColor = FocusColors.Live.Now,
+            checkedTrackColor = FocusColors.Live.NowContainer,
+            checkedBorderColor = FocusColors.Live.Now,
+            uncheckedThumbColor = FocusColors.Live.Muted,
+            uncheckedTrackColor = Color.Transparent,
+            uncheckedBorderColor = FocusColors.Live.Outline,
+            disabledCheckedThumbColor = FocusColors.Live.Now.shown(false),
+            disabledCheckedTrackColor = FocusColors.Live.NowContainer.shown(false),
+            disabledCheckedBorderColor = FocusColors.Live.Now.shown(false),
+            disabledUncheckedThumbColor = FocusColors.Live.Muted.shown(false),
+            disabledUncheckedTrackColor = Color.Transparent,
+            disabledUncheckedBorderColor = FocusColors.Live.Outline.shown(false),
+        ),
+    )
+}
+
+/** Paint for a quiet choice. Selected follows the active theme's Now color. */
+@Composable
+private fun quietChoicePaint(
+    picked: Boolean,
+    enabled: Boolean,
+): ChoicePaint {
+    val now = FocusColors.Live.Now.shown(enabled)
+    return if (picked) {
+        ChoicePaint(
+            label = now,
+            border = now,
+            container = FocusColors.Live.NowContainer.shown(enabled),
+        )
+    } else {
+        ChoicePaint(
+            label = FocusColors.Live.Text.shown(enabled),
+            border = FocusColors.Live.Outline.shown(enabled),
+            container = Color.Transparent,
+        )
+    }
+}
+
+private data class ChoicePaint(
+    val label: Color,
+    val border: Color,
+    val container: Color,
+)
 
 /**
  * Full-width sheet button. No press scale: a graphics layer that shrinks during the
@@ -322,30 +380,26 @@ internal fun CaptureChoice(
     filled: Boolean = false,
     selected: Boolean = false,
 ) {
+    val quiet = if (tone == ChoiceTone.Quiet) quietChoicePaint(selected, enabled) else null
     val labelColor =
-        when (tone) {
-            ChoiceTone.Mint -> FocusColors.Live.Mint
-            ChoiceTone.Lavender -> FocusColors.Live.Now
-            ChoiceTone.Amber -> FocusColors.Live.Amber
-            ChoiceTone.Quiet -> FocusColors.Live.Text
-        }.shown(enabled)
-    val borderColor =
-        when {
-            selected && tone == ChoiceTone.Quiet -> FocusColors.Live.Text.shown(enabled)
-            tone == ChoiceTone.Quiet -> FocusColors.Live.Outline.shown(enabled)
-            else -> labelColor
-        }
+        quiet?.label
+            ?: when (tone) {
+                ChoiceTone.Mint -> FocusColors.Live.Mint
+                ChoiceTone.Lavender -> FocusColors.Live.Now
+                ChoiceTone.Amber -> FocusColors.Live.Amber
+                ChoiceTone.Quiet -> FocusColors.Live.Text
+            }.shown(enabled)
     val fill =
         when (tone) {
             ChoiceTone.Lavender -> FocusColors.Live.NowContainer
             ChoiceTone.Mint -> FocusColors.Live.Mint.copy(alpha = 0.25f)
             ChoiceTone.Amber -> FocusColors.Live.Amber.copy(alpha = 0.25f)
-            ChoiceTone.Quiet -> FocusColors.Live.SurfaceHigh
+            ChoiceTone.Quiet -> FocusColors.Live.NowContainer
         }
     FocusButtonShell(
         label = label,
         labelColor = labelColor,
-        borderColor = borderColor,
+        borderColor = quiet?.border ?: labelColor,
         onClick = onClick,
         modifier =
         modifier
@@ -356,8 +410,8 @@ internal fun CaptureChoice(
         interactionSource = null,
         containerColor =
         when {
-            filled -> fill.shown(enabled)
-            selected -> FocusColors.Live.SurfaceHigh
+            quiet != null -> if (filled) fill.shown(enabled) else quiet.container
+            filled || selected -> fill.shown(enabled)
             else -> Color.Transparent
         },
     )
@@ -562,29 +616,6 @@ internal fun ChoicePills(
                     y += rowHeight + gap
                 }
             }
-        }
-    }
-}
-
-/**
- * A vertical pair of [QuietButton]s that share the wider label's width. Quiet from and
- * Quiet until use this so the stack matches the sketch without a third button beside it.
- */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-internal fun QuietStack(
-    modifier: Modifier = Modifier,
-    content: @Composable () -> Unit,
-) {
-    CompositionLocalProvider(
-        LocalButtonPadding provides ChoicePillPadding,
-        LocalMinimumInteractiveComponentSize provides 0.dp,
-    ) {
-        Column(
-            modifier = modifier.width(IntrinsicSize.Max),
-            verticalArrangement = Arrangement.spacedBy(ButtonGap),
-        ) {
-            content()
         }
     }
 }

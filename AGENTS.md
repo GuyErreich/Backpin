@@ -5,7 +5,7 @@ Read this before changing code. One line per rule.
 ## UI
 
 Buttons
-- Use only `QuietButton`, `AccentButton`, `CaptureChoice`, or `PrimaryButton` from [Buttons.kt](app/src/main/java/app/backpin/focus/ui/components/Buttons.kt). No raw `Button`, `OutlinedButton`, `TextButton`, chips, or other filled buttons.
+- Use only `QuietButton`, `AccentButton`, `CaptureChoice`, `PrimaryButton`, `PillButton`, or `ThemeSwitch` from [Buttons.kt](app/src/main/java/app/backpin/focus/ui/components/Buttons.kt). No raw `Button`, `OutlinedButton`, `TextButton`, `Switch`, chips, or other filled buttons.
 - `PrimaryButton` is the one filled mint primary per screen (sheet Save, Capture Save to Inbox). Everything else stays outlined.
 - Sheets and dialogs stay 56dp minimum height, 16dp radius, 12dp gaps, and `ButtonLabel` text. Settings choice pills are `ChoicePillHeight` (40dp) and only as wide as the label. The tokens live in [Theme.kt](app/src/main/java/app/backpin/focus/ui/theme/Theme.kt).
 - Settings is a stack of cards with one title each. No section eyebrow above that title.
@@ -18,6 +18,7 @@ Buttons
 Colors
 - Accent buttons are outlined, with the label in the same color as the border.
 - Mint is Done, Resume, Inbox, and the primary Save. Now (#5AB4FF) is the status color (NOW card, current band, MAIN, chevrons). Amber is missed or due. Everything else is quiet.
+- A selected choice uses the active theme's Now for the label and the border, with NowContainer behind it, through `QuietButton`. `PillButton` is that same button. `ThemeSwitch` uses Now when it is on.
 - An active Now card shows outlined Interrupt and outlined mint Done. The filled mint button stays Save.
 - Use only the theme colors in `FocusColors`.
 - No red, no alarm look.
