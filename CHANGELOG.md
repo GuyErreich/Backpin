@@ -1,7 +1,13 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
-## [0.1.44-rc] - 23-10-2026
+## [0.1.45-rc] - 24-10-2026
+
+### Bug Fixes & Resolutions
+- keep choice pills outlined (#129)
+- follow the theme on selected choices and quiet hours (#131)
+
+## [0.1.44-dev] - 23-10-2026
 
 ### Bug Fixes & Resolutions
 - quiet the choice pills and drop the extra headings (#126)

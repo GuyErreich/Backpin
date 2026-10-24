@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package app.backpin.focus.ui.settings
 
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.ExperimentalTestApi
@@ -10,11 +11,13 @@ import androidx.compose.ui.test.click
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.dp
+import androidx.test.core.app.ApplicationProvider
 import app.backpin.focus.domain.BandTimes
 import app.backpin.focus.domain.UserPreferences
 import app.backpin.focus.ui.theme.ChoicePillHeight
@@ -58,36 +61,59 @@ class SettingsSectionsTest {
     }
 
     @Test
-    fun remindersKeepFourNudgesOnOneLineAndTwoQuietHourButtons() {
-        show(
-            UserPreferences(
-                nudgesEnabled = true,
-                nudgeMinutes = 30,
-                quietStart = "22:00",
-                quietEnd = "08:00",
-            ),
-        )
-        compose.onNodeWithText("Today").performScrollTo()
-        assertOneRow(bounds("1"), bounds("2"), bounds("3"), bounds("4"), bounds("5"))
-        compose.onNodeWithText("Quiet until").performScrollTo()
-        val off = bounds("Off")
-        val thirty = bounds("30 min")
-        val oneHour = bounds("1 h")
-        val twoHours = bounds("2 h")
-        assertOneRow(off, thirty, oneHour, twoHours)
-        val from = bounds("Quiet from")
-        val until = bounds("Quiet until")
-        val clear = bounds("Clear")
-        assertTrue(from.top > off.bottom)
-        assertEquals(from.left.value, until.left.value, 1f)
-        assertEquals(from.right.value - from.left.value, until.right.value - until.left.value, 1f)
-        assertTrue(until.top > from.bottom)
-        assertTrue(clear.left.value < from.left.value)
-        assertTrue(clear.top > from.top)
-        assertTrue(buttonWidth("Off") < 70)
-        val offHeight = bounds("Off").bottom - bounds("Off").top
-        assertTrue("Off is $offHeight tall", offHeight <= ChoicePillHeight + 0.5.dp)
-        assertTrue("Off is $offHeight tall", offHeight >= ChoicePillHeight - 0.5.dp)
+    fun remindersKeepFourNudgesOnOneLineAndQuietHoursOnTwoRows() {
+        val resolver = ApplicationProvider.getApplicationContext<android.content.Context>().contentResolver
+        val animator = Settings.Global.getFloat(resolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f)
+        Settings.Global.putFloat(resolver, Settings.Global.ANIMATOR_DURATION_SCALE, 0f)
+        var saved: Pair<String?, String?>? = null
+        try {
+            show(
+                UserPreferences(
+                    nudgesEnabled = true,
+                    nudgeMinutes = 30,
+                    quietStart = "22:00",
+                    quietEnd = "08:00",
+                ),
+                onQuietHours = { start, end -> saved = start to end },
+            )
+            compose.onNodeWithText("Today").performScrollTo()
+            assertOneRow(bounds("1"), bounds("2"), bounds("3"), bounds("4"), bounds("5"))
+            compose.onNodeWithText("Quiet until").performScrollTo()
+            val off = bounds("Off")
+            val thirty = bounds("30 min")
+            val oneHour = bounds("1 h")
+            val twoHours = bounds("2 h")
+            assertOneRow(off, thirty, oneHour, twoHours)
+            val from = bounds("Quiet from")
+            val until = bounds("Quiet until")
+            val start = bounds("22:00")
+            val end = bounds("08:00")
+            val clear = bounds("Clear")
+            assertTrue(from.top > off.bottom)
+            assertEquals(from.left.value, until.left.value, 1f)
+            assertTrue(until.top > from.bottom)
+            assertTrue(start.left > from.right)
+            assertTrue(end.left > until.right)
+            assertTrue(start.top < from.bottom && start.bottom > from.top)
+            assertTrue(end.top < until.bottom && end.bottom > until.top)
+            assertEquals(start.right.value, end.right.value, 1f)
+            assertTrue(clear.top > until.bottom)
+            assertEquals(clear.left.value, from.left.value, 1f)
+            assertTrue(buttonWidth("Off") < 70)
+            val offHeight = bounds("Off").bottom - bounds("Off").top
+            assertTrue("Off is $offHeight tall", offHeight <= ChoicePillHeight + 0.5.dp)
+            assertTrue("Off is $offHeight tall", offHeight >= ChoicePillHeight - 0.5.dp)
+            compose.onNodeWithText("22:00").performTouchInput { click(center) }
+            compose.onNodeWithText("Quiet hours start").assertIsDisplayed()
+            compose.onNodeWithContentDescription("Hour").assertExists()
+            compose.onNodeWithContentDescription("Minute").assertExists()
+            compose.onNodeWithText("21").performTouchInput { click(center) }
+            compose.waitForIdle()
+            compose.onNodeWithText("Save").performTouchInput { click(center) }
+            assertEquals("21:00" to "08:00", saved)
+        } finally {
+            Settings.Global.putFloat(resolver, Settings.Global.ANIMATOR_DURATION_SCALE, animator)
+        }
     }
 
     @Test
@@ -127,13 +153,14 @@ class SettingsSectionsTest {
     private fun show(
         preferences: UserPreferences,
         onRemovePhrase: (Int) -> Unit = {},
+        onQuietHours: (String?, String?) -> Unit = { _, _ -> },
     ) {
         compose.setContent {
             FocusStackTheme {
                 SettingsScreen(
                     preferences = preferences,
                     onNudgeSelected = { _, _ -> },
-                    onQuietHours = { _, _ -> },
+                    onQuietHours = onQuietHours,
                     onCurrentNotification = {},
                     onTodayLimit = {},
                     onAddPhrase = {},

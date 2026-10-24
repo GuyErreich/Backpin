@@ -16,21 +16,15 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TimePicker
-import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -69,7 +63,8 @@ import app.backpin.focus.ui.components.ActionRow
 import app.backpin.focus.ui.components.ChoicePills
 import app.backpin.focus.ui.components.PillButton
 import app.backpin.focus.ui.components.QuietButton
-import app.backpin.focus.ui.components.QuietStack
+import app.backpin.focus.ui.components.SnapWheel
+import app.backpin.focus.ui.components.ThemeSwitch
 import app.backpin.focus.ui.home.HomeMetrics
 import app.backpin.focus.ui.theme.ButtonGap
 import app.backpin.focus.ui.theme.ButtonRadius
@@ -77,7 +72,6 @@ import app.backpin.focus.ui.theme.FocusColors
 import app.backpin.focus.ui.theme.Space
 import java.time.LocalTime
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     preferences: UserPreferences,
@@ -253,28 +247,16 @@ fun SettingsScreen(
                     )
                 }
             }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(ButtonGap),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("Quiet hours", style = MaterialTheme.typography.titleMedium)
-                    Text(quietHours(preferences), style = MaterialTheme.typography.bodyLarge)
-                }
-                QuietStack {
-                    PillButton(
-                        "Quiet from",
-                        onClick = { picking = QuietPick.START },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    PillButton(
-                        "Quiet until",
-                        onClick = { picking = QuietPick.END },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-            }
+            TimeBoundRow(
+                label = "Quiet from",
+                value = preferences.quietStart?.takeIf { it.isNotBlank() } ?: "Not set",
+                onClick = { picking = QuietPick.START },
+            )
+            TimeBoundRow(
+                label = "Quiet until",
+                value = preferences.quietEnd?.takeIf { it.isNotBlank() } ?: "Not set",
+                onClick = { picking = QuietPick.END },
+            )
             val quietHoursSet =
                 !preferences.quietStart.isNullOrBlank() || !preferences.quietEnd.isNullOrBlank()
             if (quietHoursSet) {
@@ -296,7 +278,7 @@ fun SettingsScreen(
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 }
-                Switch(
+                ThemeSwitch(
                     checked = preferences.currentNotificationEnabled,
                     onCheckedChange = { enabled ->
                         if (enabled) {
@@ -305,16 +287,6 @@ fun SettingsScreen(
                             onCurrentNotification(false)
                         }
                     },
-                    modifier = Modifier.heightIn(min = 48.dp),
-                    colors =
-                    SwitchDefaults.colors(
-                        checkedThumbColor = FocusColors.Live.Text,
-                        checkedTrackColor = FocusColors.Live.SurfaceHigh,
-                        checkedBorderColor = FocusColors.Live.Text,
-                        uncheckedThumbColor = FocusColors.Live.Muted,
-                        uncheckedTrackColor = FocusColors.Live.SurfaceHigh,
-                        uncheckedBorderColor = FocusColors.Live.Outline,
-                    ),
                 )
             }
         }
@@ -512,7 +484,6 @@ fun SettingsScreen(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun QuietTimeDialog(
     title: String,
@@ -521,22 +492,45 @@ private fun QuietTimeDialog(
     onConfirm: (String) -> Unit,
 ) {
     val parsed = initial?.let { runCatching { LocalTime.parse(it) }.getOrNull() }
-    val state =
-        rememberTimePickerState(
-            initialHour = parsed?.hour ?: 22,
-            initialMinute = parsed?.minute ?: 0,
-            is24Hour = true,
-        )
+    var hour by remember(initial) { mutableIntStateOf(parsed?.hour ?: 22) }
+    var minute by remember(initial) { mutableIntStateOf(parsed?.minute ?: 0) }
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = FocusColors.Live.Surface,
         titleContentColor = FocusColors.Live.Text,
         title = { Text(title) },
-        text = { TimePicker(state = state) },
+        text = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(ButtonGap),
+            ) {
+                SnapWheel(
+                    count = 24,
+                    selectedIndex = hour,
+                    onSelectedIndex = { hour = it },
+                    itemLabel = { "%02d".format(it) },
+                    modifier = Modifier.weight(1f),
+                    outlineColor = FocusColors.Live.Now,
+                    description = "Hour",
+                )
+                SnapWheel(
+                    count = 60,
+                    selectedIndex = minute,
+                    onSelectedIndex = { minute = it },
+                    itemLabel = { "%02d".format(it) },
+                    modifier = Modifier.weight(1f),
+                    outlineColor = FocusColors.Live.Now,
+                    description = "Minute",
+                )
+            }
+        },
         confirmButton = {
             ActionRow {
                 QuietButton("Cancel", onClick = onDismiss)
-                QuietButton("Save", onClick = { onConfirm("%02d:%02d".format(state.hour, state.minute)) })
+                QuietButton(
+                    "Save",
+                    onClick = { onConfirm("%02d:%02d".format(hour, minute)) },
+                )
             }
         },
     )
@@ -596,13 +590,26 @@ private fun BandTimeRow(
     minuteOfDay: Int,
     onClick: () -> Unit,
 ) {
+    TimeBoundRow(label = label, value = minuteOfDayClock(minuteOfDay), onClick = onClick)
+}
+
+@Composable
+private fun TimeBoundRow(
+    label: String,
+    value: String,
+    onClick: () -> Unit,
+) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(label, style = MaterialTheme.typography.bodyLarge)
-        PillButton(label = minuteOfDayClock(minuteOfDay), onClick = onClick)
+        Text(
+            label,
+            style = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier.weight(1f).padding(end = 12.dp),
+        )
+        PillButton(label = value, onClick = onClick)
     }
 }
 
@@ -629,9 +636,3 @@ private val countdownUnitChoices =
 private enum class QuietPick { START, END }
 
 private enum class BandPick { MORNING, NOON, NIGHT, NIGHT_END }
-
-private fun quietHours(preferences: UserPreferences): String {
-    val start = preferences.quietStart
-    val end = preferences.quietEnd
-    return if (start.isNullOrBlank() || end.isNullOrBlank()) "Not set" else "$start – $end"
-}
