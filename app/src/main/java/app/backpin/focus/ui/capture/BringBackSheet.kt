@@ -5,23 +5,17 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -37,22 +31,14 @@ import androidx.compose.material3.ModalBottomSheetProperties
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -63,27 +49,23 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import app.backpin.focus.R
 import app.backpin.focus.domain.scheduleMomentLabel
 import app.backpin.focus.ui.components.ActionRow
 import app.backpin.focus.ui.components.PrimaryButton
 import app.backpin.focus.ui.components.QuietButton
+import app.backpin.focus.ui.components.SnapWheel
 import app.backpin.focus.ui.motion.WithoutRipple
-import app.backpin.focus.ui.motion.rememberReducedMotion
-import app.backpin.focus.ui.theme.ButtonRadius
 import app.backpin.focus.ui.theme.CardRadius
 import app.backpin.focus.ui.theme.FocusColors
 import app.backpin.focus.ui.theme.FocusStackTheme
 import app.backpin.focus.ui.theme.Space
-import kotlinx.coroutines.launch
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
-import kotlin.math.abs
 
 internal const val BRING_BACK_MIN_DAYS = 1
 internal const val BRING_BACK_MAX_DAYS = 365
@@ -99,10 +81,6 @@ internal fun bringBackInitialDays(
     if (daysAway <= 0) return BRING_BACK_DEFAULT_DAYS
     return daysAway.coerceIn(BRING_BACK_MIN_DAYS, BRING_BACK_MAX_DAYS)
 }
-
-private val WHEEL_ITEM_HEIGHT = 48.dp
-private const val WHEEL_VISIBLE_COUNT = 5
-private const val WHEEL_PAD_COUNT = 2
 
 private enum class BringBackPage {
     Days,
@@ -313,89 +291,15 @@ internal fun DaysWheel(
     maxDays: Int = BRING_BACK_MAX_DAYS,
 ) {
     val capped = maxDays.coerceAtLeast(BRING_BACK_MIN_DAYS)
-    val reducedMotion = rememberReducedMotion()
-    val scope = rememberCoroutineScope()
-    val listState =
-        rememberLazyListState(
-            initialFirstVisibleItemIndex = (selectedDays - 1).coerceIn(0, capped - 1),
-        )
-    val fling = rememberSnapFlingBehavior(lazyListState = listState)
-    val centeredDays by remember {
-        derivedStateOf {
-            listState.firstVisibleItemIndex
-            listState.firstVisibleItemScrollOffset
-            centeredDays(listState, capped)
-        }
-    }
-    val outline = FocusColors.Live.Text
-    LaunchedEffect(centeredDays) {
-        if (centeredDays != selectedDays) onSelectedDays(centeredDays)
-    }
-    Box(
-        modifier =
-        Modifier
-            .fillMaxWidth()
-            .height(WHEEL_ITEM_HEIGHT * WHEEL_VISIBLE_COUNT)
-            .drawWithContent {
-                drawContent()
-                val stroke = 1.5.dp.toPx()
-                val rectHeight = WHEEL_ITEM_HEIGHT.toPx()
-                val top = (size.height - rectHeight) / 2f
-                drawRoundRect(
-                    color = outline,
-                    topLeft = Offset(0f, top),
-                    size = Size(size.width, rectHeight),
-                    cornerRadius = CornerRadius(ButtonRadius.toPx()),
-                    style = Stroke(width = stroke),
-                )
-            },
-        contentAlignment = Alignment.Center,
-    ) {
-        LazyColumn(
-            state = listState,
-            flingBehavior = fling,
-            modifier = Modifier.fillMaxWidth(),
-            contentPadding = PaddingValues(vertical = WHEEL_ITEM_HEIGHT * WHEEL_PAD_COUNT),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            items(capped) { index ->
-                val days = index + 1
-                val distance = abs(days - centeredDays)
-                val source = remember { MutableInteractionSource() }
-                Box(
-                    modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .height(WHEEL_ITEM_HEIGHT)
-                        .clickable(
-                            enabled = days != centeredDays,
-                            interactionSource = source,
-                            indication = null,
-                            role = Role.Button,
-                            onClick = {
-                                scope.launch {
-                                    if (reducedMotion) {
-                                        listState.scrollToItem(index)
-                                    } else {
-                                        listState.animateScrollToItem(index)
-                                    }
-                                }
-                            },
-                        )
-                        .padding(horizontal = 16.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        text = pluralStringResource(R.plurals.bring_back_days, days, days),
-                        style = wheelTextStyle(distance),
-                        color = wheelTextColor(distance),
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-            }
-        }
-    }
+    SnapWheel(
+        count = capped,
+        selectedIndex = (selectedDays - 1).coerceIn(0, capped - 1),
+        onSelectedIndex = { index -> onSelectedDays(index + 1) },
+        itemLabel = { index ->
+            val days = index + 1
+            pluralStringResource(R.plurals.bring_back_days, days, days)
+        },
+    )
 }
 
 @Composable
@@ -547,46 +451,6 @@ private fun DayCell(
             fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
         )
     }
-}
-
-@Composable
-private fun wheelTextStyle(distance: Int) = when (distance) {
-    0 ->
-        MaterialTheme.typography.titleLarge.copy(
-            fontSize = 22.sp,
-            fontWeight = FontWeight.Bold,
-        )
-    1 ->
-        MaterialTheme.typography.titleMedium.copy(
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Medium,
-        )
-    else ->
-        MaterialTheme.typography.bodyMedium.copy(
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Normal,
-        )
-}
-
-@Composable
-private fun wheelTextColor(distance: Int) = when (distance) {
-    0 -> FocusColors.Live.Text
-    1 -> FocusColors.Live.Muted
-    else -> FocusColors.Live.Muted.copy(alpha = 0.45f)
-}
-
-private fun centeredDays(
-    state: LazyListState,
-    maxDays: Int,
-): Int {
-    val info = state.layoutInfo
-    val viewportCenter = (info.viewportStartOffset + info.viewportEndOffset) / 2
-    val nearest =
-        info.visibleItemsInfo.minByOrNull { item ->
-            abs((item.offset + item.size / 2) - viewportCenter)
-        }
-    val index = nearest?.index ?: state.firstVisibleItemIndex
-    return (index + 1).coerceIn(BRING_BACK_MIN_DAYS, maxDays)
 }
 
 internal fun sundayWeekdayLabels(locale: Locale): List<String> = (0L..6L).map { offset ->

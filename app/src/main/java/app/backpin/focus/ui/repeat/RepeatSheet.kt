@@ -19,7 +19,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ModalBottomSheetProperties
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -54,6 +53,7 @@ import app.backpin.focus.ui.components.CLOSE_LABEL
 import app.backpin.focus.ui.components.CaptureChoice
 import app.backpin.focus.ui.components.ChoiceTone
 import app.backpin.focus.ui.components.QuietButton
+import app.backpin.focus.ui.components.ThemeSwitch
 import app.backpin.focus.ui.motion.rememberReducedMotion
 import app.backpin.focus.ui.theme.FocusColors
 import app.backpin.focus.ui.theme.Space
@@ -252,10 +252,9 @@ internal fun RepeatSheet(
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 }
-                Switch(
+                ThemeSwitch(
                     checked = reminderOn,
                     onCheckedChange = { reminderOn = it },
-                    modifier = Modifier.heightIn(min = 48.dp),
                 )
             }
             CaptureChoice(
@@ -282,9 +281,8 @@ internal fun RepeatSheet(
 }
 
 @Composable
-private fun cadencePresetLabel(days: Int): String =
-    if (days == 1) {
-        stringResource(R.string.repeat_sheet_every_day)
-    } else {
-        stringResource(R.string.repeat_sheet_every_n_days, days)
-    }
+private fun cadencePresetLabel(days: Int): String = if (days == 1) {
+    stringResource(R.string.repeat_sheet_every_day)
+} else {
+    stringResource(R.string.repeat_sheet_every_n_days, days)
+}

@@ -22,10 +22,12 @@ import app.backpin.focus.domain.ThemeId
 import app.backpin.focus.domain.UserPreferences
 import app.backpin.focus.runOffTestThread
 import app.backpin.focus.themeqa.awaitUntil
+import app.backpin.focus.themeqa.labelColor
 import app.backpin.focus.themeqa.tap
 import app.backpin.focus.themeqa.themeQaEnv
 import app.backpin.focus.ui.FocusApp
 import app.backpin.focus.ui.theme.FocusStackTheme
+import app.backpin.focus.ui.theme.paletteFor
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import org.junit.Assert.assertEquals
@@ -73,6 +75,8 @@ class ThemeSettingsTest {
                 compose.onAllNodesWithText(label).assertCountEquals(1)
             }
             compose.onNodeWithText("Signal").assertIsSelected()
+            assertEquals(paletteFor(ThemeId.SIGNAL).now, compose.labelColor("Signal"))
+            assertEquals(paletteFor(ThemeId.SIGNAL).textPrimary, compose.labelColor("Still Water"))
             labels.drop(1).forEach { label ->
                 compose.onNodeWithText(label).assertIsNotSelected()
             }
@@ -81,6 +85,7 @@ class ThemeSettingsTest {
                 runOffTestThread { env.preferences.themeId.first() } == ThemeId.CLEAR_LINE
             }
             compose.onNodeWithText("Clear Line").assertIsSelected()
+            assertEquals(paletteFor(ThemeId.CLEAR_LINE).now, compose.labelColor("Clear Line"))
             compose.onNodeWithText("Signal").assertIsNotSelected()
             assertEquals(ThemeId.CLEAR_LINE, runOffTestThread { env.preferences.themeId.first() })
         } finally {
