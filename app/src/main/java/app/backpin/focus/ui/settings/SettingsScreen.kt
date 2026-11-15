@@ -92,6 +92,7 @@ fun SettingsScreen(
     showHomeLayout: Boolean = false,
     countdownUnit: CountdownUnit = CountdownUnit.DAYS,
     onCountdownUnit: (CountdownUnit) -> Unit = {},
+    onShowGestures: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -174,6 +175,19 @@ fun SettingsScreen(
                         )
                     }
                 }
+            }
+        }
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(CardRadius),
+            color = FocusColors.Live.Surface,
+        ) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(Space)) {
+                QuietButton(
+                    label = stringResource(R.string.settings_show_gestures),
+                    onClick = onShowGestures,
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
         }
         Surface(

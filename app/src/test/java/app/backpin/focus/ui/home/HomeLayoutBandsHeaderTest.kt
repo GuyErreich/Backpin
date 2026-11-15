@@ -24,6 +24,8 @@ import app.backpin.focus.R
 import app.backpin.focus.data.FocusRepositoryImpl
 import app.backpin.focus.data.FocusStackDatabase
 import app.backpin.focus.data.PreferencesDataStore
+import app.backpin.focus.data.skipGestureTeaching
+import kotlinx.coroutines.runBlocking
 import app.backpin.focus.domain.AppClock
 import app.backpin.focus.domain.BandPhase
 import app.backpin.focus.domain.FocusUseCases
@@ -231,6 +233,7 @@ class HomeLayoutBandsHeaderTest {
                 .allowMainThreadQueries()
                 .build()
         val preferences = PreferencesDataStore(context, "home-layout-${UUID.randomUUID()}")
+        runBlocking { preferences.skipGestureTeaching() }
         val clock = AppClock { atNoon() }
         val repository = FocusRepositoryImpl(database, preferences, clock)
         val repeats = RepeatsService(repository, clock = clock)

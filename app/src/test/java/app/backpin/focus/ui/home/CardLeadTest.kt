@@ -1,38 +1,25 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package app.backpin.focus.ui.home
 
-import android.content.Context
 import android.os.Looper
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.semantics.SemanticsActions
-import androidx.compose.ui.test.SemanticsNodeInteraction
-import androidx.compose.ui.test.SemanticsNodeInteractionCollection
-import androidx.compose.ui.test.assertHasClickAction
-import androidx.compose.ui.test.assertIsEnabled
-import androidx.compose.ui.test.click
+import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.ViewModelStore
-import androidx.room.Room
-import androidx.test.core.app.ApplicationProvider
-import app.backpin.focus.data.FocusRepositoryImpl
-import app.backpin.focus.data.FocusStackDatabase
-import app.backpin.focus.data.PreferencesDataStore
-import app.backpin.focus.domain.AppClock
 import app.backpin.focus.domain.FocusSnapshot
 import app.backpin.focus.domain.FocusUseCases
 import app.backpin.focus.domain.FrameState
 import app.backpin.focus.domain.TaskBucket
+import app.backpin.focus.testing.useTestFocus
 import app.backpin.focus.ui.FocusStackViewModel
 import app.backpin.focus.ui.TaskUi
 import app.backpin.focus.ui.capture.CaptureSheet
@@ -47,7 +34,6 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
-import java.util.UUID
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36], qualifiers = "w411dp-h891dp")
@@ -56,7 +42,7 @@ class CardLeadTest {
     val compose = createAndroidComposeRule<ComponentActivity>()
 
     @Test
-    fun pileCardTitleIsTitleLargeAndActionsStayShort() {
+    fun pileCardTitleIsTitleLargeAndChipRowIsGone() {
         compose.setContent {
             FocusStackTheme {
                 InboxScreen(
@@ -79,16 +65,24 @@ class CardLeadTest {
             }
         }
         assertEquals(22.sp, fontSizeOf("Call Dana"))
-        val today = boundsOf("Today")
-        val interrupt = boundsOf("Interrupt")
         listOf("Today", "Start", "Interrupt", "Edit").forEach { label ->
-            val height = boundsOf(label).let { it.bottom - it.top }
-            assertTrue("$label is $height tall", height <= 48.dp + 0.5.dp && height >= 48.dp - 0.5.dp)
+            compose.onAllNodesWithText(label).fetchSemanticsNodes().let { nodes ->
+                assertTrue("$label chip must not appear on the resting card", nodes.isEmpty())
+            }
         }
-        assertTrue(
-            "Interrupt is ${interrupt.right - interrupt.left}, Today is ${today.right - today.left}",
-            interrupt.right - interrupt.left > today.right - today.left,
-        )
+        val matcher =
+            SemanticsMatcher("has Today") { node ->
+                node.config.getOrNull(SemanticsActions.CustomActions).orEmpty().any { it.label == "Today" }
+            }
+        val custom =
+            compose
+                .onAllNodes(matcher, useUnmergedTree = true)
+                .fetchSemanticsNodes()
+                .single()
+                .config[SemanticsActions.CustomActions]
+                .map { it.label }
+                .toSet()
+        assertTrue(custom.containsAll(listOf("Today", "Start", "Interrupt", "Edit")))
     }
 
     @Test
@@ -115,80 +109,52 @@ class CardLeadTest {
     }
 
     @Test
-    fun touchesOnTodayStartAndInterruptReachThePileAction() {
-        val context: Context = ApplicationProvider.getApplicationContext()
-        val database =
-            Room
-                .inMemoryDatabaseBuilder(context, FocusStackDatabase::class.java)
-                .allowMainThreadQueries()
-                .build()
-        val useCases =
-            FocusUseCases(
-                FocusRepositoryImpl(
-                    database = database,
-                    preferencesStore = PreferencesDataStore(context, "card-lead-${UUID.randomUUID()}"),
-                    clock = AppClock { System.currentTimeMillis() },
-                ),
-            )
-        val store = ViewModelStore()
-        val viewModel =
-            ViewModelProvider(
-                store,
-                object : ViewModelProvider.Factory {
-                    override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                        @Suppress("UNCHECKED_CAST")
-                        return FocusStackViewModel(useCases) as T
+    fun customActionsOnInboxReachTodayStartAndInterrupt() {
+        useTestFocus { fixture ->
+            fixture.withViewModel { viewModel ->
+                runBlocking {
+                    fixture.useCases.capture("Hold this")
+                    fixture.useCases.start(idOf(fixture.useCases, "Hold this"))
+                    fixture.useCases.capture("To today")
+                    fixture.useCases.capture("To start")
+                    fixture.useCases.capture("To interrupt")
+                }
+                compose.setContent {
+                    val state by viewModel.uiState.collectAsState()
+                    FocusStackTheme {
+                        InboxScreen(
+                            tasks = state.inboxTasks,
+                            ready = state.ready,
+                            canInterrupt = state.canInterrupt,
+                            onBack = {},
+                            onToday = viewModel::promote,
+                            onStart = viewModel::start,
+                            onInterrupt = viewModel::interruptFromPile,
+                            onEdit = {},
+                        )
                     }
-                },
-            )[FocusStackViewModel::class.java]
-        try {
-            runBlocking {
-                useCases.capture("Hold this")
-                useCases.start(idOf(useCases, "Hold this"))
-                useCases.capture("To today")
-                useCases.capture("To start")
-                useCases.capture("To interrupt")
-            }
-            compose.setContent {
-                val state by viewModel.uiState.collectAsState()
-                FocusStackTheme {
-                    InboxScreen(
-                        tasks = state.inboxTasks,
-                        ready = state.ready,
-                        canInterrupt = state.canInterrupt,
-                        onBack = {},
-                        onToday = viewModel::promote,
-                        onStart = viewModel::start,
-                        onInterrupt = viewModel::interruptFromPile,
-                        onEdit = {},
-                    )
+                }
+                await { viewModel.uiState.value.ready && viewModel.uiState.value.canInterrupt }
+                compose.onNodeWithText("To today").assertExists()
+
+                invokeCustomAction("Today", "To today")
+                awaitSnapshot(fixture.useCases, "Today") { snapshot ->
+                    snapshot.tasks.single { it.title == "To today" }.bucket == TaskBucket.TODAY
+                }
+                await { compose.onAllNodesWithText("To today").fetchSemanticsNodes().isEmpty() }
+
+                invokeCustomAction("Start", "To start")
+                awaitSnapshot(fixture.useCases, "Start") { snapshot -> activeTitle(snapshot) == "To start" }
+                await { compose.onAllNodesWithText("To start").fetchSemanticsNodes().isEmpty() }
+
+                invokeCustomAction("Interrupt", "To interrupt")
+                awaitSnapshot(fixture.useCases, "Interrupt") { snapshot ->
+                    activeTitle(snapshot) == "To interrupt" &&
+                        snapshot.tasks.single { it.title == "To interrupt" }.bucket == TaskBucket.INTERRUPTION
                 }
             }
-            await { viewModel.uiState.value.ready && viewModel.uiState.value.canInterrupt }
-            compose.onNodeWithText("To today").assertExists()
-
-            tap("Today", beside = "To today")
-            awaitSnapshot(useCases, "Today") { snapshot ->
-                snapshot.tasks.single { it.title == "To today" }.bucket == TaskBucket.TODAY
-            }
-            await { compose.onAllNodesWithText("To today").fetchSemanticsNodes().isEmpty() }
-
-            tap("Start", beside = "To start")
-            awaitSnapshot(useCases, "Start") { snapshot -> activeTitle(snapshot) == "To start" }
-            await { compose.onAllNodesWithText("To start").fetchSemanticsNodes().isEmpty() }
-
-            tap("Interrupt", beside = "To interrupt")
-            awaitSnapshot(useCases, "Interrupt") { snapshot ->
-                activeTitle(snapshot) == "To interrupt" &&
-                    snapshot.tasks.single { it.title == "To interrupt" }.bucket == TaskBucket.INTERRUPTION
-            }
-        } finally {
-            store.clear()
-            database.close()
         }
     }
-
-    private fun boundsOf(label: String) = compose.onNodeWithText(label).getBoundsInRoot()
 
     private fun fontSizeOf(text: String) = textLayout(text).layoutInput.style.fontSize
 
@@ -199,25 +165,25 @@ class CardLeadTest {
         return layouts.single()
     }
 
-    private fun tap(
+    private fun invokeCustomAction(
         label: String,
-        beside: String,
+        nearTitle: String,
     ) {
-        compose.waitForIdle()
-        val node = nearest(compose.onAllNodesWithText(label), beside)
-        node.assertIsEnabled().assertHasClickAction()
-        node.performTouchInput { click(center) }
-        compose.waitForIdle()
-    }
-
-    private fun nearest(
-        nodes: SemanticsNodeInteractionCollection,
-        beside: String,
-    ): SemanticsNodeInteraction {
-        val anchor = compose.onNodeWithText(beside).fetchSemanticsNode().boundsInRoot.top
+        val titles = compose.onAllNodesWithText(nearTitle).fetchSemanticsNodes()
+        check(titles.isNotEmpty()) { "No title $nearTitle" }
+        val titleTop = titles.minBy { it.boundsInRoot.top }.boundsInRoot.top
+        val matcher =
+            SemanticsMatcher("has $label") { node ->
+                node.config.getOrNull(SemanticsActions.CustomActions).orEmpty().any { it.label == label }
+            }
+        val nodes = compose.onAllNodes(matcher, useUnmergedTree = true)
         val found = nodes.fetchSemanticsNodes()
-        val index = found.indices.minBy { kotlin.math.abs(found[it].boundsInRoot.top - anchor) }
-        return nodes[index]
+        check(found.isNotEmpty()) { "No $label action near $nearTitle" }
+        val index = found.indices.minBy { kotlin.math.abs(found[it].boundsInRoot.top - titleTop) }
+        val action =
+            found[index].config[SemanticsActions.CustomActions].first { it.label == label }
+        compose.runOnIdle { check(action.action()) }
+        compose.waitForIdle()
     }
 
     private suspend fun idOf(
@@ -251,7 +217,7 @@ class CardLeadTest {
                 val snapshot = runBlocking { useCases.observeSnapshot().first() }
                 detail =
                     snapshot.tasks.joinToString { "${it.title}:${it.bucket}" } +
-                    " active=${activeTitle(snapshot)}"
+                        " active=${activeTitle(snapshot)}"
                 predicate(snapshot)
             }
         } catch (error: Throwable) {

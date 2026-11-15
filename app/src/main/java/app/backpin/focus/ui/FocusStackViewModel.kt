@@ -875,6 +875,32 @@ class FocusStackViewModel(
         }
     }
 
+    fun markGesturesIntroSeen() {
+        viewModelScope.launch {
+            useCases.setGesturesIntroSeen(true)
+        }
+    }
+
+    fun replayGesturesIntro() {
+        viewModelScope.launch {
+            useCases.setGesturesIntroSeen(false)
+            useCases.setGestureHintRightSeen(false)
+            useCases.setGestureHintLeftSeen(false)
+        }
+    }
+
+    fun markGestureHintRightSeen() {
+        viewModelScope.launch {
+            useCases.setGestureHintRightSeen(true)
+        }
+    }
+
+    fun markGestureHintLeftSeen() {
+        viewModelScope.launch {
+            useCases.setGestureHintLeftSeen(true)
+        }
+    }
+
     fun openRepeatCreate(title: String = "") {
         closeCapture()
         dismissActionSheets()

@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -58,8 +59,17 @@ internal fun HomeBandsSection(
     onOpenMissedRepeat: (RepeatRow) -> Unit = {},
     onUndoRepeat: (RepeatRow) -> Unit = {},
     onEditRepeat: (Repeat) -> Unit,
+    showGestureHint: Boolean = false,
 ) {
     Column {
+        if (showGestureHint) {
+            Text(
+                text = stringResource(R.string.home_gesture_hint),
+                style = HomeMetrics.NowTime,
+                color = FocusColors.Live.Muted,
+                modifier = Modifier.padding(top = HomeMetrics.FlatHeaderTop, bottom = HomeMetrics.EyebrowBottom),
+            )
+        }
         bands.inOrder().forEach { group ->
             key(group.band) {
                 HomeBandBlock(

@@ -99,9 +99,18 @@ internal fun todaySwipe(onToday: () -> Unit): SwipeSide = SwipeSide(
 internal fun startSwipe(onStart: () -> Unit): SwipeSide = SwipeSide(
     label = "Start",
     accessibilityLabel = "Start",
+    tint = FocusColors.Live.SurfaceHigh,
+    onTint = FocusColors.Live.Text,
+    onCommit = onStart,
+)
+
+@Composable
+internal fun restoreSwipe(onRestore: () -> Unit): SwipeSide = SwipeSide(
+    label = "Restore",
+    accessibilityLabel = "Restore",
     tint = FocusColors.Live.Mint,
     onTint = FocusColors.Live.OnMint,
-    onCommit = onStart,
+    onCommit = onRestore,
 )
 
 @Composable

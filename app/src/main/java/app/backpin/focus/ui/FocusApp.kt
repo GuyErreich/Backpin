@@ -252,6 +252,7 @@ fun FocusApp(
                     ready = state.ready,
                     onBack = { navController.popBackStack() },
                     onRestore = viewModel::restore,
+                    onOpenSheet = viewModel::openTaskSheet,
                 )
             }
             composable(Routes.FOCUS) {
@@ -290,6 +291,7 @@ fun FocusApp(
                     showHomeLayout = showHomeLayout,
                     countdownUnit = countdownUnit,
                     onCountdownUnit = onCountdownUnit,
+                    onShowGestures = viewModel::replayGesturesIntro,
                 )
             }
         }

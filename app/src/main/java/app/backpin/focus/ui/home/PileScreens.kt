@@ -31,21 +31,15 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import app.backpin.focus.R
 import app.backpin.focus.ui.TaskUi
-import app.backpin.focus.ui.components.AccentButton
-import app.backpin.focus.ui.components.AccentTone
 import app.backpin.focus.ui.components.BACK_LABEL
 import app.backpin.focus.ui.components.BackArrow
-import app.backpin.focus.ui.components.CardActions
-import app.backpin.focus.ui.components.QuietButton
 import app.backpin.focus.ui.motion.pressScale
 import app.backpin.focus.ui.motion.rememberPressSource
 import app.backpin.focus.ui.motion.rememberReducedMotion
 import app.backpin.focus.ui.theme.ButtonGap
 import app.backpin.focus.ui.theme.CardRadius
 import app.backpin.focus.ui.theme.FocusColors
-import app.backpin.focus.ui.theme.Space
 
-private val PileRowPadding = Modifier.padding(horizontal = 12.dp, vertical = 12.dp)
 private val ActionPileCardPadding = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
 
 /**
@@ -86,7 +80,7 @@ fun InboxScreen(
             onEdit = onEdit,
             onOpenSheet = onOpenSheet,
         )
-        DoneSection(tasks = doneTasks, onRestore = onRestore)
+        DoneSection(tasks = doneTasks, onRestore = onRestore, onOpenSheet = onOpenSheet)
     }
 }
 
@@ -99,6 +93,7 @@ fun DoneScreen(
     ready: Boolean,
     onBack: () -> Unit,
     onRestore: (String) -> Unit,
+    onOpenSheet: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     PileScaffold(
@@ -108,7 +103,7 @@ fun DoneScreen(
         onBack = onBack,
         modifier = modifier,
     ) {
-        DoneCards(tasks = tasks, onRestore = onRestore)
+        DoneCards(tasks = tasks, onRestore = onRestore, onOpenSheet = onOpenSheet)
     }
 }
 
@@ -177,21 +172,11 @@ internal fun ActionPileCards(
                 shape = RoundedCornerShape(CardRadius),
                 color = FocusColors.Live.SurfaceHigh,
             ) {
-                Column(ActionPileCardPadding, verticalArrangement = Arrangement.spacedBy(Space)) {
-                    Text(task.title, style = MaterialTheme.typography.titleLarge)
-                    CardActions {
-                        QuietButton(label = "Today", onClick = { onToday(task.id) })
-                        QuietButton(label = "Start", onClick = { onStart(task.id) })
-                        if (canInterrupt) {
-                            AccentButton(
-                                label = "Interrupt",
-                                tone = AccentTone.Lavender,
-                                onClick = { onInterrupt(task.id) },
-                            )
-                        }
-                        QuietButton(label = "Edit", onClick = { onEdit(task.id) })
-                    }
-                }
+                Text(
+                    task.title,
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = ActionPileCardPadding,
+                )
             }
         }
     }
@@ -201,7 +186,9 @@ internal fun ActionPileCards(
 internal fun DoneCards(
     tasks: List<TaskUi>,
     onRestore: (String) -> Unit,
+    onOpenSheet: (String) -> Unit = {},
 ) {
+    val reducedMotion = rememberReducedMotion()
     if (tasks.isEmpty()) {
         Text(
             stringResource(R.string.pile_done_empty),
@@ -210,19 +197,43 @@ internal fun DoneCards(
         )
     }
     tasks.forEach { task ->
-        Surface(
+        SwipeRevealCard(
+            towardStart = restoreSwipe { onRestore(task.id) },
+            towardEnd = null,
+            reducedMotion = reducedMotion,
+            extraActions =
+            listOf(
+                CustomAccessibilityAction("Restore") {
+                    onRestore(task.id)
+                    true
+                },
+            ),
+            cornerRadius = CardRadius,
             modifier =
             Modifier
                 .fillMaxWidth()
-                .semantics { contentDescription = "Done. ${task.title}. Restore returns it to Inbox." },
-            shape = RoundedCornerShape(16.dp),
-            color = FocusColors.Live.SurfaceHigh,
+                .semantics {
+                    contentDescription =
+                        "Done. ${task.title}. Opens the task sheet. Swipe right to restore it to Inbox."
+                },
         ) {
-            Column(PileRowPadding, verticalArrangement = Arrangement.spacedBy(Space)) {
-                Text(task.title, style = MaterialTheme.typography.titleLarge)
-                CardActions {
-                    QuietButton(label = "Restore", onClick = { onRestore(task.id) })
-                }
+            Surface(
+                modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .clickable(
+                        role = Role.Button,
+                        onClickLabel = stringResource(R.string.task_sheet_open),
+                        onClick = { onOpenSheet(task.id) },
+                    ),
+                shape = RoundedCornerShape(CardRadius),
+                color = FocusColors.Live.SurfaceHigh,
+            ) {
+                Text(
+                    task.title,
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = ActionPileCardPadding,
+                )
             }
         }
     }
@@ -232,6 +243,7 @@ internal fun DoneCards(
 private fun DoneSection(
     tasks: List<TaskUi>,
     onRestore: (String) -> Unit,
+    onOpenSheet: (String) -> Unit,
 ) {
     var expanded by rememberSaveable { mutableStateOf(false) }
     val name = stringResource(R.string.screen_done)
@@ -271,7 +283,7 @@ private fun DoneSection(
         )
     }
     if (expanded) {
-        DoneCards(tasks = tasks, onRestore = onRestore)
+        DoneCards(tasks = tasks, onRestore = onRestore, onOpenSheet = onOpenSheet)
     }
 }
 

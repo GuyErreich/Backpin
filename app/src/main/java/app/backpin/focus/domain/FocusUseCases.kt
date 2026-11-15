@@ -204,4 +204,16 @@ class FocusUseCases(
     suspend fun setSavedPhrases(phrases: List<String>) {
         repository.setSavedPhrases(phrases)
     }
+
+    suspend fun setGesturesIntroSeen(seen: Boolean) {
+        repository.setGesturesIntroSeen(seen)
+    }
+
+    suspend fun setGestureHintRightSeen(seen: Boolean) {
+        repository.setGestureHintRightSeen(seen)
+    }
+
+    suspend fun setGestureHintLeftSeen(seen: Boolean) {
+        repository.setGestureHintLeftSeen(seen)
+    }
 }

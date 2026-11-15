@@ -15,6 +15,13 @@ Colors
 - Use only the theme colors in `FocusColors`.
 - No red, no alarm look.
 
+Surface
+- New UI uses the tokens already on screen. No new hue, radius, border width, shadow, or button shape.
+- Home uses the radii in [HomeMetrics.kt](app/src/main/java/app/backpin/focus/ui/home/HomeMetrics.kt). Elsewhere, cards use `CardRadius`. The current card and Focus use a 2dp border in the Now role. Empty slots keep the dashed outline.
+- Buttons stay `QuietButton`, `AccentButton`, and `CaptureChoice`. The only filled mint control is Add.
+- Name colors by role. The Now role is lavender in the rules and a different hue in each palette. Read `FocusColors.Live`. Do not paint a purple because the rule says lavender.
+- A gesture reuses a role, and only while the finger is moving. The right-slide band is Done, behind the row. The left-slide band is the raised surface. The chevron is Now. The filled mint primary stays Add. Do not paint a resting lip, and do not add a color for a new meaning.
+
 Navigation
 - One top-left back arrow, [BackArrow](app/src/main/java/app/backpin/focus/ui/components/BackArrow.kt), in every screen and sheet. It steps back, and on the first step it closes.
 - No X and no text Back. The system back does the same as the arrow.

@@ -994,6 +994,18 @@ class FocusRepositoryImpl(
         preferencesStore.setExactAlarmPromptDismissed(true)
     }
 
+    override suspend fun setGesturesIntroSeen(seen: Boolean) {
+        preferencesStore.setGesturesIntroSeen(seen)
+    }
+
+    override suspend fun setGestureHintRightSeen(seen: Boolean) {
+        preferencesStore.setGestureHintRightSeen(seen)
+    }
+
+    override suspend fun setGestureHintLeftSeen(seen: Boolean) {
+        preferencesStore.setGestureHintLeftSeen(seen)
+    }
+
     override suspend fun setHeldBandNudge(
         band: RepeatBand?,
         epochDay: Long?,
