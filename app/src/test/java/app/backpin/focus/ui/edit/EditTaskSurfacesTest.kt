@@ -149,7 +149,7 @@ class EditTaskSurfacesTest {
 
             compose.runOnIdle { screen = "inbox" }
             compose.waitForIdle()
-            tapEditNear("From inbox")
+            invokeCustomAction("Edit", "From inbox")
             saveTitleAs("Inbox renamed")
             awaitSnapshot(useCases) { hasTask(it, "Inbox renamed", TaskBucket.INBOX) }
 
@@ -299,14 +299,14 @@ class EditTaskSurfacesTest {
             }
             await { viewModel.uiState.value.inboxTasks.any { it.title == "From inbox" } }
 
-            tapEditNear("From inbox")
+            invokeCustomAction("Edit", "From inbox")
             titleField().performTextReplacement("Inbox kept by back")
             compose.onNode(hasContentDescription("Close")).performTouchInput { click() }
             compose.waitForIdle()
             awaitSnapshot(useCases) { hasTask(it, "Inbox kept by back", TaskBucket.INBOX) }
             await { compose.onAllNodesWithText("Inbox kept by back").fetchSemanticsNodes().isNotEmpty() }
 
-            tapEditNear("Inbox kept by back")
+            invokeCustomAction("Edit", "Inbox kept by back")
             titleField().performTextReplacement("   ")
             tapSave()
             awaitSnapshot(useCases) { it.tasks.any { task -> task.title == "Inbox kept by back" } }

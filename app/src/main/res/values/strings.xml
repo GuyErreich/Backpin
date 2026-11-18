@@ -145,6 +145,14 @@
     <string name="home_now_empty_body">Use + Add, or fill an empty Today slot.</string>
     <string name="home_now_paused">Paused: %1$s</string>
     <string name="home_today">Today</string>
+    <string name="home_gesture_hint">Slide right to finish. Slide left to put it back.</string>
+    <string name="gestures_intro_slide_right">Slide right finishes it.</string>
+    <string name="gestures_intro_slide_left">Slide left puts it back.</string>
+    <string name="gestures_intro_tap">Tap opens it.</string>
+    <string name="gestures_intro_hold">Hold moves it.</string>
+    <string name="gestures_intro_next">Next</string>
+    <string name="gestures_intro_got_it">Got it</string>
+    <string name="settings_show_gestures">Show gestures</string>
     <string name="home_empty_slot">Empty slot</string>
     <string name="home_row_desc_opens_sheet">Today position %1$d. %2$s. %3$s. Opens the task sheet. Long press for more actions.</string>
     <string name="home_row_desc">Today position %1$d. %2$s. %3$s. Long press for more actions.</string>

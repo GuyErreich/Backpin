@@ -1,7 +1,16 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
-## [0.1.45-rc] - 24-10-2026
+## [0.2.0-rc] - 18-11-2026
+
+### Features & Enhancements
+- teach gesture-only list cards in place (#133)
+
+
+### Bug Fixes & Resolutions
+- follow the theme on selected choices and quiet hours (#131)
+
+## [0.1.45-dev] - 24-10-2026
 
 ### Bug Fixes & Resolutions
 - keep choice pills outlined (#129)

@@ -8,8 +8,9 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.test.SemanticsNodeInteraction
-import androidx.compose.ui.test.SemanticsNodeInteractionCollection
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.click
@@ -145,7 +146,7 @@ class InterruptButtonTapTest {
             await { !viewModel.uiState.value.captureOpen }
 
             show("From inbox") { screen = "inbox" }
-            tap("Interrupt", beside = "From inbox")
+            invokeCustomAction("Interrupt", "From inbox")
             awaitSnapshot(useCases) { snapshot ->
                 activeTitle(snapshot) == "From inbox" &&
                     snapshot.tasks.single { it.title == "From inbox" }.bucket == TaskBucket.INTERRUPTION
@@ -165,28 +166,30 @@ class InterruptButtonTapTest {
         compose.onNodeWithText(label, substring = true).assertExists()
     }
 
-    private fun tap(
-        label: String,
-        beside: String? = null,
-    ) {
-        val node =
-            if (beside == null) {
-                compose.onNodeWithText(label)
-            } else {
-                nearest(compose.onAllNodesWithText(label), beside)
-            }
-        node.assertIsEnabled().assertHasClickAction()
-        node.performTouchInput { click(center) }
+    private fun tap(label: String) {
+        compose.onNodeWithText(label).assertIsEnabled().assertHasClickAction()
+        compose.onNodeWithText(label).performTouchInput { click(center) }
     }
 
-    private fun nearest(
-        nodes: SemanticsNodeInteractionCollection,
-        beside: String,
-    ): SemanticsNodeInteraction {
-        val anchor = compose.onNodeWithText(beside).fetchSemanticsNode().boundsInRoot.top
+    private fun invokeCustomAction(
+        label: String,
+        nearTitle: String,
+    ) {
+        val titles = compose.onAllNodesWithText(nearTitle).fetchSemanticsNodes()
+        check(titles.isNotEmpty()) { "No title $nearTitle" }
+        val titleTop = titles.minBy { it.boundsInRoot.top }.boundsInRoot.top
+        val matcher =
+            SemanticsMatcher("has $label") { node ->
+                node.config.getOrNull(SemanticsActions.CustomActions).orEmpty().any { it.label == label }
+            }
+        val nodes = compose.onAllNodes(matcher, useUnmergedTree = true)
         val found = nodes.fetchSemanticsNodes()
-        val index = found.indices.minBy { kotlin.math.abs(found[it].boundsInRoot.top - anchor) }
-        return nodes[index]
+        check(found.isNotEmpty()) { "No $label action near $nearTitle" }
+        val index = found.indices.minBy { kotlin.math.abs(found[it].boundsInRoot.top - titleTop) }
+        val action =
+            found[index].config[SemanticsActions.CustomActions].first { it.label == label }
+        compose.runOnIdle { check(action.action()) }
+        compose.waitForIdle()
     }
 
     private fun await(predicate: () -> Boolean) {

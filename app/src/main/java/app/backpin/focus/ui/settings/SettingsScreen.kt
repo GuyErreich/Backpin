@@ -94,6 +94,7 @@ fun SettingsScreen(
     showHomeLayout: Boolean = false,
     countdownUnit: CountdownUnit = CountdownUnit.DAYS,
     onCountdownUnit: (CountdownUnit) -> Unit = {},
+    onShowGestures: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -189,6 +190,13 @@ fun SettingsScreen(
                     )
                 }
             }
+        }
+        SettingsCard {
+            QuietButton(
+                label = stringResource(R.string.settings_show_gestures),
+                onClick = onShowGestures,
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
         SettingsCard {
             Text(stringResource(R.string.settings_countdown), style = MaterialTheme.typography.titleMedium)

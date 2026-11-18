@@ -199,6 +199,18 @@ class FocusUseCases(
         repository.setSavedPhrases(phrases)
     }
 
+    suspend fun setGesturesIntroSeen(seen: Boolean) {
+        repository.setGesturesIntroSeen(seen)
+    }
+
+    suspend fun setGestureHintRightSeen(seen: Boolean) {
+        repository.setGestureHintRightSeen(seen)
+    }
+
+    suspend fun setGestureHintLeftSeen(seen: Boolean) {
+        repository.setGestureHintLeftSeen(seen)
+    }
+
     suspend fun convertToRepeat(
         taskId: String,
         title: String,

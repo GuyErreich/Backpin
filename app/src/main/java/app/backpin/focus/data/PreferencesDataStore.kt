@@ -60,6 +60,9 @@ class PreferencesDataStore(
                 heldBandNudge = prefs[Keys.HELD_BAND_NUDGE]?.let { runCatching { RepeatBand.valueOf(it) }.getOrNull() },
                 heldBandEpochDay = prefs[Keys.HELD_BAND_EPOCH_DAY],
                 exactAlarmPromptDismissed = prefs[Keys.EXACT_ALARM_PROMPT_DISMISSED] ?: false,
+                gesturesIntroSeen = prefs[Keys.GESTURES_INTRO_SEEN] ?: false,
+                gestureHintRightSeen = prefs[Keys.GESTURE_HINT_RIGHT_SEEN] ?: false,
+                gestureHintLeftSeen = prefs[Keys.GESTURE_HINT_LEFT_SEEN] ?: false,
             )
         }
 
@@ -266,6 +269,27 @@ class PreferencesDataStore(
         }
     }
 
+    /** Marks the first-run gesture cards as seen, or clears them for a Settings replay. */
+    suspend fun setGesturesIntroSeen(seen: Boolean) {
+        dataStore.edit { prefs ->
+            prefs[Keys.GESTURES_INTRO_SEEN] = seen
+        }
+    }
+
+    /** Marks that a right slide has taught the Home hint. */
+    suspend fun setGestureHintRightSeen(seen: Boolean) {
+        dataStore.edit { prefs ->
+            prefs[Keys.GESTURE_HINT_RIGHT_SEEN] = seen
+        }
+    }
+
+    /** Marks that a left slide has taught the Home hint. */
+    suspend fun setGestureHintLeftSeen(seen: Boolean) {
+        dataStore.edit { prefs ->
+            prefs[Keys.GESTURE_HINT_LEFT_SEEN] = seen
+        }
+    }
+
     private object Keys {
         val NUDGES_ENABLED = booleanPreferencesKey("nudges_enabled")
         val NUDGE_MINUTES = intPreferencesKey("nudge_minutes")
@@ -288,6 +312,9 @@ class PreferencesDataStore(
         val FOLLOW_UP_NOON = longPreferencesKey("follow_up_noon_day")
         val FOLLOW_UP_NIGHT = longPreferencesKey("follow_up_night_day")
         val EXACT_ALARM_PROMPT_DISMISSED = booleanPreferencesKey("exact_alarm_prompt_dismissed")
+        val GESTURES_INTRO_SEEN = booleanPreferencesKey("gestures_intro_seen")
+        val GESTURE_HINT_RIGHT_SEEN = booleanPreferencesKey("gesture_hint_right_seen")
+        val GESTURE_HINT_LEFT_SEEN = booleanPreferencesKey("gesture_hint_left_seen")
         val THEME_ID = stringPreferencesKey("theme_id")
         val HOME_LAYOUT = stringPreferencesKey("home_layout")
         val COUNTDOWN_UNIT = stringPreferencesKey("countdown_unit")

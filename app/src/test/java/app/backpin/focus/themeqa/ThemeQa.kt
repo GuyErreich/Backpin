@@ -27,11 +27,13 @@ import androidx.test.core.app.ApplicationProvider
 import app.backpin.focus.data.FocusRepositoryImpl
 import app.backpin.focus.data.FocusStackDatabase
 import app.backpin.focus.data.PreferencesDataStore
+import app.backpin.focus.data.skipGestureTeaching
 import app.backpin.focus.domain.AppClock
 import app.backpin.focus.domain.FocusUseCases
 import app.backpin.focus.repeats.RepeatsService
 import app.backpin.focus.ui.FocusStackViewModel
 import app.backpin.focus.ui.theme.ThemePalette
+import kotlinx.coroutines.runBlocking
 import org.robolectric.Shadows.shadowOf
 import java.time.LocalDate
 import java.time.LocalTime
@@ -66,6 +68,7 @@ internal fun themeQaEnv(
             .allowMainThreadQueries()
             .build()
     val preferences = PreferencesDataStore(context, storeName)
+    runBlocking { preferences.skipGestureTeaching() }
     val repository =
         FocusRepositoryImpl(
             database = database,

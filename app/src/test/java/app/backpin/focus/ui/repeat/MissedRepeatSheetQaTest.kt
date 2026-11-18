@@ -28,6 +28,7 @@ import androidx.test.core.app.ApplicationProvider
 import app.backpin.focus.data.FocusRepositoryImpl
 import app.backpin.focus.data.FocusStackDatabase
 import app.backpin.focus.data.PreferencesDataStore
+import app.backpin.focus.data.skipGestureTeaching
 import app.backpin.focus.domain.AppClock
 import app.backpin.focus.domain.FocusUseCases
 import app.backpin.focus.domain.RepeatBand
@@ -43,6 +44,7 @@ import app.backpin.focus.ui.theme.FocusColors
 import app.backpin.focus.ui.theme.FocusStackTheme
 import app.backpin.focus.ui.theme.paletteFor
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
@@ -387,10 +389,12 @@ class MissedRepeatSheetQaTest {
                 .inMemoryDatabaseBuilder(context, FocusStackDatabase::class.java)
                 .allowMainThreadQueries()
                 .build()
+        val preferences = PreferencesDataStore(context, "missed-repeat-${UUID.randomUUID()}")
+        runBlocking { preferences.skipGestureTeaching() }
         val repository =
             FocusRepositoryImpl(
                 database = database,
-                preferencesStore = PreferencesDataStore(context, "missed-repeat-${UUID.randomUUID()}"),
+                preferencesStore = preferences,
                 clock = clock,
             )
         val useCases = FocusUseCases(repository)
