@@ -5,13 +5,21 @@ Read this before changing code. One line per rule.
 ## UI
 
 Buttons
-- Use only `QuietButton`, `AccentButton`, or `CaptureChoice` from [Buttons.kt](app/src/main/java/app/backpin/focus/ui/components/Buttons.kt). No raw `Button`, `OutlinedButton`, `TextButton`, chips, or filled buttons.
-- Sheets, Settings, and dialogs stay 56dp minimum height, 16dp radius, 12dp gaps, `ButtonLabel` text, equal width in `ActionRow`. The tokens live in [Theme.kt](app/src/main/java/app/backpin/focus/ui/theme/Theme.kt).
+- Use only `QuietButton`, `AccentButton`, `CaptureChoice`, `PrimaryButton`, `PillButton`, or `ThemeSwitch` from [Buttons.kt](app/src/main/java/app/backpin/focus/ui/components/Buttons.kt). No raw `Button`, `OutlinedButton`, `TextButton`, `Switch`, chips, or other filled buttons.
+- `PrimaryButton` is the one filled mint primary per screen (sheet Save, Capture Save to Inbox). Everything else stays outlined.
+- Sheets and dialogs stay 56dp minimum height, 16dp radius, 12dp gaps, and `ButtonLabel` text. Settings choice pills are `ChoicePillHeight` (40dp) and only as wide as the label. The tokens live in [Theme.kt](app/src/main/java/app/backpin/focus/ui/theme/Theme.kt).
+- Settings is a stack of cards with one title each. No section eyebrow above that title.
+- Sheets and dialogs use equal width in `ActionRow`. `ActionRow` stops at 3, and a fourth cell wraps into equal cells.
+- Settings rows of 4 or 5 short choices use `PillButton` in `ChoicePills`, at the label width. Do not put those rows in `ActionRow`.
+- A centered button label measured with an unlimited width collapses. `PillButton` measures the label with a finite width first. Do not measure `QuietButton` under an infinite width.
+- Sheet rows use `CaptureChoice` or `PrimaryButton`. `QuietButton` press-scale drops the tap inside a sheet.
 - List cards lead with a `titleLarge` title. Their actions sit in `CardActions`: 48dp tall and only as wide as the label.
 
 Colors
 - Accent buttons are outlined, with the label in the same color as the border.
-- Mint is Done, Resume, and Inbox. Lavender is Interrupt and events, everywhere. Amber is missed or due. Everything else is quiet.
+- Mint is Done, Resume, Inbox, and the primary Save. Now (#5AB4FF) is the status color (NOW card, current band, MAIN, chevrons). Amber is missed or due. Everything else is quiet.
+- A selected choice uses the active theme's Now for the label and the border, with NowContainer behind it, through `QuietButton`. `PillButton` is that same button. `ThemeSwitch` uses Now when it is on.
+- An active Now card shows outlined Interrupt and outlined mint Done. The filled mint button stays Save.
 - Use only the theme colors in `FocusColors`.
 - No red, no alarm look.
 
@@ -27,9 +35,13 @@ Navigation
 - No X and no text Back. The system back does the same as the arrow.
 - Dialogs use Cancel. Exception: when dismissing is itself the safe choice, the safe button replaces Cancel.
 
+Layout
+- In a band, the Today cards and the repeats use the same `taskGap()` between the two groups as between the cards inside each group. Leave an empty group out.
+
 Motion
 - Quiet motion from [ui/motion](app/src/main/java/app/backpin/focus/ui/motion): no ripple, no bounce, no sound.
 - Honor reduced motion.
+- The swipe color is a band on the opened side, clipped to the row radius, reaching one corner-radius past the finger so the round corner stays filled.
 
 Copy
 - Real copy, short sentences.
@@ -52,7 +64,8 @@ Copy
 - One regression test per bug, which fails if the fix is reverted.
 - No test that still passes when the code under test is deleted.
 - No real clock and no fixed sleeps.
-- Every new or changed test passes 30 consecutive runs. Record the command and 0/30 result in the PR Test plan, which must say "ankyr-testing followed".
+- A changed test passes once. Any failure is fixed before push.
+- A wait returns false until the row exists. It does not call `single()` inside the predicate.
 - Tap tests use `performTouchInput` on the visible center, not only `performClick`.
 - Clear the `ViewModelStore` in `finally`.
 - Robolectric runs on a plain `Application`.

@@ -12,23 +12,19 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TimePicker
-import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -40,6 +36,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
@@ -63,13 +60,18 @@ import app.backpin.focus.domain.minuteOfDayClock
 import app.backpin.focus.domain.parseClockToMinute
 import app.backpin.focus.notifications.notificationsAllowed
 import app.backpin.focus.ui.components.ActionRow
+import app.backpin.focus.ui.components.ChoicePills
+import app.backpin.focus.ui.components.PillButton
 import app.backpin.focus.ui.components.QuietButton
-import app.backpin.focus.ui.theme.CardRadius
+import app.backpin.focus.ui.components.SnapWheel
+import app.backpin.focus.ui.components.ThemeSwitch
+import app.backpin.focus.ui.home.HomeMetrics
+import app.backpin.focus.ui.theme.ButtonGap
+import app.backpin.focus.ui.theme.ButtonRadius
 import app.backpin.focus.ui.theme.FocusColors
 import app.backpin.focus.ui.theme.Space
 import java.time.LocalTime
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     preferences: UserPreferences,
@@ -122,6 +124,7 @@ fun SettingsScreen(
     var picking by remember { mutableStateOf<QuietPick?>(null) }
     var bandPicking by remember { mutableStateOf<BandPick?>(null) }
     var renaming by remember { mutableStateOf<Int?>(null) }
+    var removing by remember { mutableStateOf<Int?>(null) }
     var newPhrase by remember { mutableStateOf("") }
 
     fun enableThen(action: () -> Unit) {
@@ -143,270 +146,147 @@ fun SettingsScreen(
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(Space * 2),
+        verticalArrangement = Arrangement.spacedBy(ButtonGap),
     ) {
-        Text(
-            "SETTINGS",
-            style = MaterialTheme.typography.labelLarge,
-            color = FocusColors.Live.Muted,
-        )
-        Text(
-            "Kept on this phone.",
-            style = MaterialTheme.typography.headlineLarge,
-            modifier = Modifier.semantics { heading() },
-        )
-        Text(
-            "Tasks and the interruption stack stay on this device. There is no account. Nudges are approximate: Android may delay them. Repeat reminders use exact alarms when you allow them, and otherwise land a few minutes late.",
-            style = MaterialTheme.typography.bodyLarge,
-        )
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(CardRadius),
-            color = FocusColors.Live.Surface,
-        ) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(Space)) {
-                Text(stringResource(R.string.settings_theme), style = MaterialTheme.typography.titleMedium)
-                ActionRow {
-                    for ((id, label) in themeChoices) {
-                        QuietButton(
-                            stringResource(label),
-                            selected = themeId == id,
-                            onClick = { onThemeId(id) },
-                        )
-                    }
+        Column(Modifier.padding(top = HomeMetrics.EyebrowTop)) {
+            Text(
+                "SETTINGS",
+                style = HomeMetrics.Eyebrow,
+                color = FocusColors.Live.Muted,
+                modifier = Modifier.padding(bottom = HomeMetrics.EyebrowBottom),
+            )
+            Text(
+                "Kept on this phone.",
+                style = HomeMetrics.ScreenTitle,
+                color = FocusColors.Live.Text,
+                modifier = Modifier.semantics { heading() },
+            )
+            Text(
+                "Tasks stay on this phone. There is no account.",
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+        }
+        SettingsCard {
+            Text(stringResource(R.string.settings_theme), style = MaterialTheme.typography.titleMedium)
+            ChoicePills {
+                for ((id, label) in themeChoices) {
+                    PillButton(
+                        stringResource(label),
+                        selected = themeId == id,
+                        onClick = { onThemeId(id) },
+                    )
                 }
             }
         }
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(CardRadius),
-            color = FocusColors.Live.Surface,
-        ) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(Space)) {
-                QuietButton(
-                    label = stringResource(R.string.settings_show_gestures),
-                    onClick = onShowGestures,
-                    modifier = Modifier.fillMaxWidth(),
-                )
+        SettingsCard {
+            Text("Today", style = MaterialTheme.typography.titleMedium)
+            ChoicePills {
+                for (limit in MIN_TODAY_LIMIT..MAX_TODAY_LIMIT) {
+                    PillButton(
+                        label = limit.toString(),
+                        selected = preferences.todayLimit == limit,
+                        onClick = { onTodayLimit(limit) },
+                    )
+                }
             }
         }
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(CardRadius),
-            color = FocusColors.Live.Surface,
-        ) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(Space)) {
-                Text(stringResource(R.string.settings_countdown), style = MaterialTheme.typography.titleMedium)
-                Text(
-                    stringResource(R.string.settings_countdown_copy),
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                ActionRow {
-                    for ((unit, label) in countdownUnitChoices) {
-                        QuietButton(
-                            stringResource(label),
-                            selected = countdownUnit == unit,
-                            onClick = { onCountdownUnit(unit) },
-                        )
-                    }
+        SettingsCard {
+            QuietButton(
+                label = stringResource(R.string.settings_show_gestures),
+                onClick = onShowGestures,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        SettingsCard {
+            Text(stringResource(R.string.settings_countdown), style = MaterialTheme.typography.titleMedium)
+            Text(
+                stringResource(R.string.settings_countdown_copy),
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            ChoicePills {
+                for ((unit, label) in countdownUnitChoices) {
+                    PillButton(
+                        stringResource(label),
+                        selected = countdownUnit == unit,
+                        onClick = { onCountdownUnit(unit) },
+                    )
                 }
             }
         }
         if (showHomeLayout) {
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(CardRadius),
-                color = FocusColors.Live.Surface,
-            ) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(Space)) {
-                    Text(stringResource(R.string.settings_home_layout), style = MaterialTheme.typography.titleMedium)
-                    ActionRow {
-                        for ((layout, label) in homeLayoutChoices) {
-                            QuietButton(
-                                stringResource(label),
-                                selected = homeLayout == layout,
-                                onClick = { onHomeLayout(layout) },
-                            )
-                        }
-                    }
-                }
-            }
-        }
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(CardRadius),
-            color = FocusColors.Live.Surface,
-        ) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(Space)) {
-                Text("Today", style = MaterialTheme.typography.titleMedium)
-                Text(
-                    "How many open tasks Today can hold. Empty places stay empty until you add a task. A smaller number parks the extra Today tasks in Later. The task in focus stays when it still fits.",
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                ActionRow {
-                    for (limit in MIN_TODAY_LIMIT..MAX_TODAY_LIMIT) {
-                        QuietButton(
-                            label = limit.toString(),
-                            selected = preferences.todayLimit == limit,
-                            onClick = { onTodayLimit(limit) },
+            SettingsCard {
+                Text(stringResource(R.string.settings_home_layout), style = MaterialTheme.typography.titleMedium)
+                ChoicePills {
+                    for ((layout, label) in homeLayoutChoices) {
+                        PillButton(
+                            stringResource(label),
+                            selected = homeLayout == layout,
+                            onClick = { onHomeLayout(layout) },
                         )
                     }
                 }
             }
         }
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(CardRadius),
-            color = FocusColors.Live.Surface,
-        ) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(Space)) {
-                Text("Repeats", style = MaterialTheme.typography.titleMedium)
-                Text(
-                    "Morning, noon, and night start times. A reminder uses the start of that band. Night ends when you say it does.",
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                BandTimeRow("Morning", bandTimes.morningStartMinute) { bandPicking = BandPick.MORNING }
-                BandTimeRow("Noon", bandTimes.noonStartMinute) { bandPicking = BandPick.NOON }
-                BandTimeRow("Night", bandTimes.nightStartMinute) { bandPicking = BandPick.NIGHT }
-                BandTimeRow("Night ends", bandTimes.nightEndMinute) { bandPicking = BandPick.NIGHT_END }
-            }
+        SettingsCard {
+            Text("Repeats", style = MaterialTheme.typography.titleMedium)
+            BandTimeRow("Morning", bandTimes.morningStartMinute) { bandPicking = BandPick.MORNING }
+            BandTimeRow("Noon", bandTimes.noonStartMinute) { bandPicking = BandPick.NOON }
+            BandTimeRow("Night", bandTimes.nightStartMinute) { bandPicking = BandPick.NIGHT }
+            BandTimeRow("Night ends", bandTimes.nightEndMinute) { bandPicking = BandPick.NIGHT_END }
         }
-        if (showExactAlarmPrompt) {
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(CardRadius),
-                color = FocusColors.Live.SurfaceHigh,
-            ) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(Space)) {
-                    Text("On-time reminders", style = MaterialTheme.typography.titleMedium)
-                    Text(
-                        "Repeat reminders arrive on time when exact alarms are allowed. If you skip this, they can still land a few minutes late. Home, capture, and check-off keep working either way.",
-                        style = MaterialTheme.typography.bodyLarge,
-                    )
-                    QuietButton(
-                        label = "Allow exact alarms",
-                        onClick = {
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                                context.startActivity(
-                                    Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
-                                        data = Uri.parse("package:${context.packageName}")
-                                    },
-                                )
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    QuietButton(
-                        label = "Not now",
-                        onClick = onDismissExactAlarmPrompt,
-                        modifier = Modifier.fillMaxWidth(),
+        SettingsCard {
+            Text("Nudges", style = MaterialTheme.typography.titleMedium)
+            Text(
+                "Nudges can arrive a few minutes late.",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            ChoicePills {
+                PillButton(
+                    "Off",
+                    selected = !preferences.nudgesEnabled,
+                    onClick = { onNudgeSelected(false, preferences.nudgeMinutes) },
+                )
+                for ((label, minutes) in listOf("30 min" to 30, "1 h" to 60, "2 h" to 120)) {
+                    PillButton(
+                        label,
+                        selected = preferences.nudgesEnabled && preferences.nudgeMinutes == minutes,
+                        onClick = { enableThen { onNudgeSelected(true, minutes) } },
                     )
                 }
             }
-        }
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(CardRadius),
-            color = FocusColors.Live.Surface,
-        ) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(Space)) {
-                Text("Phrases", style = MaterialTheme.typography.titleMedium)
-                Text(
-                    "A finished phrase is one tap. Angle brackets ask only for that word.",
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                preferences.savedPhrases.forEachIndexed { index, phrase ->
-                    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Space)) {
-                        Text(
-                            phrase,
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = FocusColors.Live.Text,
-                        )
-                        ActionRow {
-                            QuietButton("Rename", onClick = { renaming = index })
-                            QuietButton("Remove", onClick = { onRemovePhrase(index) })
-                        }
-                    }
-                }
-                OutlinedTextField(
-                    value = newPhrase,
-                    onValueChange = { newPhrase = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("New phrase") },
-                    placeholder = { Text("Talk to <name>") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                    keyboardActions =
-                    KeyboardActions(
-                        onDone = {
-                            onAddPhrase(newPhrase)
-                            if (newPhrase.isNotBlank()) newPhrase = ""
-                        },
-                    ),
-                )
-                QuietButton(
-                    label = "Add",
-                    onClick = {
-                        onAddPhrase(newPhrase)
-                        if (newPhrase.isNotBlank()) newPhrase = ""
-                    },
-                    enabled = newPhrase.isNotBlank(),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-        }
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(CardRadius),
-            color = FocusColors.Live.Surface,
-        ) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(Space)) {
-                Text("Nudges", style = MaterialTheme.typography.titleMedium)
-                Text(
-                    "Off, or about every 30 minutes, 1 hour, or 2 hours. Quiet hours are checked when a nudge is about to show.",
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                ActionRow {
-                    QuietButton(
-                        "Off",
-                        selected = !preferences.nudgesEnabled,
-                        onClick = { onNudgeSelected(false, preferences.nudgeMinutes) },
-                    )
-                    for ((label, minutes) in listOf("30 min" to 30, "1 h" to 60, "2 h" to 120)) {
-                        QuietButton(
-                            label,
-                            selected = preferences.nudgesEnabled && preferences.nudgeMinutes == minutes,
-                            onClick = { enableThen { onNudgeSelected(true, minutes) } },
-                        )
-                    }
-                }
-                Text("Quiet hours", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = Space))
-                Text(quietHours(preferences), style = MaterialTheme.typography.bodyLarge)
-                ActionRow {
-                    QuietButton("Start", onClick = { picking = QuietPick.START })
-                    QuietButton("End", onClick = { picking = QuietPick.END })
-                    QuietButton("Clear", onClick = { onQuietHours(null, null) })
+            TimeBoundRow(
+                label = "Quiet from",
+                value = preferences.quietStart?.takeIf { it.isNotBlank() } ?: "Not set",
+                onClick = { picking = QuietPick.START },
+            )
+            TimeBoundRow(
+                label = "Quiet until",
+                value = preferences.quietEnd?.takeIf { it.isNotBlank() } ?: "Not set",
+                onClick = { picking = QuietPick.END },
+            )
+            val quietHoursSet =
+                !preferences.quietStart.isNullOrBlank() || !preferences.quietEnd.isNullOrBlank()
+            if (quietHoursSet) {
+                ChoicePills {
+                    PillButton("Clear", onClick = { onQuietHours(null, null) })
                 }
             }
         }
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(CardRadius),
-            color = FocusColors.Live.Surface,
-        ) {
+        SettingsCard {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(Modifier.weight(1f).padding(end = 12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text("Show current task", style = MaterialTheme.typography.titleMedium)
                     Text(
-                        "An ongoing notice while Today has an open task, including when nothing is started. With nothing in focus the title is Today and the collapsed line says how many tasks are open. Expanded, each task is its own row. While a task is current or waiting, it names that task. Interrupt is on that notice only while a task is in focus. A small status icon can show. Silent: no sound or vibration. Elapsed time stays in the app. No foreground service.",
+                        "A silent notice of what is open.",
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 }
-                Switch(
+                ThemeSwitch(
                     checked = preferences.currentNotificationEnabled,
                     onCheckedChange = { enabled ->
                         if (enabled) {
@@ -415,34 +295,98 @@ fun SettingsScreen(
                             onCurrentNotification(false)
                         }
                     },
-                    modifier = Modifier.heightIn(min = 48.dp),
+                )
+            }
+        }
+        if (showExactAlarmPrompt) {
+            SettingsCard(color = FocusColors.Live.SurfaceHigh) {
+                Text("On-time reminders", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "Repeat reminders arrive on time when exact alarms are allowed. They can still land a few minutes late.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                QuietButton(
+                    label = "Allow exact alarms",
+                    onClick = {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                            context.startActivity(
+                                Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
+                                    data = Uri.parse("package:${context.packageName}")
+                                },
+                            )
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                QuietButton(
+                    label = "Not now",
+                    onClick = onDismissExactAlarmPrompt,
+                    modifier = Modifier.fillMaxWidth(),
                 )
             }
         }
         if ((preferences.nudgesEnabled || preferences.currentNotificationEnabled) && !allowed) {
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(CardRadius),
-                color = FocusColors.Live.SurfaceHigh,
-            ) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(Space)) {
+            SettingsCard(color = FocusColors.Live.SurfaceHigh) {
+                Text(
+                    "Notifications are off for Backpin. Home, capture, and recovery keep working.",
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+                QuietButton(
+                    label = "Notification settings",
+                    onClick = {
+                        val intent =
+                            Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                                putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                            }
+                        context.startActivity(intent)
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
+        SettingsCard {
+            Text("Phrases", style = MaterialTheme.typography.titleMedium)
+            Text(
+                "A finished phrase is one tap. Angle brackets ask only for that word.",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            preferences.savedPhrases.forEachIndexed { index, phrase ->
+                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Space)) {
                     Text(
-                        "Notifications are off for Backpin. Home, capture, and recovery keep working.",
+                        phrase,
                         style = MaterialTheme.typography.bodyLarge,
+                        color = FocusColors.Live.Text,
                     )
-                    QuietButton(
-                        label = "Notification settings",
-                        onClick = {
-                            val intent =
-                                Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
-                                    putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
-                                }
-                            context.startActivity(intent)
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(ButtonGap)) {
+                        PillButton("Rename", onClick = { renaming = index })
+                        PillButton("Remove", onClick = { removing = index })
+                    }
                 }
             }
+            OutlinedTextField(
+                value = newPhrase,
+                onValueChange = { newPhrase = it },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("New phrase") },
+                placeholder = { Text("Talk to <name>") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions =
+                KeyboardActions(
+                    onDone = {
+                        onAddPhrase(newPhrase)
+                        if (newPhrase.isNotBlank()) newPhrase = ""
+                    },
+                ),
+            )
+            PillButton(
+                label = "Add",
+                onClick = {
+                    onAddPhrase(newPhrase)
+                    if (newPhrase.isNotBlank()) newPhrase = ""
+                },
+                enabled = newPhrase.isNotBlank(),
+            )
         }
     }
 
@@ -458,6 +402,35 @@ fun SettingsScreen(
             onConfirm = { value ->
                 onRenamePhrase(renameIndex, value)
                 renaming = null
+            },
+        )
+    }
+
+    val removeIndex = removing
+    val removeText = removeIndex?.let { preferences.savedPhrases.getOrNull(it) }
+    LaunchedEffect(removeIndex, removeText) {
+        if (removeIndex != null && removeText == null) removing = null
+    }
+    if (removeIndex != null && removeText != null) {
+        AlertDialog(
+            onDismissRequest = { removing = null },
+            containerColor = FocusColors.Live.Surface,
+            titleContentColor = FocusColors.Live.Text,
+            title = { Text("Remove this phrase?") },
+            text = {
+                Text(removeText, style = MaterialTheme.typography.bodyLarge)
+            },
+            confirmButton = {
+                ActionRow {
+                    QuietButton("Cancel", onClick = { removing = null })
+                    QuietButton(
+                        "Remove",
+                        onClick = {
+                            onRemovePhrase(removeIndex)
+                            removing = null
+                        },
+                    )
+                }
             },
         )
     }
@@ -519,7 +492,6 @@ fun SettingsScreen(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun QuietTimeDialog(
     title: String,
@@ -528,22 +500,45 @@ private fun QuietTimeDialog(
     onConfirm: (String) -> Unit,
 ) {
     val parsed = initial?.let { runCatching { LocalTime.parse(it) }.getOrNull() }
-    val state =
-        rememberTimePickerState(
-            initialHour = parsed?.hour ?: 22,
-            initialMinute = parsed?.minute ?: 0,
-            is24Hour = true,
-        )
+    var hour by remember(initial) { mutableIntStateOf(parsed?.hour ?: 22) }
+    var minute by remember(initial) { mutableIntStateOf(parsed?.minute ?: 0) }
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = FocusColors.Live.Surface,
         titleContentColor = FocusColors.Live.Text,
         title = { Text(title) },
-        text = { TimePicker(state = state) },
+        text = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(ButtonGap),
+            ) {
+                SnapWheel(
+                    count = 24,
+                    selectedIndex = hour,
+                    onSelectedIndex = { hour = it },
+                    itemLabel = { "%02d".format(it) },
+                    modifier = Modifier.weight(1f),
+                    outlineColor = FocusColors.Live.Now,
+                    description = "Hour",
+                )
+                SnapWheel(
+                    count = 60,
+                    selectedIndex = minute,
+                    onSelectedIndex = { minute = it },
+                    itemLabel = { "%02d".format(it) },
+                    modifier = Modifier.weight(1f),
+                    outlineColor = FocusColors.Live.Now,
+                    description = "Minute",
+                )
+            }
+        },
         confirmButton = {
             ActionRow {
                 QuietButton("Cancel", onClick = onDismiss)
-                QuietButton("Save", onClick = { onConfirm("%02d:%02d".format(state.hour, state.minute)) })
+                QuietButton(
+                    "Save",
+                    onClick = { onConfirm("%02d:%02d".format(hour, minute)) },
+                )
             }
         },
     )
@@ -580,9 +575,36 @@ private fun RenamePhraseDialog(
 }
 
 @Composable
+private fun SettingsCard(
+    color: Color = FocusColors.Live.Surface,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(ButtonRadius),
+        color = color,
+    ) {
+        Column(
+            Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(Space),
+            content = content,
+        )
+    }
+}
+
+@Composable
 private fun BandTimeRow(
     label: String,
     minuteOfDay: Int,
+    onClick: () -> Unit,
+) {
+    TimeBoundRow(label = label, value = minuteOfDayClock(minuteOfDay), onClick = onClick)
+}
+
+@Composable
+private fun TimeBoundRow(
+    label: String,
+    value: String,
     onClick: () -> Unit,
 ) {
     Row(
@@ -590,8 +612,12 @@ private fun BandTimeRow(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(label, style = MaterialTheme.typography.bodyLarge)
-        QuietButton(label = minuteOfDayClock(minuteOfDay), onClick = onClick)
+        Text(
+            label,
+            style = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier.weight(1f).padding(end = 12.dp),
+        )
+        PillButton(label = value, onClick = onClick)
     }
 }
 
@@ -618,9 +644,3 @@ private val countdownUnitChoices =
 private enum class QuietPick { START, END }
 
 private enum class BandPick { MORNING, NOON, NIGHT, NIGHT_END }
-
-private fun quietHours(preferences: UserPreferences): String {
-    val start = preferences.quietStart
-    val end = preferences.quietEnd
-    return if (start.isNullOrBlank() || end.isNullOrBlank()) "Not set" else "$start – $end"
-}

@@ -31,8 +31,6 @@ import app.backpin.focus.domain.HomeLayout
 import app.backpin.focus.domain.Repeat
 import app.backpin.focus.domain.RepeatDayStatus
 import app.backpin.focus.domain.RepeatRow
-import app.backpin.focus.domain.Task
-import app.backpin.focus.ui.SlotRole
 import app.backpin.focus.ui.SlotUi
 import app.backpin.focus.ui.TaskUi
 import app.backpin.focus.ui.motion.pressScale
@@ -71,6 +69,9 @@ internal fun HomeBandsSection(
             )
         }
         bands.inOrder().forEach { group ->
+            val isCurrent = group.phase == BandPhase.OPEN
+            val hasItems = group.tasks.isNotEmpty() || group.repeats.isNotEmpty()
+            if (!isCurrent && !hasItems) return@forEach
             key(group.band) {
                 HomeBandBlock(
                     group = group,
@@ -124,6 +125,9 @@ private fun HomeBandBlock(
         mutableStateOf(startsExpanded)
     }
     val showRows = if (toggleable) expanded else true
+    val bandRows = filled.forBand(group)
+    val showTasks = bandRows.isNotEmpty() || (group.phase == BandPhase.OPEN && hasRoom)
+    val showRepeats = group.repeats.isNotEmpty()
     Column {
         HomeBandHeader(
             group = group,
@@ -131,37 +135,41 @@ private fun HomeBandBlock(
             toggleable = toggleable,
             onToggle = { expanded = !expanded },
         )
-        if (showRows) {
-            TodaySection(
-                filled = filled.forBand(group),
-                hasRoom = group.phase == BandPhase.OPEN && hasRoom,
-                todayLimit = todayLimit,
-                reducedMotion = reducedMotion,
-                somethingCurrent = somethingCurrent,
-                onOpenFocus = onOpenFocus,
-                onStart = onStart,
-                onDone = onDone,
-                onBringBack = onBringBack,
-                onInterrupt = onInterrupt,
-                onReorder = { order ->
-                    if (group.phase == BandPhase.OPEN) onReorder(order)
-                },
-                onEdit = onEditTask,
-                onOpenSheet = onOpenSheet,
-                showHeader = false,
-                layout = HomeLayout.BANDS,
-                todayTaskIds = filled.map { it.second.id }.toSet(),
-            )
-            if (group.repeats.isNotEmpty()) {
-                RepeatRowGroup(
-                    rows = group.repeats,
-                    reducedMotion = reducedMotion,
-                    layout = HomeLayout.BANDS,
-                    onCheckOff = onCheckOffRepeat,
-                    onOpenMissed = onOpenMissedRepeat,
-                    onUndo = onUndoRepeat,
-                    onEdit = onEditRepeat,
-                )
+        if (showRows && (showTasks || showRepeats)) {
+            Column(verticalArrangement = Arrangement.spacedBy(HomeLayout.BANDS.taskGap())) {
+                if (showTasks) {
+                    TodaySection(
+                        filled = bandRows,
+                        hasRoom = group.phase == BandPhase.OPEN && hasRoom,
+                        todayLimit = todayLimit,
+                        reducedMotion = reducedMotion,
+                        somethingCurrent = somethingCurrent,
+                        onOpenFocus = onOpenFocus,
+                        onStart = onStart,
+                        onDone = onDone,
+                        onBringBack = onBringBack,
+                        onInterrupt = onInterrupt,
+                        onReorder = { order ->
+                            if (group.phase == BandPhase.OPEN) onReorder(order)
+                        },
+                        onEdit = onEditTask,
+                        onOpenSheet = onOpenSheet,
+                        showHeader = false,
+                        layout = HomeLayout.BANDS,
+                        todayTaskIds = filled.map { it.second.id }.toSet(),
+                    )
+                }
+                if (showRepeats) {
+                    RepeatRowGroup(
+                        rows = group.repeats,
+                        reducedMotion = reducedMotion,
+                        layout = HomeLayout.BANDS,
+                        onCheckOff = onCheckOffRepeat,
+                        onOpenMissed = onOpenMissedRepeat,
+                        onUndo = onUndoRepeat,
+                        onEdit = onEditRepeat,
+                    )
+                }
             }
         }
     }
@@ -178,7 +186,7 @@ private fun HomeBandHeader(
     val current = group.phase == BandPhase.OPEN
     val title =
         if (current) stringResource(R.string.home_band_current, name) else name
-    val color = if (current) FocusColors.Live.Lavender else FocusColors.Live.Muted
+    val color = if (current) FocusColors.Live.Now else FocusColors.Live.Muted
     val trailing = bandCountCopy(group)
     val interaction = rememberPressSource()
     val clickModifier =
@@ -250,20 +258,8 @@ private fun HomeBand.titleRes(): Int = when (this) {
     HomeBand.ANYTIME -> R.string.home_band_anytime
 }
 
+/** Rows for this band. A task Home already hid, such as the focus head, stays out of the list. */
 private fun List<Pair<SlotUi, TaskUi>>.forBand(group: HomeBandGroup): List<Pair<SlotUi, TaskUi>> {
     val byId = associateBy { it.second.id }
-    return group.tasks.map { task ->
-        byId[task.id] ?: task.asOpenSlot()
-    }
-}
-
-private fun Task.asOpenSlot(): Pair<SlotUi, TaskUi> {
-    val ui =
-        TaskUi(
-            id = id,
-            title = title,
-            returnCue = returnCue,
-            scheduledAtMinuteOfDay = scheduledAtMinuteOfDay,
-        )
-    return SlotUi(SlotRole.OPEN, ui) to ui
+    return group.tasks.mapNotNull { task -> byId[task.id] }
 }

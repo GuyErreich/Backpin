@@ -20,4 +20,7 @@ interface RepeatDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(entity: RepeatEntity)
+
+    @Query("DELETE FROM repeats WHERE id = :id")
+    suspend fun deleteById(id: String)
 }

@@ -7,6 +7,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.backpin.focus.domain.HomeLayout
+import app.backpin.focus.ui.theme.ButtonMinHeight
 
 /**
  * Home v2 geometry from the design-v2 redline (412 dp, 1 px = 1 dp).
@@ -45,8 +46,11 @@ internal object HomeMetrics {
 
     val CountsTop = 6.dp
     val HomeTouchTarget = 48.dp
-    val ListBottom = 96.dp
-    val TabBarHeight = 64.dp
+    val SnackbarHeight = 48.dp
+
+    /** Scroll padding so the last row and footer clear the FAB, a snackbar, and 16dp. */
+    val ListBottom = ButtonMinHeight + SnackbarHeight + 16.dp
+    val TabBarHeight = 80.dp
 
     val Eyebrow =
         TextStyle(

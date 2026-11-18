@@ -26,18 +26,18 @@ class ButtonColorsTest {
     @Test
     fun accentLabelsTakeTheBorderColorAndQuietStaysText() {
         assertEquals(FocusColors.Mint, accentLabelColor(AccentTone.Mint))
-        assertEquals(FocusColors.Lavender, accentLabelColor(AccentTone.Lavender))
+        assertEquals(FocusColors.Now, accentLabelColor(AccentTone.Lavender))
         assertEquals(FocusColors.Amber, accentLabelColor(AccentTone.Amber))
         assertEquals(FocusColors.Mint, choiceLabelColor(ChoiceTone.Mint))
-        assertEquals(FocusColors.Lavender, choiceLabelColor(ChoiceTone.Lavender))
+        assertEquals(FocusColors.Now, choiceLabelColor(ChoiceTone.Lavender))
         assertEquals(FocusColors.Amber, choiceLabelColor(ChoiceTone.Amber))
         assertEquals(FocusColors.Text, choiceLabelColor(ChoiceTone.Quiet))
         assertEquals(FocusColors.Mint.copy(alpha = 0.38f), accentLabelColor(AccentTone.Mint, enabled = false))
         assertEquals(FocusColors.Amber.copy(alpha = 0.38f), choiceLabelColor(ChoiceTone.Amber, enabled = false))
         assertEquals(Color.Transparent, choiceContainerColor(ChoiceTone.Lavender, filled = false))
-        assertEquals(FocusColors.LavenderContainer, choiceContainerColor(ChoiceTone.Lavender, filled = true))
+        assertEquals(FocusColors.NowContainer, choiceContainerColor(ChoiceTone.Lavender, filled = true))
         assertEquals(
-            FocusColors.LavenderContainer.copy(alpha = 0.38f),
+            FocusColors.NowContainer.copy(alpha = 0.38f),
             choiceContainerColor(ChoiceTone.Lavender, filled = true, enabled = false),
         )
     }
@@ -52,6 +52,8 @@ class ButtonColorsTest {
                     AccentButton("Add countdown", AccentTone.Amber, onClick = {})
                     AccentButton("Resume", AccentTone.Mint, onClick = {}, enabled = false)
                     QuietButton("Later", onClick = {})
+                    QuietButton("Picked", onClick = {}, selected = true)
+                    PillButton("Pill picked", onClick = {}, selected = true)
                     CaptureChoice("Save to Inbox", onClick = {}, tone = ChoiceTone.Mint)
                     CaptureChoice("Interrupt now", onClick = {}, tone = ChoiceTone.Lavender)
                     CaptureChoice("Schedule", onClick = {}, tone = ChoiceTone.Amber)
@@ -60,12 +62,14 @@ class ButtonColorsTest {
             }
         }
         assertEquals(FocusColors.Mint, labelColor("Done"))
-        assertEquals(FocusColors.Lavender, labelColor("Interrupt"))
+        assertEquals(FocusColors.Now, labelColor("Interrupt"))
         assertEquals(FocusColors.Amber, labelColor("Add countdown"))
         assertEquals(FocusColors.Mint.copy(alpha = 0.38f), labelColor("Resume"))
         assertEquals(FocusColors.Text, labelColor("Later"))
+        assertEquals(FocusColors.Now, labelColor("Picked"))
+        assertEquals(FocusColors.Now, labelColor("Pill picked"))
         assertEquals(FocusColors.Mint, labelColor("Save to Inbox"))
-        assertEquals(FocusColors.Lavender, labelColor("Interrupt now"))
+        assertEquals(FocusColors.Now, labelColor("Interrupt now"))
         assertEquals(FocusColors.Amber, labelColor("Schedule"))
         assertEquals(FocusColors.Text, labelColor("Today"))
     }

@@ -20,6 +20,8 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.AbsoluteAlignment
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -33,20 +35,24 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import app.backpin.focus.ui.motion.MotionSpec
 import app.backpin.focus.ui.theme.CardRadius
 import app.backpin.focus.ui.theme.FocusColors
 import kotlin.math.abs
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
+
+/** The swipe band. Tests use this to see that it stays on the opened side and covers the corners. */
+internal const val SWIPE_REVEAL_COLOR_TAG = "swipe-reveal-color"
 
 private sealed interface Race {
     data object Up : Race
@@ -114,11 +120,25 @@ internal fun restoreSwipe(onRestore: () -> Unit): SwipeSide = SwipeSide(
 )
 
 @Composable
+internal fun RowSwipe.side(
+    onDone: () -> Unit = {},
+    onStart: () -> Unit = {},
+    onInterrupt: () -> Unit = {},
+    onBringBack: () -> Unit = {},
+): SwipeSide? = when (this) {
+    RowSwipe.None -> null
+    RowSwipe.Done -> doneSwipe(onDone)
+    RowSwipe.Start -> startSwipe(onStart)
+    RowSwipe.Interrupt -> interruptSwipe(onInterrupt)
+    RowSwipe.BringBack -> bringBackSwipe(onBringBack)
+}
+
+@Composable
 internal fun interruptSwipe(onInterrupt: () -> Unit): SwipeSide = SwipeSide(
     label = "Interrupt",
     accessibilityLabel = "Interrupt",
-    tint = FocusColors.Live.Lavender,
-    onTint = FocusColors.Live.OnLavender,
+    tint = FocusColors.Live.Now,
+    onTint = FocusColors.Live.OnNow,
     onCommit = onInterrupt,
 )
 
@@ -169,10 +189,20 @@ internal fun SwipeRevealCard(
                 customActions =
                     buildList {
                         startState.value?.let { side ->
-                            add(CustomAccessibilityAction(side.accessibilityLabel) { side.onCommit(); true })
+                            add(
+                                CustomAccessibilityAction(side.accessibilityLabel) {
+                                    side.onCommit()
+                                    true
+                                },
+                            )
                         }
                         endState.value?.let { side ->
-                            add(CustomAccessibilityAction(side.accessibilityLabel) { side.onCommit(); true })
+                            add(
+                                CustomAccessibilityAction(side.accessibilityLabel) {
+                                    side.onCommit()
+                                    true
+                                },
+                            )
                         }
                         addAll(extraActions)
                     }
@@ -212,8 +242,15 @@ internal fun SwipeRevealCard(
                             val edge = if (total >= 0f) width else -width
                             glide(edge, MotionSpec.SettleMillis)
                             commit()
-                            delay(64)
-                            if (abs(logicalOffset) > 1f) glide(0f, MotionSpec.SettleMillis)
+                            val started = withFrameNanos { it }
+                            val budget = MotionSpec.ReorderMillis * 1_000_000L
+                            while (startState.value != null || endState.value != null) {
+                                val now = withFrameNanos { it }
+                                if (now - started >= budget) {
+                                    if (abs(logicalOffset) > 1f) glide(0f, MotionSpec.SettleMillis)
+                                    return
+                                }
+                            }
                         } else {
                             commit?.invoke()
                             val millis = if (reduced) MotionSpec.ReducedFadeMillis else MotionSpec.SettleMillis
@@ -327,17 +364,21 @@ internal fun SwipeRevealCard(
         val revealed = revealSide(logicalOffset, startState.value, endState.value)
         val committed = threshold > 0f && abs(logicalOffset) >= threshold
         if (revealed != null && !reducedMotion) {
-            SwipeBandLayer(cornerRadius, revealed, logicalOffset, committed)
+            SwipeBandLayer(cornerRadius, revealed, logicalOffset, committed, coversCard = true)
         }
         Box(
             Modifier
                 .fillMaxWidth()
-                .graphicsLayer { translationX = visualOffset },
+                .graphicsLayer {
+                    translationX = visualOffset
+                    shape = RoundedCornerShape(cornerRadius)
+                    clip = abs(visualOffset) > 0.5f
+                },
         ) {
             content()
         }
         if (revealed != null && reducedMotion) {
-            SwipeBandLayer(cornerRadius, revealed, logicalOffset, committed)
+            SwipeBandLayer(cornerRadius, revealed, logicalOffset, committed, coversCard = false)
         }
     }
 }
@@ -358,19 +399,39 @@ private fun revealSide(
     return side?.let { RevealedSide(it, alignStart) }
 }
 
-/** Clips the band to the card corners without clipping the card's shadow. */
+/**
+ * The band is the opened side of the row, clipped to the card's rounded outline.
+ * It runs past the finger by the corner radius, so the row's transparent
+ * corners show the band instead of the page. The rest of the card stays the row.
+ * Reduced motion paints only the opened strip on top of the still card.
+ */
 @Composable
 private fun BoxScope.SwipeBandLayer(
     cornerRadius: Dp,
     revealed: RevealedSide,
     logicalOffset: Float,
     committed: Boolean,
+    coversCard: Boolean,
 ) {
     Box(
         Modifier
             .matchParentSize()
             .clip(RoundedCornerShape(cornerRadius)),
     ) {
+        if (coversCard) {
+            val reach =
+                with(LocalDensity.current) {
+                    (abs(logicalOffset) + cornerRadius.toPx() + 1.dp.toPx()).toDp()
+                }
+            Box(
+                Modifier
+                    .align(if (revealed.alignStart) AbsoluteAlignment.CenterLeft else AbsoluteAlignment.CenterRight)
+                    .width(reach)
+                    .fillMaxHeight()
+                    .background(revealed.side.tint)
+                    .testTag(SWIPE_REVEAL_COLOR_TAG),
+            )
+        }
         SwipeBand(
             side = revealed.side,
             alignStart = revealed.alignStart,
@@ -398,7 +459,7 @@ private fun BoxScope.SwipeBand(
         }
     Box(
         Modifier
-            .align(if (alignStart) Alignment.CenterStart else Alignment.CenterEnd)
+            .align(if (alignStart) AbsoluteAlignment.CenterLeft else AbsoluteAlignment.CenterRight)
             .width(band)
             .fillMaxHeight()
             .clipToBounds()

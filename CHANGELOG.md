@@ -1,6 +1,155 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [0.1.45-dev] - 24-10-2026
+
+### Bug Fixes & Resolutions
+- keep choice pills outlined (#129)
+- follow the theme on selected choices and quiet hours (#131)
+
+## [0.1.44-dev] - 23-10-2026
+
+### Bug Fixes & Resolutions
+- quiet the choice pills and drop the extra headings (#126)
+- keep choice pills outlined (#129)
+
+## [0.1.43-dev] - 23-10-2026
+
+### Bug Fixes & Resolutions
+- quiet the choice pills and drop the extra headings (#126)
+
+
+### Testing
+- touch the today row through its unmerged description (#123)
+
+## [0.1.42-dev] - 23-10-2026
+
+### Bug Fixes & Resolutions
+- keep settings choices on one row of pills (#120)
+
+
+### Testing
+- touch the today row through its unmerged description (#123)
+
+
+### Documentation
+- keep settings choice rows on pills (#122)
+
+## [0.1.41-dev] - 23-10-2026
+
+### Features & Enhancements
+- group settings into short choice cards (#118)
+
+
+### Bug Fixes & Resolutions
+- keep settings choices on one row of pills (#120)
+
+
+### Documentation
+- keep settings choice rows on pills (#122)
+
+## [0.1.39-dev] - 22-10-2026
+
+### Features & Enhancements
+- show Done on the task in focus (#116)
+- group settings into short choice cards (#118)
+
+## [0.1.38-dev] - 22-10-2026
+
+### Features & Enhancements
+- show Done on the task in focus (#116)
+
+
+### Bug Fixes & Resolutions
+- keep a gap between a band task and the repeat under it (#114)
+
+## [0.1.37-dev] - 22-10-2026
+
+### Bug Fixes & Resolutions
+- keep the swipe color a band on the opened side (#112)
+- keep a gap between a band task and the repeat under it (#114)
+
+## [0.1.36-dev] - 22-10-2026
+
+### Bug Fixes & Resolutions
+- fill the swipe color behind the rounded row (#110)
+- keep the swipe color a band on the opened side (#112)
+
+## [0.1.35-dev] - 21-10-2026
+
+### Bug Fixes & Resolutions
+- publish the preview when a staging push is not delivered (#108)
+- fill the swipe color behind the rounded row (#110)
+
+## [0.1.34-dev] - 21-10-2026
+
+### Bug Fixes & Resolutions
+- center the add pill and keep a started task in the head (#106)
+- publish the preview when a staging push is not delivered (#108)
+
+## [0.1.33-dev] - 21-10-2026
+
+### Refactoring & Code Quality
+- split CaptureSheet into create, interrupt, EditTaskSheet (#102)
+
+
+### Bug Fixes & Resolutions
+- center the add pill and keep a started task in the head (#106)
+
+## [0.1.32-dev] - 21-10-2026
+
+### Refactoring & Code Quality
+- split CaptureSheet into create, interrupt, EditTaskSheet (#102)
+
+
+### Bug Fixes & Resolutions
+- align the sheets, use the day wheel for countdowns, and restore home swipes (#103)
+
+## [0.1.31-dev] - 21-10-2026
+
+### Features & Enhancements
+- Capture sheet to Penpot C1/2 (#93)
+
+
+### Refactoring & Code Quality
+- rename FocusColors.Lavender to Now (#100)
+
+
+### Bug Fixes & Resolutions
+- design QA follow-ups for Home v2 (#92)
+- align the sheets, use the day wheel for countdowns, and restore home swipes (#103)
+
+
+### Testing
+- cover build-logic test-class parser (#81)
+- make two FocusStack ViewModel unit tests deterministic (#76)
+
+## [0.1.30-dev] - 19-10-2026
+
+### Features & Enhancements
+- Today notification matches option B (#59)
+- match Home to the frozen compact mockup (#58)
+- Capture sheet to Penpot C1/2 (#93)
+
+
+### Refactoring & Code Quality
+- rename FocusColors.Lavender to Now (#100)
+
+
+### Infrastructure & Tooling
+- run CI on pull requests to any branch (#71)
+- rerun changed tests to catch flakes (#74)
+
+
+### Bug Fixes & Resolutions
+- keep captured task in Inbox when Today is full (#57)
+- design QA follow-ups for Home v2 (#92)
+
+
+### Testing
+- cover build-logic test-class parser (#81)
+- make two FocusStack ViewModel unit tests deterministic (#76)
+
 ## [0.1.25-dev] - 19-10-2026
 
 ### Features & Enhancements

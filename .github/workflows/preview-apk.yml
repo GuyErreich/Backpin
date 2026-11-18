@@ -1,20 +1,77 @@
 name: Preview APK
 
+# Push to staging is the normal publish. A manual run builds the staging tip.
+# The release dispatch workflow starts that manual run when a promotion's push
+# event never arrives. This file does not use workflow_run: that trigger is
+# privileged, and building a checked-out ref here would execute untrusted code
+# with the preview signing secrets.
 on:
   push:
     branches:
       - staging
+  workflow_dispatch:
 
 permissions:
   contents: write
 
+concurrency:
+  group: preview-apk
+  cancel-in-progress: false
+
 jobs:
+  gate:
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    outputs:
+      build: ${{ steps.push.outputs.build || steps.manual.outputs.build }}
+    steps:
+      - name: Publish a staging push
+        id: push
+        if: github.event_name == 'push'
+        run: echo "build=true" >> "$GITHUB_OUTPUT"
+
+      - name: Skip a manual run that is already published
+        id: manual
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          tip=$(gh api "repos/${GITHUB_REPOSITORY}/commits/staging" --jq .sha)
+          published=$(gh release view preview --json targetCommitish --jq .targetCommitish || true)
+          if [ -n "$published" ]; then
+            resolved=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${published}" --jq .sha || true)
+            if [ -n "$resolved" ]; then
+              published=$resolved
+            fi
+          fi
+          if [ "$tip" = "$published" ]; then
+            echo "Staging ${tip} is already the preview release."
+            echo "build=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "build=true" >> "$GITHUB_OUTPUT"
+
   preview:
+    needs: gate
+    if: needs.gate.outputs.build == 'true'
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout the pushed commit
+        if: github.event_name == 'push'
         uses: actions/checkout@v7
         with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - name: Checkout staging
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/checkout@v7
+        with:
+          ref: staging
           fetch-depth: 0
 
       - name: Set up JDK 21
@@ -62,10 +119,11 @@ jobs:
           apk="app/build/outputs/apk/preview/app-preview.apk"
           test -f "$apk"
           cp "$apk" backpin.apk
+          sha=$(git rev-parse HEAD)
           if gh release view preview >/dev/null 2>&1; then
             gh release delete preview --yes --cleanup-tag
           fi
           gh release create preview backpin.apk \
-            --target "$GITHUB_SHA" \
+            --target "$sha" \
             --title preview \
             --notes "Latest Backpin preview."

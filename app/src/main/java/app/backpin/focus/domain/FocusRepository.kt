@@ -12,8 +12,11 @@ interface FocusRepository {
 
     val preferences: Flow<UserPreferences>
 
-    /** Adds an Inbox task. A blank title changes nothing and does not touch the active frame. */
-    suspend fun capture(title: String)
+    /**
+     * Adds an Inbox task and returns its id. A blank title changes nothing, does not
+     * touch the active frame, and returns null.
+     */
+    suspend fun capture(title: String): String?
 
     /**
      * Places a new task on Today without starting it.
@@ -36,9 +39,6 @@ interface FocusRepository {
      * task with no open frame. Anything else is a no-op.
      */
     suspend fun discardCapture(taskId: String)
-
-    /** Parks a new task in Later. Does not start it. A blank title changes nothing. */
-    suspend fun captureLater(title: String)
 
     /**
      * Stores a new task outside Inbox, Today, and Later until [scheduledOnEpochDay], and,
@@ -299,6 +299,26 @@ interface FocusRepository {
         anchorEpochDay: Long,
         reminderOn: Boolean = true,
     ): String?
+
+    /**
+     * Turns [taskId] into a new repeat and deletes the task, in one transaction.
+     * Missing, done, the active Now item, or any open frame is
+     * [ConvertToRepeatResult.Rejected]. Blank title follows [createRepeat].
+     */
+    suspend fun convertToRepeat(
+        taskId: String,
+        title: String,
+        band: RepeatBand,
+        everyNDays: Int,
+        anchorEpochDay: Long,
+        reminderOn: Boolean = true,
+    ): ConvertToRepeatResult
+
+    /**
+     * Deletes the repeat from [snapshot] (and its log rows) and restores the task.
+     * No-op when the repeat is already gone or the task id exists again.
+     */
+    suspend fun undoConvertToRepeat(snapshot: ConvertToRepeatResult.Converted)
 
     /**
      * Rewrites every field on an existing, unarchived repeat.

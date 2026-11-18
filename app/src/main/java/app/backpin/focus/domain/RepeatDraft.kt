@@ -11,6 +11,7 @@ package app.backpin.focus.domain
  * @property reminderOn Whether the band reminder should fire.
  * @property sortOrder Display order among unarchived repeats.
  * @property anchorEpochDay First due day.
+ * @property convertsTaskId When set, Save turns that task into this repeat.
  */
 data class RepeatDraft(
     val id: String? = null,
@@ -20,6 +21,7 @@ data class RepeatDraft(
     val reminderOn: Boolean = true,
     val sortOrder: Long = 0L,
     val anchorEpochDay: Long = 0L,
+    val convertsTaskId: String? = null,
 ) {
     /** True when this draft edits an existing row. */
     val editing: Boolean
@@ -27,13 +29,13 @@ data class RepeatDraft(
 }
 
 /** Copies an existing repeat into a sheet draft. */
-fun Repeat.toDraft(): RepeatDraft =
-    RepeatDraft(
-        id = id,
-        title = title,
-        band = band,
-        everyNDays = everyNDays,
-        reminderOn = reminderOn,
-        sortOrder = sortOrder,
-        anchorEpochDay = anchorEpochDay,
-    )
+fun Repeat.toDraft(): RepeatDraft = RepeatDraft(
+    id = id,
+    title = title,
+    band = band,
+    everyNDays = everyNDays,
+    reminderOn = reminderOn,
+    sortOrder = sortOrder,
+    anchorEpochDay = anchorEpochDay,
+    convertsTaskId = null,
+)

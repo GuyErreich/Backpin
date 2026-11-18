@@ -118,7 +118,7 @@ class RepeatCheckOffTest {
             }
             env.viewModel.markRepeatDone(id, today)
             await {
-                env.viewModel.repeatRows.value.rows.single().status == RepeatDayStatus.DONE &&
+                env.viewModel.repeatRows.value.rows.singleOrNull()?.status == RepeatDayStatus.DONE &&
                     env.viewModel.uiState.value.undo?.target is UndoTarget.RepeatCheckOff
             }
         } finally {

@@ -88,8 +88,12 @@ interface RepeatsApi {
 
     /**
      * Opens the create sheet, prefilled with [title].
+     * When [convertsTaskId] is set, Save turns that task into the new repeat.
      */
-    fun openCreate(title: String = "")
+    fun openCreate(
+        title: String = "",
+        convertsTaskId: String? = null,
+    )
 
     /**
      * Opens the edit sheet for an existing [repeat].
@@ -255,7 +259,10 @@ private object EmptyRepeatsApi : RepeatsApi {
 
     override fun observePendingUndo(): Flow<RepeatUndo?> = flowOf(null)
 
-    override fun openCreate(title: String) = Unit
+    override fun openCreate(
+        title: String,
+        convertsTaskId: String?,
+    ) = Unit
 
     override fun openEdit(repeat: Repeat) = Unit
 

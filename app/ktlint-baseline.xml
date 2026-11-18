@@ -949,10 +949,9 @@
         <error line="251" column="53" source="standard:function-signature" />
         <error line="276" column="39" source="standard:function-signature" />
         <error line="361" column="69" source="standard:function-signature" />
-        <error line="389" column="51" source="standard:function-signature" />
-        <error line="408" column="56" source="standard:function-signature" />
-        <error line="448" column="41" source="standard:function-signature" />
-        <error line="466" column="42" source="standard:function-signature" />
+        <error line="389" column="56" source="standard:function-signature" />
+        <error line="429" column="41" source="standard:function-signature" />
+        <error line="447" column="42" source="standard:function-signature" />
     </file>
     <file name="src/test/java/app/backpin/focus/ui/UndoSnackbarMessageTest.kt">
         <error line="28" column="1" source="standard:indent" />

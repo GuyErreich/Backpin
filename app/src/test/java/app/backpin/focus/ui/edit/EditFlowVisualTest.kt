@@ -19,10 +19,10 @@ import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.sp
 import app.backpin.focus.domain.CapturePlace
 import app.backpin.focus.ui.TaskUi
-import app.backpin.focus.ui.capture.CaptureEdit
-import app.backpin.focus.ui.capture.CaptureSheet
 import app.backpin.focus.ui.capture.SpeechProblem
 import app.backpin.focus.ui.capture.UtteranceRecognizer
+import app.backpin.focus.ui.edit.CaptureEdit
+import app.backpin.focus.ui.edit.EditTaskSheet
 import app.backpin.focus.ui.home.InboxScreen
 import app.backpin.focus.ui.theme.FocusColors
 import app.backpin.focus.ui.theme.FocusStackTheme
@@ -66,10 +66,10 @@ class EditFlowVisualTest {
                 Surface(color = FocusColors.Midnight, modifier = Modifier.fillMaxSize()) {
                     InboxScreen(
                         tasks =
-                            listOf(
-                                TaskUi(id = "1", title = first, returnCue = null),
-                                TaskUi(id = "2", title = "Buy printer ink", returnCue = null),
-                            ),
+                        listOf(
+                            TaskUi(id = "1", title = first, returnCue = null),
+                            TaskUi(id = "2", title = "Buy printer ink", returnCue = null),
+                        ),
                         ready = true,
                         canInterrupt = false,
                         onBack = {},
@@ -79,21 +79,14 @@ class EditFlowVisualTest {
                         onEdit = {},
                     )
                     editTitle?.let { title ->
-                        CaptureSheet(
-                            phrases = emptyList(),
-                            frameActive = false, today = app.backpin.focus.testing.FakeAppClock().localDate(),
-                            onDismiss = {},
-                            onSaveToInbox = {},
-                            onInterruptNow = {},
-                            onPlaceToday = {},
-                            onPlaceStart = {},
-                            onPlaceLater = {},
-                            onSchedule = { _, _, _ -> },
+                        EditTaskSheet(
                             edit =
-                                CaptureEdit(
-                                    title = title,
-                                    place = CapturePlace.INBOX,
-                                ),
+                            CaptureEdit(
+                                taskId = "task-1",
+                                title = title,
+                                place = CapturePlace.INBOX,
+                            ),
+                            onDismiss = {},
                             onCommitEdit = { _, _, _ -> },
                             recognizer = SilentRecognizer,
                         )
@@ -125,10 +118,10 @@ class EditFlowVisualTest {
                 Surface(color = FocusColors.Midnight, modifier = Modifier.fillMaxSize()) {
                     InboxScreen(
                         tasks =
-                            listOf(
-                                TaskUi(id = "1", title = first, returnCue = null),
-                                TaskUi(id = "2", title = second, returnCue = null),
-                            ),
+                        listOf(
+                            TaskUi(id = "1", title = first, returnCue = null),
+                            TaskUi(id = "2", title = second, returnCue = null),
+                        ),
                         ready = true,
                         canInterrupt = false,
                         onBack = {},

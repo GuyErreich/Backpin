@@ -92,7 +92,7 @@ class RepeatHomeDayRefreshTest {
 
             await {
                 titles(env) == setOf("Take meds") &&
-                    env.viewModel.repeatRows.value.rows.single().status == RepeatDayStatus.OPEN
+                    env.viewModel.repeatRows.value.rows.singleOrNull()?.status == RepeatDayStatus.OPEN
             }
             assertTrue(rowsBefore.rows.any { it.repeat.title == "Water plants" })
             assertFalse(env.viewModel.repeatRows.value.rows.any { it.repeat.title == "Water plants" })
@@ -133,7 +133,7 @@ class RepeatHomeDayRefreshTest {
 
             await {
                 titles(env) == setOf("Take meds") &&
-                    env.viewModel.repeatRows.value.rows.single().status == RepeatDayStatus.OPEN
+                    env.viewModel.repeatRows.value.rows.singleOrNull()?.status == RepeatDayStatus.OPEN
             }
             assertTrue(emissions.size > beforeBackground)
             assertFalse(env.viewModel.repeatRows.value.rows.any { it.repeat.title == "Water plants" })

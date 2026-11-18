@@ -131,8 +131,9 @@ class CaptureDestinationTest {
                     id
                 },
                 DiscardRow("moved to Later", deleted = false) { repo ->
-                    repo.captureLater("Call the school")
-                    repo.observeSnapshot().first().tasks.single { it.title == "Call the school" }.id
+                    val id = repo.seedInbox("Call the school").single().id
+                    repo.demote(id)
+                    id
                 },
                 DiscardRow("scheduled", deleted = false) { repo ->
                     repo.captureScheduled("Call the school", laterDay)
@@ -167,14 +168,6 @@ class CaptureDestinationTest {
                 }
             }
         }
-    }
-
-    @Test
-    fun laterParksWithoutStarting() = runBlocking {
-        repository.captureLater("Call the vendor")
-        val task = taskNamed("Call the vendor")
-        assertEquals(TaskBucket.LATER, task.bucket)
-        assertTrue(snapshot().frames.none { it.taskId == task.id })
     }
 
     @Test

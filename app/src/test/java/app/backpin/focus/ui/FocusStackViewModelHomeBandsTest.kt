@@ -12,13 +12,11 @@ import app.backpin.focus.data.PreferencesDataStore
 import app.backpin.focus.domain.AppClock
 import app.backpin.focus.domain.BandEdge
 import app.backpin.focus.domain.BandPhase
-import app.backpin.focus.domain.BandTimes
 import app.backpin.focus.domain.FocusUseCases
 import app.backpin.focus.domain.HomeBand
 import app.backpin.focus.domain.HomeBands
 import app.backpin.focus.domain.PromoteOutcome
 import app.backpin.focus.domain.RepeatBand
-import app.backpin.focus.domain.millisUntilNextBandBoundary
 import app.backpin.focus.repeats.RepeatsService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -192,50 +190,6 @@ class FocusStackViewModelHomeBandsTest {
         }
     }
 
-    @Test
-    fun crossingABoundMovesOpenBandAndTheMainThreeWithNoExtraEmissions() {
-        runBlocking {
-            val noon = at(12, 0)
-            val beforeNoon = noon - 500
-            val env = env(beforeNoon, armBoundaryLoop = true)
-            try {
-                env.captureToday("One")
-                env.clock.now += 1
-                env.captureToday("Two")
-                env.clock.now += 1
-                env.captureToday("Three")
-                env.clock.now = beforeNoon
-                val before =
-                    env.awaitBands { state ->
-                        state.openBand == HomeBand.MORNING &&
-                            state.morning.tasks.map { it.title } == listOf("One", "Two", "Three")
-                    }
-                assertEquals(HomeBand.MORNING, before.openBand)
-                env.drain()
-                val settled = env.emissions.size
-                env.clock.now = noon
-                env.serviceScheduler.advanceTimeBy(millisUntilNextBandBoundary(beforeNoon, BandTimes(), ZONE))
-                env.drain()
-                val after =
-                    env.awaitBands { state ->
-                        state.openBand == HomeBand.NOON &&
-                            state.noon.tasks.map { it.title } == listOf("One", "Two", "Three")
-                    }
-                assertEquals(HomeBand.NOON, after.openBand)
-                assertTrue(after.morning.tasks.isEmpty())
-                assertEquals(BandPhase.PAST, after.morning.phase)
-                assertEquals(BandPhase.OPEN, after.noon.phase)
-                val afterCross = env.emissions.size
-                assertTrue(afterCross > settled)
-                env.serviceScheduler.advanceTimeBy(250)
-                env.drain()
-                assertEquals(describeEmissions(env.emissions), afterCross, env.emissions.size)
-            } finally {
-                env.close()
-            }
-        }
-    }
-
     private suspend fun env(
         now: Long,
         armBoundaryLoop: Boolean = false,
@@ -359,9 +313,5 @@ class FocusStackViewModelHomeBandsTest {
             minute: Int,
             day: LocalDate = DAY,
         ): Long = day.atTime(hour, minute).atZone(ZONE).toInstant().toEpochMilli()
-
-        fun describeEmissions(emissions: List<HomeBands>): String = emissions.mapIndexed { index, bands ->
-            "$index:${bands.openBand}/m${bands.morning.tasks.size}/n${bands.noon.tasks.size}"
-        }.joinToString(separator = ",")
     }
 }

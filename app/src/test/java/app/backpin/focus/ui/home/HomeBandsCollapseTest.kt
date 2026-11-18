@@ -9,11 +9,14 @@ import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertHasNoClickAction
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.click
+import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.unit.dp
 import app.backpin.focus.R
 import app.backpin.focus.domain.BandPhase
 import app.backpin.focus.domain.HomeBand
@@ -32,6 +35,7 @@ import app.backpin.focus.ui.SlotRole
 import app.backpin.focus.ui.SlotUi
 import app.backpin.focus.ui.TaskUi
 import app.backpin.focus.ui.theme.FocusStackTheme
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -77,6 +81,37 @@ class HomeBandsCollapseTest {
         compose.onNodeWithText("Night stretch", useUnmergedTree = true).assertIsDisplayed()
         compose.onNodeWithText("Noon walk", useUnmergedTree = true).assertIsDisplayed()
         compose.onNodeWithText("Loose thread", useUnmergedTree = true).assertIsDisplayed()
+    }
+
+    @Test
+    fun repeatKeepsTheSameGapBelowTheLastTask() {
+        show(
+            HomeBands(
+                morning = group(HomeBand.MORNING, BandPhase.PAST),
+                noon =
+                group(
+                    HomeBand.NOON,
+                    BandPhase.OPEN,
+                    tasks = listOf(task("one", "Physiotherapist"), task("two", "Call the vet")),
+                    repeats = listOf(repeatRow("Brush teeth", RepeatBand.NOON, RepeatDayStatus.OPEN)),
+                    counts = HomeBandCounts(left = 3),
+                ),
+                night = group(HomeBand.NIGHT, BandPhase.FUTURE),
+                anytime = group(HomeBand.ANYTIME, BandPhase.ALWAYS_OPEN),
+                openBand = HomeBand.NOON,
+            ),
+        )
+        val first = card("Physiotherapist")
+        val second = card("Call the vet")
+        val repeat = card("Brush teeth")
+        val betweenTasks = second.top - first.bottom
+        val beforeRepeat = repeat.top - second.bottom
+        assertTrue("tasks keep a gap: $betweenTasks", betweenTasks >= HomeMetrics.TaskGap - 0.5.dp)
+        assertTrue(
+            "repeat keeps the task gap, before=$beforeRepeat between=$betweenTasks",
+            beforeRepeat >= HomeMetrics.TaskGap - 0.5.dp &&
+                kotlin.math.abs(beforeRepeat.value - betweenTasks.value) <= 1f,
+        )
     }
 
     @Test
@@ -144,6 +179,8 @@ class HomeBandsCollapseTest {
         }
         compose.waitForIdle()
     }
+
+    private fun card(title: String) = compose.onNode(hasContentDescription(title, substring = true)).getBoundsInRoot()
 
     private fun tap(text: String) {
         compose.waitForIdle()

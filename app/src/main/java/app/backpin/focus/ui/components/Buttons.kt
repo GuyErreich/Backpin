@@ -20,6 +20,8 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -28,11 +30,20 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.IntrinsicMeasurable
+import androidx.compose.ui.layout.IntrinsicMeasureScope
 import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.LayoutModifier
+import androidx.compose.ui.layout.Measurable
+import androidx.compose.ui.layout.MeasureResult
+import androidx.compose.ui.layout.MeasureScope
+import androidx.compose.ui.layout.Placeable
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
@@ -49,10 +60,11 @@ import app.backpin.focus.ui.theme.ButtonPadding
 import app.backpin.focus.ui.theme.ButtonRadius
 import app.backpin.focus.ui.theme.CardActionGap
 import app.backpin.focus.ui.theme.CardActionHeight
+import app.backpin.focus.ui.theme.ChoicePillHeight
 import app.backpin.focus.ui.theme.FocusColors
 import app.backpin.focus.ui.theme.RowDoneHeight
 
-/** Mint is the one primary action. Lavender is Interrupt and events. Amber is missed or due. */
+/** Mint is the one primary action. Now is Interrupt and events. Amber is missed or due. */
 internal enum class AccentTone {
     Mint,
     Lavender,
@@ -73,6 +85,9 @@ private const val MAX_PER_ROW = 3
 /** Inside an [ActionRow] the row sets the width, so the label gets the room instead. */
 private val RowButtonPadding = 8.dp
 
+/** Horizontal room inside a settings choice pill. The pill stays as wide as its label. */
+private val ChoicePillPadding = 12.dp
+
 /** Horizontal room around a card-action label. The button stays as wide as that label. */
 private val CardActionPadding = 12.dp
 
@@ -88,7 +103,7 @@ private fun Color.shown(enabled: Boolean): Color = if (enabled) this else copy(a
 /** Tone swatch for the Signal palette. */
 private fun AccentTone.color(): Color = when (this) {
     AccentTone.Mint -> FocusColors.Mint
-    AccentTone.Lavender -> FocusColors.Lavender
+    AccentTone.Lavender -> FocusColors.Now
     AccentTone.Amber -> FocusColors.Amber
 }
 
@@ -98,7 +113,7 @@ internal fun accentLabelColor(
     enabled: Boolean = true,
 ): Color = tone.color().shown(enabled)
 
-/** Label of a [CaptureChoice]: the accent for Mint, Lavender, and Amber, plain text for Quiet. */
+/** Label of a [CaptureChoice]: the accent for Mint, Lavender (Now), and Amber, plain text for Quiet. */
 internal fun choiceLabelColor(
     tone: ChoiceTone,
     enabled: Boolean = true,
@@ -118,7 +133,7 @@ internal fun choiceContainerColor(
     if (!filled) return Color.Transparent
     val fill =
         when (tone) {
-            ChoiceTone.Lavender -> FocusColors.LavenderContainer
+            ChoiceTone.Lavender -> FocusColors.NowContainer
             ChoiceTone.Mint -> FocusColors.Mint.copy(alpha = 0.25f)
             ChoiceTone.Amber -> FocusColors.Amber.copy(alpha = 0.25f)
             ChoiceTone.Quiet -> FocusColors.SurfaceHigh
@@ -132,7 +147,7 @@ internal fun choiceContainerColor(
  * The label color is set on the text itself; theme typography would otherwise win over the content color.
  */
 @Composable
-private fun OutlinedFocusButton(
+private fun FocusButtonShell(
     label: String,
     labelColor: Color,
     borderColor: Color,
@@ -246,10 +261,10 @@ internal fun AccentButton(
     val color =
         when (tone) {
             AccentTone.Mint -> FocusColors.Live.Mint
-            AccentTone.Lavender -> FocusColors.Live.Lavender
+            AccentTone.Lavender -> FocusColors.Live.Now
             AccentTone.Amber -> FocusColors.Live.Amber
         }.shown(enabled)
-    OutlinedFocusButton(
+    FocusButtonShell(
         label = label,
         labelColor = color,
         borderColor = color,
@@ -261,8 +276,9 @@ internal fun AccentButton(
 }
 
 /**
- * Every other button. Scales while pressed. [selected] marks the current pick in a set of
- * choices, such as a Settings option, with a filled surface and a brighter edge.
+ * Every other button. Scales while pressed. [selected] marks the current pick.
+ * The label and border use Now, and NowContainer fills behind them.
+ * An unselected choice stays outlined so the card shows through.
  */
 @Composable
 internal fun QuietButton(
@@ -274,12 +290,11 @@ internal fun QuietButton(
 ) {
     val interaction = rememberPressSource()
     val picked = selected == true
-    val text = FocusColors.Live.Text.shown(enabled)
-    val outline = FocusColors.Live.Outline.shown(enabled)
-    OutlinedFocusButton(
+    val paint = quietChoicePaint(picked, enabled)
+    FocusButtonShell(
         label = label,
-        labelColor = text,
-        borderColor = if (picked) text else outline,
+        labelColor = paint.label,
+        borderColor = paint.border,
         onClick = onClick,
         modifier =
         modifier
@@ -287,9 +302,68 @@ internal fun QuietButton(
             .then(if (selected != null) Modifier.semantics { this.selected = picked } else Modifier),
         enabled = enabled,
         interactionSource = interaction,
-        containerColor = if (picked) FocusColors.Live.SurfaceHigh else Color.Transparent,
+        containerColor = paint.container,
     )
 }
+
+/** The one switch. On uses Now for the thumb and border, and NowContainer for the track. */
+@Composable
+internal fun ThemeSwitch(
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+) {
+    Switch(
+        checked = checked,
+        onCheckedChange = onCheckedChange,
+        modifier = modifier.heightIn(min = 48.dp),
+        enabled = enabled,
+        colors =
+        SwitchDefaults.colors(
+            checkedThumbColor = FocusColors.Live.Now,
+            checkedTrackColor = FocusColors.Live.NowContainer,
+            checkedBorderColor = FocusColors.Live.Now,
+            uncheckedThumbColor = FocusColors.Live.Muted,
+            uncheckedTrackColor = Color.Transparent,
+            uncheckedBorderColor = FocusColors.Live.Outline,
+            disabledCheckedThumbColor = FocusColors.Live.Now.shown(false),
+            disabledCheckedTrackColor = FocusColors.Live.NowContainer.shown(false),
+            disabledCheckedBorderColor = FocusColors.Live.Now.shown(false),
+            disabledUncheckedThumbColor = FocusColors.Live.Muted.shown(false),
+            disabledUncheckedTrackColor = Color.Transparent,
+            disabledUncheckedBorderColor = FocusColors.Live.Outline.shown(false),
+        ),
+    )
+}
+
+/** Paint for a quiet choice. Selected follows the active theme's Now color. */
+@Composable
+private fun quietChoicePaint(
+    picked: Boolean,
+    enabled: Boolean,
+): ChoicePaint {
+    val now = FocusColors.Live.Now.shown(enabled)
+    return if (picked) {
+        ChoicePaint(
+            label = now,
+            border = now,
+            container = FocusColors.Live.NowContainer.shown(enabled),
+        )
+    } else {
+        ChoicePaint(
+            label = FocusColors.Live.Text.shown(enabled),
+            border = FocusColors.Live.Outline.shown(enabled),
+            container = Color.Transparent,
+        )
+    }
+}
+
+private data class ChoicePaint(
+    val label: Color,
+    val border: Color,
+    val container: Color,
+)
 
 /**
  * Full-width sheet button. No press scale: a graphics layer that shrinks during the
@@ -306,30 +380,26 @@ internal fun CaptureChoice(
     filled: Boolean = false,
     selected: Boolean = false,
 ) {
+    val quiet = if (tone == ChoiceTone.Quiet) quietChoicePaint(selected, enabled) else null
     val labelColor =
-        when (tone) {
-            ChoiceTone.Mint -> FocusColors.Live.Mint
-            ChoiceTone.Lavender -> FocusColors.Live.Lavender
-            ChoiceTone.Amber -> FocusColors.Live.Amber
-            ChoiceTone.Quiet -> FocusColors.Live.Text
-        }.shown(enabled)
-    val borderColor =
-        when {
-            selected && tone == ChoiceTone.Quiet -> FocusColors.Live.Text.shown(enabled)
-            tone == ChoiceTone.Quiet -> FocusColors.Live.Outline.shown(enabled)
-            else -> labelColor
-        }
+        quiet?.label
+            ?: when (tone) {
+                ChoiceTone.Mint -> FocusColors.Live.Mint
+                ChoiceTone.Lavender -> FocusColors.Live.Now
+                ChoiceTone.Amber -> FocusColors.Live.Amber
+                ChoiceTone.Quiet -> FocusColors.Live.Text
+            }.shown(enabled)
     val fill =
         when (tone) {
-            ChoiceTone.Lavender -> FocusColors.Live.LavenderContainer
+            ChoiceTone.Lavender -> FocusColors.Live.NowContainer
             ChoiceTone.Mint -> FocusColors.Live.Mint.copy(alpha = 0.25f)
             ChoiceTone.Amber -> FocusColors.Live.Amber.copy(alpha = 0.25f)
-            ChoiceTone.Quiet -> FocusColors.Live.SurfaceHigh
+            ChoiceTone.Quiet -> FocusColors.Live.NowContainer
         }
-    OutlinedFocusButton(
+    FocusButtonShell(
         label = label,
         labelColor = labelColor,
-        borderColor = borderColor,
+        borderColor = quiet?.border ?: labelColor,
         onClick = onClick,
         modifier =
         modifier
@@ -340,10 +410,41 @@ internal fun CaptureChoice(
         interactionSource = null,
         containerColor =
         when {
-            filled -> fill.shown(enabled)
-            selected -> FocusColors.Live.SurfaceHigh
+            quiet != null -> if (filled) fill.shown(enabled) else quiet.container
+            filled || selected -> fill.shown(enabled)
             else -> Color.Transparent
         },
+    )
+}
+
+/**
+ * Penpot Button/Primary: solid mint fill, dark label. The one filled primary per screen
+ * (sheet Save, Capture Save to Inbox). Same 56dp sheet height and no press-scale as
+ * [CaptureChoice], so a tap is not lost. Refuses focus so the keyboard does not resize
+ * the sheet between down and up — keep that for IME taps; keyboard users reach Save via
+ * the field's Done action.
+ */
+@Composable
+internal fun PrimaryButton(
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+) {
+    val fill = FocusColors.Live.Mint.shown(enabled)
+    val content = FocusColors.Live.OnMint.shown(enabled)
+    FocusButtonShell(
+        label = label,
+        labelColor = content,
+        borderColor = fill,
+        onClick = onClick,
+        modifier =
+        modifier
+            .fillMaxWidth()
+            .focusProperties { canFocus = false },
+        enabled = enabled,
+        interactionSource = null,
+        containerColor = fill,
     )
 }
 
@@ -382,6 +483,160 @@ internal fun ActionRow(
                 }
             }
         }
+    }
+}
+
+/**
+ * A settings choice pill. As wide as [label], and exactly [ChoicePillHeight] tall.
+ * It stays an outlined [QuietButton], so an unselected pill shows the card behind it.
+ * A centered label measured with an unlimited width collapses, so the width is taken from
+ * the text first and then given to the button as a real limit.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun PillButton(
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    selected: Boolean? = null,
+) {
+    val measurer = rememberTextMeasurer()
+    val textWidth =
+        measurer
+            .measure(
+                text = label,
+                style = ButtonLabel,
+                maxLines = 1,
+                constraints = Constraints(maxWidth = 10_000),
+            ).size.width
+    val density = LocalDensity.current
+    val padding = with(density) { ChoicePillPadding.roundToPx() }
+    val shortest = with(density) { ChoicePillHeight.roundToPx() }
+    CompositionLocalProvider(
+        LocalButtonPadding provides ChoicePillPadding,
+        LocalButtonVerticalPadding provides 0.dp,
+        LocalButtonMinHeight provides ChoicePillHeight,
+        LocalMinimumInteractiveComponentSize provides 0.dp,
+    ) {
+        QuietButton(
+            label = label,
+            onClick = onClick,
+            modifier =
+            modifier
+                .height(ChoicePillHeight)
+                .pillWidth(maxOf(textWidth + padding * 2, shortest)),
+            enabled = enabled,
+            selected = selected,
+        )
+    }
+}
+
+private fun Modifier.pillWidth(labelWidth: Int): Modifier = this.then(
+    object : LayoutModifier {
+        override fun MeasureScope.measure(
+            measurable: Measurable,
+            constraints: Constraints,
+        ): MeasureResult {
+            val width =
+                if (constraints.hasFixedWidth) {
+                    constraints.maxWidth
+                } else {
+                    labelWidth.coerceIn(constraints.minWidth, constraints.maxWidth)
+                }
+            val placeable =
+                measurable.measure(constraints.copy(minWidth = width, maxWidth = width))
+            return layout(placeable.width, placeable.height) { placeable.place(0, 0) }
+        }
+
+        override fun IntrinsicMeasureScope.maxIntrinsicWidth(
+            measurable: IntrinsicMeasurable,
+            height: Int,
+        ): Int = labelWidth
+
+        override fun IntrinsicMeasureScope.minIntrinsicWidth(
+            measurable: IntrinsicMeasurable,
+            height: Int,
+        ): Int = labelWidth
+    },
+)
+
+/**
+ * Settings choices in one line of pills, each as wide as its label. A label that does not
+ * fit wraps to the next line instead of stretching into an equal-width grid.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun ChoicePills(
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) {
+    CompositionLocalProvider(
+        LocalButtonPadding provides ChoicePillPadding,
+        LocalMinimumInteractiveComponentSize provides 0.dp,
+    ) {
+        Layout(content = content, modifier = modifier.fillMaxWidth()) { measurables, constraints ->
+            if (measurables.isEmpty()) return@Layout layout(constraints.maxWidth, 0) {}
+            val gap = ButtonGap.roundToPx()
+            val maxWidth = constraints.maxWidth
+            val unbounded =
+                constraints.copy(
+                    minWidth = 0,
+                    minHeight = 0,
+                    maxWidth = Constraints.Infinity,
+                    maxHeight = Constraints.Infinity,
+                )
+            val placeables = measurables.map { it.measure(unbounded) }
+            val rows = mutableListOf<MutableList<Placeable>>()
+            var line = mutableListOf<Placeable>()
+            var used = 0
+            placeables.forEach { placeable ->
+                val next = if (line.isEmpty()) placeable.width else used + gap + placeable.width
+                if (line.isNotEmpty() && next > maxWidth) {
+                    rows += line
+                    line = mutableListOf(placeable)
+                    used = placeable.width
+                } else {
+                    line += placeable
+                    used = next
+                }
+            }
+            if (line.isNotEmpty()) rows += line
+            val height =
+                rows.sumOf { row -> row.maxOf { it.height } } + gap * (rows.size - 1).coerceAtLeast(0)
+            layout(maxWidth, height) {
+                var y = 0
+                rows.forEach { row ->
+                    var x = 0
+                    val rowHeight = row.maxOf { it.height }
+                    row.forEach { placeable ->
+                        placeable.placeRelative(x, y)
+                        x += placeable.width + gap
+                    }
+                    y += rowHeight + gap
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Equal-width [QuietButton] row at [CardActionHeight]. Capture's OR, WHEN? destinations
+ * share the line this way, 48dp tall, instead of the 56dp sheet [ActionRow].
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun SecondaryActionRow(
+    modifier: Modifier = Modifier,
+    gap: Dp = ButtonGap,
+    content: @Composable () -> Unit,
+) {
+    CompositionLocalProvider(
+        LocalButtonMinHeight provides CardActionHeight,
+        LocalLockButtonHeight provides true,
+        LocalMinimumInteractiveComponentSize provides 0.dp,
+    ) {
+        ActionRow(modifier = modifier, gap = gap, content = content)
     }
 }
 

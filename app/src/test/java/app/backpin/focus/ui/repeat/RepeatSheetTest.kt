@@ -15,7 +15,6 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performScrollTo
-import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performTouchInput
 import app.backpin.focus.domain.CapturePlace
@@ -23,10 +22,10 @@ import app.backpin.focus.domain.Repeat
 import app.backpin.focus.domain.RepeatBand
 import app.backpin.focus.domain.RepeatDraft
 import app.backpin.focus.domain.toDraft
-import app.backpin.focus.ui.capture.CaptureEdit
-import app.backpin.focus.ui.capture.CaptureSheet
 import app.backpin.focus.ui.capture.SpeechProblem
 import app.backpin.focus.ui.capture.UtteranceRecognizer
+import app.backpin.focus.ui.edit.CaptureEdit
+import app.backpin.focus.ui.edit.EditTaskSheet
 import app.backpin.focus.ui.theme.FocusStackTheme
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -46,51 +45,14 @@ class RepeatSheetTest {
     val compose = createAndroidComposeRule<ComponentActivity>()
 
     @Test
-    fun captureRepeatOpensTheRepeatSheetWithThatTitle() {
-        var captured: String? = null
-        compose.setContent {
-            FocusStackTheme {
-                CaptureSheet(
-                    phrases = emptyList(),
-                    frameActive = false,
-                    today = app.backpin.focus.testing.FakeAppClock().localDate(),
-                    onDismiss = {},
-                    onSaveToInbox = {},
-                    onInterruptNow = {},
-                    onPlaceToday = {},
-                    onPlaceStart = {},
-                    onPlaceLater = {},
-                    onSchedule = { _, _, _ -> },
-                    recognizer = SilentRecognizer,
-                    onRepeat = { captured = it },
-                )
-            }
-        }
-        compose.onNode(hasSetTextAction()).performTextInput("Take meds")
-        compose.onNodeWithText("Repeat").performScrollTo()
-        tap("Repeat")
-        assertEquals("Take meds", captured)
-    }
-
-    @Test
     fun taskEditSheetDoesNotOfferRepeat() {
         compose.setContent {
             FocusStackTheme {
-                CaptureSheet(
-                    phrases = emptyList(),
-                    frameActive = false,
-                    today = app.backpin.focus.testing.FakeAppClock().localDate(),
+                EditTaskSheet(
+                    edit = CaptureEdit(taskId = "task-1", title = "Water plants", place = CapturePlace.INBOX),
                     onDismiss = {},
-                    onSaveToInbox = {},
-                    onInterruptNow = {},
-                    onPlaceToday = {},
-                    onPlaceStart = {},
-                    onPlaceLater = {},
-                    onSchedule = { _, _, _ -> },
-                    edit = CaptureEdit(title = "Water plants", place = CapturePlace.INBOX),
                     onCommitEdit = { _, _, _ -> },
                     recognizer = SilentRecognizer,
-                    onRepeat = {},
                 )
             }
         }

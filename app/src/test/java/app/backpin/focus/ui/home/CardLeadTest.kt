@@ -47,13 +47,13 @@ class CardLeadTest {
             FocusStackTheme {
                 InboxScreen(
                     tasks =
-                        listOf(
-                            TaskUi(
-                                id = "1",
-                                title = "Call Dana",
-                                returnCue = null,
-                            ),
+                    listOf(
+                        TaskUi(
+                            id = "1",
+                            title = "Call Dana",
+                            returnCue = null,
                         ),
+                    ),
                     ready = true,
                     canInterrupt = true,
                     onBack = {},
@@ -91,15 +91,11 @@ class CardLeadTest {
             FocusStackTheme {
                 CaptureSheet(
                     phrases = emptyList(),
-                    frameActive = true,
-                    today = app.backpin.focus.testing.FakeAppClock().localDate(),
                     onDismiss = {},
                     onSaveToInbox = {},
                     onInterruptNow = {},
                     onPlaceToday = {},
                     onPlaceStart = {},
-                    onPlaceLater = {},
-                    onSchedule = { _, _, _ -> },
                 )
             }
         }

@@ -1,7 +1,17 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package app.backpin.focus.ui.home
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -68,6 +78,9 @@ import app.backpin.focus.ui.NowUi
 import app.backpin.focus.ui.SlotRole
 import app.backpin.focus.ui.SlotUi
 import app.backpin.focus.ui.TaskUi
+import app.backpin.focus.ui.components.AccentButton
+import app.backpin.focus.ui.components.AccentTone
+import app.backpin.focus.ui.components.CardActions
 import app.backpin.focus.ui.focus.RecoveryCard
 import app.backpin.focus.ui.motion.MotionSpec
 import app.backpin.focus.ui.motion.motionSpec
@@ -98,8 +111,14 @@ fun HomeScreen(
     val repeatRows by viewModel.repeatRows.collectAsStateWithLifecycle()
     val homeBands by viewModel.homeBands.collectAsStateWithLifecycle()
     val todayLimit = state.preferences.todayLimit.coerceIn(MIN_TODAY_LIMIT, MAX_TODAY_LIMIT)
-    val filled = state.todaySlots.mapNotNull { slot -> slot.task?.let { slot to it } }
-    val hasRoom = filled.size < todayLimit
+    val occupied = state.todaySlots.mapNotNull { slot -> slot.task?.let { slot to it } }
+    val hasRoom = occupied.size < todayLimit
+    val hiddenId = state.now?.taskId
+    val filled = occupied.filter { (slot, _) -> slot.role != SlotRole.NOW }
+    val fullIds = occupied.map { it.second.id }
+    val reorderToday: (List<String>) -> Unit = { visibleOrder ->
+        viewModel.reorderToday(insertHiddenHead(fullIds, visibleOrder, hiddenId))
+    }
     val showGestureHint =
         !state.preferences.gestureHintRightSeen || !state.preferences.gestureHintLeftSeen
     val openBringBack: (String, String) -> Unit = { id, title ->
@@ -147,7 +166,20 @@ fun HomeScreen(
             if (!state.ready) {
                 Text(stringResource(R.string.home_loading), style = MaterialTheme.typography.bodyLarge)
             } else {
-                NowCard(state, viewModel, onOpenFocus, reducedMotion, openBringBack, onCompleteActive)
+                AnimatedContent(
+                    targetState = state.now,
+                    contentKey = { it?.taskId },
+                    transitionSpec = { rowEnter(reducedMotion) togetherWith rowExit(reducedMotion) },
+                    label = "focusHead",
+                ) { current ->
+                    NowCard(
+                        state.copy(now = current),
+                        viewModel,
+                        onOpenFocus,
+                        reducedMotion,
+                        onCompleteActive,
+                    )
+                }
                 if (grouped) {
                     HomeBandsSection(
                         bands = homeBands,
@@ -161,7 +193,7 @@ fun HomeScreen(
                         onDone = onDone,
                         onBringBack = openBringBack,
                         onInterrupt = viewModel::interruptWith,
-                        onReorder = viewModel::reorderToday,
+                        onReorder = reorderToday,
                         onEditTask = viewModel::openEdit,
                         onOpenSheet = viewModel::openTaskSheet,
                         onCheckOffRepeat = { row ->
@@ -190,7 +222,7 @@ fun HomeScreen(
                         onDone = onDone,
                         onBringBack = openBringBack,
                         onInterrupt = viewModel::interruptWith,
-                        onReorder = viewModel::reorderToday,
+                        onReorder = reorderToday,
                         onEdit = viewModel::openEdit,
                         onOpenSheet = viewModel::openTaskSheet,
                         showGestureHint = showGestureHint,
@@ -245,23 +277,25 @@ private fun NowCard(
     viewModel: FocusStackViewModel,
     onOpenFocus: () -> Unit,
     reducedMotion: Boolean,
-    onBringBack: (String, String) -> Unit,
     onCompleteActive: () -> Unit,
 ) {
     val now = state.now
     val recovery = state.recovery
     when {
         now != null -> {
-            val accent = FocusColors.Live.Lavender
+            val accent = FocusColors.Live.Now
             val label = nowLabel(now)
             val openInteraction = rememberPressSource()
-            val bringBackLabel = stringResource(R.string.action_bring_back)
+            val swipes = todayRowSwipes(SlotRole.NOW, somethingCurrent = true)
             SwipeRevealCard(
-                towardStart = doneSwipe(onCompleteActive),
+                towardStart =
+                swipes.right.side(
+                    onDone = onCompleteActive,
+                ),
                 towardEnd =
-                bringBackSwipe {
-                    onBringBack(now.taskId, now.title)
-                },
+                swipes.left.side(
+                    onInterrupt = { viewModel.openCapture(interrupts = true) },
+                ),
                 reducedMotion = reducedMotion,
                 onLongPress = { viewModel.openTaskSheet(now.taskId) },
                 extraActions =
@@ -270,29 +304,16 @@ private fun NowCard(
                         onCompleteActive()
                         true
                     },
-                    CustomAccessibilityAction(bringBackLabel) {
-                        onBringBack(now.taskId, now.title)
-                        true
-                    },
                     CustomAccessibilityAction(stringResource(R.string.action_edit)) {
                         viewModel.openEdit(now.taskId)
                         true
                     },
                 ),
+                cornerRadius = HomeMetrics.NowRadius,
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Surface(
-                    modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .semantics { contentDescription = "$label. ${now.title}. Opens focus." }
-                        .pressScale(openInteraction)
-                        .clickable(
-                            interactionSource = openInteraction,
-                            indication = null,
-                            role = Role.Button,
-                            onClick = onOpenFocus,
-                        ),
+                    modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(HomeMetrics.NowRadius),
                     color = FocusColors.Live.Surface,
                     border = BorderStroke(HomeMetrics.NowBorder, accent),
@@ -303,24 +324,49 @@ private fun NowCard(
                             vertical = HomeMetrics.NowPaddingVertical,
                         ),
                     ) {
-                        Text(
-                            label,
-                            color = accent,
-                            style = HomeMetrics.NowLabel,
-                            modifier = Modifier.padding(bottom = HomeMetrics.NowLabelBottom),
-                        )
-                        Text(
-                            now.title,
-                            style = HomeMetrics.NowTitle,
-                            color = FocusColors.Live.Text,
-                            modifier = Modifier.padding(bottom = HomeMetrics.NowTitleBottom),
-                        )
-                        ElapsedText(
-                            accumulatedMillis = now.accumulatedMillis,
-                            startedAtEpochMillis = now.startedAtEpochMillis,
-                            running = true,
-                            clock = true,
-                        )
+                        Column(
+                            Modifier
+                                .fillMaxWidth()
+                                .semantics { contentDescription = "$label. ${now.title}. Opens focus." }
+                                .pressScale(openInteraction)
+                                .clickable(
+                                    interactionSource = openInteraction,
+                                    indication = null,
+                                    role = Role.Button,
+                                    onClick = onOpenFocus,
+                                ),
+                        ) {
+                            Text(
+                                label,
+                                color = accent,
+                                style = HomeMetrics.NowLabel,
+                                modifier = Modifier.padding(bottom = HomeMetrics.NowLabelBottom),
+                            )
+                            Text(
+                                now.title,
+                                style = HomeMetrics.NowTitle,
+                                color = FocusColors.Live.Text,
+                                modifier = Modifier.padding(bottom = HomeMetrics.NowTitleBottom),
+                            )
+                            ElapsedText(
+                                accumulatedMillis = now.accumulatedMillis,
+                                startedAtEpochMillis = now.startedAtEpochMillis,
+                                running = true,
+                                clock = true,
+                            )
+                        }
+                        CardActions(Modifier.padding(top = HomeMetrics.SlotGap)) {
+                            AccentButton(
+                                label = stringResource(R.string.action_interrupt),
+                                tone = AccentTone.Lavender,
+                                onClick = { viewModel.openCapture(interrupts = true) },
+                            )
+                            AccentButton(
+                                label = stringResource(R.string.action_done),
+                                tone = AccentTone.Mint,
+                                onClick = viewModel::completeActive,
+                            )
+                        }
                     }
                 }
             }
@@ -363,6 +409,13 @@ private fun NowCard(
                             color = FocusColors.Live.Text,
                             modifier = Modifier.padding(top = HomeMetrics.NowLabelBottom),
                         )
+                        CardActions(Modifier.padding(top = HomeMetrics.SlotGap)) {
+                            AccentButton(
+                                label = stringResource(R.string.action_resume),
+                                tone = AccentTone.Mint,
+                                onClick = { viewModel.start(paused.taskId) },
+                            )
+                        }
                     }
                 }
             }
@@ -394,12 +447,13 @@ internal fun TodaySection(
     onEdit: (String) -> Unit,
     onOpenSheet: (String) -> Unit,
     showHeader: Boolean = true,
-    showGestureHint: Boolean = false,
     layout: HomeLayout = HomeLayout.FLAT,
     todayTaskIds: Set<String> = filled.map { it.second.id }.toSet(),
+    showGestureHint: Boolean = false,
 ) {
     val drag = remember { TodayDragState() }
     var rows by remember { mutableStateOf(filled) }
+    val switching = rememberSwitchingRows(filled, reducedMotion)
     var snapToken by remember { mutableIntStateOf(0) }
     val scope = rememberCoroutineScope()
     LaunchedEffect(filled) {
@@ -452,7 +506,10 @@ internal fun TodaySection(
                 )
             }
         }
-        rows.forEachIndexed { index, (slot, task) ->
+        switching.forEach { switchingRow ->
+            val slot = switchingRow.slot
+            val task = switchingRow.task
+            val index = rows.indexOfFirst { it.second.id == task.id }.coerceAtLeast(0)
             key(task.id) {
                 val targetShift =
                     when {
@@ -495,43 +552,50 @@ internal fun TodaySection(
                     animationSpec = motionSpec(MotionSpec.LiftMillis, reducedMotion),
                     label = "todayLift",
                 )
-                Box(
-                    Modifier
-                        .zIndex(if (lifted) 1f else 0f)
-                        .onGloballyPositioned { coordinates ->
-                            val height = coordinates.size.height.toFloat()
-                            if (height > 1f) drag.rowHeight = height
-                        }
-                        .offset { IntOffset(0, shift.roundToInt()) }
-                        .graphicsLayer {
-                            val scale = if (reducedMotion) 1f else 1f + (MotionSpec.LiftScale - 1f) * lift
-                            scaleX = scale
-                            scaleY = scale
-                        },
+                SwitchingRowHost(
+                    present = switchingRow.present,
+                    fresh = switchingRow.fresh,
+                    reducedMotion = reducedMotion,
                 ) {
-                    TodayRow(
-                        index = index,
-                        slot = slot,
-                        task = task,
-                        lift = if (reducedMotion) if (lifted) 1f else 0f else lift,
-                        reducedMotion = reducedMotion,
-                        somethingCurrent = somethingCurrent,
-                        reorderActions = reorderActions,
-                        layout = layout,
-                        todayLimit = todayLimit,
-                        pinnedToToday = task.id in todayTaskIds,
-                        onOpen = onOpenFocus,
-                        onStart = { onStart(task.id) },
-                        onDone = { onDone(task.id) },
-                        onBringBack = { onBringBack(task.id, task.title) },
-                        onInterrupt = { onInterrupt(task.id) },
-                        onEdit = { onEdit(task.id) },
-                        onOpenSheet = { onOpenSheet(task.id) },
-                        onDragStart = { drag.begin(task.id) },
-                        onDragBy = drag::dragBy,
-                        onDragEnd = { settle(commitNearest = true) },
-                        onDragCancel = { settle(commitNearest = false) },
-                    )
+                    Box(
+                        Modifier
+                            .zIndex(if (lifted) 1f else 0f)
+                            .onGloballyPositioned { coordinates ->
+                                val height = coordinates.size.height.toFloat()
+                                if (height > 1f && switchingRow.present) drag.rowHeight = height
+                            }
+                            .offset { IntOffset(0, shift.roundToInt()) }
+                            .graphicsLayer {
+                                val scale = if (reducedMotion) 1f else 1f + (MotionSpec.LiftScale - 1f) * lift
+                                scaleX = scale
+                                scaleY = scale
+                            },
+                    ) {
+                        TodayRow(
+                            index = index,
+                            slot = slot,
+                            task = task,
+                            lift = if (reducedMotion) if (lifted) 1f else 0f else lift,
+                            reducedMotion = reducedMotion,
+                            somethingCurrent = somethingCurrent,
+                            reorderActions = reorderActions,
+                            layout = layout,
+                            todayLimit = todayLimit,
+                            pinnedToToday = task.id in todayTaskIds,
+                            onOpen = onOpenFocus,
+                            onStart = { onStart(task.id) },
+                            onDone = { onDone(task.id) },
+                            onBringBack = { onBringBack(task.id, task.title) },
+                            onInterrupt = { onInterrupt(task.id) },
+                            onEdit = { onEdit(task.id) },
+                            onOpenSheet = { onOpenSheet(task.id) },
+                            onDragStart = { drag.begin(task.id) },
+                            onDragBy = drag::dragBy,
+                            onDragEnd = { settle(commitNearest = true) },
+                            onDragCancel = { settle(commitNearest = false) },
+                            interactive = switchingRow.present,
+                        )
+                    }
                 }
             }
         }
@@ -539,6 +603,110 @@ internal fun TodaySection(
             EmptyTodaySlot(layout = layout)
         }
     }
+}
+
+private data class SwitchingRow(
+    val slot: SlotUi,
+    val task: TaskUi,
+    val present: Boolean,
+    val fresh: Boolean,
+)
+
+@Composable
+private fun rememberSwitchingRows(
+    filled: List<Pair<SlotUi, TaskUi>>,
+    reducedMotion: Boolean,
+): List<SwitchingRow> {
+    var shown by remember {
+        mutableStateOf(filled.map { SwitchingRow(it.first, it.second, present = true, fresh = false) })
+    }
+    LaunchedEffect(filled, reducedMotion) {
+        if (reducedMotion) {
+            shown = filled.map { SwitchingRow(it.first, it.second, present = true, fresh = false) }
+            return@LaunchedEffect
+        }
+        val next = mergeSwitchingRows(shown, filled)
+        shown = next
+        if (next.any { !it.present }) {
+            delay(MotionSpec.ReorderMillis.toLong())
+            shown = filled.map { SwitchingRow(it.first, it.second, present = true, fresh = false) }
+        }
+    }
+    return shown
+}
+
+private fun mergeSwitchingRows(
+    previous: List<SwitchingRow>,
+    filled: List<Pair<SlotUi, TaskUi>>,
+): List<SwitchingRow> {
+    val nextIds = filled.map { it.second.id }.toSet()
+    val prevPresent = previous.filter { it.present }
+    val leaving = prevPresent.filter { it.task.id !in nextIds }
+    if (leaving.isEmpty() && prevPresent.map { it.task.id } == filled.map { it.second.id }) {
+        return filled.map { (slot, task) -> SwitchingRow(slot, task, present = true, fresh = false) }
+    }
+    if (leaving.isEmpty()) {
+        val previousIds = prevPresent.map { it.task.id }.toSet()
+        return filled.map { (slot, task) ->
+            SwitchingRow(slot, task, present = true, fresh = task.id !in previousIds)
+        }
+    }
+    val result = mutableListOf<SwitchingRow>()
+    var nextCursor = 0
+    prevPresent.forEach { row ->
+        if (row.task.id !in nextIds) {
+            result += row.copy(present = false, fresh = false)
+            return@forEach
+        }
+        while (nextCursor < filled.size && filled[nextCursor].second.id != row.task.id) {
+            val (slot, task) = filled[nextCursor]
+            result += SwitchingRow(slot, task, present = true, fresh = true)
+            nextCursor++
+        }
+        if (nextCursor < filled.size) {
+            val (slot, task) = filled[nextCursor]
+            result += SwitchingRow(slot, task, present = true, fresh = false)
+            nextCursor++
+        }
+    }
+    while (nextCursor < filled.size) {
+        val (slot, task) = filled[nextCursor]
+        result += SwitchingRow(slot, task, present = true, fresh = true)
+        nextCursor++
+    }
+    return result
+}
+
+@Composable
+private fun SwitchingRowHost(
+    present: Boolean,
+    fresh: Boolean,
+    reducedMotion: Boolean,
+    content: @Composable () -> Unit,
+) {
+    var visible by remember { mutableStateOf(!fresh || reducedMotion) }
+    LaunchedEffect(present) { visible = present }
+    AnimatedVisibility(
+        visible = visible,
+        enter = rowEnter(reducedMotion),
+        exit = rowExit(reducedMotion),
+    ) {
+        content()
+    }
+}
+
+private fun rowEnter(reducedMotion: Boolean): EnterTransition = if (reducedMotion) {
+    EnterTransition.None
+} else {
+    fadeIn(tween(MotionSpec.ReorderMillis, easing = MotionSpec.EaseOut)) +
+        expandVertically(tween(MotionSpec.ReorderMillis, easing = MotionSpec.EaseOut))
+}
+
+private fun rowExit(reducedMotion: Boolean): ExitTransition = if (reducedMotion) {
+    ExitTransition.None
+} else {
+    fadeOut(tween(MotionSpec.ReorderMillis, easing = MotionSpec.EaseOut)) +
+        shrinkVertically(tween(MotionSpec.ReorderMillis, easing = MotionSpec.EaseOut))
 }
 
 @Composable
@@ -658,8 +826,9 @@ private fun TodayRow(
     onDragBy: (Float) -> Unit,
     onDragEnd: () -> Unit,
     onDragCancel: () -> Unit,
+    interactive: Boolean = true,
 ) {
-    val opensSheet = slot.role == SlotRole.OPEN || slot.role == SlotRole.WAITING
+    val opensSheet = interactive && (slot.role == SlotRole.OPEN || slot.role == SlotRole.WAITING)
     val roleName = slot.role.name.lowercase()
     val description =
         if (opensSheet) {
@@ -668,48 +837,39 @@ private fun TodayRow(
             stringResource(R.string.home_row_desc, index + 1, roleName, task.title)
         }
     val openInteraction = rememberPressSource()
-    val bringBackLabel = stringResource(R.string.action_bring_back)
+    val swipes = if (interactive) todayRowSwipes(slot.role, somethingCurrent) else RowSwipeSides(RowSwipe.None, RowSwipe.None)
     SwipeRevealCard(
-        towardStart = doneSwipe(onDone),
-        towardEnd = bringBackSwipe(onBringBack),
+        towardStart =
+        swipes.right.side(
+            onDone = onDone,
+            onStart = onStart,
+            onInterrupt = onInterrupt,
+            onBringBack = onBringBack,
+        ),
+        towardEnd =
+        swipes.left.side(
+            onDone = onDone,
+            onStart = onStart,
+            onInterrupt = onInterrupt,
+            onBringBack = onBringBack,
+        ),
         reducedMotion = reducedMotion,
-        onReorderDragStart = onDragStart,
-        onReorderDrag = onDragBy,
-        onReorderDragEnd = onDragEnd,
-        onReorderDragCancel = onDragCancel,
-        onLongPress = onOpenSheet,
+        onReorderDragStart = if (interactive) onDragStart else null,
+        onReorderDrag = if (interactive) onDragBy else null,
+        onReorderDragEnd = if (interactive) onDragEnd else null,
+        onReorderDragCancel = if (interactive) onDragCancel else null,
+        onLongPress = if (interactive) onOpenSheet else null,
         extraActions =
-        reorderActions +
-            CustomAccessibilityAction(stringResource(R.string.action_done)) {
-                onDone()
-                true
-            } +
-            listOfNotNull(
-                if (slot.role == SlotRole.OPEN) {
-                    CustomAccessibilityAction(stringResource(R.string.action_start)) {
-                        onStart()
-                        true
-                    }
-                } else {
-                    null
-                },
-                if (slot.role == SlotRole.OPEN && somethingCurrent) {
-                    CustomAccessibilityAction(stringResource(R.string.action_interrupt)) {
-                        onInterrupt()
-                        true
-                    }
-                } else {
-                    null
-                },
-            ) +
-            CustomAccessibilityAction(bringBackLabel) {
-                onBringBack()
-                true
-            } +
-            CustomAccessibilityAction(stringResource(R.string.action_edit)) {
-                onEdit()
-                true
-            },
+        if (interactive) {
+            reorderActions +
+                CustomAccessibilityAction(stringResource(R.string.action_edit)) {
+                    onEdit()
+                    true
+                }
+        } else {
+            emptyList()
+        },
+        cornerRadius = layout.taskRadius(),
         modifier = Modifier.fillMaxWidth(),
     ) {
         Surface(
@@ -751,7 +911,7 @@ private fun TodayRow(
                         horizontal = layout.taskPaddingHorizontal(),
                         vertical = layout.taskPaddingVertical(),
                     ),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
@@ -767,6 +927,8 @@ private fun TodayRow(
                     trailing.text,
                     style = if (layout == HomeLayout.FLAT) HomeMetrics.SlotChevron else HomeMetrics.RowTag,
                     color = trailing.color,
+                    maxLines = 1,
+                    softWrap = false,
                 )
             }
         }
@@ -828,10 +990,10 @@ private fun compactTrailing(
     pinnedToToday: Boolean,
 ): CompactTrailing {
     if (layout == HomeLayout.FLAT) {
-        return CompactTrailing("›", FocusColors.Live.Lavender)
+        return CompactTrailing("›", FocusColors.Live.Now)
     }
     if (pinnedToToday) {
-        return CompactTrailing(stringResource(R.string.home_task_pin, todayLimit), FocusColors.Live.Lavender)
+        return CompactTrailing(stringResource(R.string.home_task_pin, todayLimit), FocusColors.Live.Now)
     }
     val minute = task.scheduledAtMinuteOfDay
     if (minute != null) {

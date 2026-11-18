@@ -84,7 +84,7 @@ class RepeatHomeSpecTest {
             compose.onNodeWithText("Take meds", useUnmergedTree = true).performScrollTo()
             compose.onNodeWithText("Take meds", useUnmergedTree = true).performTouchInput { click(center) }
             await {
-                env.viewModel.repeatRows.value.rows.single().status == RepeatDayStatus.DONE &&
+                env.viewModel.repeatRows.value.rows.singleOrNull()?.status == RepeatDayStatus.DONE &&
                     env.viewModel.uiState.value.undo?.target is UndoTarget.RepeatCheckOff
             }
             val undo = env.viewModel.uiState.value.undo
@@ -98,7 +98,7 @@ class RepeatHomeSpecTest {
             compose.onNodeWithText("Undo").assertExists()
             compose.onNodeWithText("Undo").performTouchInput { click(center) }
             await {
-                env.viewModel.repeatRows.value.rows.single().status == RepeatDayStatus.OPEN &&
+                env.viewModel.repeatRows.value.rows.singleOrNull()?.status == RepeatDayStatus.OPEN &&
                     env.viewModel.uiState.value.undo == null
             }
             compose.onNodeWithContentDescription("Take meds. Morning. daily. Check off.").assertExists()
@@ -127,12 +127,12 @@ class RepeatHomeSpecTest {
             tapDescription("Water plants. Missed at noon. Check off.")
             await {
                 env.viewModel.missedRepeatSheet.value?.title == "Water plants" &&
-                    env.viewModel.repeatRows.value.rows.single().status == RepeatDayStatus.MISSED
+                    env.viewModel.repeatRows.value.rows.singleOrNull()?.status == RepeatDayStatus.MISSED
             }
             compose.onNodeWithText("This one was missed.").assertExists()
             compose.onNodeWithText("Done now").performTouchInput { click(center) }
             await {
-                env.viewModel.repeatRows.value.rows.single().status == RepeatDayStatus.DONE &&
+                env.viewModel.repeatRows.value.rows.singleOrNull()?.status == RepeatDayStatus.DONE &&
                     env.viewModel.uiState.value.undo?.target is UndoTarget.RepeatCheckOff
             }
             val log = runOffTestThread { env.database.repeatLogDao().get(id, today) }
@@ -141,7 +141,7 @@ class RepeatHomeSpecTest {
             assertEquals(RepeatDayStatus.MISSED, (undo.target as UndoTarget.RepeatCheckOff).restore)
             env.viewModel.undo(undo.id)
             await {
-                env.viewModel.repeatRows.value.rows.single().status == RepeatDayStatus.MISSED &&
+                env.viewModel.repeatRows.value.rows.singleOrNull()?.status == RepeatDayStatus.MISSED &&
                     env.viewModel.uiState.value.undo == null
             }
             assertEquals(
@@ -180,7 +180,7 @@ class RepeatHomeSpecTest {
             await {
                 env.viewModel.uiState.value.ready &&
                     env.viewModel.repeatRows.value.rows.map { it.repeat.title } == listOf("Take meds") &&
-                    env.viewModel.repeatRows.value.rows.single().status == RepeatDayStatus.OPEN
+                    env.viewModel.repeatRows.value.rows.singleOrNull()?.status == RepeatDayStatus.OPEN
             }
             val rows = env.viewModel.repeatRows.value.rows
             assertEquals(listOf("Take meds"), rows.map { it.repeat.title })
