@@ -11,16 +11,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.SemanticsActions
-import androidx.compose.ui.test.assertHasClickAction
-import androidx.compose.ui.test.assertIsEnabled
-import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.text.TextLayoutResult
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.backpin.focus.domain.CapturePlace
 import app.backpin.focus.ui.TaskUi
@@ -50,16 +45,16 @@ class EditFlowVisualTest {
     val compose = createAndroidComposeRule<ComponentActivity>()
 
     @Test
-    fun inboxEditIsAQuietCardActionAndTitleLeads() {
+    fun inboxTitleLeadsAndChipRowIsGone() {
         showInbox("Call the bank about card", "Buy printer ink")
         assertEquals(22.sp, fontSizeOf("Call the bank about card"))
         assertEquals(22.sp, fontSizeOf("Buy printer ink"))
-        val edit = nearest("Edit", "Call the bank about card").getBoundsInRoot()
-        val today = nearest("Today", "Call the bank about card").getBoundsInRoot()
-        assertTrue("Edit is ${edit.bottom - edit.top} tall", edit.bottom - edit.top >= 48.dp)
-        assertTrue("Today touch target is ${today.bottom - today.top} tall", today.bottom - today.top >= 48.dp)
-        assertEquals(FocusColors.Text, firstLabelColor("Edit"))
-        nearest("Edit", "Call the bank about card").assertIsEnabled().assertHasClickAction()
+        listOf("Today", "Start", "Interrupt", "Edit").forEach { label ->
+            assertTrue(
+                "$label chip must not appear on the resting card",
+                compose.onAllNodesWithText(label).fetchSemanticsNodes().isEmpty(),
+            )
+        }
     }
 
     @Test
@@ -192,25 +187,7 @@ class EditFlowVisualTest {
         return File("app/build/outputs/screenshots").apply { mkdirs() }
     }
 
-    private fun nearest(
-        label: String,
-        beside: String,
-    ) = compose.onAllNodesWithText(label).let { nodes ->
-        val anchor = compose.onNodeWithText(beside).fetchSemanticsNode().boundsInRoot.top
-        val found = nodes.fetchSemanticsNodes()
-        nodes[found.indices.minBy { kotlin.math.abs(found[it].boundsInRoot.top - anchor) }]
-    }
-
     private fun fontSizeOf(text: String) = textLayout(text).layoutInput.style.fontSize
-
-    private fun firstLabelColor(text: String): Color {
-        val layouts = mutableListOf<TextLayoutResult>()
-        compose.onAllNodesWithText(text, useUnmergedTree = true)[0].fetchSemanticsNode()
-            .config[SemanticsActions.GetTextLayoutResult]
-            .action
-            ?.invoke(layouts)
-        return layouts.single().layoutInput.style.color
-    }
 
     private fun textLayout(text: String): TextLayoutResult {
         val layouts = mutableListOf<TextLayoutResult>()

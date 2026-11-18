@@ -26,6 +26,7 @@ import androidx.test.core.app.ApplicationProvider
 import app.backpin.focus.data.FocusRepositoryImpl
 import app.backpin.focus.data.FocusStackDatabase
 import app.backpin.focus.data.PreferencesDataStore
+import app.backpin.focus.data.skipGestureTeaching
 import app.backpin.focus.domain.FocusSnapshot
 import app.backpin.focus.domain.FocusUseCases
 import app.backpin.focus.domain.FrameState
@@ -315,7 +316,9 @@ class TaskSheetTapTest {
             FocusUseCases(
                 FocusRepositoryImpl(
                     database = database,
-                    preferencesStore = PreferencesDataStore(context, "task-sheet-${UUID.randomUUID()}"),
+                    preferencesStore = PreferencesDataStore(context, "task-sheet-${UUID.randomUUID()}").also {
+                        runBlocking { it.skipGestureTeaching() }
+                    },
                     clock = clock,
                 ),
             )

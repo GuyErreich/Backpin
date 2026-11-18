@@ -10,6 +10,7 @@ import androidx.work.WorkManager
 import app.backpin.focus.data.FocusRepositoryImpl
 import app.backpin.focus.data.FocusStackDatabase
 import app.backpin.focus.data.PreferencesDataStore
+import app.backpin.focus.data.skipGestureTeaching
 import app.backpin.focus.domain.ExactAlarmAccess
 import app.backpin.focus.domain.FocusSnapshot
 import app.backpin.focus.domain.FocusUseCases
@@ -27,6 +28,7 @@ import app.backpin.focus.ui.FocusUiState
 import app.backpin.focus.ui.deriveFocusUi
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.runBlocking
 import org.junit.rules.ExternalResource
 import java.time.ZoneId
 import java.util.UUID
@@ -146,6 +148,8 @@ class TestFocusFixture private constructor(
         ): TestFocusFixture {
             val database = inMemoryFocusDatabase(context)
             val preferences = PreferencesDataStore(context, preferencesName)
+            // Skip first-run gesture UI so Home tests exercise the list, not the intro.
+            runBlocking { preferences.skipGestureTeaching() }
             val repository = FocusRepositoryImpl(database, preferences, clock)
             val useCases = FocusUseCases(repository, wakeUp)
             val repeats =

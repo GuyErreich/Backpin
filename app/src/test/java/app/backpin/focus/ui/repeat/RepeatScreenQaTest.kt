@@ -28,6 +28,7 @@ import app.backpin.focus.R
 import app.backpin.focus.data.FocusRepositoryImpl
 import app.backpin.focus.data.FocusStackDatabase
 import app.backpin.focus.data.PreferencesDataStore
+import app.backpin.focus.data.skipGestureTeaching
 import app.backpin.focus.domain.AppClock
 import app.backpin.focus.domain.BandTimes
 import app.backpin.focus.domain.FocusUseCases
@@ -46,6 +47,7 @@ import app.backpin.focus.ui.settings.SettingsScreen
 import app.backpin.focus.ui.theme.FocusColors
 import app.backpin.focus.ui.theme.FocusStackTheme
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -357,10 +359,12 @@ class RepeatScreenQaTest {
                 .allowMainThreadQueries()
                 .build()
         val clock = clockAt(hour)
+        val preferences = PreferencesDataStore(context, "repeat-qa-${UUID.randomUUID()}")
+        runBlocking { preferences.skipGestureTeaching() }
         val repository =
             FocusRepositoryImpl(
                 database = database,
-                preferencesStore = PreferencesDataStore(context, "repeat-qa-${UUID.randomUUID()}"),
+                preferencesStore = preferences,
                 clock = clock,
             )
         val useCases = FocusUseCases(repository)

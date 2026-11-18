@@ -119,116 +119,142 @@ fun HomeScreen(
     val reorderToday: (List<String>) -> Unit = { visibleOrder ->
         viewModel.reorderToday(insertHiddenHead(fullIds, visibleOrder, hiddenId))
     }
-    val openBringBack: (String, String) -> Unit = viewModel::openBringBack
+    val showGestureHint =
+        !state.preferences.gestureHintRightSeen || !state.preferences.gestureHintLeftSeen
+    val openBringBack: (String, String) -> Unit = { id, title ->
+        viewModel.markGestureHintLeftSeen()
+        viewModel.openBringBack(id, title)
+    }
+    val onDone: (String) -> Unit = { id ->
+        viewModel.markGestureHintRightSeen()
+        viewModel.markDone(id)
+    }
+    val onCompleteActive: () -> Unit = {
+        viewModel.markGestureHintRightSeen()
+        viewModel.completeActive()
+    }
 
-    Column(
-        modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(
-                start = HomeMetrics.PageHorizontal,
-                end = HomeMetrics.PageHorizontal,
-                top = HomeMetrics.PageVertical,
-                bottom = HomeMetrics.ListBottom,
-            ),
-    ) {
-        Column {
-            Text(
-                text = stringResource(R.string.home_eyebrow),
-                style = HomeMetrics.Eyebrow,
-                color = FocusColors.Live.Muted,
-                modifier = Modifier.padding(top = HomeMetrics.EyebrowTop, bottom = HomeMetrics.EyebrowBottom),
-            )
-            Text(
-                text = stringResource(R.string.home_title),
-                style = HomeMetrics.ScreenTitle,
-                color = FocusColors.Live.Text,
-                modifier =
-                Modifier
-                    .padding(bottom = HomeMetrics.TitleBottom)
-                    .semantics { heading() },
-            )
-        }
-        if (!state.ready) {
-            Text(stringResource(R.string.home_loading), style = MaterialTheme.typography.bodyLarge)
-        } else {
-            AnimatedContent(
-                targetState = state.now,
-                contentKey = { it?.taskId },
-                transitionSpec = { rowEnter(reducedMotion) togetherWith rowExit(reducedMotion) },
-                label = "focusHead",
-            ) { current ->
-                NowCard(state.copy(now = current), viewModel, onOpenFocus, reducedMotion)
-            }
-            if (grouped) {
-                HomeBandsSection(
-                    bands = homeBands,
-                    filled = filled,
-                    hasRoom = hasRoom,
-                    todayLimit = todayLimit,
-                    reducedMotion = reducedMotion,
-                    somethingCurrent = state.now != null,
-                    onOpenFocus = onOpenFocus,
-                    onStart = viewModel::start,
-                    onDone = viewModel::markDone,
-                    onBringBack = openBringBack,
-                    onInterrupt = viewModel::interruptWith,
-                    onReorder = reorderToday,
-                    onEditTask = viewModel::openEdit,
-                    onOpenSheet = viewModel::openTaskSheet,
-                    onCheckOffRepeat = { row ->
-                        if (row.status != RepeatDayStatus.DONE) {
-                            viewModel.markRepeatDone(row.repeat.id, row.epochDay)
-                        }
-                    },
-                    onOpenMissedRepeat = { row ->
-                        viewModel.openMissedRepeat(row.repeat.id, row.epochDay)
-                    },
-                    onUndoRepeat = { row ->
-                        viewModel.undoRepeatDone(row.repeat.id, row.epochDay)
-                    },
-                    onEditRepeat = viewModel::openRepeatEdit,
+    Box(modifier.fillMaxSize()) {
+        Column(
+            Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(
+                    start = HomeMetrics.PageHorizontal,
+                    end = HomeMetrics.PageHorizontal,
+                    top = HomeMetrics.PageVertical,
+                    bottom = HomeMetrics.ListBottom,
+                ),
+        ) {
+            Column {
+                Text(
+                    text = stringResource(R.string.home_eyebrow),
+                    style = HomeMetrics.Eyebrow,
+                    color = FocusColors.Live.Muted,
+                    modifier = Modifier.padding(top = HomeMetrics.EyebrowTop, bottom = HomeMetrics.EyebrowBottom),
                 )
+                Text(
+                    text = stringResource(R.string.home_title),
+                    style = HomeMetrics.ScreenTitle,
+                    color = FocusColors.Live.Text,
+                    modifier =
+                    Modifier
+                        .padding(bottom = HomeMetrics.TitleBottom)
+                        .semantics { heading() },
+                )
+            }
+            if (!state.ready) {
+                Text(stringResource(R.string.home_loading), style = MaterialTheme.typography.bodyLarge)
             } else {
-                TodaySection(
-                    filled = filled,
-                    hasRoom = hasRoom,
-                    todayLimit = todayLimit,
-                    reducedMotion = reducedMotion,
-                    onOpenFocus = onOpenFocus,
-                    somethingCurrent = state.now != null,
-                    onStart = viewModel::start,
-                    onDone = viewModel::markDone,
-                    onBringBack = openBringBack,
-                    onInterrupt = viewModel::interruptWith,
-                    onReorder = reorderToday,
-                    onEdit = viewModel::openEdit,
-                    onOpenSheet = viewModel::openTaskSheet,
-                )
-                RepeatSection(
-                    rows = repeatRows,
-                    reducedMotion = reducedMotion,
-                    onCheckOff = { row ->
-                        if (row.status != RepeatDayStatus.DONE) {
-                            viewModel.markRepeatDone(row.repeat.id, row.epochDay)
-                        }
-                    },
-                    onOpenMissed = { row ->
-                        viewModel.openMissedRepeat(row.repeat.id, row.epochDay)
-                    },
-                    onUndo = { row ->
-                        viewModel.undoRepeatDone(row.repeat.id, row.epochDay)
-                    },
-                    onEdit = viewModel::openRepeatEdit,
-                    onCreate = { viewModel.openRepeatCreate() },
+                AnimatedContent(
+                    targetState = state.now,
+                    contentKey = { it?.taskId },
+                    transitionSpec = { rowEnter(reducedMotion) togetherWith rowExit(reducedMotion) },
+                    label = "focusHead",
+                ) { current ->
+                    NowCard(
+                        state.copy(now = current),
+                        viewModel,
+                        onOpenFocus,
+                        reducedMotion,
+                        onCompleteActive,
+                    )
+                }
+                if (grouped) {
+                    HomeBandsSection(
+                        bands = homeBands,
+                        filled = filled,
+                        hasRoom = hasRoom,
+                        todayLimit = todayLimit,
+                        reducedMotion = reducedMotion,
+                        somethingCurrent = state.now != null,
+                        onOpenFocus = onOpenFocus,
+                        onStart = viewModel::start,
+                        onDone = onDone,
+                        onBringBack = openBringBack,
+                        onInterrupt = viewModel::interruptWith,
+                        onReorder = reorderToday,
+                        onEditTask = viewModel::openEdit,
+                        onOpenSheet = viewModel::openTaskSheet,
+                        onCheckOffRepeat = { row ->
+                            if (row.status != RepeatDayStatus.DONE) {
+                                viewModel.markRepeatDone(row.repeat.id, row.epochDay)
+                            }
+                        },
+                        onOpenMissedRepeat = { row ->
+                            viewModel.openMissedRepeat(row.repeat.id, row.epochDay)
+                        },
+                        onUndoRepeat = { row ->
+                            viewModel.undoRepeatDone(row.repeat.id, row.epochDay)
+                        },
+                        onEditRepeat = viewModel::openRepeatEdit,
+                        showGestureHint = showGestureHint,
+                    )
+                } else {
+                    TodaySection(
+                        filled = filled,
+                        hasRoom = hasRoom,
+                        todayLimit = todayLimit,
+                        reducedMotion = reducedMotion,
+                        onOpenFocus = onOpenFocus,
+                        somethingCurrent = state.now != null,
+                        onStart = viewModel::start,
+                        onDone = onDone,
+                        onBringBack = openBringBack,
+                        onInterrupt = viewModel::interruptWith,
+                        onReorder = reorderToday,
+                        onEdit = viewModel::openEdit,
+                        onOpenSheet = viewModel::openTaskSheet,
+                        showGestureHint = showGestureHint,
+                    )
+                    RepeatSection(
+                        rows = repeatRows,
+                        reducedMotion = reducedMotion,
+                        onCheckOff = { row ->
+                            if (row.status != RepeatDayStatus.DONE) {
+                                viewModel.markRepeatDone(row.repeat.id, row.epochDay)
+                            }
+                        },
+                        onOpenMissed = { row ->
+                            viewModel.openMissedRepeat(row.repeat.id, row.epochDay)
+                        },
+                        onUndo = { row ->
+                            viewModel.undoRepeatDone(row.repeat.id, row.epochDay)
+                        },
+                        onEdit = viewModel::openRepeatEdit,
+                        onCreate = { viewModel.openRepeatCreate() },
+                    )
+                }
+                Text(
+                    text = stringResource(R.string.home_missed_footer),
+                    style = HomeMetrics.NowTime,
+                    color = FocusColors.Live.Muted,
+                    modifier = Modifier.padding(top = HomeMetrics.FlatHeaderTop),
                 )
             }
-            Text(
-                text = stringResource(R.string.home_missed_footer),
-                style = HomeMetrics.NowTime,
-                color = FocusColors.Live.Muted,
-                modifier = Modifier.padding(top = HomeMetrics.FlatHeaderTop),
-            )
+        }
+        if (state.ready && !state.preferences.gesturesIntroSeen) {
+            GesturesIntroOverlay(onFinished = viewModel::markGesturesIntroSeen)
         }
     }
 }
@@ -251,6 +277,7 @@ private fun NowCard(
     viewModel: FocusStackViewModel,
     onOpenFocus: () -> Unit,
     reducedMotion: Boolean,
+    onCompleteActive: () -> Unit,
 ) {
     val now = state.now
     val recovery = state.recovery
@@ -263,7 +290,7 @@ private fun NowCard(
             SwipeRevealCard(
                 towardStart =
                 swipes.right.side(
-                    onDone = viewModel::completeActive,
+                    onDone = onCompleteActive,
                 ),
                 towardEnd =
                 swipes.left.side(
@@ -273,6 +300,10 @@ private fun NowCard(
                 onLongPress = { viewModel.openTaskSheet(now.taskId) },
                 extraActions =
                 listOf(
+                    CustomAccessibilityAction(stringResource(R.string.action_done)) {
+                        onCompleteActive()
+                        true
+                    },
                     CustomAccessibilityAction(stringResource(R.string.action_edit)) {
                         viewModel.openEdit(now.taskId)
                         true
@@ -418,6 +449,7 @@ internal fun TodaySection(
     showHeader: Boolean = true,
     layout: HomeLayout = HomeLayout.FLAT,
     todayTaskIds: Set<String> = filled.map { it.second.id }.toSet(),
+    showGestureHint: Boolean = false,
 ) {
     val drag = remember { TodayDragState() }
     var rows by remember { mutableStateOf(filled) }
@@ -466,6 +498,13 @@ internal fun TodaySection(
                 modifier =
                 Modifier.padding(top = HomeMetrics.FlatHeaderTop),
             )
+            if (showGestureHint) {
+                Text(
+                    text = stringResource(R.string.home_gesture_hint),
+                    style = HomeMetrics.NowTime,
+                    color = FocusColors.Live.Muted,
+                )
+            }
         }
         switching.forEach { switchingRow ->
             val slot = switchingRow.slot

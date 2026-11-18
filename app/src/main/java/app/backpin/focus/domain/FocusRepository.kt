@@ -380,6 +380,15 @@ interface FocusRepository {
     /** Remembers that Settings dismissed the one-time exact-alarm prompt. */
     suspend fun dismissExactAlarmPrompt()
 
+    /** Marks the first-run gesture cards as seen, or clears them for a Settings replay. */
+    suspend fun setGesturesIntroSeen(seen: Boolean)
+
+    /** Marks that a right slide has taught the Home hint. */
+    suspend fun setGestureHintRightSeen(seen: Boolean)
+
+    /** Marks that a left slide has taught the Home hint. */
+    suspend fun setGestureHintLeftSeen(seen: Boolean)
+
     /** Holds a band nudge until the active focus frame ends, or clears the hold. */
     suspend fun setHeldBandNudge(
         band: RepeatBand?,
