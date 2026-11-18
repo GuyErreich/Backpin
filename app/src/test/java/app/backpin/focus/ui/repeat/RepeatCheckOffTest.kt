@@ -22,7 +22,6 @@ import app.backpin.focus.data.FocusRepositoryImpl
 import app.backpin.focus.data.FocusStackDatabase
 import app.backpin.focus.data.PreferencesDataStore
 import app.backpin.focus.data.skipGestureTeaching
-import kotlinx.coroutines.runBlocking
 import app.backpin.focus.domain.AppClock
 import app.backpin.focus.domain.FocusUseCases
 import app.backpin.focus.domain.RepeatBand
@@ -34,6 +33,7 @@ import app.backpin.focus.ui.UndoTarget
 import app.backpin.focus.ui.home.HomeScreen
 import app.backpin.focus.ui.theme.FocusStackTheme
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull

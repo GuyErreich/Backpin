@@ -20,7 +20,6 @@ import app.backpin.focus.domain.FocusUseCases
 import app.backpin.focus.domain.FrameState
 import app.backpin.focus.domain.TaskBucket
 import app.backpin.focus.testing.useTestFocus
-import app.backpin.focus.ui.FocusStackViewModel
 import app.backpin.focus.ui.TaskUi
 import app.backpin.focus.ui.capture.CaptureSheet
 import app.backpin.focus.ui.theme.FocusStackTheme
@@ -213,7 +212,7 @@ class CardLeadTest {
                 val snapshot = runBlocking { useCases.observeSnapshot().first() }
                 detail =
                     snapshot.tasks.joinToString { "${it.title}:${it.bucket}" } +
-                        " active=${activeTitle(snapshot)}"
+                    " active=${activeTitle(snapshot)}"
                 predicate(snapshot)
             }
         } catch (error: Throwable) {
